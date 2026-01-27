@@ -1,0 +1,11 @@
+name: ImpossbleEscapeMC
+version: '1.0-SNAPSHOT'
+main: com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC
+api-version: '1.21'
+
+commands:
+  getitem:
+    description: Get a special item.
+    usage: /getitem
+    permission: impossbleescapemc.getitem
+    permission-message: You do not have permission to use this command.
