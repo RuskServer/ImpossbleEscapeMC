@@ -451,15 +451,19 @@ public class GunListener implements Listener {
         private Vector velocity;
         private int ticksAlive = 0;
 
-        // 設定値 (後でYAMLから読み込めるようにすると良い)
-        private final double GRAVITY = 0.015; // 1ティックあたりの落下量
-        private final double SPEED = 6.0;    // 1ティックに進む距離
+        // 設定値
+        private final double GRAVITY = 0.015;
+        private final double SPEED = 6.0;
         private final int ammoClass;
 
-        public BulletTask(Player shooter, double damage,int ammoClass) {
+        private double distanceTraveled = 0;
+        private final double MAX_RANGE = 300.0; // 最大射程
+
+        public BulletTask(Player shooter, double damage, int ammoClass) {
             this.shooter = shooter;
             this.damage = damage;
             this.currentLoc = shooter.getEyeLocation();
+            // 初速の設定
             this.velocity = shooter.getEyeLocation().getDirection().multiply(SPEED);
             this.ammoClass = ammoClass;
         }
@@ -467,79 +471,81 @@ public class GunListener implements Listener {
         @Override
         public void run() {
             ticksAlive++;
-            if (ticksAlive > 200) { // 5秒経ったら消滅
+            // 寿命または最大射程で消滅
+            if (ticksAlive > 200 || distanceTraveled > MAX_RANGE) {
                 this.cancel();
                 return;
             }
 
-            // 前回の地点を保存
             Location prevLoc = currentLoc.clone();
 
-            // 重力の適用
+            // 1. 物理計算（重力）
             velocity.add(new Vector(0, -GRAVITY, 0));
-            currentLoc.add(velocity);
 
+            // 2. このティックの移動ベクトルと距離を確定
+            Vector currentTickVec = velocity.clone();
+            double currentTickDist = currentTickVec.length(); // 実際の移動距離
+            Vector direction = currentTickVec.clone().normalize(); // 正規化した方向
+
+            // 3. 当たり判定 (rayTraceの距離を正確に指定)
+            var rayTrace = currentLoc.getWorld().rayTrace(
+                    prevLoc,
+                    direction,     // 長さ1の方向ベクトル
+                    currentTickDist, // このティックで進む正確な距離
+                    FluidCollisionMode.NEVER,
+                    true,
+                    0.3,           // 判定サイズを少し広げて当てやすく
+                    (e) -> e instanceof LivingEntity && !e.equals(shooter)
+            );
+
+            if (rayTrace != null) {
+                // 着弾地点
+                Location hitLoc = rayTrace.getHitPosition().toLocation(currentLoc.getWorld());
+
+                // エフェクトを着弾点まで出す
+                spawnTracer(prevLoc, hitLoc);
+
+                if (rayTrace.getHitEntity() instanceof LivingEntity victim) {
+                    handleDamage(victim, shooter, damage, ammoClass, hitLoc);
+                    BloodEffect.spawn(hitLoc, direction, damage);
+                    victim.getWorld().spawnParticle(Particle.BLOCK, hitLoc, 10, Material.REDSTONE_BLOCK.createBlockData());
+                } else if (rayTrace.getHitBlock() != null) {
+                    hitLoc.getWorld().playEffect(hitLoc, Effect.STEP_SOUND, rayTrace.getHitBlock().getType());
+                }
+
+                this.cancel();
+                return;
+            }
+
+            // 4. 当たらなかった場合は座標を更新
+            currentLoc.add(velocity);
+            distanceTraveled += currentTickDist;
+
+            // 周辺への制圧効果（移動後の位置で判定）
             for (Entity nearby : currentLoc.getWorld().getNearbyEntities(currentLoc, 2.5, 2.5, 2.5)) {
                 if (nearby instanceof Player victim && !victim.equals(shooter)) {
                     applySuppression(victim, currentLoc);
                 }
             }
 
-            // 曳光弾のエフェクト (前回の地点から今回の地点まで線を引くようにパーティクルを出す)
+            // 曳光弾のエフェクト（1ティック分）
             spawnTracer(prevLoc, currentLoc);
-
-            // 当たり判定 (ブロック & エンティティ)
-            var rayTrace = currentLoc.getWorld().rayTrace(
-                    prevLoc,
-                    velocity,
-                    SPEED,
-                    FluidCollisionMode.NEVER,
-                    true,
-                    0.2,
-                    (e) -> e instanceof LivingEntity && !e.equals(shooter)
-            );
-
-            if (rayTrace != null) {
-                if (rayTrace.getHitEntity() instanceof LivingEntity victim) {
-                    Vector bulletDir = velocity.clone().normalize();
-                    handleDamage(victim,shooter,damage,ammoClass,currentLoc);
-                    // 【追加】ARMA風血飛沫エフェクト
-                    BloodEffect.spawn(
-                            rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
-                            bulletDir,
-                            damage
-                    );
-                    victim.getWorld().spawnParticle(Particle.BLOCK, rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), 10, Material.REDSTONE_BLOCK.createBlockData());
-                } else if (rayTrace.getHitBlock() != null) {
-                    // 壁に着弾
-                    rayTrace.getHitBlock().getWorld().playEffect(rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), Effect.STEP_SOUND, rayTrace.getHitBlock().getType());
-                }
-                this.cancel();
-            }
         }
 
         private void spawnTracer(Location from, Location to) {
             World world = from.getWorld();
-            double distance = from.distance(to);
-            // 進行方向のベクトルを取得
-            Vector direction = to.toVector().subtract(from.toVector()).normalize();
+            double dist = from.distance(to);
+            if (dist <= 0.1) return;
 
-            // 0.5ブロックごとにパーティクルを配置（密度はお好みで調整）
-            for (double i = 0; i < distance; i += 0.5) {
-                Location point = from.clone().add(direction.clone().multiply(i));
+            Vector dir = to.toVector().subtract(from.toVector()).normalize();
 
-                // 1. 弾道の中心（鋭い光）
-                // 速度(extra)を0にすることで、パーティクルが散らばらずに「線」になる
+            for (double i = 0; i < dist; i += 0.5) {
+                Location point = from.clone().add(dir.clone().multiply(i));
                 world.spawnParticle(Particle.END_ROD, point, 1, 0, 0, 0, 0);
-
-                // 2. わずかな火花（リアリティの補強）
-                // 頻度を下げるために条件分岐を入れるとより自然
-                if (Math.random() > 0.8) {
-                    world.spawnParticle(Particle.FIREWORK, point, 1, 0.02, 0.02, 0.02, 0.01);
+                if (Math.random() > 0.9) {
+                    world.spawnParticle(Particle.FIREWORK, point, 1, 0.01, 0.01, 0.01, 0.01);
                 }
             }
-
-            // 3. 弾頭の輝き（先端だけ少し強く）
             world.spawnParticle(Particle.FLASH, to, 1, 0, 0, 0, 0);
         }
     }
