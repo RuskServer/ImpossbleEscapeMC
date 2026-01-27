@@ -1,0 +1,5 @@
+resource-pack:
+  url: "https://github.com/RuskLabo/CreateSMPdoc/releases/download/0.67/iem-resorcepack.zip"
+  hash: "" # 任意（更新検知用）
+  prompt: "サーバー専用リソースパックを適用してください。"
+  force: true
