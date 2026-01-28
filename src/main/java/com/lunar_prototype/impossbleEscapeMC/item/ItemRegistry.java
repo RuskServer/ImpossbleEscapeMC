@@ -34,7 +34,8 @@ public class ItemRegistry {
             return;
         }
         File[] ammoFiles = ammofolder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (ammoFiles == null) return;
+        if (ammoFiles == null)
+            return;
 
         for (File file : ammoFiles) {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
@@ -53,13 +54,15 @@ public class ItemRegistry {
         }
 
         File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null) return;
+        if (files == null)
+            return;
 
         for (File file : files) {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             for (String key : config.getKeys(false)) {
                 ConfigurationSection section = config.getConfigurationSection(key);
-                if (section == null) continue;
+                if (section == null)
+                    continue;
 
                 ItemDefinition def = new ItemDefinition();
                 def.id = key;
@@ -94,8 +97,16 @@ public class ItemRegistry {
                         gStats.fireMode = gunSection.getString("fireMode", "SEMI");
                         gStats.customModelData = gunSection.getInt("customModelData", 0);
                         gStats.reloadTime = gunSection.getInt("reloadTime", 2000);
+                        gStats.adsTime = gunSection.getInt("adsTime", 200);
                         gStats.caliber = gunSection.getString("caliber");
                         gStats.shotSound = gunSection.getString("shotSound", "ENTITY_GENERIC_EXPLODE"); // デフォルト値
+                        gStats.boltType = gunSection.getString("boltType", "CLOSED");
+
+                        gStats.reloadAnimation = parseAnimation(gunSection, "reloadAnimation");
+                        gStats.tacticalReloadAnimation = parseAnimation(gunSection, "tacticalReloadAnimation");
+                        gStats.aimAnimation = parseAnimation(gunSection, "aimAnimation");
+                        gStats.sprintAnimation = parseAnimation(gunSection, "sprintAnimation");
+                        gStats.idleAnimation = parseAnimation(gunSection, "idleAnimation");
 
                         def.gunStats = gStats;
                     }
@@ -125,7 +136,9 @@ public class ItemRegistry {
         return ITEM_MAP.get(id);
     }
 
-    public static AmmoDefinition getAmmo(String id) { return AMMO_MAP.get(id); }
+    public static AmmoDefinition getAmmo(String id) {
+        return AMMO_MAP.get(id);
+    }
 
     public static AmmoDefinition getWeakestAmmoForCaliber(String caliber) {
         AmmoDefinition weakest = null;
@@ -137,5 +150,19 @@ public class ItemRegistry {
             }
         }
         return weakest;
+    }
+
+    private static GunStats.AnimationStats parseAnimation(ConfigurationSection section, String key) {
+        if (!section.contains(key))
+            return null;
+        ConfigurationSection animSection = section.getConfigurationSection(key);
+        if (animSection == null)
+            return null;
+
+        GunStats.AnimationStats stats = new GunStats.AnimationStats();
+        stats.model = animSection.getString("model");
+        stats.frameCount = animSection.getInt("frameCount");
+        stats.fps = animSection.getInt("fps");
+        return stats;
     }
 }

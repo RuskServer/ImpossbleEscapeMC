@@ -6,6 +6,9 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.*;
 import com.lunar_prototype.impossbleEscapeMC.util.BloodEffect;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.CustomModelData;
+import net.kyori.adventure.key.Key;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Levelled;
@@ -40,6 +43,12 @@ public class GunListener implements Listener {
     private static final int MODEL_ADD_SCOPE = 1000;
     private static final int MODEL_ADD_SPRINT = 2000;
 
+    // アニメーション用デフォルトアタッチメント
+    private static final List<String> DEFAULT_ATTACHMENTS = List.of(
+            "default_receiver", "default_sight", "default_barrel",
+            "default_magazine", "spare_default_magazine",
+            "default_rear_grip", "default_stock");
+
     public GunListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }
@@ -47,12 +56,14 @@ public class GunListener implements Listener {
     @EventHandler
     public void onShoot(PlayerInteractEvent event) {
         // 右クリック判定
-        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK)
+            return;
 
         Player player = event.getPlayer();
 
         // 【追加】ダッシュ中は射撃不可
-        if (player.isSprinting()) return;
+        if (player.isSprinting())
+            return;
 
         UUID uuid = player.getUniqueId();
 
@@ -60,16 +71,22 @@ public class GunListener implements Listener {
         lastRightClickMap.put(uuid, System.currentTimeMillis());
 
         // 2. 既にタスクが動いているなら無視
-        if (activeTasks.containsKey(uuid)) return;
+        if (activeTasks.containsKey(uuid))
+            return;
 
         ItemStack item = player.getInventory().getItemInMainHand();
-        if (item.getType() == Material.AIR || !item.hasItemMeta()) return;
+        if (item.getType() == Material.AIR || !item.hasItemMeta())
+            return;
 
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         ItemDefinition def = ItemRegistry.get(itemId);
 
-        if (def == null || !"GUN".equalsIgnoreCase(def.type) || def.gunStats == null) return;
+        if (def == null || !"GUN".equalsIgnoreCase(def.type) || def.gunStats == null)
+            return;
+
+        // バニラのアイテム動作（クロスボウの発射など）をキャンセル
+        event.setCancelled(true);
 
         // 3. 射撃ループ開始
         startShooting(player, pdc, def.gunStats);
@@ -80,21 +97,24 @@ public class GunListener implements Listener {
     @EventHandler
     public void onLeftClick(PlayerInteractEvent event) {
         // 左クリック (空気・ブロック両方)
-        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
+        if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK)
+            return;
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
         ItemStack item = player.getInventory().getItemInMainHand();
 
         // 銃を持っているか確認
-        if (!isGun(item)) return;
-        if (reloadingPlayers.contains(uuid)) return;
+        if (!isGun(item))
+            return;
+        if (reloadingPlayers.contains(uuid))
+            return;
 
         // イベントキャンセル (ブロック破壊や誤爆を防ぐ)
         event.setCancelled(true);
         // トグル処理: 既にエイム中なら解除、そうでなければ追加
         if (aimingPlayers.contains(uuid)) {
             aimingPlayers.remove(uuid);
-        // エイム解除音 (例)
+            // エイム解除音 (例)
             player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_LEATHER, 1.0f, 1.2f);
         } else {
             aimingPlayers.add(uuid);
@@ -192,14 +212,16 @@ public class GunListener implements Listener {
 
     private void stopShooting(UUID uuid) {
         BukkitRunnable task = activeTasks.remove(uuid);
-        if (task != null) task.cancel();
+        if (task != null)
+            task.cancel();
         lastRightClickMap.remove(uuid);
         consecutiveShots.remove(uuid);
     }
 
     private boolean isHoldingSameGun(Player player, PersistentDataContainer originalPdc) {
         ItemStack item = player.getInventory().getItemInMainHand();
-        if (item.getType() == Material.AIR || !item.hasItemMeta()) return false;
+        if (item.getType() == Material.AIR || !item.hasItemMeta())
+            return false;
 
         // 開始時のPDC（アイテムID）と現在持っているアイテムのIDが一致するか確認
         String currentId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
@@ -222,7 +244,6 @@ public class GunListener implements Listener {
                 boolean holdingGun = isGun(item);
 
                 updateWeaponModel(player);
-                updateHasteEffect(player, holdingGun);
             }
         }.runTaskLater(plugin, 1);
     }
@@ -250,7 +271,8 @@ public class GunListener implements Listener {
         // 実装スタイルによりますが、以下の判定が一般的です。
 
         ItemStack item = event.getItemDrop().getItemStack();
-        if (!isGun(item)) return;
+        if (!isGun(item))
+            return;
 
         // 通常プレイ中のドロップ（リロード）処理
         event.setCancelled(true);
@@ -260,7 +282,8 @@ public class GunListener implements Listener {
     // 【重要】タルコフ式反動ロジック
     private void executeShoot(Player player, PersistentDataContainer pdc, GunStats stats) {
         ItemStack item = player.getInventory().getItemInMainHand();
-        if (item == null || !item.hasItemMeta()) return;
+        if (item == null || !item.hasItemMeta())
+            return;
 
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer itemPdc = meta.getPersistentDataContainer();
@@ -316,7 +339,6 @@ public class GunListener implements Listener {
         // 横反動 (ランダムに左右に振る: -1.0 ~ 1.0)
         double horizontalRecoil = (Math.random() - 0.5) * (baseRecoil * 0.5) * horizontalMultiplier;
 
-
         // --- 処理の適用 ---
         spawnMuzzleFlash(player);
         ItemFactory.updateLore(item);
@@ -326,7 +348,7 @@ public class GunListener implements Listener {
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
 
-            new BulletTask(player, damage,ammoClass).runTaskTimer(plugin, 0, 1);
+            new BulletTask(player, damage, ammoClass).runTaskTimer(plugin, 0, 1);
         }
 
         // 縦反動: 銃は跳ね上がる(視線は上に行く)ため、ピッチはマイナス方向へ動かす
@@ -354,9 +376,9 @@ public class GunListener implements Listener {
      * PacketEventsを使用してプレイヤーに相対的な視点変更（リコイル）を送信します。
      * これにより、setRotationのようなカクつきがなくなり、マウス操作とリコイルが自然に合成されます。
      *
-     * @param player 対象プレイヤー
-     * @param yawRecoil    横方向の変化量 (右が正)
-     * @param pitchRecoil  縦方向の変化量 (下が正。リコイルで上に跳ねるならマイナスを指定)
+     * @param player      対象プレイヤー
+     * @param yawRecoil   横方向の変化量 (右が正)
+     * @param pitchRecoil 縦方向の変化量 (下が正。リコイルで上に跳ねるならマイナスを指定)
      */
     private void sendRecoilPacket(Player player, float yawRecoil, float pitchRecoil) {
         // 1. 現在の視点を取得
@@ -369,15 +391,16 @@ public class GunListener implements Listener {
         float newPitch = currentPitch + pitchRecoil;
 
         // 3. Pitchの制限 (-90度〜90度)
-        if (newPitch < -90) newPitch = -90;
-        if (newPitch > 90) newPitch = 90;
+        if (newPitch < -90)
+            newPitch = -90;
+        if (newPitch > 90)
+            newPitch = 90;
 
         // 4. 回転専用パケットの作成 (MC 1.19.4+)
         // 引数: yaw, pitch, onGround
         WrapperPlayServerPlayerRotation packet = new WrapperPlayServerPlayerRotation(
                 newYaw,
-                newPitch
-        );
+                newPitch);
 
         // 5. 送信
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
@@ -407,8 +430,7 @@ public class GunListener implements Listener {
                 Particle.DUST,
                 muzzleLoc,
                 3, 0.01, 0.01, 0.01, 0.05,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 255, 220), 0.6f)
-        );
+                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 255, 220), 0.6f));
 
         // --- 2. 広がる火花 (オレンジ/赤) ---
         // ここも少し前方に飛ばす距離を調整 (multiply 0.1 -> 0.2)
@@ -416,16 +438,14 @@ public class GunListener implements Listener {
                 Particle.DUST,
                 muzzleLoc.clone().add(dir.clone().multiply(0.2)),
                 4, 0.03, 0.03, 0.03, 0.1,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 140, 20), 0.4f)
-        );
+                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 140, 20), 0.4f));
 
         // --- 3. 硝煙 (薄い灰色) ---
         player.getWorld().spawnParticle(
                 Particle.DUST,
                 muzzleLoc,
                 2, 0.05, 0.05, 0.05, 0.02,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 0.8f)
-        );
+                new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 0.8f));
 
         // --- 光源処理 ---
         if (muzzleLoc.getBlock().getType() == Material.AIR) {
@@ -437,7 +457,8 @@ public class GunListener implements Listener {
             new BukkitRunnable() {
                 @Override
                 public void run() {
-                    if (muzzleLoc.getBlock().getType() == Material.LIGHT) muzzleLoc.getBlock().setType(Material.AIR);
+                    if (muzzleLoc.getBlock().getType() == Material.LIGHT)
+                        muzzleLoc.getBlock().setType(Material.AIR);
                 }
             }.runTaskLater(plugin, 1);
         }
@@ -453,10 +474,10 @@ public class GunListener implements Listener {
 
         // 設定値 (後でYAMLから読み込めるようにすると良い)
         private final double GRAVITY = 0.015; // 1ティックあたりの落下量
-        private final double SPEED = 6.0;    // 1ティックに進む距離
+        private final double SPEED = 6.0; // 1ティックに進む距離
         private final int ammoClass;
 
-        public BulletTask(Player shooter, double damage,int ammoClass) {
+        public BulletTask(Player shooter, double damage, int ammoClass) {
             this.shooter = shooter;
             this.damage = damage;
             this.currentLoc = shooter.getEyeLocation();
@@ -490,110 +511,327 @@ public class GunListener implements Listener {
                     FluidCollisionMode.NEVER,
                     true,
                     0.2,
-                    (e) -> e instanceof LivingEntity && !e.equals(shooter)
-            );
+                    (e) -> e instanceof LivingEntity && !e.equals(shooter));
 
             if (rayTrace != null) {
                 if (rayTrace.getHitEntity() instanceof LivingEntity victim) {
                     Vector bulletDir = velocity.clone().normalize();
-                    handleDamage(victim,shooter,damage,ammoClass,currentLoc);
+                    handleDamage(victim, shooter, damage, ammoClass, currentLoc);
                     BloodEffect.spawn(
                             rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
                             bulletDir,
-                            damage
-                    );
-                    victim.getWorld().spawnParticle(Particle.BLOCK, rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), 10, Material.REDSTONE_BLOCK.createBlockData());
+                            damage);
+                    victim.getWorld().spawnParticle(Particle.BLOCK,
+                            rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), 10,
+                            Material.REDSTONE_BLOCK.createBlockData());
                 } else if (rayTrace.getHitBlock() != null) {
                     // 壁に着弾
-                    rayTrace.getHitBlock().getWorld().playEffect(rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), Effect.STEP_SOUND, rayTrace.getHitBlock().getType());
+                    rayTrace.getHitBlock().getWorld().playEffect(
+                            rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), Effect.STEP_SOUND,
+                            rayTrace.getHitBlock().getType());
                 }
                 this.cancel();
             }
         }
 
         private void spawnTracer(Location from, Location to) {
-            // 曳光弾らしく、進行方向に明るいパーティクルを配置
-            shooter.getWorld().spawnParticle(Particle.FIREWORK, to, 1, 0, 0, 0, 0);
-            shooter.getWorld().spawnParticle(Particle.SMALL_FLAME, to, 1, 0, 0, 0, 0.02);
+            // スレッドセーフにするため、必要なデータは事前にコピー/計算して渡す
+            final World world = from.getWorld();
+            final Vector start = from.toVector();
+            final Vector end = to.toVector();
+            final Vector direction = end.clone().subtract(start);
+            final double distance = direction.length();
+
+            // 距離が近すぎる場合は描画しない (または正規化でエラーになるのを防ぐ)
+            if (distance < 0.05)
+                return;
+
+            direction.normalize();
+
+            // 非同期で描画
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    // 0.25ブロック刻みで補間
+                    double gap = 0.25;
+                    // 明るいオレンジ (RGB: 255, 180, 50), サイズ 0.6
+                    Particle.DustOptions dustOption = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 180, 50),
+                            0.6f);
+
+                    for (double d = 0; d < distance; d += gap) {
+                        Vector pos = start.clone().add(direction.clone().multiply(d));
+
+                        try {
+                            // count=1, offsets=0, extra=0
+                            world.spawnParticle(Particle.DUST, pos.getX(), pos.getY(), pos.getZ(),
+                                    1, 0, 0, 0, 0,
+                                    dustOption);
+                        } catch (Exception e) {
+                            // 非同期パーティクル呼び出しでの万が一の安全策
+                        }
+                    }
+                }
+            }.runTaskAsynchronously(plugin);
         }
     }
 
+    // アニメーション管理
+    private final Map<UUID, PlayerAnimationTask> animTasks = new HashMap<>();
+
     /**
-     * プレイヤーの状態に合わせて手に持っている銃のモデルを更新します
+     * Enum for Animation State Priority
      */
+    private enum AnimState {
+        RELOAD(3),
+        SPRINT(2),
+        AIM(1),
+        IDLE(0);
+
+        final int priority;
+
+        AnimState(int priority) {
+            this.priority = priority;
+        }
+    }
+
     private void updateWeaponModel(Player player) {
-        ItemStack item = player.getInventory().getItemInMainHand();
-        if (!isGun(item)) return;
+        UUID uuid = player.getUniqueId();
 
-        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        ItemDefinition def = ItemRegistry.get(itemId);
+        // 既にタスクがあれば、それは自律的に状態をチェックするので何もしなくて良い
+        // タスクがない場合（持ち替え直後など）のみ起動
+        if (!animTasks.containsKey(uuid)) {
+            startAnimationTask(player);
+        }
+    }
 
-        if (def == null || def.gunStats == null) return;
+    private void startAnimationTask(Player player) {
+        UUID uuid = player.getUniqueId();
+        stopAnimation(player);
 
-        // 1. 基本値 (YAMLから取得)
-        int baseModelData = def.gunStats.customModelData;
+        PlayerAnimationTask task = new PlayerAnimationTask(player);
+        task.runTaskTimer(plugin, 0, 1);
+        animTasks.put(uuid, task);
+    }
 
-        // 2. 状態による加算 (スプリント優先)
-        int finalModelData = baseModelData;
+    private void stopAnimation(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (animTasks.containsKey(uuid)) {
+            animTasks.get(uuid).cancel();
+            animTasks.remove(uuid);
+        }
+    }
 
-        if (player.isSprinting()) {
-            finalModelData += MODEL_ADD_SPRINT; // +2000
-        } else if (aimingPlayers.contains(player.getUniqueId())) {
-            finalModelData += MODEL_ADD_SCOPE;  // +1000
+    // --- 統合アニメーションタスク ---
+    private class PlayerAnimationTask extends BukkitRunnable {
+        private final Player player;
+        private final UUID uuid;
+
+        // 進行度 (0.0 ~ 1.0)
+        private double aimProgress = 0.0;
+        private double sprintProgress = 0.0;
+
+        private int idleTick = 0;
+
+        // 直前のモデル状態キャッシュ（無駄な更新を防ぐ用）
+        private String lastModelKey = "";
+        private int lastFrame = -1;
+
+        public PlayerAnimationTask(Player player) {
+            this.player = player;
+            this.uuid = player.getUniqueId();
+
+            // 初期状態の同期 (途中からタスク開始した場合のため)
+            if (aimingPlayers.contains(uuid))
+                aimProgress = 1.0;
+            if (player.isSprinting())
+                sprintProgress = 1.0;
         }
 
-        // 3. 適用 (変更が必要な場合のみ)
-        ItemMeta meta = item.getItemMeta();
-        if (meta.hasCustomModelData() && meta.getCustomModelData() == finalModelData) return;
+        @Override
+        public void run() {
+            if (!player.isOnline()) {
+                stopAnimation(player);
+                return;
+            }
 
-        meta.setCustomModelData(finalModelData);
-        item.setItemMeta(meta);
+            ItemStack item = player.getInventory().getItemInMainHand();
+            if (!isGun(item)) {
+                stopAnimation(player);
+                return;
+            }
+
+            // リロード中はアニメーション更新を停止（リロードタスクに任せる）
+            // ただしProgressはリセットせず維持するか、あるいは即座に0にするか
+            // ここでは描画のみスキップ
+            if (reloadingPlayers.contains(uuid)) {
+                lastModelKey = ""; // リロード明けに強制更新させるためリセット
+                return;
+            }
+
+            PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+            String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+            ItemDefinition def = ItemRegistry.get(itemId);
+            if (def == null || def.gunStats == null)
+                return;
+
+            // 1. 目標状態の確認
+            boolean isSprinting = player.isSprinting();
+            boolean isAiming = aimingPlayers.contains(uuid);
+
+            // スプリント中はエイム解除される仕様なので、もし両方フラグが立っててもスプリント優先でエイムは下がる
+            if (isSprinting)
+                isAiming = false;
+
+            // 2. 進行度の更新
+            updateProgress(def.gunStats, isAiming, isSprinting);
+
+            // 3. 描画
+            render(item, def.gunStats);
+
+            idleTick++;
+        }
+
+        private void updateProgress(GunStats stats, boolean targetAim, boolean targetSprint) {
+            // --- AIM ---
+            double aimTimeTicks = (stats.adsTime > 0) ? (stats.adsTime / 50.0) : 1.0;
+            double aimStep = 1.0 / aimTimeTicks;
+
+            if (targetAim) {
+                aimProgress = Math.min(1.0, aimProgress + aimStep);
+            } else {
+                aimProgress = Math.max(0.0, aimProgress - aimStep);
+            }
+
+            // --- SPRINT ---
+            // スプリントのin/out時間は定義がないので、仮にAIMと同じか、固定値(0.2秒=4tick)くらいにする
+            // ここでは固定値 5tick (0.25s) で遷移させるとスムーズ
+            double sprintStep = 0.2;
+
+            if (targetSprint) {
+                sprintProgress = Math.min(1.0, sprintProgress + sprintStep);
+            } else {
+                sprintProgress = Math.max(0.0, sprintProgress - sprintStep);
+            }
+        }
+
+        private void render(ItemStack item, GunStats stats) {
+            GunStats.AnimationStats currentAnim = null;
+            double progress = 0.0;
+            boolean isLooping = false;
+
+            // 優先度: SPRINT > AIM > IDLE
+            // ただし逆再生(解除中)も見せるため、Progress > 0 で判定
+
+            if (sprintProgress > 0.001) {
+                // SPRINT
+                currentAnim = stats.sprintAnimation;
+                progress = sprintProgress;
+                isLooping = false;
+            } else if (aimProgress > 0.001) {
+                // AIM
+                currentAnim = stats.aimAnimation;
+                progress = aimProgress;
+                isLooping = false;
+            } else {
+                // IDLE
+                currentAnim = stats.idleAnimation;
+                isLooping = true;
+            }
+
+            // アニメーション設定がない場合のフォールバック（レガシー挙動）
+            if (currentAnim == null) {
+                renderLegacy(item, stats);
+                return;
+            }
+
+            // フレーム計算
+            int frameIndex;
+            if (isLooping) {
+                // IDLEループ
+                if (currentAnim.fps > 0 && currentAnim.frameCount > 1) {
+                    frameIndex = (int) ((idleTick / 20.0) * currentAnim.fps) % currentAnim.frameCount;
+                } else {
+                    frameIndex = 0;
+                }
+            } else {
+                // Progress (0.0 - 1.0) -> Frame
+                // frameCount=5 の場合、Indexは 0, 1, 2, 3, 4
+                // 1.0 のとき 4 になるようにマッピング
+                int maxFrame = Math.max(0, currentAnim.frameCount - 1);
+                frameIndex = (int) Math.round(progress * maxFrame);
+            }
+
+            applyModel(item, currentAnim, frameIndex);
+        }
+
+        private void renderLegacy(ItemStack item, GunStats stats) {
+            // 従来のCustomModelData加算方式
+            int base = stats.customModelData;
+            int add = 0;
+
+            if (sprintProgress > 0.5)
+                add = MODEL_ADD_SPRINT;
+            else if (aimProgress > 0.5)
+                add = MODEL_ADD_SCOPE;
+
+            int finalData = base + add;
+
+            // キャッシュチェック
+            if (lastModelKey.equals("LEGACY") && lastFrame == finalData)
+                return;
+
+            item.resetData(DataComponentTypes.ITEM_MODEL); // 新方式が残っていたら消す
+
+            ItemMeta meta = item.getItemMeta();
+            meta.setCustomModelData(finalData);
+            item.setItemMeta(meta);
+
+            lastModelKey = "LEGACY";
+            lastFrame = finalData;
+        }
+
+        private void applyModel(ItemStack item, GunStats.AnimationStats anim, int frameIndex) {
+            // キャッシュチェック (同じモデルの同じフレームなら更新しない)
+            if (anim.model.equals(lastModelKey) && frameIndex == lastFrame)
+                return;
+
+            // リロードバグ対策:
+            // 確実にITEM_MODELとCUSTOM_MODEL_DATAの両方をセットする
+
+            // リロードバグ対策:
+            // 確実にITEM_MODELとCUSTOM_MODEL_DATAの両方をセットする
+
+            item.setData(DataComponentTypes.ITEM_MODEL, Key.key(anim.model));
+            item.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData()
+                    .addFloat((float) frameIndex)
+                    .addStrings(DEFAULT_ATTACHMENTS)
+                    .build());
+
+            lastModelKey = anim.model;
+            lastFrame = frameIndex;
+        }
     }
 
     // ユーティリティ: 銃かどうか判定
     private boolean isGun(ItemStack item) {
-        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return false;
+        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta())
+            return false;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         return pdc.has(PDCKeys.ITEM_ID, PDCKeys.STRING);
     }
 
-    /**
-     * 腕振りを無効化するためのエフェクト管理
-     */
-    private void updateHasteEffect(Player player, boolean holdingGun) {
-        if (holdingGun) {
-            // 採掘速度上昇 255 (アンビエント=true, パーティクル=false で静かに付与)
-            // 期間は無限ではないが、持ち替えるたびに更新されるので長めでOK
-            player.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, Integer.MAX_VALUE, 254, false, false, false));
-        } else {
-            // 銃を離したら解除
-            if (player.hasPotionEffect(PotionEffectType.HASTE)) {
-                // レベルが254(内部値)のものだけを消す（他の正規バフを消さないため）
-                PotionEffect effect = player.getPotionEffect(PotionEffectType.HASTE);
-                if (effect != null && effect.getAmplifier() == 254) {
-                    player.removePotionEffect(PotionEffectType.HASTE);
-                }
-            }
-        }
-    }
-
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        // 退出時は一応エフェクトを消しておく
-        event.getPlayer().removePotionEffect(PotionEffectType.HASTE);
-    }
-
     private void startReload(Player player, ItemStack item) {
         UUID uuid = player.getUniqueId();
-        if (reloadingPlayers.contains(uuid)) return;
+        if (reloadingPlayers.contains(uuid))
+            return;
 
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         ItemDefinition def = ItemRegistry.get(itemId);
 
-        if (def == null || def.gunStats == null) return;
+        if (def == null || def.gunStats == null)
+            return;
 
         // 1. インベントリから適切な弾を探す
         String targetCaliber = def.gunStats.caliber;
@@ -601,7 +839,8 @@ public class GunListener implements Listener {
         AmmoDefinition ammoData = null;
 
         for (ItemStack invItem : player.getInventory().getContents()) {
-            if (invItem == null || !invItem.hasItemMeta()) continue;
+            if (invItem == null || !invItem.hasItemMeta())
+                continue;
             String id = invItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
             AmmoDefinition foundAmmo = ItemRegistry.getAmmo(id);
 
@@ -623,26 +862,57 @@ public class GunListener implements Listener {
 
         // 【QOL向上】弾が満タン、かつ現在装填中の弾と同じ種類ならリロード不要
         // 逆に満タンでも種類が違う(PS->BS)ならリロードを続行する
-        if (currentAmmo >= maxAmmo && ammoData.id.equals(currentAmmoId)) return;
+        if (currentAmmo >= maxAmmo && ammoData.id.equals(currentAmmoId))
+            return;
+
+        // リロードタイプ判定
+        // CLOSEDボルト かつ 残弾0の場合 -> タクティカルリロード (コッキング動作含む)
+        boolean isClosedBolt = "CLOSED".equalsIgnoreCase(def.gunStats.boltType);
+        boolean isEmpty = currentAmmo <= 0;
+
+        GunStats.AnimationStats animStats = def.gunStats.reloadAnimation; // デフォルトは通常リロード
+
+        if (isClosedBolt && isEmpty && def.gunStats.tacticalReloadAnimation != null) {
+            animStats = def.gunStats.tacticalReloadAnimation;
+        }
+
+        // リロード時間の計算
+        int totalTicks;
+        if (animStats != null && animStats.fps > 0) {
+            // アニメーション時間から算出 (秒 -> Tick)
+            double durationSeconds = (double) animStats.frameCount / animStats.fps;
+            totalTicks = (int) Math.ceil(durationSeconds * 20);
+        } else {
+            // 設定がない場合はConfigの値 (ミリ秒 -> Tick)
+            totalTicks = Math.max(1, def.gunStats.reloadTime / 50);
+        }
 
         reloadingPlayers.add(uuid);
         stopShooting(uuid);
         aimingPlayers.remove(uuid);
 
         player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.5f);
-        int totalTicks = Math.max(1, def.gunStats.reloadTime / 50);
 
-        // クロージャで使用するためにfinal化（または実質的final）
+        // クロージャで使用するためにfinal化
         final ItemStack finalAmmoItem = ammoItem;
         final AmmoDefinition finalAmmoData = ammoData;
+        final GunStats.AnimationStats finalAnimStats = animStats;
+        final int finalTotalTicks = totalTicks;
+
+        if (finalAnimStats != null) {
+            // リロード開始時にITEM_MODELをセット
+            item.setData(DataComponentTypes.ITEM_MODEL, Key.key(finalAnimStats.model));
+        }
 
         new BukkitRunnable() {
             int elapsed = 0;
 
             @Override
             public void run() {
-                if (!player.isOnline() || !player.getInventory().getItemInMainHand().equals(item)) {
+                // アニメーションでコンポーネントが書き換わるため、equals()ではなくIDで判定する
+                if (!player.isOnline() || !isHoldingSameGun(player, pdc)) {
                     reloadingPlayers.remove(uuid);
+                    // クリーンアップ: 自動復帰に任せる
                     updateWeaponModel(player);
                     if (player.isOnline()) {
                         player.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
@@ -654,10 +924,29 @@ public class GunListener implements Listener {
 
                 elapsed++;
 
-                // プログレスバー表示 (省略: 前回のWMC風)
-                displayReloadBar(player, elapsed, totalTicks);
+                // アニメーション更新
+                if (finalAnimStats != null) {
+                    // 経過秒数 * FPS
+                    int frameIndex = (int) ((elapsed / 20.0) * finalAnimStats.fps);
 
-                if (elapsed >= totalTicks) {
+                    // タクティカルの場合は最後まで再生したら止める (ループしない)
+                    if (frameIndex >= finalAnimStats.frameCount) {
+                        frameIndex = finalAnimStats.frameCount - 1;
+                    }
+
+                    final int currentFrame = frameIndex;
+
+                    player.getInventory().getItemInMainHand().setData(DataComponentTypes.CUSTOM_MODEL_DATA,
+                            CustomModelData.customModelData()
+                                    .addFloat((float) currentFrame)
+                                    .addStrings(DEFAULT_ATTACHMENTS)
+                                    .build());
+                }
+
+                // プログレスバー表示 (省略: 前回のWMC風)
+                displayReloadBar(player, elapsed, finalTotalTicks);
+
+                if (elapsed >= finalTotalTicks) {
                     ItemStack currentItem = player.getInventory().getItemInMainHand();
                     if (isGun(currentItem)) {
                         ItemMeta finishedMeta = currentItem.getItemMeta();
@@ -672,8 +961,8 @@ public class GunListener implements Listener {
                             if (ejected != null) {
                                 ejected.setAmount(leftover);
                                 // インベントリに戻す。入らなければドロップ
-                                player.getInventory().addItem(ejected).forEach((i, drop) ->
-                                        player.getWorld().dropItemNaturally(player.getLocation(), drop));
+                                player.getInventory().addItem(ejected).forEach(
+                                        (i, drop) -> player.getWorld().dropItemNaturally(player.getLocation(), drop));
                             }
                         }
 
@@ -695,7 +984,10 @@ public class GunListener implements Listener {
                     }
 
                     reloadingPlayers.remove(uuid);
+                    // クリーンアップ
+                    // cleanupAnimation(currentItem);
                     updateWeaponModel(player);
+
                     player.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
                             new net.md_5.bungee.api.chat.TextComponent("§a§lRELOAD COMPLETE"));
                     player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, 1.0f, 1.2f);
@@ -705,10 +997,24 @@ public class GunListener implements Listener {
         }.runTaskTimer(plugin, 0, 1);
     }
 
+    private void cleanupAnimation(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR)
+            return;
+
+        item.resetData(DataComponentTypes.ITEM_MODEL);
+        // CUSTOM_MODEL_DATAはupdateWeaponModelで上書きされるのでここではリセットしても良いし、
+        // updateWeaponModelに任せても良いが、明示的に消すなら:
+        // m.resetData(DataComponentTypes.CUSTOM_MODEL_DATA);
+        // ただし updateWeaponModel が int ベースの setCustomModelData を使う場合、
+        // コンポーネント定義と int 定義が混ざるとアレなので、一旦リセット推奨。
+        item.resetData(DataComponentTypes.CUSTOM_MODEL_DATA);
+    }
+
     /**
      * WMCスタイルのリロード進行状況をアクションバーに表示します
      * * @param player 表示対象のプレイヤー
-     * @param elapsed 経過ティック数
+     * 
+     * @param elapsed    経過ティック数
      * @param totalTicks 総リロードティック数
      */
     private void displayReloadBar(Player player, int elapsed, int totalTicks) {
@@ -758,7 +1064,7 @@ public class GunListener implements Listener {
         // 4. 画面を少し揺らす（カメラシェイク）
         // 垂直方向の反動をわずかに与えることで衝撃を表現
         Location loc = victim.getLocation();
-        victim.setRotation(loc.getYaw(), loc.getPitch() + (float)(Math.random() * 2 - 1));
+        victim.setRotation(loc.getYaw(), loc.getPitch() + (float) (Math.random() * 2 - 1));
     }
 
     private void handleDamage(LivingEntity victim, Player shooter, double baseDamage, int ammoClass, Location hitLoc) {
@@ -791,7 +1097,8 @@ public class GunListener implements Listener {
     }
 
     private boolean calculatePenetration(int ammo, int armor) {
-        if (armor <= 0) return true; // 無装甲は100%貫通
+        if (armor <= 0)
+            return true; // 無装甲は100%貫通
 
         double chance = 0.0;
 
@@ -811,7 +1118,8 @@ public class GunListener implements Listener {
 
     private int getArmorClass(LivingEntity entity) {
         ItemStack chest = entity.getEquipment().getChestplate();
-        if (chest == null) return 0;
+        if (chest == null)
+            return 0;
 
         // バニラ装備への仮クラス割り当て
         return switch (chest.getType()) {
