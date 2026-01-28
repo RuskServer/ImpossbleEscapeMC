@@ -25,15 +25,18 @@ public class PlayerListener implements Listener {
         Player player = event.getPlayer();
 
         // クリエイティブは除外
-        if (player.getGameMode() == GameMode.CREATIVE) return;
+        if (player.getGameMode() == GameMode.CREATIVE)
+            return;
 
         // 実際に座標が変わったかチェック (首振りだけでは反応させない)
         Location from = event.getFrom();
         Location to = event.getTo();
-        if (to == null || (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ())) return;
+        if (to == null || (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()))
+            return;
 
         // 空中にいる（落下中）ならカウントしない
-        if (player.getLocation().subtract(0, 0.1, 0).getBlock().getType().isAir()) return;
+        if (player.getLocation().subtract(0, 0.1, 0).getBlock().getType().isAir())
+            return;
 
         // 今回の移動距離を計算
         double distance = from.distance(to);
@@ -41,11 +44,11 @@ public class PlayerListener implements Listener {
         // 状態に応じた倍率設定 (Skriptの add 1.5, 2, 1 に対応)
         double multiplier;
         if (player.isSneaking()) {
-            multiplier = 1.0;  // スニーク
+            multiplier = 1.0; // スニーク
         } else if (player.isSprinting()) {
-            multiplier = 2.0;  // ダッシュ
+            multiplier = 2.0; // ダッシュ
         } else {
-            multiplier = 1.5;  // 通常歩き
+            multiplier = 1.5; // 通常歩き
         }
 
         // 距離を蓄積
@@ -59,7 +62,7 @@ public class PlayerListener implements Listener {
                     player.getLocation(),
                     Sound.BLOCK_STONE_STEP, // Skriptの stone.fall より step の方が足音らしいです
                     0.8f, // 音量
-                    1.0f  // ピッチ
+                    1.0f // ピッチ
             );
 
             // カウントをリセット
@@ -84,8 +87,7 @@ public class PlayerListener implements Listener {
                 soundName,
                 org.bukkit.SoundCategory.PLAYERS,
                 1.0f,
-                1.0f
-        );
+                1.0f);
     }
 
     @EventHandler
@@ -94,7 +96,8 @@ public class PlayerListener implements Listener {
 
         // 除外対象のチェック
         // 1. 防具立てを除外
-        if (entity instanceof org.bukkit.entity.ArmorStand) return;
+        if (entity instanceof org.bukkit.entity.ArmorStand)
+            return;
 
         // 2. プレイヤーは先ほどの PlayerDeathEvent で処理しても良いですが、
         // ここで一括管理するなら以下のように書けます
@@ -113,7 +116,11 @@ public class PlayerListener implements Listener {
                 soundName,
                 org.bukkit.SoundCategory.HOSTILE, // モブならHOSTILEカテゴリが適切
                 1.0f,
-                1.0f
-        );
+                1.0f);
+    }
+
+    @EventHandler
+    public void onShootBow(org.bukkit.event.entity.EntityShootBowEvent event) {
+        event.setCancelled(true);
     }
 }

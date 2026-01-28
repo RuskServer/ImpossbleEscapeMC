@@ -18,7 +18,8 @@ public class ItemFactory {
         ItemDefinition def = ItemRegistry.get(id);
         AmmoDefinition ammoDef = ItemRegistry.getAmmo(id);
 
-        if (def == null && ammoDef == null) return null;
+        if (def == null && ammoDef == null)
+            return null;
 
         ItemStack item;
         ItemMeta meta;
@@ -36,11 +37,20 @@ public class ItemFactory {
         } else {
 
             Material mat = Material.matchMaterial(def.material);
-            if (mat == null) mat = Material.BARRIER;
+            if (mat == null)
+                mat = Material.BARRIER;
 
             item = new ItemStack(mat);
             meta = item.getItemMeta();
-            if (meta == null) return item;
+
+            // クロスボウの場合、最初からチャーチ済みにする
+            if (mat == Material.CROSSBOW && meta instanceof org.bukkit.inventory.meta.CrossbowMeta crossbowMeta) {
+                crossbowMeta.addChargedProjectile(new ItemStack(Material.ARROW));
+                meta = crossbowMeta;
+            }
+
+            if (meta == null)
+                return item;
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, def.id);
@@ -81,13 +91,15 @@ public class ItemFactory {
      */
     public static ItemStack updateLore(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) return item;
+        if (meta == null)
+            return item;
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         ItemDefinition def = ItemRegistry.get(itemId);
         AmmoDefinition ammoDef = ItemRegistry.getAmmo(itemId);
-        if (def == null) return item;
+        if (def == null)
+            return item;
 
         List<String> lore = new ArrayList<>();
 
@@ -112,7 +124,8 @@ public class ItemFactory {
             lore.add("§6§l<< GUN STATS >>");
             // 弾数は視認性重視
             lore.add("§7Ammo: §e" + ammo + " §8/ §7" + def.gunStats.magSize);
-            lore.add("§7Damage: §f" + String.format("%.1f", pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage)));
+            lore.add("§7Damage: §f" + String.format("%.1f",
+                    pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage)));
             lore.add("§7RPM: §f" + def.gunStats.rpm);
             lore.add("§7Mode: §f" + def.gunStats.fireMode);
             String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
