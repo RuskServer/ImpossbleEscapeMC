@@ -12,6 +12,7 @@ public class GunStats {
     public String shotSound;
     public String caliber;
     public String boltType = "CLOSED"; // OPEN or CLOSED
+    public java.util.List<String> defaultAttachments; // 【追加】デフォルトのアタッチメント構成
     public AnimationStats reloadAnimation;
     public AnimationStats tacticalReloadAnimation;
     public AnimationStats aimAnimation;
