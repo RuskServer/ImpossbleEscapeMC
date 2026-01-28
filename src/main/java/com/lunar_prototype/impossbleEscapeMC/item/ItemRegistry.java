@@ -101,6 +101,7 @@ public class ItemRegistry {
                         gStats.caliber = gunSection.getString("caliber");
                         gStats.shotSound = gunSection.getString("shotSound", "ENTITY_GENERIC_EXPLODE"); // デフォルト値
                         gStats.boltType = gunSection.getString("boltType", "CLOSED");
+                        gStats.defaultAttachments = gunSection.getStringList("attachments"); // 【追加】デフォルトアタッチメント読み込み
 
                         gStats.reloadAnimation = parseAnimation(gunSection, "reloadAnimation");
                         gStats.tacticalReloadAnimation = parseAnimation(gunSection, "tacticalReloadAnimation");

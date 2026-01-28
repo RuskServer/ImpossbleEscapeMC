@@ -43,12 +43,6 @@ public class GunListener implements Listener {
     private static final int MODEL_ADD_SCOPE = 1000;
     private static final int MODEL_ADD_SPRINT = 2000;
 
-    // アニメーション用デフォルトアタッチメント
-    private static final List<String> DEFAULT_ATTACHMENTS = List.of(
-            "default_receiver", "default_sight", "default_barrel",
-            "default_magazine", "spare_default_magazine",
-            "default_rear_grip", "default_stock");
-
     public GunListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }
@@ -804,7 +798,7 @@ public class GunListener implements Listener {
             item.setData(DataComponentTypes.ITEM_MODEL, Key.key(anim.model));
             item.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData()
                     .addFloat((float) frameIndex)
-                    .addStrings(DEFAULT_ATTACHMENTS)
+                    .addStrings(getAttachments(item))
                     .build());
 
             lastModelKey = anim.model;
@@ -939,7 +933,7 @@ public class GunListener implements Listener {
                     player.getInventory().getItemInMainHand().setData(DataComponentTypes.CUSTOM_MODEL_DATA,
                             CustomModelData.customModelData()
                                     .addFloat((float) currentFrame)
-                                    .addStrings(DEFAULT_ATTACHMENTS)
+                                    .addStrings(getAttachments(player.getInventory().getItemInMainHand()))
                                     .build());
                 }
 
@@ -1130,5 +1124,15 @@ public class GunListener implements Listener {
             case LEATHER_CHESTPLATE -> 1;
             default -> 0;
         };
+    }
+
+    private List<String> getAttachments(ItemStack item) {
+        if (item == null || !item.hasItemMeta())
+            return Collections.emptyList();
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        String joined = pdc.get(PDCKeys.ATTACHMENTS, PDCKeys.STRING);
+        if (joined == null || joined.isEmpty())
+            return Collections.emptyList();
+        return Arrays.asList(joined.split(","));
     }
 }

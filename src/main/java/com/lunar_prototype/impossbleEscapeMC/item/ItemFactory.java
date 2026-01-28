@@ -64,6 +64,12 @@ public class ItemFactory {
                 if (defaultAmmo != null) {
                     pdc.set(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING, defaultAmmo.id);
                 }
+
+                // デフォルトアタッチメントの設定
+                if (def.gunStats.defaultAttachments != null && !def.gunStats.defaultAttachments.isEmpty()) {
+                    String joined = String.join(",", def.gunStats.defaultAttachments);
+                    pdc.set(PDCKeys.ATTACHMENTS, PDCKeys.STRING, joined);
+                }
             }
 
             // Affixの抽選
