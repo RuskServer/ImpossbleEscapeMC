@@ -827,28 +827,39 @@ public class GunListener implements Listener {
         if (def == null || def.gunStats == null)
             return;
 
-        // 1. インベントリから適切な弾を探す
+        // 1. インベントリから同じ口径の弾を「種類ごと」にグループ化して集める
         String targetCaliber = def.gunStats.caliber;
-        ItemStack ammoItem = null;
-        AmmoDefinition ammoData = null;
+        Map<String, List<ItemStack>> ammoPool = new HashMap<>(); // AmmoID -> スタックリスト
 
         for (ItemStack invItem : player.getInventory().getContents()) {
-            if (invItem == null || !invItem.hasItemMeta())
-                continue;
+            if (invItem == null || invItem.getType() == Material.AIR || !invItem.hasItemMeta()) continue;
+
             String id = invItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
             AmmoDefinition foundAmmo = ItemRegistry.getAmmo(id);
 
             if (foundAmmo != null && foundAmmo.caliber.equalsIgnoreCase(targetCaliber)) {
-                ammoItem = invItem;
-                ammoData = foundAmmo;
-                break;
+                ammoPool.computeIfAbsent(id, k -> new ArrayList<>()).add(invItem);
             }
         }
 
-        if (ammoItem == null) {
+        if (ammoPool.isEmpty()) {
             player.sendMessage("§c一致する口径の弾薬がありません: " + targetCaliber);
             return;
         }
+
+        // 2. 最適な弾種（合計数が一番多いもの）を選択する
+        String bestAmmoId = null;
+        int maxCount = -1;
+        for (Map.Entry<String, List<ItemStack>> entry : ammoPool.entrySet()) {
+            int total = entry.getValue().stream().mapToInt(ItemStack::getAmount).sum();
+            if (total > maxCount) {
+                maxCount = total;
+                bestAmmoId = entry.getKey();
+            }
+        }
+
+        final AmmoDefinition finalAmmoData = ItemRegistry.getAmmo(bestAmmoId);
+        final List<ItemStack> finalAmmoStacks = ammoPool.get(bestAmmoId); // 使う弾のスタックリスト
 
         int currentAmmo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
         int maxAmmo = def.gunStats.magSize;
@@ -856,8 +867,7 @@ public class GunListener implements Listener {
 
         // 【QOL向上】弾が満タン、かつ現在装填中の弾と同じ種類ならリロード不要
         // 逆に満タンでも種類が違う(PS->BS)ならリロードを続行する
-        if (currentAmmo >= maxAmmo && ammoData.id.equals(currentAmmoId))
-            return;
+        if (currentAmmo >= maxAmmo && finalAmmoData.id.equals(currentAmmoId)) return;
 
         // リロードタイプ判定
         // CLOSEDボルト かつ 残弾0の場合 -> タクティカルリロード (コッキング動作含む)
@@ -887,9 +897,6 @@ public class GunListener implements Listener {
 
         player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.5f);
 
-        // クロージャで使用するためにfinal化
-        final ItemStack finalAmmoItem = ammoItem;
-        final AmmoDefinition finalAmmoData = ammoData;
         final GunStats.AnimationStats finalAnimStats = animStats;
         final int finalTotalTicks = totalTicks;
 
@@ -960,17 +967,26 @@ public class GunListener implements Listener {
                             }
                         }
 
-                        // 4. 新しい弾の消費計算
+                        // 4. 【改良】複数スタックから弾を消費して装填
                         int magSize = def.gunStats.magSize;
-                        int available = finalAmmoItem.getAmount();
-                        // 装填できる量は「マガジンサイズ」と「手持ちの弾数」の小さい方
-                        int toLoad = Math.min(magSize, available);
+                        int needed = magSize;
+                        int loaded = 0;
 
-                        // インベントリの弾を減らす
-                        finalAmmoItem.setAmount(available - toLoad);
+                        // 収集しておいたスタックリストから順に引いていく
+                        for (ItemStack ammoStack : finalAmmoStacks) {
+                            if (needed <= 0) break;
+                            if (ammoStack == null || ammoStack.getType() == Material.AIR) continue;
+
+                            int amount = ammoStack.getAmount();
+                            int take = Math.min(amount, needed);
+
+                            ammoStack.setAmount(amount - take);
+                            loaded += take;
+                            needed -= take;
+                        }
 
                         // 5. 銃のPDCを完全に更新 (弾数と弾薬IDの両方)
-                        fPdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, toLoad);
+                        fPdc.set(PDCKeys.AMMO, PDCKeys.INTEGER,loaded);
                         fPdc.set(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING, finalAmmoData.id);
 
                         currentItem.setItemMeta(finishedMeta);
