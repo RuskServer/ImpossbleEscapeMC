@@ -367,6 +367,34 @@ public class GunListener implements Listener {
     }
 
     /**
+     * モブが射撃するための簡易メソッド
+     * @param shooter 撃つモブ
+     * @param stats 銃のステータス
+     * @param ammoClass 使用する弾のクラス
+     * @param inaccuracy 集弾率 (0で正確、数値が大きいほどバラける)
+     */
+    public void executeMobShoot(LivingEntity shooter, GunStats stats, int ammoClass, double inaccuracy) {
+        // 1. マズルフラッシュと音
+        spawnMuzzleFlash(shooter);
+        shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 1.0f, 1.8f);
+
+        // 2. 弾丸の生成
+        BulletTask task = new BulletTask(shooter, stats.damage, ammoClass);
+
+        // 3. モブらしい「ガバガバな精度」を再現するためにベクトルを少しずらす
+        if (inaccuracy > 0) {
+            Vector spread = new Vector(
+                    (Math.random() - 0.5) * inaccuracy,
+                    (Math.random() - 0.5) * inaccuracy,
+                    (Math.random() - 0.5) * inaccuracy
+            );
+            task.velocity.add(spread).normalize().multiply(6.0); // SPEEDに合わせて再加速
+        }
+
+        task.runTaskTimer(plugin, 0, 1);
+    }
+
+    /**
      * PacketEventsを使用してプレイヤーに相対的な視点変更（リコイル）を送信します。
      * これにより、setRotationのようなカクつきがなくなり、マウス操作とリコイルが自然に合成されます。
      *
@@ -400,7 +428,7 @@ public class GunListener implements Listener {
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
     }
 
-    private void spawnMuzzleFlash(Player player) {
+    private void spawnMuzzleFlash(LivingEntity player) {
         Location eye = player.getEyeLocation();
         Vector dir = eye.getDirection();
         UUID uuid = player.getUniqueId();
@@ -460,7 +488,7 @@ public class GunListener implements Listener {
 
     // 弾丸の挙動を管理するインナークラス
     private class BulletTask extends BukkitRunnable {
-        private final Player shooter;
+        private final LivingEntity shooter;
         private final double damage;
         private Location currentLoc;
         private Vector velocity;
@@ -471,7 +499,7 @@ public class GunListener implements Listener {
         private final double SPEED = 6.0; // 1ティックに進む距離
         private final int ammoClass;
 
-        public BulletTask(Player shooter, double damage, int ammoClass) {
+        public BulletTask(LivingEntity shooter, double damage, int ammoClass) {
             this.shooter = shooter;
             this.damage = damage;
             this.currentLoc = shooter.getEyeLocation();
@@ -1077,7 +1105,7 @@ public class GunListener implements Listener {
         victim.setRotation(loc.getYaw(), loc.getPitch() + (float) (Math.random() * 2 - 1));
     }
 
-    private void handleDamage(LivingEntity victim, Player shooter, double baseDamage, int ammoClass, Location hitLoc) {
+    private void handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass, Location hitLoc) {
         double finalDamage = baseDamage;
 
         // 1. ヘッドショット判定 (1.2倍)
