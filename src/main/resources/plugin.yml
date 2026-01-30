@@ -9,3 +9,6 @@ commands:
     usage: /getitem
     permission: impossbleescapemc.getitem
     permission-message: You do not have permission to use this command.
+  scavspawn:
+    description: 自分の位置にAI搭載SCAVを召喚します。
+    permission: op

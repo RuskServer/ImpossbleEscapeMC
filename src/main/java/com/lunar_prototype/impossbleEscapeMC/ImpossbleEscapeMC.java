@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.command.GetItemCommand;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
@@ -16,15 +17,24 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     private static ImpossbleEscapeMC instance;
 
+    public ScavSpawner getScavSpawner() {
+        return scavSpawner;
+    }
+
+    private ScavSpawner scavSpawner;
+    private GunListener gunListener;
+
     @Override
     public void onEnable() {
         // Plugin startup logic
         instance = this;
         ItemRegistry.loadAllItems(this);
-        getServer().getPluginManager().registerEvents(new GunListener(this), this);
+        gunListener = new GunListener(this);
+        getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(new ResourcePackListener(this), this);
         getServer().getPluginManager().registerEvents(new PlayerListener(),this);
         getCommand("getitem").setExecutor(new GetItemCommand());
+        scavSpawner = new ScavSpawner(this,gunListener);
         CrossbowTask.start(this);
         saveDefaultConfig();
     }
