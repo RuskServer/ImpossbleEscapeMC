@@ -1,12 +1,16 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -117,6 +121,25 @@ public class PlayerListener implements Listener {
                 org.bukkit.SoundCategory.HOSTILE, // モブならHOSTILEカテゴリが適切
                 1.0f,
                 1.0f);
+    }
+
+    @EventHandler
+    public void onScavTakenDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Mob scav)) return;
+
+        // ScavSpawnerからコントローラーを取得
+        ScavController controller = ScavSpawner.getController(scav.getUniqueId());
+
+        if (controller != null) {
+            // 被弾ダメージを負の報酬として与える
+            float penalty = (float) event.getFinalDamage();
+            controller.getBrain().reward(-penalty * 0.5f);
+            
+            // もし死んだなら管理マップから削除 (必要なら)
+            // if (scav.getHealth() - event.getFinalDamage() <= 0) {
+            //     ScavSpawner.removeScav(scav.getUniqueId());
+            // }
+        }
     }
 
     @EventHandler

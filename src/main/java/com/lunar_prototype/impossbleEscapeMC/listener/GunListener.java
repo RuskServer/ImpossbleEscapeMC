@@ -3,6 +3,8 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerRotation;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.item.*;
 import com.lunar_prototype.impossbleEscapeMC.util.BloodEffect;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -1128,6 +1130,22 @@ public class GunListener implements Listener {
         } else {
             // 貫通成功
             victim.getWorld().playSound(hitLoc, Sound.ENTITY_ZOMBIE_ATTACK_IRON_DOOR, 0.5f, 1.5f);
+        }
+
+        ScavController controller = ScavSpawner.getController(shooter.getUniqueId());
+        if (controller != null) {
+            float reward = 0.0f;
+
+            // 1. ダメージ量に応じた報酬
+            reward += (float) (finalDamage * 0.1);
+
+            // 2. ヘッドショットボーナス
+            if (isHeadshot) {
+                reward += 0.8f;
+                shooter.sendMessage("§a[AI] Nice Headshot! Learning...");
+            }
+
+            controller.getBrain().reward(reward); // AIに学習させる
         }
 
         // 最終ダメージの適用

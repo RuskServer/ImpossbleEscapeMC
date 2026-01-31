@@ -9,6 +9,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 
 public class ScavController {
     private final Mob scav;
@@ -40,28 +41,47 @@ public class ScavController {
         if (actions.length < 2) return;
 
         // --- デバッグログ: AIが何を選んだか ---
-        // actions[0]:移動, actions[1]:射撃, actions[2]:リロード
-        Bukkit.getLogger().info(String.format("[SCAV-AI] %s Thought -> Move:%d, Shoot:%d",
-                scav.getName(), actions[0], actions[1]));
+        // actions[0]:移動, actions[1]:射撃
+        // Bukkit.getLogger().info(String.format("[SCAV-AI] %s Thought -> Move:%d, Shoot:%d",
+        //         scav.getName(), actions[0], actions[1]));
 
         // --- Action 0: 移動 ---
         switch (actions[0]) {
-            case 0: // AIが明示的な移動行動を返さない場合、デフォルトで標的に接近
+            case 0: // 接近 (デフォルト)
             case 1: // 接近
                 if (target != null) {
                     scav.getPathfinder().moveTo(target);
                 }
                 break;
-            case 2: // 後退
+            case 2: // 後退 (距離を取る)
                 if (target != null) {
-                    scav.getPathfinder().moveTo(scav.getLocation().add(
-                            scav.getLocation().toVector().subtract(target.getLocation().toVector()).normalize().multiply(5)));
+                    Vector retreatVec = scav.getLocation().toVector().subtract(target.getLocation().toVector()).normalize().multiply(5);
+                    scav.getPathfinder().moveTo(scav.getLocation().add(retreatVec));
+                }
+                break;
+            case 3: // 左横移動 (Sidestep Left)
+                if (target != null) {
+                    Vector dir = target.getLocation().toVector().subtract(scav.getLocation().toVector()).normalize();
+                    Vector left = new Vector(-dir.getZ(), 0, dir.getX()).multiply(3); // 90度回転
+                    scav.getPathfinder().moveTo(scav.getLocation().add(left));
+                }
+                break;
+            case 4: // 右横移動 (Sidestep Right)
+                if (target != null) {
+                    Vector dir = target.getLocation().toVector().subtract(scav.getLocation().toVector()).normalize();
+                    Vector right = new Vector(dir.getZ(), 0, -dir.getX()).multiply(3); // -90度回転
+                    scav.getPathfinder().moveTo(scav.getLocation().add(right));
+                }
+                break;
+            case 5: // 回避ジャンプ
+                if (scav.isOnGround()) {
+                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.42, 0)));
                 }
                 break;
         }
 
         // --- Action 1: 射撃 ---
-        if (actions[1] == 1) {
+        if (actions[1] == 0) {
             if (target != null && scav.hasLineOfSight(target)) {
                 // ログ出力: 実際に射撃命令が飛んでいるか確認
                 Bukkit.getLogger().info("[SCAV] " + scav.getName() + " is SHOOTING at " + target.getName());
