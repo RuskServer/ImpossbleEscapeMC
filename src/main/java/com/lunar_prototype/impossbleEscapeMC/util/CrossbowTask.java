@@ -6,6 +6,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CrossbowMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 public class CrossbowTask extends BukkitRunnable {
@@ -18,6 +20,8 @@ public class CrossbowTask extends BukkitRunnable {
             // クロスボウを持っているか確認
             if (item.getType() == Material.CROSSBOW) {
                 CrossbowMeta meta = (CrossbowMeta) item.getItemMeta();
+
+                player.addPotionEffect(new PotionEffect(PotionEffectType.HASTE,2,255));
 
                 if (meta != null) {
                     // すでに装填されている場合はスキップ（無駄な更新を防ぐ）
