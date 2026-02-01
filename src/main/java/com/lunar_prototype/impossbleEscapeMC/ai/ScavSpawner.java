@@ -37,7 +37,7 @@ public class ScavSpawner implements Listener {
      * 指定した座標にAI SCAVをスポーンさせる
      */
     public void spawnScav(Location loc) {
-        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE); // または独自のEntityType
+        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.PILLAGER); // または独自のEntityType
 
         // タルコフ風の装備設定 (必要に応じてItemRegistryから取得)
         setupScavEquipment(scav);
@@ -115,10 +115,15 @@ public class ScavSpawner implements Listener {
         if (controllers.containsKey(uuid)) {
             ScavController controller = controllers.remove(uuid);
             if (controller != null) {
-                // 死亡時の大きなマイナス報酬（死なないように学習させる）
-                controller.getBrain().reward(-2.0f);
+                // 1. 死亡時の大きなマイナス報酬（死なないように学習させる）
+                controller.getBrain().reward(-5.0f);
+                
+                // 2. 成果をグローバル・ブレインに報告（保存）
+                controller.onDeath();
+                
+                // 3. メモリ解放
                 controller.getBrain().terminate();
-                Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
+                Bukkit.getLogger().info("[SCAV] AI Terminated and Knowledge Saved: " + uuid);
             }
         }
     }
@@ -128,6 +133,7 @@ public class ScavSpawner implements Listener {
      */
     public void cleanup() {
         for (ScavController controller : controllers.values()) {
+            controller.onDeath(); // 終了時も一応保存を試みる
             controller.getBrain().terminate();
         }
         controllers.clear();
