@@ -249,32 +249,31 @@ public class GunListener implements Listener {
     @EventHandler
     public void onReload(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
+        ItemStack droppedItem = event.getItemDrop().getItemStack();
 
-        // インベントリ（サバイバル、クリエイティブ、チェスト等）を開いている間は
-        // 通常のドロップとして扱い、リロード処理をスキップする
-        if (player.getOpenInventory().getType() != InventoryType.CRAFTING &&
-                player.getOpenInventory().getType() != InventoryType.CREATIVE) {
-            // ここでリターンすれば、イベントはキャンセルされず、アイテムが捨てられます
+        // 銃以外のアイテムは通常のドロップ
+        if (!isGun(droppedItem))
             return;
+
+        // インベントリを開いている場合（チェスト、作業台など）は通常のドロップを許可
+        InventoryType invType = player.getOpenInventory().getType();
+        if (invType != InventoryType.CRAFTING && invType != InventoryType.CREATIVE) {
+            return; // 通常のドロップを許可
         }
 
-        // 補足：標準のインベントリ画面は InventoryType.CRAFTING (2x2) です。
-        // もし「インベントリを開いている時だけは捨てさせたい」のであれば、
-        // 以下のように「トップインベントリ」が「自分の手元(CRAFTING/CREATIVE)」以外なら
-        // 他の画面（チェスト等）を開いていると判断できます。
-        // ※単純に「インベントリを閉じている時のみ」に絞るなら下記が確実です。
+        // メインハンドのアイテムを確認
+        // プレイヤーがインベントリ画面 (Eキー) を開いてスロットからQで捨てた場合、
+        // メインハンドには別のアイテム（または空）があるはず
+        ItemStack mainHandItem = player.getInventory().getItemInMainHand();
 
-        // インベントリを開いていない状態（通常画面）の時だけリロードを実行
-        // 通常画面時は getOpenInventory().getTopInventory() がプレイヤー自身の製作枠などになります。
-        // 実装スタイルによりますが、以下の判定が一般的です。
+        // メインハンドが空、または銃でない場合は通常のドロップ（インベントリからの操作）
+        if (mainHandItem.getType() == Material.AIR || !isGun(mainHandItem)) {
+            return; // 通常のドロップを許可
+        }
 
-        ItemStack item = event.getItemDrop().getItemStack();
-        if (!isGun(item))
-            return;
-
-        // 通常プレイ中のドロップ（リロード）処理
+        // メインハンドから直接捨てた場合 = リロードとして処理
         event.setCancelled(true);
-        startReload(player, item);
+        startReload(player, mainHandItem);
     }
 
     // 【重要】タルコフ式反動ロジック
@@ -372,9 +371,10 @@ public class GunListener implements Listener {
 
     /**
      * モブが射撃するための簡易メソッド
-     * @param shooter 撃つモブ
-     * @param stats 銃のステータス
-     * @param ammoClass 使用する弾のクラス
+     * 
+     * @param shooter    撃つモブ
+     * @param stats      銃のステータス
+     * @param ammoClass  使用する弾のクラス
      * @param inaccuracy 集弾率 (0で正確、数値が大きいほどバラける)
      */
     public void executeMobShoot(LivingEntity shooter, GunStats stats, int ammoClass, double inaccuracy) {
@@ -390,8 +390,7 @@ public class GunListener implements Listener {
             Vector spread = new Vector(
                     (Math.random() - 0.5) * inaccuracy,
                     (Math.random() - 0.5) * inaccuracy,
-                    (Math.random() - 0.5) * inaccuracy
-            );
+                    (Math.random() - 0.5) * inaccuracy);
             task.velocity.add(spread).normalize().multiply(6.0); // SPEEDに合わせて再加速
         }
 
@@ -518,7 +517,7 @@ public class GunListener implements Listener {
                         ScavController controller = ScavSpawner.getController(scav.getUniqueId());
                         if (controller != null) {
                             // 弾が近くを通る = 回避成功
-                            controller.getBrain().reward(0.05f); 
+                            controller.getBrain().reward(0.05f);
                             controller.addSuppression(0.1f); // 制圧値加算
                         }
                     }
@@ -863,7 +862,8 @@ public class GunListener implements Listener {
         Map<String, List<ItemStack>> ammoPool = new HashMap<>(); // AmmoID -> スタックリスト
 
         for (ItemStack invItem : player.getInventory().getContents()) {
-            if (invItem == null || invItem.getType() == Material.AIR || !invItem.hasItemMeta()) continue;
+            if (invItem == null || invItem.getType() == Material.AIR || !invItem.hasItemMeta())
+                continue;
 
             String id = invItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
             AmmoDefinition foundAmmo = ItemRegistry.getAmmo(id);
@@ -898,7 +898,8 @@ public class GunListener implements Listener {
 
         // 【QOL向上】弾が満タン、かつ現在装填中の弾と同じ種類ならリロード不要
         // 逆に満タンでも種類が違う(PS->BS)ならリロードを続行する
-        if (currentAmmo >= maxAmmo && finalAmmoData.id.equals(currentAmmoId)) return;
+        if (currentAmmo >= maxAmmo && finalAmmoData.id.equals(currentAmmoId))
+            return;
 
         // リロードタイプ判定
         // CLOSEDボルト かつ 残弾0の場合 -> タクティカルリロード (コッキング動作含む)
@@ -1005,8 +1006,10 @@ public class GunListener implements Listener {
 
                         // 収集しておいたスタックリストから順に引いていく
                         for (ItemStack ammoStack : finalAmmoStacks) {
-                            if (needed <= 0) break;
-                            if (ammoStack == null || ammoStack.getType() == Material.AIR) continue;
+                            if (needed <= 0)
+                                break;
+                            if (ammoStack == null || ammoStack.getType() == Material.AIR)
+                                continue;
 
                             int amount = ammoStack.getAmount();
                             int take = Math.min(amount, needed);
@@ -1017,7 +1020,7 @@ public class GunListener implements Listener {
                         }
 
                         // 5. 銃のPDCを完全に更新 (弾数と弾薬IDの両方)
-                        fPdc.set(PDCKeys.AMMO, PDCKeys.INTEGER,loaded);
+                        fPdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, loaded);
                         fPdc.set(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING, finalAmmoData.id);
 
                         currentItem.setItemMeta(finishedMeta);
@@ -1108,7 +1111,8 @@ public class GunListener implements Listener {
         victim.setRotation(loc.getYaw(), loc.getPitch() + (float) (Math.random() * 2 - 1));
     }
 
-    private void handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass, Location hitLoc) {
+    private void handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass,
+            Location hitLoc) {
         double finalDamage = baseDamage;
 
         // 1. ヘッドショット判定 (1.2倍)
