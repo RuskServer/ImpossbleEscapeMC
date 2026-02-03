@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerPositionAndLook;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerRotation;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
@@ -399,35 +400,19 @@ public class GunListener implements Listener {
 
     /**
      * PacketEventsを使用してプレイヤーに相対的な視点変更（リコイル）を送信します。
-     * これにより、setRotationのようなカクつきがなくなり、マウス操作とリコイルが自然に合成されます。
      *
      * @param player      対象プレイヤー
      * @param yawRecoil   横方向の変化量 (右が正)
      * @param pitchRecoil 縦方向の変化量 (下が正。リコイルで上に跳ねるならマイナスを指定)
      */
     private void sendRecoilPacket(Player player, float yawRecoil, float pitchRecoil) {
-        // 1. 現在の視点を取得
-        Location currentLoc = player.getLocation();
-        float currentYaw = currentLoc.getYaw();
-        float currentPitch = currentLoc.getPitch();
 
-        // 2. 反動を加算 (Pitchはマイナスで上を向く)
-        float newYaw = currentYaw + yawRecoil;
-        float newPitch = currentPitch + pitchRecoil;
-
-        // 3. Pitchの制限 (-90度〜90度)
-        if (newPitch < -90)
-            newPitch = -90;
-        if (newPitch > 90)
-            newPitch = 90;
-
-        // 4. 回転専用パケットの作成 (MC 1.19.4+)
-        // 引数: yaw, pitch, onGround
         WrapperPlayServerPlayerRotation packet = new WrapperPlayServerPlayerRotation(
-                newYaw,
-                newPitch);
+                yawRecoil,
+                true,
+                pitchRecoil,
+                true);
 
-        // 5. 送信
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
     }
 
@@ -596,7 +581,7 @@ public class GunListener implements Listener {
                     double gap = 0.25;
                     // 明るいオレンジ (RGB: 255, 180, 50), サイズ 0.6
                     Particle.DustOptions dustOption = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 180, 50),
-                            0.6f);
+                            0.2f);
 
                     for (double d = 0; d < distance; d += gap) {
                         Vector pos = start.clone().add(direction.clone().multiply(d));
