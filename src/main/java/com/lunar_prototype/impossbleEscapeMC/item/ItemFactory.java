@@ -17,12 +17,34 @@ public class ItemFactory {
     public static ItemStack create(String id) {
         ItemDefinition def = ItemRegistry.get(id);
         AmmoDefinition ammoDef = ItemRegistry.getAmmo(id);
+        AttachmentDefinition attDef = ItemRegistry.getAttachment(id);
 
-        if (def == null && ammoDef == null)
+        if (def == null && ammoDef == null && attDef == null)
             return null;
 
         ItemStack item;
         ItemMeta meta;
+
+        // --- アタッチメントアイテムの生成 ---
+        if (attDef != null) {
+            Material mat = Material.matchMaterial(attDef.material);
+            item = new ItemStack(mat == null ? Material.IRON_NUGGET : mat);
+            meta = item.getItemMeta();
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, attDef.id);
+
+            String rarityColor = getRarityColor(attDef.rarity);
+            meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', attDef.displayName));
+
+            List<String> lore = new ArrayList<>();
+            lore.add("§7Type: §fATTACHMENT");
+            lore.add("§7Slot: §e" + (attDef.slot != null ? attDef.slot.name() : "UNKNOWN"));
+            lore.add("§7Rarity: " + getRarityStars(attDef.rarity));
+            meta.setLore(lore);
+
+            item.setItemMeta(meta);
+            return item;
+        }
 
         if (ammoDef != null) {
             // --- 弾薬アイテムの生成 ---

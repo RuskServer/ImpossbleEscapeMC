@@ -13,6 +13,7 @@ import java.util.Map;
 public class ItemRegistry {
     private static final Map<String, ItemDefinition> ITEM_MAP = new HashMap<>();
     private static final Map<String, AmmoDefinition> AMMO_MAP = new HashMap<>();
+    private static final Map<String, AttachmentDefinition> ATTACHMENT_MAP = new HashMap<>();
 
     /**
      * plugins/ImpossibleEscapeMC/items/ 内の全YAMLをロードします
@@ -27,6 +28,7 @@ public class ItemRegistry {
 
         ITEM_MAP.clear();
         AMMO_MAP.clear();
+        ATTACHMENT_MAP.clear();
         File ammofolder = new File(plugin.getDataFolder(), "ammo");
         if (!ammofolder.exists()) {
             ammofolder.mkdirs();
@@ -50,6 +52,31 @@ public class ItemRegistry {
                 ammo.material = section.getString("material", "IRON_NUGGET");
                 ammo.rarity = section.getInt("rarity", 1);
                 AMMO_MAP.put(key, ammo);
+            }
+        }
+
+        // --- Attachment 読み込み ---
+        File attachmentFolder = new File(plugin.getDataFolder(), "attachments");
+        if (!attachmentFolder.exists()) {
+            attachmentFolder.mkdirs();
+        }
+        File[] attachmentFiles = attachmentFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (attachmentFiles != null) {
+            for (File file : attachmentFiles) {
+                YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+                for (String key : config.getKeys(false)) {
+                    ConfigurationSection section = config.getConfigurationSection(key);
+                    if (section == null)
+                        continue;
+                    AttachmentDefinition att = new AttachmentDefinition();
+                    att.id = key;
+                    att.displayName = section.getString("displayName", key);
+                    att.material = section.getString("material", "IRON_NUGGET");
+                    att.slot = AttachmentSlot.fromName(section.getString("slot", "SIGHT"));
+                    att.modelId = section.getString("modelId", key);
+                    att.rarity = section.getInt("rarity", 1);
+                    ATTACHMENT_MAP.put(key, att);
+                }
             }
         }
 
@@ -139,6 +166,10 @@ public class ItemRegistry {
 
     public static AmmoDefinition getAmmo(String id) {
         return AMMO_MAP.get(id);
+    }
+
+    public static AttachmentDefinition getAttachment(String id) {
+        return ATTACHMENT_MAP.get(id);
     }
 
     public static AmmoDefinition getWeakestAmmoForCaliber(String caliber) {
