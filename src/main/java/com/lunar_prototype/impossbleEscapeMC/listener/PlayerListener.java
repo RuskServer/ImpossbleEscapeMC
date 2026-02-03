@@ -135,10 +135,10 @@ public class PlayerListener implements Listener {
             float penalty = (float) event.getFinalDamage();
             controller.getBrain().reward(-penalty * 0.5f);
             
-            // もし死んだなら管理マップから削除 (必要なら)
-            // if (scav.getHealth() - event.getFinalDamage() <= 0) {
-            //     ScavSpawner.removeScav(scav.getUniqueId());
-            // }
+            // 攻撃者の方を向く
+            if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent nabe) {
+                controller.onDamage(nabe.getDamager());
+            }
         }
     }
 

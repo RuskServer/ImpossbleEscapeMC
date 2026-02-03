@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerPositionAndLook;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerRotation;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
@@ -16,6 +17,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -398,35 +400,19 @@ public class GunListener implements Listener {
 
     /**
      * PacketEventsを使用してプレイヤーに相対的な視点変更（リコイル）を送信します。
-     * これにより、setRotationのようなカクつきがなくなり、マウス操作とリコイルが自然に合成されます。
      *
      * @param player      対象プレイヤー
      * @param yawRecoil   横方向の変化量 (右が正)
      * @param pitchRecoil 縦方向の変化量 (下が正。リコイルで上に跳ねるならマイナスを指定)
      */
     private void sendRecoilPacket(Player player, float yawRecoil, float pitchRecoil) {
-        // 1. 現在の視点を取得
-        Location currentLoc = player.getLocation();
-        float currentYaw = currentLoc.getYaw();
-        float currentPitch = currentLoc.getPitch();
 
-        // 2. 反動を加算 (Pitchはマイナスで上を向く)
-        float newYaw = currentYaw + yawRecoil;
-        float newPitch = currentPitch + pitchRecoil;
-
-        // 3. Pitchの制限 (-90度〜90度)
-        if (newPitch < -90)
-            newPitch = -90;
-        if (newPitch > 90)
-            newPitch = 90;
-
-        // 4. 回転専用パケットの作成 (MC 1.19.4+)
-        // 引数: yaw, pitch, onGround
         WrapperPlayServerPlayerRotation packet = new WrapperPlayServerPlayerRotation(
-                newYaw,
-                newPitch);
+                yawRecoil,
+                true,
+                pitchRecoil,
+                true);
 
-        // 5. 送信
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
     }
 
@@ -524,6 +510,21 @@ public class GunListener implements Listener {
             velocity.add(new Vector(0, -GRAVITY, 0));
             currentLoc.add(velocity);
 
+            // ニアミス判定 (回避報酬)
+            // 弾丸の軌道近くにいるスカブに「避けた」報酬を与える
+            if (shooter instanceof Player) {
+                for (Entity nearby : currentLoc.getWorld().getNearbyEntities(currentLoc, 1.5, 1.5, 1.5)) {
+                    if (nearby instanceof Mob scav && !nearby.equals(shooter)) {
+                        ScavController controller = ScavSpawner.getController(scav.getUniqueId());
+                        if (controller != null) {
+                            // 弾が近くを通る = 回避成功
+                            controller.getBrain().reward(0.05f); 
+                            controller.addSuppression(0.1f); // 制圧値加算
+                        }
+                    }
+                }
+            }
+
             // 曳光弾のエフェクト (前回の地点から今回の地点まで線を引くようにパーティクルを出す)
             spawnTracer(prevLoc, currentLoc);
 
@@ -580,7 +581,7 @@ public class GunListener implements Listener {
                     double gap = 0.25;
                     // 明るいオレンジ (RGB: 255, 180, 50), サイズ 0.6
                     Particle.DustOptions dustOption = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 180, 50),
-                            0.6f);
+                            0.2f);
 
                     for (double d = 0; d < distance; d += gap) {
                         Vector pos = start.clone().add(direction.clone().multiply(d));
@@ -1136,13 +1137,26 @@ public class GunListener implements Listener {
         if (controller != null) {
             float reward = 0.0f;
 
-            // 1. ダメージ量に応じた報酬
-            reward += (float) (finalDamage * 0.1);
+            // 1. ダメージ量に応じた基本報酬
+            reward += (float) (finalDamage * 0.15);
 
-            // 2. ヘッドショットボーナス
+            // 2. ヘッドショットボーナス (強化)
             if (isHeadshot) {
-                reward += 0.8f;
+                reward += 1.2f;
                 shooter.sendMessage("§a[AI] Nice Headshot! Learning...");
+            }
+
+            // 3. 移動射撃ボーナス (回避行動中に当てた場合)
+            int[] lastActions = controller.getBrain().getLastActions();
+            if (lastActions != null && lastActions[0] >= 3) {
+                reward += 0.5f;
+                shooter.sendMessage("§b[AI] Mobile Hit Bonus! Learning...");
+            }
+
+            // 4. 距離ボーナス (15m付近の適正距離での命中)
+            double dist = shooter.getLocation().distance(victim.getLocation());
+            if (dist >= 10 && dist <= 20) {
+                reward += 0.3f;
             }
 
             controller.getBrain().reward(reward); // AIに学習させる

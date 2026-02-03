@@ -32,6 +32,11 @@
       <option name="url" value="https://repository.jboss.org/nexus/content/repositories/public/" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="libsdisguises-public" />
+      <option name="name" value="libsdisguises-public" />
+      <option name="url" value="https://mvn.lib.co.nz/public" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="ruskserver-releases" />
       <option name="name" value="ruskserver-releases" />
       <option name="url" value="https://repo.ruskserver.com/repository/maven-releases/" />
