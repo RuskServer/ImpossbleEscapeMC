@@ -249,31 +249,19 @@ public class GunListener implements Listener {
     @EventHandler
     public void onReload(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
-        ItemStack droppedItem = event.getItemDrop().getItemStack();
 
-        // 銃以外のアイテムは通常のドロップ
-        if (!isGun(droppedItem))
+        if (player.getOpenInventory().getType() != InventoryType.CRAFTING &&
+                player.getOpenInventory().getType() != InventoryType.CREATIVE) {
+            return;
+        }
+
+        ItemStack item = event.getItemDrop().getItemStack();
+        if (!isGun(item))
             return;
 
-        // インベントリを開いている場合（チェスト、作業台など）は通常のドロップを許可
-        InventoryType invType = player.getOpenInventory().getType();
-        if (invType != InventoryType.CRAFTING && invType != InventoryType.CREATIVE) {
-            return; // 通常のドロップを許可
-        }
-
-        // メインハンドのアイテムを確認
-        // プレイヤーがインベントリ画面 (Eキー) を開いてスロットからQで捨てた場合、
-        // メインハンドには別のアイテム（または空）があるはず
-        ItemStack mainHandItem = player.getInventory().getItemInMainHand();
-
-        // メインハンドが空、または銃でない場合は通常のドロップ（インベントリからの操作）
-        if (mainHandItem.getType() == Material.AIR || !isGun(mainHandItem)) {
-            return; // 通常のドロップを許可
-        }
-
-        // メインハンドから直接捨てた場合 = リロードとして処理
+        // 通常プレイ中のドロップ（リロード）処理
         event.setCancelled(true);
-        startReload(player, mainHandItem);
+        startReload(player, item);
     }
 
     // 【重要】タルコフ式反動ロジック
