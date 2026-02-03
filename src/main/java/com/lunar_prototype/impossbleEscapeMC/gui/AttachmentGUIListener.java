@@ -23,18 +23,26 @@ public class AttachmentGUIListener implements Listener {
         if (!(event.getInventory().getHolder() instanceof AttachmentGUI gui))
             return;
 
-        event.setCancelled(true);
-
         if (!(event.getWhoClicked() instanceof Player player))
             return;
 
         int clickedSlot = event.getRawSlot();
+        int guiSize = event.getInventory().getSize();
         ItemStack cursor = event.getCursor();
         ItemStack gunItem = gui.getGunItem();
 
-        // GUI外クリックは無視
-        if (clickedSlot < 0 || clickedSlot >= event.getInventory().getSize())
+        // プレイヤーのインベントリ部分 (GUI外) のクリックは許可
+        // これによりアタッチメントをカーソルに持てる
+        if (clickedSlot >= guiSize) {
+            // ただしShift+クリックはアイテムがGUIに入ってしまうのでキャンセル
+            if (event.isShiftClick()) {
+                event.setCancelled(true);
+            }
             return;
+        }
+
+        // GUI内のクリックはキャンセル (デフォルト動作を防ぐ)
+        event.setCancelled(true);
 
         // 中央の銃スロット（13）はクリック不可
         if (clickedSlot == 13)
