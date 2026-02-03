@@ -12,3 +12,6 @@ commands:
   scavspawn:
     description: 自分の位置にAI搭載SCAVを召喚します。
     permission: op
+  attachment:
+    description: 銃のアタッチメントGUIを開きます。
+    usage: /attachment
