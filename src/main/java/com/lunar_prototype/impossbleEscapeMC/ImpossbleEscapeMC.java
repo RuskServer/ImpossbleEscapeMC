@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.BrainManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.command.AttachmentCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.GetItemCommand;
@@ -32,6 +33,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     public void onEnable() {
         // Plugin startup logic
         instance = this;
+        BrainManager.init(this); // 追加
         ItemRegistry.loadAllItems(this);
         gunListener = new GunListener(this);
         scavSpawner = new ScavSpawner(this, gunListener);
