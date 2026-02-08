@@ -77,6 +77,19 @@ public class ScavController {
             tacticalAdvice = 0.5f; // 回避推奨
         }
 
+        // --- 状況の注入 (Condition Injection) ---
+        // 1. Low Health Check (< 30%)
+        double maxHealth = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+        boolean isLowHealth = scav.getHealth() < (maxHealth * 0.3);
+
+        // 2. Low Ammo Check (< 20%)
+        int currentAmmo = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+        int magSize = def.gunStats != null ? def.gunStats.magSize : 30;
+        boolean isLowAmmo = currentAmmo < (magSize * 0.2);
+
+        // 3. Update Brain Conditions (Hamiltonian Fields)
+        brain.updateConditions(isLowHealth, isLowAmmo, suppression > 0.5f, tacticalAdvice > 0.5f);
+
         // AIに思考させる
         int[] actions = brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
 

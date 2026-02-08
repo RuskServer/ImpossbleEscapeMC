@@ -119,7 +119,7 @@ public class ScavSpawner implements Listener {
                 controller.getBrain().reward(-5.0f);
                 
                 // 2. 成果をグローバル・ブレインに報告（保存）
-                controller.onDeath();
+                //controller.onDeath();
                 
                 // 3. メモリ解放
                 controller.getBrain().terminate();
