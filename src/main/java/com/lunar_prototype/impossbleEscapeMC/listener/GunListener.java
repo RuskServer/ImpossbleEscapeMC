@@ -24,6 +24,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.*;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -38,6 +39,7 @@ public class GunListener implements Listener {
 
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Long> lastRightClickMap = new HashMap<>();
+    private final Map<UUID, Long> lastShotTimeMap = new HashMap<>();
     private final Set<UUID> shootingPlayers = new HashSet<>();
     private final Map<UUID, BukkitRunnable> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> consecutiveShots = new HashMap<>();
@@ -88,8 +90,20 @@ public class GunListener implements Listener {
         // バニラのアイテム動作（クロスボウの発射など）をキャンセル
         event.setCancelled(true);
 
+        long now = System.currentTimeMillis();
+        long lastShot = lastShotTimeMap.getOrDefault(uuid, 0L);
+        long requiredIntervalMs = (long) (60000.0 / def.gunStats.rpm);
+        long delayTicks = 0;
+
+        if (now - lastShot < requiredIntervalMs) {
+            long remainingMs = requiredIntervalMs - (now - lastShot);
+            delayTicks = remainingMs / 50;
+            if (delayTicks < 1)
+                delayTicks = 1;
+        }
+
         // 3. 射撃ループ開始
-        startShooting(player, pdc, def.gunStats);
+        startShooting(player, pdc, def.gunStats, delayTicks);
     }
 
     // --- 左クリックでエイム切り替え (トグル) ---
@@ -142,7 +156,7 @@ public class GunListener implements Listener {
         }.runTaskLater(plugin, 1);
     }
 
-    private void startShooting(Player player, PersistentDataContainer pdc, GunStats stats) {
+    private void startShooting(Player player, PersistentDataContainer pdc, GunStats stats, long delayTicks) {
         UUID uuid = player.getUniqueId();
 
         consecutiveShots.put(uuid, 0);
@@ -150,6 +164,8 @@ public class GunListener implements Listener {
         long intervalTicks = Math.max(1, 1200 / stats.rpm);
 
         BukkitRunnable task = new BukkitRunnable() {
+            boolean firstShot = true;
+
             @Override
             public void run() {
                 // --- 離したことの検知ロジック ---
@@ -157,8 +173,8 @@ public class GunListener implements Listener {
                 long now = System.currentTimeMillis();
 
                 // マイクラの右クリック連打（長押し時）は約200ms間隔
-                // 300ms以上イベントが来なければ「指を離した」とみなす
-                if (now - lastClick > 300) {
+                // 300ms以上イベントが来なければ「指を離した」とみなす (初回はディレイで遅れる可能性があるためスキップ)
+                if (!firstShot && now - lastClick > 300) {
                     stopShooting(uuid);
                     return;
                 }
@@ -171,6 +187,8 @@ public class GunListener implements Listener {
 
                 // 射撃実行
                 executeShoot(player, pdc, stats);
+                lastShotTimeMap.put(uuid, System.currentTimeMillis());
+                firstShot = false;
 
                 // セミオートの場合は1回で終了
                 if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
@@ -180,7 +198,7 @@ public class GunListener implements Listener {
         };
 
         activeTasks.put(uuid, task);
-        task.runTaskTimer(plugin, 0, intervalTicks);
+        task.runTaskTimer(plugin, delayTicks, intervalTicks);
     }
 
     private void stopShooting(UUID uuid) {
@@ -722,16 +740,34 @@ public class GunListener implements Listener {
             Location hitLoc) {
         double finalDamage = baseDamage;
 
-        // 1. ヘッドショット判定 (1.2倍)
-        // 目の高さと着弾点の距離が近ければヘッドショットとみなす
-        boolean isHeadshot = hitLoc.getY() >= victim.getEyeLocation().getY() - 0.25;
+        // 身長による座標基準の計算
+        double footY = victim.getLocation().getY();
+        double headY = victim.getEyeLocation().getY();
+        double hitY = hitLoc.getY();
+        double height = headY - footY; // 目の高さまでの距離 (約1.62m for player)
+
+        // 部位判定
+        boolean isHeadshot = hitY >= (headY - 0.25);
+        boolean isLegShot = hitY <= (footY + (height * 0.45)); // 足元から45%の高さ以下なら足とみなす
+
+        int armorClass = 0;
+
         if (isHeadshot) {
+            // ヘッドショット (1.2倍 + ヘルメット参照)
             finalDamage *= 1.2;
             victim.getWorld().spawnParticle(Particle.CRIT, hitLoc, 15, 0.1, 0.1, 0.1, 0.2);
+            armorClass = getArmorClassFromSlot(victim, EquipmentSlot.HEAD);
+        } else if (isLegShot) {
+            // レッグショット (ダメージ60% + アーマー無視)
+            // 「そのままダメージを与えられる」 = アーマー計算をスキップして確定貫通扱いとする
+            finalDamage *= 0.6;
+            // armorClass = 0 のまま (貫通確定)
+        } else {
+            // ボディ (アーマー参照)
+            armorClass = getArmorClassFromSlot(victim, EquipmentSlot.CHEST);
         }
 
-        // 2. 防具貫通判定
-        int armorClass = getArmorClass(victim);
+        // アーマー貫通判定 (足はアーマー0なので必ず貫通する)
         boolean isPenetrated = calculatePenetration(ammoClass, armorClass);
 
         if (!isPenetrated) {
@@ -797,20 +833,14 @@ public class GunListener implements Listener {
         return Math.random() < chance;
     }
 
-    private int getArmorClass(LivingEntity entity) {
-        ItemStack chest = entity.getEquipment().getChestplate();
-        if (chest == null)
+    private int getArmorClassFromSlot(LivingEntity entity, EquipmentSlot slot) {
+        ItemStack item = entity.getEquipment().getItem(slot);
+        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) {
             return 0;
-
-        // バニラ装備への仮クラス割り当て
-        return switch (chest.getType()) {
-            case NETHERITE_CHESTPLATE -> 5;
-            case DIAMOND_CHESTPLATE -> 4;
-            case IRON_CHESTPLATE -> 3;
-            case CHAINMAIL_CHESTPLATE -> 2;
-            case LEATHER_CHESTPLATE -> 1;
-            default -> 0;
-        };
+        }
+        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        // アーマークラス (int) を取得。PDCになければ0
+        return pdc.getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
     }
 
     private List<String> getAttachments(ItemStack item) {

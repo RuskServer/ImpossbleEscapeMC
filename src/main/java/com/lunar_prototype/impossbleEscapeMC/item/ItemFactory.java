@@ -3,8 +3,12 @@ package com.lunar_prototype.impossbleEscapeMC.item;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.EquippableComponent;
 import org.bukkit.persistence.PersistentDataContainer;
 
 import java.util.ArrayList;
@@ -87,10 +91,47 @@ public class ItemFactory {
                     pdc.set(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING, defaultAmmo.id);
                 }
 
-                // デフォルトアタッチメントの設定
                 if (def.gunStats.defaultAttachments != null && !def.gunStats.defaultAttachments.isEmpty()) {
                     String joined = String.join(",", def.gunStats.defaultAttachments);
                     pdc.set(PDCKeys.ATTACHMENTS, PDCKeys.STRING, joined);
+                }
+            }
+
+            // --- Armor Configuration ---
+            if (def.armorStats != null) {
+                meta.setCustomModelData(def.armorStats.customModelData);
+                pdc.set(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, def.armorStats.armorClass);
+
+                // EquippableComponent check (for 1.20.6+)
+                try {
+                    EquippableComponent equippable = meta.getEquippable();
+                    if (def.armorStats.slot != null) {
+                        try {
+                            equippable.setSlot(EquipmentSlot.valueOf(def.armorStats.slot.toUpperCase()));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                    if (def.armorStats.equipSound != null) {
+                        try {
+                            equippable.setEquipSound(Sound.valueOf(def.armorStats.equipSound.toUpperCase()));
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                    if (def.armorStats.model != null && !def.armorStats.model.isEmpty()) {
+                        NamespacedKey key = NamespacedKey.fromString(def.armorStats.model);
+                        if (key != null)
+                            equippable.setModel(key);
+                    }
+                    if (def.armorStats.cameraOverlay != null && !def.armorStats.cameraOverlay.isEmpty()) {
+                        NamespacedKey key = NamespacedKey.fromString(def.armorStats.cameraOverlay);
+                        if (key != null)
+                            equippable.setCameraOverlay(key);
+                    }
+                    equippable.setDispensable(def.armorStats.dispensable);
+                    equippable.setSwappable(def.armorStats.swappable);
+                    equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
+                } catch (Throwable t) {
+                    // Method might not be available on older versions
                 }
             }
 
@@ -161,6 +202,14 @@ public class ItemFactory {
             String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "None";
 
             lore.add("§7Chambered: §f" + ammoName); // 装填中の弾薬名を表示
+            lore.add("");
+        }
+
+        // Armor Stats
+        if (def.armorStats != null) {
+            lore.add("§9§l<< ARMOR STATS >>");
+            lore.add("§7Class: §f" + def.armorStats.armorClass);
+            lore.add("§7Defense: §f" + def.armorStats.defense);
             lore.add("");
         }
 
