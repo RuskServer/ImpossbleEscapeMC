@@ -153,6 +153,26 @@ public class ItemRegistry {
                     }
                 }
 
+                // --- ArmorStats の読み込み ---
+                if (section.contains("armorStats")) {
+                    ConfigurationSection armorSection = section.getConfigurationSection("armorStats");
+                    if (armorSection != null) {
+                        ArmorStats aStats = new ArmorStats();
+                        aStats.defense = armorSection.getInt("defense");
+                        aStats.armorClass = armorSection.getInt("armorClass", 1);
+                        aStats.customModelData = armorSection.getInt("customModelData", 0);
+                        aStats.slot = armorSection.getString("slot", "HEAD");
+                        aStats.equipSound = armorSection.getString("equipSound");
+                        aStats.model = armorSection.getString("model");
+                        aStats.cameraOverlay = armorSection.getString("cameraOverlay");
+                        aStats.dispensable = armorSection.getBoolean("dispensable", true);
+                        aStats.swappable = armorSection.getBoolean("swappable", true);
+                        aStats.damageOnHurt = armorSection.getBoolean("damageOnHurt", true);
+
+                        def.armorStats = aStats;
+                    }
+                }
+
                 ITEM_MAP.put(key, def);
             }
         }

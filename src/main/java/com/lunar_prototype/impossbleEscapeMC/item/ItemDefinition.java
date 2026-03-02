@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.item;
 
 import java.util.List;
 
-
 public class ItemDefinition {
     public String id; // e.g. gun_ak74
     public String type; // GUN / MED / LOOT
@@ -13,4 +12,5 @@ public class ItemDefinition {
     public List<Affix> affixes;
     public GunStats gunStats;
     public MedStats medStats;
+    public ArmorStats armorStats;
 }
