@@ -3,3 +3,8 @@ resource-pack:
   hash: "" # 任意（更新検知用）
   prompt: "サーバー専用リソースパックを適用してください。"
   force: true
+
+hit-sounds:
+  headshot: "custom_hit"
+  penetration-success: "ENTITY_ZOMBIE_ATTACK_IRON_DOOR"
+  penetration-failed: "ITEM_ARMOR_EQUIP_IRON"

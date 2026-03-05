@@ -81,8 +81,10 @@ public class GunListener implements Listener {
             return;
 
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        ItemDefinition def = ItemRegistry.get(itemId);
+        String itemId = pdc.get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID,
+                com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
+        com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry
+                .get(itemId);
 
         if (def == null || !"GUN".equalsIgnoreCase(def.type) || def.gunStats == null)
             return;
@@ -813,11 +815,16 @@ public class GunListener implements Listener {
         if (!isPenetrated) {
             // 貫通失敗: ダメージを大幅にカット (例: 10~20%程度しか通らない)
             finalDamage *= 0.15;
-            victim.getWorld().playSound(hitLoc, Sound.ITEM_ARMOR_EQUIP_IRON, 1.0f, 0.8f);
+            playConfiguredSound(hitLoc, "hit-sounds.penetration-failed", "ITEM_ARMOR_EQUIP_IRON", 1.0f, 0.8f);
             shooter.sendMessage("§7[!] 弾が装甲に弾かれました");
         } else {
             // 貫通成功
-            victim.getWorld().playSound(hitLoc, Sound.ENTITY_ZOMBIE_ATTACK_IRON_DOOR, 0.5f, 1.5f);
+            playConfiguredSound(hitLoc, "hit-sounds.penetration-success", "ENTITY_ZOMBIE_ATTACK_IRON_DOOR", 0.5f, 1.5f);
+            
+            // 更にヘッドショットだった場合は別音を追加で鳴らす（既存処理維持ならここでヘッドショットの音も鳴らす）
+            if (isHeadshot) {
+                playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
+            }
         }
 
         ScavController controller = ScavSpawner.getController(shooter.getUniqueId());
@@ -851,6 +858,19 @@ public class GunListener implements Listener {
 
         // 最終ダメージの適用
         victim.damage(finalDamage, shooter);
+    }
+
+    private void playConfiguredSound(Location loc, String configKey, String defaultSoundName, float volume, float pitch) {
+        String soundName = plugin.getConfig().getString(configKey, defaultSoundName);
+        if (soundName == null || soundName.isEmpty()) return;
+
+        try {
+            Sound sound = Sound.valueOf(soundName.toUpperCase());
+            loc.getWorld().playSound(loc, sound, volume, pitch);
+        } catch (IllegalArgumentException e) {
+            // Not a built-in sound, play as a custom resource pack sound
+            loc.getWorld().playSound(loc, soundName, volume, pitch);
+        }
     }
 
     private boolean calculatePenetration(int ammo, int armor) {
