@@ -285,20 +285,44 @@ public class GunListener implements Listener {
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer itemPdc = meta.getPersistentDataContainer();
 
-        // 1. 実物のアイテムから弾数を取得
-        int currentAmmo = itemPdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+        // 1. 実物のアイテムのチェンバーから弾を確認
+        boolean isChamberLoaded = itemPdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
 
-        if (currentAmmo <= 0) {
+        if (!isChamberLoaded) {
             stopShooting(player.getUniqueId());
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 0.5f);
+
+            // ボルトアクションでチャンバーが空、かつマガジンに弾がある場合、オートコッキング処理に入れるか考慮
+            // ここではクリック時に空なら単にカチッと鳴るだけ（リロードまたはコッキングが必要）
             return;
         }
 
-        // 2. 弾数を減らして「メタデータ」に保存
-        currentAmmo--;
-        itemPdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, currentAmmo);
+        // 2. チャンバーの弾を消費
+        itemPdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0);
 
-        // 3. 【重要】ここが抜けていました：メタデータを実物のアイテムにセットし直す
+        // 撃った弾のIDを取得（後で弾薬生成に使う）
+        String chamberAmmoId = itemPdc.get(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING);
+        if (chamberAmmoId == null) {
+            chamberAmmoId = itemPdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING); // フォールバック
+        }
+
+        // 3. 次弾の装填処理（オートマチック/クローズドボルトの場合）
+        boolean isBoltAction = "BOLT_ACTION".equalsIgnoreCase(stats.boltType)
+                || "PUMP_ACTION".equalsIgnoreCase(stats.boltType);
+
+        if (!isBoltAction) { // フルオートやセミオートなど、自動で次弾が装填される銃
+            int currentAmmo = itemPdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+            if (currentAmmo > 0) {
+                itemPdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, currentAmmo - 1);
+                itemPdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 1);
+                String currentAmmoId = itemPdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
+                if (currentAmmoId != null) {
+                    itemPdc.set(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING, currentAmmoId);
+                }
+            }
+        }
+
+        // 4. メタデータを実物のアイテムにセットし直す
         item.setItemMeta(meta);
 
         double damage = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, stats.damage);
@@ -339,8 +363,7 @@ public class GunListener implements Listener {
         // --- 処理の適用 ---
         spawnMuzzleFlash(player);
         ItemFactory.updateLore(item);
-        String ammoId = itemPdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
-        AmmoDefinition ammoDef = ItemRegistry.getAmmo(ammoId);
+        AmmoDefinition ammoDef = ItemRegistry.getAmmo(chamberAmmoId);
 
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
@@ -366,6 +389,23 @@ public class GunListener implements Listener {
         } catch (IllegalArgumentException e) {
             // 標準にない場合はカスタムサウンド(リソースパック)として再生
             player.getWorld().playSound(player.getLocation(), soundName, 1.0f, 1.8f);
+        }
+
+        // --- 射撃後の状態遷移 (オートコッキングなど) ---
+        if (isBoltAction) {
+            // ボルトアクションのオートコッキング
+            stopShooting(player.getUniqueId()); // まず射撃ループを止める
+            com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine sm = stateMachines
+                    .get(player.getUniqueId());
+            if (sm != null) {
+                // ボルトアクションステートに移行 (内部エンターで次弾があればコッキングアニメに入る)
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        sm.transitionTo(new com.lunar_prototype.impossbleEscapeMC.animation.state.BoltingState());
+                    }
+                }.runTaskLater(plugin, 1);
+            }
         }
     }
 

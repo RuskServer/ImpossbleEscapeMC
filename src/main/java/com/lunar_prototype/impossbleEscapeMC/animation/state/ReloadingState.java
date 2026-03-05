@@ -55,21 +55,30 @@ public class ReloadingState implements WeaponState {
         finalAmmoData = ItemRegistry.getAmmo(bestAmmoId);
         finalAmmoStacks = ammoPool.get(bestAmmoId);
 
+        boolean isClosedBolt = "CLOSED".equalsIgnoreCase(stats.boltType)
+                || "BOLT_ACTION".equalsIgnoreCase(stats.boltType);
+
         // Check if reload is needed
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         int currentAmmo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-        int maxAmmo = stats.magSize;
-        String currentAmmoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
+        boolean isChamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
 
-        if (currentAmmo >= maxAmmo && finalAmmoData.id.equals(currentAmmoId)) {
+        // チャンバーありの武器の場合、マガジン+チャンバー1発 が最大容量
+        int maxPossible = isClosedBolt ? stats.magSize + 1 : stats.magSize;
+        int currentTotal = currentAmmo + (isChamberLoaded ? 1 : 0);
+
+        String currentAmmoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
+        String chamberAmmoId = pdc.get(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING);
+
+        // マガジン満タン かつ (チャンバーが無いか、チャンバーも満タンで同じ弾種) の場合は不要
+        if (currentTotal >= maxPossible && finalAmmoData.id.equals(currentAmmoId)
+                && finalAmmoData.id.equals(chamberAmmoId)) {
             isReloadPossible = false; // Already full
             return;
         }
 
         isReloadPossible = true;
 
-        // Determine Animation Type
-        boolean isClosedBolt = "CLOSED".equalsIgnoreCase(stats.boltType);
         boolean isEmpty = currentAmmo <= 0;
 
         animStats = stats.reloadAnimation;
@@ -220,6 +229,17 @@ public class ReloadingState implements WeaponState {
             ammoStack.setAmount(amount - take);
             loaded += take;
             needed -= take;
+        }
+
+        boolean isClosedBolt = "CLOSED".equalsIgnoreCase(ctx.getStats().boltType)
+                || "BOLT_ACTION".equalsIgnoreCase(ctx.getStats().boltType);
+        boolean isChamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
+
+        // もしクローズドボルト系で、チャンバーが空なら、装填したマガジンから1発チャンバーに送る
+        if (isClosedBolt && !isChamberLoaded && loaded > 0) {
+            loaded--;
+            pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 1);
+            pdc.set(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING, finalAmmoData.id);
         }
 
         pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, loaded);
