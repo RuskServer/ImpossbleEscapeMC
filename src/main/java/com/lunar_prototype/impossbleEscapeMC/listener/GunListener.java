@@ -815,15 +815,15 @@ public class GunListener implements Listener {
         if (!isPenetrated) {
             // 貫通失敗: ダメージを大幅にカット (例: 10~20%程度しか通らない)
             finalDamage *= 0.15;
-            playConfiguredSound(hitLoc, "hit-sounds.penetration-failed", "ITEM_ARMOR_EQUIP_IRON", 1.0f, 0.8f);
+            playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             shooter.sendMessage("§7[!] 弾が装甲に弾かれました");
         } else {
             // 貫通成功
-            playConfiguredSound(hitLoc, "hit-sounds.penetration-success", "ENTITY_ZOMBIE_ATTACK_IRON_DOOR", 0.5f, 1.5f);
+            playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             
             // 更にヘッドショットだった場合は別音を追加で鳴らす（既存処理維持ならここでヘッドショットの音も鳴らす）
             if (isHeadshot) {
-                playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
+                //playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             }
         }
 
