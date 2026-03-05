@@ -184,6 +184,14 @@ public class ItemRegistry {
         return ITEM_MAP.get(id);
     }
 
+    public static List<String> getAllItemIds() {
+        List<String> ids = new ArrayList<>();
+        ids.addAll(ITEM_MAP.keySet());
+        ids.addAll(AMMO_MAP.keySet());
+        ids.addAll(ATTACHMENT_MAP.keySet());
+        return ids;
+    }
+
     public static AmmoDefinition getAmmo(String id) {
         return AMMO_MAP.get(id);
     }
