@@ -109,10 +109,10 @@ public class ScavBrain {
             return random.nextBoolean() ? 3 : 4; // Strafe Left / Right
         }
 
-        // Jump Peek recommended by tactical advice
+        // Jump Peek or Peek & Hide recommended by tactical advice
         if (tacticalAdvice > 0.5f && tactical > 0.5f && !canSee) {
             if (random.nextFloat() < tactical) {
-                return 6; // Jump Peek
+                return (aggression > 0.4f && random.nextBoolean()) ? 7 : 6; // Peek & Hide or Jump Peek
             }
         }
 

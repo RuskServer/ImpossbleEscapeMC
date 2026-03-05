@@ -22,6 +22,12 @@ public class ScavController {
     private int searchTicks = 0;
     private float suppression = 0.0f; // 制圧レベル (0.0 - 1.0)
 
+    // --- Peek & Hide Maneuver States ---
+    private int peekPhase = 0; // 0: None, 1: Moving out, 2: Moving back
+    private Location coverLocation = null;
+    private Location peekLocation = null;
+    private int peekTicks = 0;
+
     private static final double MAX_VISION_DISTANCE = 96.0; // 6 Chunks
     private static final double FOV_ANGLE = 120.0;
 
@@ -69,9 +75,43 @@ public class ScavController {
         boolean hasLos = target != null && scav.hasLineOfSight(target);
 
         if (!hasLos && lastKnownLocation != null) {
-            tacticalAdvice = 1.0f; // ジャンプピーク推奨
+            tacticalAdvice = 1.0f; // ジャンプピーク推奨 または Peek&Hide推奨
         } else if (suppression > 0.5f) {
             tacticalAdvice = 0.5f; // 回避推奨
+        }
+
+        // --- Peek and Hide Maneuver (Priority Override) ---
+        if (peekPhase > 0) {
+            peekTicks++;
+            if (peekPhase == 1) { // 飛び出しフェーズ
+                scav.getPathfinder().moveTo(peekLocation);
+
+                // 視認したか、最大時間（3 ticks = 15 server ticks）経過で決め撃ち
+                boolean currentLos = target != null && scav.hasLineOfSight(target);
+                if (currentLos || peekTicks >= 3) {
+                    Location lookAt = currentLos ? target.getEyeLocation() : lastKnownLocation;
+                    if (lookAt != null) {
+                        Vector lookDir = lookAt.toVector().subtract(scav.getEyeLocation().toVector()).normalize();
+                        Location loc = scav.getLocation();
+                        loc.setDirection(lookDir);
+                        scav.teleport(loc);
+                    }
+                    gunListener.executeMobShoot(scav, def.gunStats, 1, 0.2);
+                    Bukkit.getLogger().info("[SCAV-AI] " + scav.getName() + " executed PEEK & FIRE!");
+
+                    peekPhase = 2; // 戻りフェーズへ
+                    peekTicks = 0;
+                }
+            } else if (peekPhase == 2) { // 戻りフェーズ
+                scav.getPathfinder().moveTo(coverLocation);
+                if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 3) {
+                    peekPhase = 0; // マニューバ終了
+                }
+            }
+
+            // 状態（Fear, Aggression等）を更新するためだけにdecideを呼ぶが、Actionは無視
+            brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
+            return; // マニューバ中は通常の行動決定ロジックをスキップ
         }
 
         // --- 状況の注入 (Condition Injection) ---
@@ -108,7 +148,11 @@ public class ScavController {
                 moveAction = (Math.random() > 0.5) ? 3 : 4;
             }
             if (tac > 0.6f && !hasLos && lastKnownLocation != null) {
-                moveAction = 6;
+                if (agg > 0.5f && Math.random() > 0.4) {
+                    moveAction = 7; // アグレッシブなら Peek & Hide
+                } else {
+                    moveAction = 6; // 防衛的なら Jump Peek
+                }
             }
             if (agg > 0.9f) {
                 moveAction = 1;
@@ -126,9 +170,32 @@ public class ScavController {
         if (canSeeTarget) {
             handleCombatMovement(moveAction, target);
         } else if (lastKnownLocation != null) {
-            scav.getPathfinder().moveTo(lastKnownLocation);
-            if (scav.getLocation().distance(lastKnownLocation) < 2) {
-                lastKnownLocation = null;
+            if (moveAction == 7) {
+                // Peek & Hide の準備と開始
+                coverLocation = scav.getLocation().clone();
+                Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
+                Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX());
+                if (Math.random() > 0.5)
+                    tangent.multiply(-1);
+
+                peekLocation = coverLocation.clone().add(tangent.multiply(2.0)); // 2ブロックだけ横に飛び出る
+                peekPhase = 1;
+                peekTicks = 0;
+                scav.getPathfinder().moveTo(peekLocation);
+            } else if (moveAction == 6) {
+                // 視界外からのジャンプピーク
+                if (scav.isOnGround()) {
+                    Vector toTarget = lastKnownLocation.toVector().subtract(scav.getLocation().toVector()).normalize();
+                    Vector tan = new Vector(-toTarget.getZ(), 0, toTarget.getX());
+                    if (Math.random() > 0.5)
+                        tan.multiply(-1);
+                    scav.setVelocity(scav.getVelocity().add(tan.multiply(0.5)).add(new Vector(0, 0.42, 0)));
+                }
+            } else {
+                scav.getPathfinder().moveTo(lastKnownLocation);
+                if (scav.getLocation().distance(lastKnownLocation) < 2) {
+                    lastKnownLocation = null;
+                }
             }
         }
 
