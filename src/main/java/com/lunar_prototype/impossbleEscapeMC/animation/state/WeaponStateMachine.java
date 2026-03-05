@@ -7,6 +7,7 @@ public class WeaponStateMachine {
 
     public WeaponStateMachine(WeaponContext context, WeaponState initialState) {
         this.context = context;
+        this.context.setStateMachine(this);
         this.currentState = initialState;
         if (this.currentState != null) {
             this.currentState.onEnter(context);

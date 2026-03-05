@@ -21,6 +21,7 @@ public class WeaponContext {
     private final Player player;
     private ItemStack item;
     private GunStats stats;
+    private WeaponStateMachine stateMachine;
 
     // Animation progress
     private double aimProgress = 0.0;
@@ -64,6 +65,14 @@ public class WeaponContext {
 
     public void setStats(GunStats stats) {
         this.stats = stats;
+    }
+
+    public void setStateMachine(WeaponStateMachine stateMachine) {
+        this.stateMachine = stateMachine;
+    }
+
+    public WeaponStateMachine getStateMachine() {
+        return stateMachine;
     }
 
     // Progress Accessors

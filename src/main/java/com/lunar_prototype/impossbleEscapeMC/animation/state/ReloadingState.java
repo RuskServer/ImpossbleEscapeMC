@@ -103,30 +103,14 @@ public class ReloadingState implements WeaponState {
     @Override
     public void onUpdate(WeaponContext ctx) {
         if (!isReloadPossible) {
-            // Abort immediately
-            // Ideally we transitionTo(new IdleState()) but handleInput handles logic?
-            // No, update is void. We assume Statemachine checks specific flag or we use
-            // external trigger.
-            // But usually SM updates don't trigger transition unless via specific method.
-            // Here we might need a way to auto-transition.
-            // Since we don't have reference to SM here easily unless passed, we can't
-            // switch state directly easily.
-            // Wait, handleInput is for External input.
-            // If we need internal transition (animation done), we need return value from
-            // onUpdate?
-            // Or ctx.getStateMachine().transitionTo(...).
-            // Let's assume onUpdate logic handles rendering, and if finished, we trigger
-            // something.
-            // But my interface onUpdate returns void.
-            // FIX: Let's assume handleInput(InputType.AUTO...) or similar.
-            // Or... GunListener calls handleInput? No.
-            // Let's modify WeaponStateMachine to allow states to trigger transitions if
-            // needed?
-            // Or simpler: handleInput with a special TICK input type?
+            if (ctx.getStateMachine() != null) {
+                if (ctx.getPlayer().isSprinting()) {
+                    ctx.getStateMachine().transitionTo(new SprintingState());
+                } else {
+                    ctx.getStateMachine().transitionTo(new IdleState());
+                }
+            }
             return;
-            // Actually, the SM design I proposed has void onUpdate.
-            // This is a flaw for "Animation Complete".
-            // We need a way to signal completion.
         }
 
         elapsed++;
@@ -147,6 +131,15 @@ public class ReloadingState implements WeaponState {
         if (elapsed >= totalTicks) {
             completeReload(ctx);
             isReloadPossible = false; // Mark complete
+
+            // Auto transition immediately inside this tick
+            if (ctx.getStateMachine() != null) {
+                if (ctx.getPlayer().isSprinting()) {
+                    ctx.getStateMachine().transitionTo(new SprintingState());
+                } else {
+                    ctx.getStateMachine().transitionTo(new IdleState());
+                }
+            }
         }
     }
 
@@ -172,7 +165,8 @@ public class ReloadingState implements WeaponState {
         }
 
         // Grace period: Ignore input for first few ticks to prevent accidental cancel
-        if (elapsed < 5) {
+        // But allow fast cancel with sprint
+        if (elapsed < 5 && input != InputType.SPRINT_START) {
             return null;
         }
 
