@@ -89,6 +89,16 @@ public class ItemFactory {
                 AmmoDefinition defaultAmmo = ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
                 if (defaultAmmo != null) {
                     pdc.set(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING, defaultAmmo.id);
+
+                    // クローズドボルト系の武器の場合、最初からチャンバーに1発装填する
+                    if ("CLOSED".equalsIgnoreCase(def.gunStats.boltType)
+                            || "BOLT_ACTION".equalsIgnoreCase(def.gunStats.boltType)
+                            || "PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                        pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 1);
+                        pdc.set(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING, defaultAmmo.id);
+                    } else {
+                        pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0);
+                    }
                 }
 
                 if (def.gunStats.defaultAttachments != null && !def.gunStats.defaultAttachments.isEmpty()) {
@@ -189,10 +199,12 @@ public class ItemFactory {
         // 2. 銃ステータス (GUNの場合)
         if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
             int ammo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+            boolean chamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
+            String chamberSuffix = chamberLoaded ? " §a(+1)" : "";
 
             lore.add("§6§l<< GUN STATS >>");
-            // 弾数は視認性重視
-            lore.add("§7Ammo: §e" + ammo + " §8/ §7" + def.gunStats.magSize);
+            // 弾数は視認性重視。チャンバーに入っている場合は (+1) と表示する
+            lore.add("§7Ammo: §e" + ammo + chamberSuffix + " §8/ §7" + def.gunStats.magSize);
             lore.add("§7Damage: §f" + String.format("%.1f",
                     pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage)));
             lore.add("§7RPM: §f" + def.gunStats.rpm);

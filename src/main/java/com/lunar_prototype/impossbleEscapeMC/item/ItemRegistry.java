@@ -125,6 +125,7 @@ public class ItemRegistry {
                         gStats.customModelData = gunSection.getInt("customModelData", 0);
                         gStats.reloadTime = gunSection.getInt("reloadTime", 2000);
                         gStats.adsTime = gunSection.getInt("adsTime", 200);
+                        gStats.boltingTime = gunSection.getInt("boltingTime", 1000); // デフォルト1000ms
                         gStats.caliber = gunSection.getString("caliber");
                         gStats.shotSound = gunSection.getString("shotSound", "ENTITY_GENERIC_EXPLODE"); // デフォルト値
                         gStats.boltType = gunSection.getString("boltType", "CLOSED");
@@ -132,6 +133,7 @@ public class ItemRegistry {
 
                         gStats.reloadAnimation = parseAnimation(gunSection, "reloadAnimation");
                         gStats.tacticalReloadAnimation = parseAnimation(gunSection, "tacticalReloadAnimation");
+                        gStats.boltingAnimation = parseAnimation(gunSection, "boltingAnimation"); // ボルトアニメーション
                         gStats.aimAnimation = parseAnimation(gunSection, "aimAnimation");
                         gStats.sprintAnimation = parseAnimation(gunSection, "sprintAnimation");
                         gStats.idleAnimation = parseAnimation(gunSection, "idleAnimation");
