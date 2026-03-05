@@ -5,10 +5,16 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.StringUtil;
 
-public class GetItemCommand implements CommandExecutor {
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class GetItemCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -46,5 +52,16 @@ public class GetItemCommand implements CommandExecutor {
         player.sendMessage("§aYou received item: §f" + itemId);
 
         return true;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) {
+            List<String> completions = new ArrayList<>();
+            StringUtil.copyPartialMatches(args[0], ItemRegistry.getAllItemIds(), completions);
+            Collections.sort(completions);
+            return completions;
+        }
+        return Collections.emptyList();
     }
 }
