@@ -51,7 +51,7 @@ public class ScavSpawner implements Listener {
 
     private void setupScavEquipment(Mob scav) {
         // 1. スポーン時に持たせる銃の候補リスト
-        String[] gunPool = {"ak74", "m4a1"};
+        String[] gunPool = { "ak74", "m4a1" };
         String randomGunId = gunPool[new java.util.Random().nextInt(gunPool.length)];
 
         // 2. ItemFactoryで銃を生成 (ここでPDCにAMMOやITEM_IDが書き込まれる)
@@ -71,8 +71,8 @@ public class ScavSpawner implements Listener {
 
         // アーマークラスを考慮して、バニラ素材を割り当て
         // GunListener.getArmorClass() がこれを見て貫通判定を行う
-        Material[] helmets = {Material.IRON_HELMET, Material.CHAINMAIL_HELMET};
-        Material[] chests = {Material.IRON_CHESTPLATE, Material.DIAMOND_CHESTPLATE, Material.LEATHER_CHESTPLATE};
+        Material[] helmets = { Material.IRON_HELMET, Material.CHAINMAIL_HELMET };
+        Material[] chests = { Material.IRON_CHESTPLATE, Material.DIAMOND_CHESTPLATE, Material.LEATHER_CHESTPLATE };
 
         inv.setHelmet(new ItemStack(helmets[rand.nextInt(helmets.length)]));
         inv.setChestplate(new ItemStack(chests[rand.nextInt(chests.length)]));
@@ -115,25 +115,14 @@ public class ScavSpawner implements Listener {
         if (controllers.containsKey(uuid)) {
             ScavController controller = controllers.remove(uuid);
             if (controller != null) {
-                // 1. 死亡時の大きなマイナス報酬（死なないように学習させる）
-                controller.getBrain().reward(-5.0f);
-                
-                // 2. 成果をグローバル・ブレインに報告（保存）
-                //controller.onDeath();
-                
-                // 3. メモリ解放
                 controller.getBrain().terminate();
-                Bukkit.getLogger().info("[SCAV] AI Terminated and Knowledge Saved: " + uuid);
+                Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
             }
         }
     }
 
-    /**
-     * プラグイン終了時に全てのネイティブハンドルを解放する
-     */
     public void cleanup() {
         for (ScavController controller : controllers.values()) {
-            controller.onDeath(); // 終了時も一応保存を試みる
             controller.getBrain().terminate();
         }
         controllers.clear();
