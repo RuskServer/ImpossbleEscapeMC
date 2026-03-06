@@ -63,8 +63,8 @@ public class GunListener implements Listener {
 
         Player player = event.getPlayer();
 
-        // 【追加】ダッシュ中は射撃不可
-        if (player.isSprinting())
+        // 【追加】ダッシュ中やリロード中、ボルトアクション中は射撃不可
+        if (player.isSprinting() || isReloading(player.getUniqueId()) || isBolting(player.getUniqueId()))
             return;
 
         UUID uuid = player.getUniqueId();
@@ -163,19 +163,18 @@ public class GunListener implements Listener {
 
         consecutiveShots.put(uuid, 0);
 
-        long intervalTicks = Math.max(1, 1200 / stats.rpm);
+        double msPerShot = 60000.0 / stats.rpm;
 
         BukkitRunnable task = new BukkitRunnable() {
-            boolean firstShot = true;
+            private double nextShotTime = (double) System.currentTimeMillis() + (delayTicks * 50);
+            private boolean firstShot = true;
 
             @Override
             public void run() {
-                // --- 離したことの検知ロジック ---
-                long lastClick = lastRightClickMap.getOrDefault(uuid, 0L);
                 long now = System.currentTimeMillis();
+                long lastClick = lastRightClickMap.getOrDefault(uuid, 0L);
 
-                // マイクラの右クリック連打（長押し時）は約200ms間隔
-                // 300ms以上イベントが来なければ「指を離した」とみなす (初回はディレイで遅れる可能性があるためスキップ)
+                // 300ms以上イベントが来なければ「指を離した」とみなす
                 if (!firstShot && now - lastClick > 300) {
                     stopShooting(uuid);
                     return;
@@ -187,20 +186,26 @@ public class GunListener implements Listener {
                     return;
                 }
 
-                // 射撃実行
-                executeShoot(player, pdc, stats);
-                lastShotTimeMap.put(uuid, System.currentTimeMillis());
-                firstShot = false;
+                // 時間が来ている分だけ射撃実行 (RPM > 1200 の複数回射撃にも対応)
+                int shotsFiredThisTick = 0;
+                while ((double) now >= nextShotTime && shotsFiredThisTick < 5) {
+                    executeShoot(player, pdc, stats);
+                    lastShotTimeMap.put(uuid, now);
+                    nextShotTime += msPerShot;
+                    firstShot = false;
+                    shotsFiredThisTick++;
 
-                // セミオートの場合は1回で終了
-                if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
-                    stopShooting(uuid);
+                    // セミオートの場合は1回で終了
+                    if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
+                        stopShooting(uuid);
+                        return;
+                    }
                 }
             }
         };
 
         activeTasks.put(uuid, task);
-        task.runTaskTimer(plugin, delayTicks, intervalTicks);
+        task.runTaskTimer(plugin, 0, 1); // 常に1tick間隔でチェック
     }
 
     private void stopShooting(UUID uuid) {
@@ -266,6 +271,9 @@ public class GunListener implements Listener {
 
                 var sm = getOrCreateStateMachine(player);
                 ItemStack currentItem = player.getInventory().getItemInMainHand();
+
+                // 射撃停止
+                stopShooting(player.getUniqueId());
 
                 // アイテムが戻っているか確認 (AIRなら何もしない)
                 if (currentItem == null || currentItem.getType() == Material.AIR) {
@@ -382,15 +390,29 @@ public class GunListener implements Listener {
         // 相対パケットを送信
         sendRecoilPacket(player, recoilYaw, recoilPitch);
 
+        // --- 視覚的・音響的メタデータの付与 (AI用) ---
+        player.setMetadata("last_fired_tick", new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
+
+        // --- SCAVへの音響通知 ---
+        for (Entity entity : player.getNearbyEntities(64, 64, 64)) {
+            if (entity instanceof Mob mob) {
+                ScavController controller = ScavSpawner.getController(mob.getUniqueId());
+                if (controller != null) {
+                    controller.onSoundHeard(player.getLocation());
+                }
+            }
+        }
+
         String soundName = stats.shotSound;
 
         try {
             // Bukkit標準のサウンドにあるかチェック
             Sound standardSound = Sound.valueOf(soundName.toUpperCase());
-            player.getWorld().playSound(player.getLocation(), standardSound, 1.0f, 1.8f);
+            // 音量8.0で約128ブロックまで聞こえるように拡大
+            player.getWorld().playSound(player.getLocation(), standardSound, 8.0f, 1.8f);
         } catch (IllegalArgumentException e) {
             // 標準にない場合はカスタムサウンド(リソースパック)として再生
-            player.getWorld().playSound(player.getLocation(), soundName, 1.0f, 1.8f);
+            player.getWorld().playSound(player.getLocation(), soundName, 8.0f, 1.8f);
         }
 
         // --- 射撃後の状態遷移 (オートコッキングなど) ---
@@ -422,7 +444,7 @@ public class GunListener implements Listener {
     public void executeMobShoot(LivingEntity shooter, GunStats stats, int ammoClass, double inaccuracy) {
         // 1. マズルフラッシュと音
         spawnMuzzleFlash(shooter);
-        shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 1.0f, 1.8f);
+        shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 8.0f, 1.8f);
 
         // 2. 弾丸の生成
         BulletTask task = new BulletTask(shooter, stats.damage, ammoClass);
@@ -466,37 +488,40 @@ public class GunListener implements Listener {
 
         Location muzzleLoc;
         if (isAiming) {
-            // 【修正】エイム時：距離を 1.2 -> 2.2 に延長
-            // これで銃口に埋まることなく、先端から出ているように見えます
             muzzleLoc = eye.clone().add(dir.clone().multiply(2.2));
         } else {
-            // 腰溜め時：右下オフセット + 距離1.0
             Vector offset = dir.clone().crossProduct(new Vector(0, 1, 0)).normalize().multiply(0.3);
             offset.add(new Vector(0, -0.2, 0));
             muzzleLoc = eye.clone().add(dir.clone().multiply(1.0)).add(offset);
         }
 
-        // --- 1. 芯の部分 (非常に明るい黄色/白) ---
-        player.getWorld().spawnParticle(
-                Particle.DUST,
-                muzzleLoc,
-                3, 0.01, 0.01, 0.01, 0.05,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 255, 220), 0.6f));
+        // 確率でパーティクルを間引く
+        double rand = Math.random();
 
-        // --- 2. 広がる火花 (オレンジ/赤) ---
-        // ここも少し前方に飛ばす距離を調整 (multiply 0.1 -> 0.2)
+        // --- 1. 芯の部分 (50%の確率で1粒) ---
+        if (rand < 0.5) {
+            player.getWorld().spawnParticle(
+                    Particle.DUST,
+                    muzzleLoc,
+                    1, 0.01, 0.01, 0.01, 0.05,
+                    new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 255, 220), 0.6f));
+        }
+
+        // --- 2. 広がる火花 (常に1粒) ---
         player.getWorld().spawnParticle(
                 Particle.DUST,
                 muzzleLoc.clone().add(dir.clone().multiply(0.2)),
-                4, 0.03, 0.03, 0.03, 0.1,
+                1, 0.03, 0.03, 0.03, 0.1,
                 new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 140, 20), 0.4f));
 
-        // --- 3. 硝煙 (薄い灰色) ---
-        player.getWorld().spawnParticle(
-                Particle.DUST,
-                muzzleLoc,
-                2, 0.05, 0.05, 0.05, 0.02,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 0.8f));
+        // --- 3. 硝煙 (30%の確率で1粒) ---
+        if (rand < 0.3) {
+            player.getWorld().spawnParticle(
+                    Particle.DUST,
+                    muzzleLoc,
+                    1, 0.05, 0.05, 0.05, 0.02,
+                    new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 0.8f));
+        }
 
         // --- 光源処理 ---
         if (muzzleLoc.getBlock().getType() == Material.AIR) {
@@ -519,6 +544,7 @@ public class GunListener implements Listener {
     private class BulletTask extends BukkitRunnable {
         private final LivingEntity shooter;
         private final double damage;
+        private final Vector origin; // 射撃開始地点を保存
         private Location currentLoc;
         private Vector velocity;
         private int ticksAlive = 0;
@@ -532,6 +558,7 @@ public class GunListener implements Listener {
             this.shooter = shooter;
             this.damage = damage;
             this.currentLoc = shooter.getEyeLocation();
+            this.origin = this.currentLoc.toVector(); // 初期位置を保存
             this.velocity = shooter.getEyeLocation().getDirection().multiply(SPEED);
             this.ammoClass = ammoClass;
         }
@@ -626,6 +653,9 @@ public class GunListener implements Listener {
 
                     for (double d = 0; d < distance; d += gap) {
                         Vector pos = start.clone().add(direction.clone().multiply(d));
+
+                        // 【追加】発射地点から3ブロック以内は描画しない (距離の2乗で比較)
+                        if (pos.distanceSquared(origin) < 9.0) continue;
 
                         try {
                             // count=1, offsets=0, extra=0
@@ -746,6 +776,13 @@ public class GunListener implements Listener {
             return false;
         return stateMachines.get(uuid)
                 .getCurrentState() instanceof com.lunar_prototype.impossbleEscapeMC.animation.state.ReloadingState;
+    }
+
+    private boolean isBolting(UUID uuid) {
+        if (!stateMachines.containsKey(uuid))
+            return false;
+        return stateMachines.get(uuid)
+                .getCurrentState() instanceof com.lunar_prototype.impossbleEscapeMC.animation.state.BoltingState;
     }
 
     // ユーティリティ: 銃かどうか判定

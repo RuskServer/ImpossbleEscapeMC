@@ -44,9 +44,14 @@ public class SprintingState implements WeaponState {
         switch (input) {
             case SPRINT_END:
                 return new IdleState();
+            case LEFT_CLICK:
+            case RIGHT_CLICK_START:
+                // ダッシュを強制解除
+                ctx.getPlayer().setSprinting(false);
+                return new AimingState();
             case RELOAD:
-                // Can reload while sprinting? Usually no, or stops sprint.
-                // Let's assume reload cancels sprint in this game logic.
+                // リロード時もダッシュ解除
+                ctx.getPlayer().setSprinting(false);
                 return new ReloadingState();
             default:
                 return null;

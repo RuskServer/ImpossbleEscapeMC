@@ -37,7 +37,7 @@ public class ScavSpawner implements Listener {
      * 指定した座標にAI SCAVをスポーンさせる
      */
     public void spawnScav(Location loc) {
-        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE); // または独自のEntityType
+        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.SKELETON); // または独自のEntityType
 
         // タルコフ風の装備設定 (必要に応じてItemRegistryから取得)
         setupScavEquipment(scav);

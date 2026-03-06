@@ -20,29 +20,42 @@ import java.util.Map;
 import java.util.UUID;
 
 public class PlayerListener implements Listener {
-    // フィールドに追加
     private final Map<UUID, Double> walkDistanceMap = new HashMap<>();
+    private final Map<UUID, Integer> continuousNoiseTicks = new HashMap<>();
     private final java.util.Random random = new java.util.Random();
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
 
-        // クリエイティブは除外
-        if (player.getGameMode() == GameMode.CREATIVE)
+        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR)
             return;
 
-        // 実際に座標が変わったかチェック (首振りだけでは反応させない)
         Location from = event.getFrom();
         Location to = event.getTo();
-        if (to == null || (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()))
+        if (to == null || (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ())) {
+            continuousNoiseTicks.put(player.getUniqueId(), 0); // 止まればリセット
             return;
+        }
 
         // 空中にいる（落下中）ならカウントしない
         if (player.getLocation().subtract(0, 0.1, 0).getBlock().getType().isAir())
             return;
 
-        // 今回の移動距離を計算
+        // 音を出す移動か？
+        boolean isMakingNoise = !player.isSneaking();
+        if (isMakingNoise) {
+            int ticks = continuousNoiseTicks.getOrDefault(player.getUniqueId(), 0) + 1;
+            continuousNoiseTicks.put(player.getUniqueId(), ticks);
+
+            // 2秒(40ticks)以上音を出している場合
+            if (ticks >= 40) {
+                alertNearbyScavsOfFootsteps(player);
+            }
+        } else {
+            continuousNoiseTicks.put(player.getUniqueId(), 0);
+        }
+
         double distance = from.distance(to);
 
         // 状態に応じた倍率設定 (Skriptの add 1.5, 2, 1 に対応)
@@ -74,6 +87,18 @@ public class PlayerListener implements Listener {
         }
 
         walkDistanceMap.put(uuid, totalWalked);
+    }
+
+    private void alertNearbyScavsOfFootsteps(Player player) {
+        // 周囲32ブロック以内のSCAVに通知
+        for (org.bukkit.entity.Entity entity : player.getNearbyEntities(32, 16, 32)) {
+            if (entity instanceof Mob mob) {
+                ScavController controller = ScavSpawner.getController(mob.getUniqueId());
+                if (controller != null) {
+                    controller.onSoundHeard(player.getLocation());
+                }
+            }
+        }
     }
 
     @EventHandler
