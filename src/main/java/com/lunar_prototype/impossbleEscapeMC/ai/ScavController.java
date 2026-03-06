@@ -21,6 +21,12 @@ public class ScavController {
     private Location lastKnownLocation = null;
     private int searchTicks = 0;
     private float suppression = 0.0f; // 制圧レベル (0.0 - 1.0)
+    private int jumpCooldown = 0;
+
+    // --- Aiming States (Human-like) ---
+    private Vector currentAimVector = null;
+    private double aimErrorYaw = 0;
+    private double aimErrorPitch = 0;
 
     // --- Peek & Hide Maneuver States ---
     private int peekPhase = 0; // 0: None, 1: Moving out, 2: Moving back
@@ -35,21 +41,25 @@ public class ScavController {
         this.scav = scav;
         this.brain = new ScavBrain(scav);
         this.gunListener = listener;
+        this.currentAimVector = scav.getEyeLocation().getDirection();
     }
 
     public void onTick() {
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
 
-        // 制圧レベルの自然減衰
+        // クールダウンと制圧レベルの減衰
         if (suppression > 0)
-            suppression = Math.max(0, suppression - 0.05f);
+            suppression = Math.max(0, suppression - 0.02f);
+        if (jumpCooldown > 0)
+            jumpCooldown--;
 
         if (target != null) {
             canSeeTarget = checkVision(target);
             if (canSeeTarget) {
                 lastKnownLocation = target.getLocation();
                 searchTicks = 0;
+                updateHumanAim(target);
             } else {
                 if (lastKnownLocation != null) {
                     searchTicks++;
@@ -63,7 +73,8 @@ public class ScavController {
 
         // 装備中の銃のステータス取得
         ItemStack item = scav.getEquipment().getItemInMainHand();
-        String itemId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        String itemId = (item != null && item.hasItemMeta()) ? 
+            item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
         ItemDefinition def = ItemRegistry.get(itemId);
 
         if (def == null || def.gunStats == null) {
@@ -75,7 +86,7 @@ public class ScavController {
         boolean hasLos = target != null && scav.hasLineOfSight(target);
 
         if (!hasLos && lastKnownLocation != null) {
-            tacticalAdvice = 1.0f; // ジャンプピーク推奨 または Peek&Hide推奨
+            tacticalAdvice = 0.8f; // Peek&Hide推奨度を下げる
         } else if (suppression > 0.5f) {
             tacticalAdvice = 0.5f; // 回避推奨
         }
@@ -86,84 +97,54 @@ public class ScavController {
             if (peekPhase == 1) { // 飛び出しフェーズ
                 scav.getPathfinder().moveTo(peekLocation);
 
-                // 視認したか、最大時間（3 ticks = 15 server ticks）経過で決め撃ち
+                // 視認したか、最大時間（5 ticks）経過で決め撃ち
                 boolean currentLos = target != null && scav.hasLineOfSight(target);
-                if (currentLos || peekTicks >= 3) {
-                    Location lookAt = currentLos ? target.getEyeLocation() : lastKnownLocation;
-                    if (lookAt != null) {
-                        Vector lookDir = lookAt.toVector().subtract(scav.getEyeLocation().toVector()).normalize();
-                        Location loc = scav.getLocation();
-                        loc.setDirection(lookDir);
-                        scav.teleport(loc);
-                    }
-                    gunListener.executeMobShoot(scav, def.gunStats, 1, 0.2);
-                    Bukkit.getLogger().info("[SCAV-AI] " + scav.getName() + " executed PEEK & FIRE!");
-
+                if (currentLos || peekTicks >= 5) {
+                    if (currentLos) updateHumanAim(target);
+                    
+                    applyAimToEntity();
+                    gunListener.executeMobShoot(scav, def.gunStats, 1, 0.25 + (suppression * 0.2));
+                    
                     peekPhase = 2; // 戻りフェーズへ
                     peekTicks = 0;
                 }
             } else if (peekPhase == 2) { // 戻りフェーズ
                 scav.getPathfinder().moveTo(coverLocation);
-                if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 3) {
+                if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 5) {
                     peekPhase = 0; // マニューバ終了
                 }
             }
-
-            // 状態（Fear, Aggression等）を更新するためだけにdecideを呼ぶが、Actionは無視
             brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
-            return; // マニューバ中は通常の行動決定ロジックをスキップ
+            return;
         }
 
         // --- 状況の注入 (Condition Injection) ---
-        // 1. Low Health Check (< 30%)
         double maxHealth = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
         boolean isLowHealth = scav.getHealth() < (maxHealth * 0.3);
-
-        // 2. Low Ammo Check (< 20%)
-        int currentAmmo = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER,
-                0);
-        int magSize = def.gunStats != null ? def.gunStats.magSize : 30;
+        int currentAmmo = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+        int magSize = def.gunStats.magSize;
         boolean isLowAmmo = currentAmmo < (magSize * 0.2);
 
-        // 3. Update Brain Conditions (Hamiltonian Fields)
         brain.updateConditions(isLowHealth, isLowAmmo, suppression > 0.5f, tacticalAdvice > 0.5f);
 
         // AIに思考させる
         int[] actions = brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
+        if (actions.length < 2) return;
 
-        if (actions.length < 2)
-            return;
-
-        // --- 擬似AIによる強制介入 (感情レイヤーの重ね合わせ) ---
         int moveAction = actions[0];
-        float[] neurons = brain.getNeuronStates(); // [0:Aggression, 1:Fear, 2:Tactical, 3:Reflex]
+        float[] neurons = brain.getNeuronStates();
+        float agg = neurons[0], fear = neurons[1], tac = neurons[2];
 
-        float agg = 0, fear = 0, tac = 0;
-        if (neurons != null && neurons.length >= 3) {
-            agg = neurons[0];
-            fear = neurons[1];
-            tac = neurons[2];
-
-            if (fear > 0.7f || (suppression > 0.6f && agg < 0.5f)) {
-                moveAction = (Math.random() > 0.5) ? 3 : 4;
-            }
-            if (tac > 0.6f && !hasLos && lastKnownLocation != null) {
-                if (agg > 0.5f && Math.random() > 0.4) {
-                    moveAction = 7; // アグレッシブなら Peek & Hide
-                } else {
-                    moveAction = 6; // 防衛的なら Jump Peek
-                }
-            }
-            if (agg > 0.9f) {
-                moveAction = 1;
-            }
+        // 感情レイヤーによる行動補正
+        if (fear > 0.7f || (suppression > 0.8f && agg < 0.4f)) {
+            moveAction = (Math.random() > 0.5) ? 3 : 4;
         }
-
-        // --- 詳細デバッグログ ---
-        if (Math.random() < 0.1) { // ログ過多防止のため10%の確率で出力
-            Bukkit.getLogger().info(String.format(
-                    "[SCAV-DEBUG] %s | LOS:%b Sup:%.2f Adv:%.1f | Neuron[Agg:%.2f Fear:%.2f Tac:%.2f] | Action[Raw:%d -> Final:%d]",
-                    scav.getName(), hasLos, suppression, tacticalAdvice, agg, fear, tac, actions[0], moveAction));
+        if (tac > 0.7f && !hasLos && lastKnownLocation != null) {
+            if (agg > 0.6f && Math.random() > 0.6) {
+                moveAction = 7; // アグレッシブなら Peek & Hide
+            } else if (Math.random() > 0.8) {
+                moveAction = 6; // 低確率で Jump Peek
+            }
         }
 
         // --- 移動の実行 ---
@@ -171,26 +152,14 @@ public class ScavController {
             handleCombatMovement(moveAction, target);
         } else if (lastKnownLocation != null) {
             if (moveAction == 7) {
-                // Peek & Hide の準備と開始
                 coverLocation = scav.getLocation().clone();
                 Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
                 Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX());
-                if (Math.random() > 0.5)
-                    tangent.multiply(-1);
-
-                peekLocation = coverLocation.clone().add(tangent.multiply(2.0)); // 2ブロックだけ横に飛び出る
+                if (Math.random() > 0.5) tangent.multiply(-1);
+                peekLocation = coverLocation.clone().add(tangent.multiply(2.0));
                 peekPhase = 1;
                 peekTicks = 0;
                 scav.getPathfinder().moveTo(peekLocation);
-            } else if (moveAction == 6) {
-                // 視界外からのジャンプピーク
-                if (scav.isOnGround()) {
-                    Vector toTarget = lastKnownLocation.toVector().subtract(scav.getLocation().toVector()).normalize();
-                    Vector tan = new Vector(-toTarget.getZ(), 0, toTarget.getX());
-                    if (Math.random() > 0.5)
-                        tan.multiply(-1);
-                    scav.setVelocity(scav.getVelocity().add(tan.multiply(0.5)).add(new Vector(0, 0.42, 0)));
-                }
             } else {
                 scav.getPathfinder().moveTo(lastKnownLocation);
                 if (scav.getLocation().distance(lastKnownLocation) < 2) {
@@ -199,23 +168,66 @@ public class ScavController {
             }
         }
 
-        // --- Action 1: 射撃 (ジャンプショット含む) ---
+        // --- Action 1: 射撃 ---
         if (actions[1] == 0) {
             if (canSeeTarget) {
-                gunListener.executeMobShoot(scav, def.gunStats, 1, 0.2);
-            } else if (target != null && scav.isOnGround() && checkJumpShotVision(target)) {
-                // 常にジャンプすると読まれるため、40%の確率で実行
-                if (Math.random() < 0.4) {
-                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.5, 0)));
-                    Bukkit.getLogger().info("[SCAV] " + scav.getName() + " attempts a JUMP SHOT!");
+                applyAimToEntity();
+                double dynamicInaccuracy = 0.15 + (suppression * 0.25);
+                if (scav.getVelocity().length() > 0.1) dynamicInaccuracy += 0.1;
+                
+                gunListener.executeMobShoot(scav, def.gunStats, 1, dynamicInaccuracy);
+            } else if (target != null && scav.isOnGround() && jumpCooldown <= 0 && checkJumpShotVision(target)) {
+                if (Math.random() < 0.15) { // ジャンプショット確率を大幅に低下
+                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
+                    jumpCooldown = 60; // 3秒クールダウン
                 }
             }
         }
     }
 
+    private void updateHumanAim(LivingEntity target) {
+        Location eye = scav.getEyeLocation();
+        Vector idealDir = target.getEyeLocation().toVector().subtract(eye.toVector()).normalize();
+        
+        if (currentAimVector == null) currentAimVector = idealDir.clone();
+
+        // 1. 反応遅延とスムージング (Lerp)
+        // 遠いほど、また制圧されているほどエイムが追いつかない
+        double lerpFactor = 0.2 - (suppression * 0.1); 
+        currentAimVector = currentAimVector.clone().add(idealDir.clone().subtract(currentAimVector).multiply(lerpFactor)).normalize();
+
+        // 2. ランダムな揺らぎ (Sway)
+        // 呼吸や緊張によるわずかな震えをPitch/Yawの誤差として蓄積
+        aimErrorYaw += (Math.random() - 0.5) * 0.1;
+        aimErrorPitch += (Math.random() - 0.5) * 0.1;
+        
+        // 制圧時は揺らぎが激しくなる
+        if (suppression > 0.3) {
+            aimErrorYaw += (Math.random() - 0.5) * suppression * 0.5;
+            aimErrorPitch += (Math.random() - 0.5) * suppression * 0.5;
+        }
+        
+        // 誤差の減衰 (常に中心に戻ろうとする力)
+        aimErrorYaw *= 0.8;
+        aimErrorPitch *= 0.8;
+    }
+
+    private void applyAimToEntity() {
+        if (currentAimVector == null) return;
+        
+        Location loc = scav.getLocation();
+        Vector finalDir = currentAimVector.clone();
+        
+        // 誤差を適用
+        float yaw = loc.setDirection(finalDir).getYaw() + (float)aimErrorYaw;
+        float pitch = loc.setDirection(finalDir).getPitch() + (float)aimErrorPitch;
+        
+        scav.setRotation(yaw, pitch);
+    }
+
     private boolean checkJumpShotVision(LivingEntity target) {
         Location eye = scav.getEyeLocation();
-        Location jumpEye = eye.clone().add(0, 1.5, 0);
+        Location jumpEye = eye.clone().add(0, 1.2, 0); // リアルなジャンプ高に合わせる
         Vector direction = target.getEyeLocation().toVector().subtract(jumpEye.toVector());
         var result = jumpEye.getWorld().rayTraceBlocks(jumpEye, direction.normalize(), direction.length(),
                 org.bukkit.FluidCollisionMode.NEVER, true);
@@ -262,15 +274,18 @@ public class ScavController {
                 scav.getPathfinder().moveTo(sLoc.add(finalMove));
                 break;
             case 5:
-                if (scav.isOnGround())
+                if (scav.isOnGround() && jumpCooldown <= 0) {
                     scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.42, 0)));
+                    jumpCooldown = 100; // 移動ジャンプは5秒に1回
+                }
                 break;
             case 6:
-                if (scav.isOnGround()) {
+                if (scav.isOnGround() && jumpCooldown <= 0) {
                     Vector tan = new Vector(-toTarget.getZ(), 0, toTarget.getX());
                     if (Math.random() > 0.5)
                         tan.multiply(-1);
                     scav.setVelocity(scav.getVelocity().add(tan.multiply(0.5)).add(new Vector(0, 0.42, 0)));
+                    jumpCooldown = 80;
                 }
                 break;
         }
