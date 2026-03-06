@@ -124,11 +124,11 @@ public class ScavBrain {
 
             // Default active combat movement (strafe or maintain distance)
             float r = random.nextFloat();
-            if (r < 0.45)
+            if (r < 0.4)
                 return 3; // Strafe L
-            if (r < 0.90)
+            if (r < 0.8)
                 return 4; // Strafe R
-            return 5; // Jump very occasionally (10% of idle-ish movement)
+            return 5; // Jump occasionally
         }
 
         return 0; // Default approach
@@ -143,8 +143,9 @@ public class ScavBrain {
             }
             return 0; // Standard fire
         }
-        // Predictive fire from tactical brain (greatly reduced)
-        if (tactical > 0.8f && random.nextFloat() < 0.05f) {
+        // Jump shot logic is handled partially in controller. Brain decides 'yes'
+        // occasionally if tactical is high
+        if (tactical > 0.6f && random.nextFloat() < 0.2f) {
             return 0; // Attempt predictive/jump fire
         }
 
