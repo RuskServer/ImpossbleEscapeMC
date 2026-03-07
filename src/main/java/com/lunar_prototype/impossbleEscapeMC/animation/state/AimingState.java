@@ -22,6 +22,20 @@ public class AimingState implements WeaponState {
             ctx.setAimProgress(Math.min(1.0, current + aimStep));
         }
 
+        // Apply Zoom (Slowness affects FOV)
+        // Zoom only when aim progress is significant
+        if (ctx.getAimProgress() > 0.8 && stats.scope != null && stats.scope.zoom > 1.0) {
+            // Amplifer 0 = 15% FOV reduction approx
+            // We can approximate Tarkov-like zoom with SLOWNESS.
+            // Higher zoom = higher level of slowness.
+            // zoom=2.0 -> approx level 3 or 4
+            int amplifier = (int) Math.round((stats.scope.zoom - 1.0) * 3.0);
+            if (amplifier >= 0) {
+                ctx.getPlayer().addPotionEffect(new org.bukkit.potion.PotionEffect(
+                        org.bukkit.potion.PotionEffectType.SLOWNESS, 3, amplifier, false, false, false));
+            }
+        }
+
         // Decrease Sprint Progress (Force decay in aim)
         ctx.setSprintProgress(Math.max(0.0, ctx.getSprintProgress() - 0.2));
 
@@ -35,7 +49,8 @@ public class AimingState implements WeaponState {
 
     @Override
     public void onExit(WeaponContext ctx) {
-        // Play aim exit sound if needed
+        // Clear potential zoom effect
+        ctx.getPlayer().removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
     }
 
     @Override

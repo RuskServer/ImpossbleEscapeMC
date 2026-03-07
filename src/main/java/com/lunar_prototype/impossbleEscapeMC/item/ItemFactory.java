@@ -175,58 +175,76 @@ public class ItemFactory {
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        
         ItemDefinition def = ItemRegistry.get(itemId);
         AmmoDefinition ammoDef = ItemRegistry.getAmmo(itemId);
-        if (def == null)
+        AttachmentDefinition attDef = ItemRegistry.getAttachment(itemId);
+
+        // どれにも該当しない場合は何もしない
+        if (def == null && ammoDef == null && attDef == null)
             return item;
 
         List<String> lore = new ArrayList<>();
 
-        // 1. タイプとレアリティ
-        lore.add("§7Type: §f" + def.type);
-        lore.add("§7Rarity: " + getRarityStars(def.rarity));
+        // --- 1. 基本情報 (タイプとレアリティ) ---
+        if (def != null) {
+            lore.add("§7Type: §f" + def.type);
+            lore.add("§7Rarity: " + getRarityStars(def.rarity));
+        } else if (ammoDef != null) {
+            lore.add("§7Type: §fAMMO");
+            lore.add("§7Rarity: " + getRarityStars(ammoDef.rarity));
+        } else if (attDef != null) {
+            lore.add("§7Type: §fATTACHMENT");
+            lore.add("§7Rarity: " + getRarityStars(attDef.rarity));
+        }
         lore.add("");
 
+        // --- 2. 弾薬ステータス (弾薬アイテム、または弾薬としての性質を持つ場合) ---
         if (ammoDef != null) {
-            lore.add("§7Type: §fAMMO");
-            lore.add("§7Caliber: §e" + ammoDef.caliber);
-            lore.add("");
             lore.add("§6§l<< AMMO STATS >>");
+            lore.add("§7Caliber: §e" + ammoDef.caliber);
             lore.add("§7Penetration: §fClass " + ammoDef.ammoClass);
             lore.add("§7Base Damage: §f" + ammoDef.damage);
+            lore.add("");
         }
 
-        // 2. 銃ステータス (GUNの場合)
-        if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
+        // --- 3. 銃ステータス (GUNの場合) ---
+        if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
             int ammo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
             boolean chamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
             String chamberSuffix = chamberLoaded ? " §a(+1)" : "";
 
             lore.add("§6§l<< GUN STATS >>");
-            // 弾数は視認性重視。チャンバーに入っている場合は (+1) と表示する
             lore.add("§7Ammo: §e" + ammo + chamberSuffix + " §8/ §7" + def.gunStats.magSize);
             lore.add("§7Damage: §f" + String.format("%.1f",
                     pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage)));
             lore.add("§7RPM: §f" + def.gunStats.rpm);
             lore.add("§7Mode: §f" + def.gunStats.fireMode);
+            
             String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
             AmmoDefinition currentAmmo = ItemRegistry.getAmmo(ammoId);
             String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "None";
-
-            lore.add("§7Chambered: §f" + ammoName); // 装填中の弾薬名を表示
+            lore.add("§7Chambered: §f" + ammoName);
             lore.add("");
         }
 
-        // Armor Stats
-        if (def.armorStats != null) {
+        // --- 4. 防具ステータス (ARMORの場合) ---
+        if (def != null && def.armorStats != null) {
             lore.add("§9§l<< ARMOR STATS >>");
             lore.add("§7Class: §f" + def.armorStats.armorClass);
             lore.add("§7Defense: §f" + def.armorStats.defense);
             lore.add("");
         }
 
-        // 3. 特殊効果 (Affixes)
-        if (def.affixes != null && !def.affixes.isEmpty()) {
+        // --- 5. アタッチメントステータス ---
+        if (attDef != null) {
+            lore.add("§e§l<< ATTACHMENT >>");
+            lore.add("§7Slot: §f" + attDef.slot.name());
+            lore.add("");
+        }
+
+        // --- 6. 特殊効果 (Affixes) ---
+        if (def != null && def.affixes != null && !def.affixes.isEmpty()) {
             lore.add("§b§l<< MODIFICATIONS >>");
             for (Affix a : def.affixes) {
                 double val = pdc.getOrDefault(PDCKeys.affix(a.stat), PDCKeys.DOUBLE, 0.0);
