@@ -9,6 +9,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
@@ -167,8 +168,22 @@ public class PlayerListener implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onShootBow(org.bukkit.event.entity.EntityShootBowEvent event) {
+        // 1. まずはイベントをキャンセル
         event.setCancelled(true);
+
+        // 2. [重要] すでに生成されてしまった「矢」をこの世から消す
+        // これをやらないと、一瞬だけクライアント側にエンティティが残ることがあります
+        if (event.getProjectile() != null) {
+            event.getProjectile().remove();
+        }
+
+        // 3. 実行者がプレイヤーの場合、腕の振りを止めたり、アイテムの状態を同期させる
+        if (event.getEntity() instanceof org.bukkit.entity.Player player) {
+            // 装填されたままにする（撃ったことにしてアイテムを消費させない）ための処理
+            // 必要に応じて、インベントリを更新してクライアントと同期を強制する
+            player.updateInventory();
+        }
     }
 }
