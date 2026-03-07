@@ -61,7 +61,6 @@ public class ItemFactory {
             String rarityColor = getRarityColor(ammoDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', ammoDef.displayName));
         } else {
-
             Material mat = Material.matchMaterial(def.material);
             if (mat == null)
                 mat = Material.BARRIER;
@@ -140,6 +139,9 @@ public class ItemFactory {
                     equippable.setDispensable(def.armorStats.dispensable);
                     equippable.setSwappable(def.armorStats.swappable);
                     equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
+                    
+                    // 明示的にコンポーネントをセットして反映させる
+                    meta.setEquippable(equippable);
                 } catch (Throwable t) {
                     // Method might not be available on older versions
                 }

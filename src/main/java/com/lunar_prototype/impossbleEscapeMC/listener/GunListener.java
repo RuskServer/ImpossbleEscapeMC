@@ -640,9 +640,6 @@ public class GunListener implements Listener {
                             rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
                             bulletDir,
                             damage);
-                    victim.getWorld().spawnParticle(Particle.BLOCK,
-                            rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), 10,
-                            Material.REDSTONE_BLOCK.createBlockData());
                 } else if (rayTrace.getHitBlock() != null) {
                     // 壁に着弾
                     rayTrace.getHitBlock().getWorld().playEffect(
@@ -884,19 +881,20 @@ public class GunListener implements Listener {
 
         // アーマー貫通判定 (足はアーマー0なので必ず貫通する)
         boolean isPenetrated = calculatePenetration(ammoClass, armorClass);
+        Player shooterPlayer = (shooter instanceof Player p) ? p : null;
 
         if (!isPenetrated) {
             // 貫通失敗: ダメージを大幅にカット (例: 10~20%程度しか通らない)
             finalDamage *= 0.15;
-            playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
+            playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             shooter.sendMessage("§7[!] 弾が装甲に弾かれました");
         } else {
             // 貫通成功
-            playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
+            playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             
             // 更にヘッドショットだった場合は別音を追加で鳴らす（既存処理維持ならここでヘッドショットの音も鳴らす）
             if (isHeadshot) {
-                //playConfiguredSound(hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
+                //playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             }
         }
 
@@ -933,16 +931,27 @@ public class GunListener implements Listener {
         victim.damage(finalDamage, shooter);
     }
 
-    private void playConfiguredSound(Location loc, String configKey, String defaultSoundName, float volume, float pitch) {
+    private void playConfiguredSound(Player player, Location loc, String configKey, String defaultSoundName, float volume, float pitch) {
         String soundName = plugin.getConfig().getString(configKey, defaultSoundName);
         if (soundName == null || soundName.isEmpty()) return;
 
+        // プレイヤーが指定されている場合は、耳元（現在地）で鳴らすことで距離に関わらず聞こえるようにする
+        Location playAt = (player != null) ? player.getLocation() : loc;
+
         try {
             Sound sound = Sound.valueOf(soundName.toUpperCase());
-            loc.getWorld().playSound(loc, sound, volume, pitch);
+            if (player != null) {
+                player.playSound(playAt, sound, volume, pitch);
+            } else {
+                playAt.getWorld().playSound(playAt, sound, volume, pitch);
+            }
         } catch (IllegalArgumentException e) {
             // Not a built-in sound, play as a custom resource pack sound
-            loc.getWorld().playSound(loc, soundName, volume, pitch);
+            if (player != null) {
+                player.playSound(playAt, soundName, volume, pitch);
+            } else {
+                playAt.getWorld().playSound(playAt, soundName, volume, pitch);
+            }
         }
     }
 

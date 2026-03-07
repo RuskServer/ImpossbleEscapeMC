@@ -32,71 +32,79 @@ public class PlayerListener implements Listener {
         if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR)
             return;
 
-        Location from = event.getFrom();
-        Location to = event.getTo();
+        handleMovement(player, event.getFrom(), event.getTo(), player.isSprinting(), player.isSneaking());
+    }
+
+    @EventHandler
+    public void onEntityMove(io.papermc.paper.event.entity.EntityMoveEvent event) {
+        if (!(event.getEntity() instanceof Mob mob)) return;
+        
+        ScavController controller = ScavSpawner.getController(mob.getUniqueId());
+        if (controller == null) return;
+
+        handleMovement(mob, event.getFrom(), event.getTo(), controller.isSprinting(), false);
+    }
+
+    private void handleMovement(LivingEntity entity, Location from, Location to, boolean isSprinting, boolean isSneaking) {
         if (to == null || (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ())) {
-            continuousNoiseTicks.put(player.getUniqueId(), 0); // 止まればリセット
+            continuousNoiseTicks.put(entity.getUniqueId(), 0);
             return;
         }
 
-        // 空中にいる（落下中）ならカウントしない
-        if (player.getLocation().subtract(0, 0.1, 0).getBlock().getType().isAir())
+        // 地面に接しているかチェック (簡易的)
+        if (entity.getLocation().subtract(0, 0.1, 0).getBlock().getType().isAir())
             return;
 
         // 音を出す移動か？
-        boolean isMakingNoise = !player.isSneaking();
+        boolean isMakingNoise = !isSneaking;
         if (isMakingNoise) {
-            int ticks = continuousNoiseTicks.getOrDefault(player.getUniqueId(), 0) + 1;
-            continuousNoiseTicks.put(player.getUniqueId(), ticks);
+            int ticks = continuousNoiseTicks.getOrDefault(entity.getUniqueId(), 0) + 1;
+            continuousNoiseTicks.put(entity.getUniqueId(), ticks);
 
             // 2秒(40ticks)以上音を出している場合
             if (ticks >= 40) {
-                alertNearbyScavsOfFootsteps(player);
+                alertNearbyScavsOfFootsteps(entity);
             }
         } else {
-            continuousNoiseTicks.put(player.getUniqueId(), 0);
+            continuousNoiseTicks.put(entity.getUniqueId(), 0);
         }
 
         double distance = from.distance(to);
 
-        // 状態に応じた倍率設定 (Skriptの add 1.5, 2, 1 に対応)
+        // 倍率設定
         double multiplier;
-        if (player.isSneaking()) {
-            multiplier = 1.0; // スニーク
-        } else if (player.isSprinting()) {
-            multiplier = 2.0; // ダッシュ
+        if (isSneaking) {
+            multiplier = 1.0;
+        } else if (isSprinting) {
+            multiplier = 2.0;
         } else {
-            multiplier = 1.5; // 通常歩き
+            multiplier = 1.5;
         }
 
         // 距離を蓄積
-        UUID uuid = player.getUniqueId();
+        UUID uuid = entity.getUniqueId();
         double totalWalked = walkDistanceMap.getOrDefault(uuid, 0.0) + (distance * multiplier);
 
-        // しきい値チェック (Skriptの 10 に相当。Javaの座標系だと 2.5〜3.0 くらいが適切)
         if (totalWalked > 3.0) {
-            // 足音を再生
-            player.getWorld().playSound(
-                    player.getLocation(),
-                    Sound.BLOCK_STONE_STEP, // Skriptの stone.fall より step の方が足音らしいです
-                    0.8f, // 音量
-                    1.0f // ピッチ
+            entity.getWorld().playSound(
+                    entity.getLocation(),
+                    Sound.BLOCK_STONE_STEP,
+                    0.8f,
+                    1.0f
             );
-
-            // カウントをリセット
             totalWalked = 0;
         }
 
         walkDistanceMap.put(uuid, totalWalked);
     }
 
-    private void alertNearbyScavsOfFootsteps(Player player) {
+    private void alertNearbyScavsOfFootsteps(LivingEntity source) {
         // 周囲32ブロック以内のSCAVに通知
-        for (org.bukkit.entity.Entity entity : player.getNearbyEntities(32, 16, 32)) {
+        for (org.bukkit.entity.Entity entity : source.getNearbyEntities(32, 16, 32)) {
             if (entity instanceof Mob mob) {
                 ScavController controller = ScavSpawner.getController(mob.getUniqueId());
-                if (controller != null) {
-                    controller.onSoundHeard(player.getLocation());
+                if (controller != null && !mob.equals(source)) {
+                    controller.onSoundHeard(source.getLocation());
                 }
             }
         }
