@@ -34,7 +34,8 @@ public class AimingState implements WeaponState {
             float targetZoom = (float) stats.scope.zoom;
             float currentZoom = 1.0f + (targetZoom - 1.0f) * (float) ctx.getAimProgress();
             
-            float newWalkSpeed = baseWalkSpeed / currentZoom;
+            // Multiply by currentZoom to decrease FOV (Zoom IN)
+            float newWalkSpeed = baseWalkSpeed * currentZoom;
 
             // Only send if significant change to avoid packet spam
             if (Math.abs(ctx.getLastSentWalkSpeed() - newWalkSpeed) > 0.0001f) {

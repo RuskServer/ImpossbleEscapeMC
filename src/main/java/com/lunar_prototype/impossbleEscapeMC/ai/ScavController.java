@@ -40,6 +40,10 @@ public class ScavController {
     private List<ScavController> nearbyAllies = new ArrayList<>();
     private boolean isSprinting = false;
 
+    public boolean isSprinting() {
+        return isSprinting;
+    }
+
     private enum SquadRole { NONE, POINTMAN, COVERMAN }
     private SquadRole myRole = SquadRole.NONE;
 
@@ -53,6 +57,7 @@ public class ScavController {
     private Vector currentAimVector = null;
     private double aimErrorYaw = 0;
     private double aimErrorPitch = 0;
+    private long lastMobShotTime = 0;
 
     // --- Peek & Hide Maneuver States ---
     private int peekPhase = 0; // 0: None, 1: Moving out, 2: Moving back
@@ -186,9 +191,15 @@ public class ScavController {
                 if (currentLos || peekTicks >= 5) {
                     if (currentLos) updateHumanAim(target);
                     applyAimToEntity();
-                    gunListener.executeMobShoot(scav, def.gunStats, 1, 0.1 + (suppression * 0.1));
-                    peekPhase = 2;
-                    peekTicks = 0;
+                    
+                    long now = System.currentTimeMillis();
+                    long interval = (long) (60000.0 / def.gunStats.rpm);
+                    if (now - lastMobShotTime >= interval) {
+                        gunListener.executeMobShoot(scav, def.gunStats, 1, 0.1 + (suppression * 0.1));
+                        lastMobShotTime = now;
+                        peekPhase = 2;
+                        peekTicks = 0;
+                    }
                 }
             } else if (peekPhase == 2) { // 戻り
                 double speed = isSprinting ? 1.5 : 1.0;
@@ -255,16 +266,26 @@ public class ScavController {
 
         // 射撃実行
         if (actions[1] == 0) {
+            long now = System.currentTimeMillis();
+            long interval = (long) (60000.0 / def.gunStats.rpm);
+
             if (canSeeTarget) {
                 applyAimToEntity();
-                double dynamicInaccuracy = 0.04 + (suppression * 0.1);
-                if (scav.getVelocity().length() > 0.1) dynamicInaccuracy += 0.04;
-                gunListener.executeMobShoot(scav, def.gunStats, 1, dynamicInaccuracy);
+                if (now - lastMobShotTime >= interval) {
+                    double dynamicInaccuracy = 0.04 + (suppression * 0.1);
+                    if (scav.getVelocity().length() > 0.1) dynamicInaccuracy += 0.04;
+                    gunListener.executeMobShoot(scav, def.gunStats, 1, dynamicInaccuracy);
+                    lastMobShotTime = now;
+                }
             } else if (isPreAiming && Math.random() < 0.05) {
                 // プリエイム中に「決め撃ち」を低確率で行う
                 applyAimToEntity();
-                gunListener.executeMobShoot(scav, def.gunStats, 1, 0.3);
+                if (now - lastMobShotTime >= interval) {
+                    gunListener.executeMobShoot(scav, def.gunStats, 1, 0.3);
+                    lastMobShotTime = now;
+                }
             } else if (target != null && scav.isOnGround() && jumpCooldown <= 0 && checkJumpShotVision(target)) {
+
                 if (Math.random() < 0.4) {
                     scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
                     jumpCooldown = 40;
