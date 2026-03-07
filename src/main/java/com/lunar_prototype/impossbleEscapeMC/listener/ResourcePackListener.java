@@ -9,9 +9,14 @@ import org.bukkit.event.player.PlayerJoinEvent;
 public class ResourcePackListener implements Listener {
 
     private final ImpossbleEscapeMC plugin;
+    private byte[] resourcePackHash = null;
 
     public ResourcePackListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
+    }
+
+    public void setResourcePackHash(byte[] hash) {
+        this.resourcePackHash = hash;
     }
 
     @EventHandler
@@ -25,7 +30,7 @@ public class ResourcePackListener implements Listener {
         boolean force = plugin.getConfig().getBoolean("resource-pack.force", false);
 
         // 1.17以降推奨のプロンプト付き適用メソッド
-        // ハッシュ値が空でも動作しますが、更新時にハッシュを変えると再ダウンロードを促せます
-        player.setResourcePack(url, null, prompt, force);
+        // ハッシュ値があると、更新時に再ダウンロードを促せます
+        player.setResourcePack(url, resourcePackHash, prompt, force);
     }
 }

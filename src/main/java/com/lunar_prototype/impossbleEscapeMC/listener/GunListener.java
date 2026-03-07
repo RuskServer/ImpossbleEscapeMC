@@ -789,6 +789,12 @@ public class GunListener implements Listener {
             stateTasks.get(uuid).cancel();
             stateTasks.remove(uuid);
         }
+        
+        var sm = stateMachines.get(uuid);
+        if (sm != null) {
+            sm.transitionTo(null);
+        }
+        
         stateMachines.remove(uuid);
         lastLocationMap.remove(uuid);
     }
