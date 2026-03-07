@@ -108,11 +108,7 @@ public class BoltingState implements WeaponState {
             return next != null ? next : new IdleState();
         }
 
-        // スプリントでのみキャンセル可能
-        if (input == InputType.SPRINT_START) {
-            return new SprintingState();
-        }
-
+        // Allow actions like sprinting or stopping sprint during bolting without cancelling
         return null;
     }
 

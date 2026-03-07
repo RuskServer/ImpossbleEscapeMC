@@ -399,7 +399,8 @@ public class ScavController {
     }
 
     private LivingEntity scanForTargets() {
-        for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 16, MAX_VISION_DISTANCE)) {
+        // Y軸の範囲を拡大 (16 -> 64)
+        for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 64, MAX_VISION_DISTANCE)) {
             if (e instanceof org.bukkit.entity.Player p) {
                 if (p.getGameMode() == org.bukkit.GameMode.SURVIVAL && checkVision(p)) return p;
             }
@@ -411,7 +412,9 @@ public class ScavController {
         if (lastKnownLocation == null) {
             if (isAlerted && Math.random() < 0.05) {
                 float yaw = scav.getLocation().getYaw() + (float) (Math.random() - 0.5) * 90f;
-                scav.setRotation(yaw, 0);
+                // 上下も少し見渡す
+                float pitch = (float) (Math.random() - 0.5) * 40f;
+                scav.setRotation(yaw, pitch);
             }
             return;
         }
@@ -481,7 +484,7 @@ public class ScavController {
         double dist = eye.distance(targetLoc);
         if (dist > MAX_VISION_DISTANCE) return false;
 
-        // --- 1. 発砲状態の確認 (マズルフラッシュ) ---
+        // --- 1. 発砲状態の確認 ---
         boolean isFiring = false;
         if (target.hasMetadata("last_fired_tick")) {
             int lastFired = target.getMetadata("last_fired_tick").get(0).asInt();
@@ -517,10 +520,28 @@ public class ScavController {
     private boolean hasAdvancedLoS(LivingEntity target) {
         Location eye = scav.getEyeLocation();
         World world = scav.getWorld();
-        double height = target.getHeight();
-        double[] verticalOffsets = { height * 0.9, height * 0.5, height * 0.1 };
-        for (double offset : verticalOffsets) {
-            Location targetPoint = target.getLocation().clone().add(0, offset, 0);
+        
+        double h = target.getHeight();
+        double w = target.getWidth() * 0.45;
+
+        // SCAVから見た横方向のベクトル
+        Vector toTarget = target.getLocation().toVector().subtract(eye.toVector()).normalize();
+        Vector leftVec = new Vector(-toTarget.getZ(), 0, toTarget.getX()).normalize().multiply(w);
+        Vector rightVec = leftVec.clone().multiply(-1);
+
+        // 9地点走査
+        List<Location> checkPoints = new ArrayList<>();
+        Location base = target.getLocation();
+        double[] heights = { h * 0.9, h * 0.5, h * 0.1 };
+
+        for (double y : heights) {
+            Location center = base.clone().add(0, y, 0);
+            checkPoints.add(center);
+            checkPoints.add(center.clone().add(leftVec));
+            checkPoints.add(center.clone().add(rightVec));
+        }
+
+        for (Location targetPoint : checkPoints) {
             Vector direction = targetPoint.toVector().subtract(eye.toVector());
             double maxDist = direction.length();
             var result = world.rayTraceBlocks(eye, direction.normalize(), maxDist, 

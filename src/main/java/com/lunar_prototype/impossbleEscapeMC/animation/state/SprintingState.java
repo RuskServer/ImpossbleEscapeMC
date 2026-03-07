@@ -50,8 +50,7 @@ public class SprintingState implements WeaponState {
                 ctx.getPlayer().setSprinting(false);
                 return new AimingState();
             case RELOAD:
-                // リロード時もダッシュ解除
-                ctx.getPlayer().setSprinting(false);
+                // リロード時も動作を継続 (走ったままリロード可能に)
                 return new ReloadingState();
             default:
                 return null;
