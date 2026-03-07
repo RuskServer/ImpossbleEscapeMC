@@ -47,6 +47,7 @@ public class GunListener implements Listener {
     // State machine storage
     private final Map<UUID, com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine> stateMachines = new HashMap<>();
     private final Map<UUID, BukkitRunnable> stateTasks = new HashMap<>();
+    private final Map<UUID, Location> lastLocationMap = new HashMap<>();
 
     private static final int MODEL_ADD_SCOPE = 1000;
     private static final int MODEL_ADD_SPRINT = 2000;
@@ -335,6 +336,27 @@ public class GunListener implements Listener {
         // 4. メタデータを実物のアイテムにセットし直す
         item.setItemMeta(meta);
 
+        // --- 精度（拡散率）の計算 ---
+        double inaccuracy = 0.0;
+        boolean isAiming = isAiming(player.getUniqueId());
+
+        if (isAiming) {
+            inaccuracy = 0.005; // エイム時はほぼ正確
+        } else {
+            // 腰撃ち
+            inaccuracy = 0.25; // 基本の拡散率 (2.5ブロック相当 / 10m)
+
+            // 停止判定
+            Location lastLoc = lastLocationMap.get(player.getUniqueId());
+            if (lastLoc != null && lastLoc.getWorld().equals(player.getWorld())) {
+                double distSq = lastLoc.distanceSquared(player.getLocation());
+                // 1ティック(0.05秒)の移動距離が極めて小さければ停止とみなす
+                if (distSq < 0.001) {
+                    inaccuracy *= 0.5; // 停止時は精度50%向上
+                }
+            }
+        }
+
         double damage = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, stats.damage);
         double baseRecoil = pdc.getOrDefault(PDCKeys.affix("recoil"), PDCKeys.DOUBLE, stats.recoil);
 
@@ -378,7 +400,7 @@ public class GunListener implements Listener {
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
 
-            new BulletTask(player, damage, ammoClass).runTaskTimer(plugin, 0, 1);
+            new BulletTask(player, damage, ammoClass, inaccuracy).runTaskTimer(plugin, 0, 1);
         }
 
         // 縦反動: 銃は跳ね上がる(視線は上に行く)ため、ピッチはマイナス方向へ動かす
@@ -446,17 +468,8 @@ public class GunListener implements Listener {
         spawnMuzzleFlash(shooter);
         shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 8.0f, 1.8f);
 
-        // 2. 弾丸の生成
-        BulletTask task = new BulletTask(shooter, stats.damage, ammoClass);
-
-        // 3. モブらしい「ガバガバな精度」を再現するためにベクトルを少しずらす
-        if (inaccuracy > 0) {
-            Vector spread = new Vector(
-                    (Math.random() - 0.5) * inaccuracy,
-                    (Math.random() - 0.5) * inaccuracy,
-                    (Math.random() - 0.5) * inaccuracy);
-            task.velocity.add(spread).normalize().multiply(6.0); // SPEEDに合わせて再加速
-        }
+        // 2. 弾丸の生成 (inaccuracyをコンストラクタで渡すように変更)
+        BulletTask task = new BulletTask(shooter, stats.damage, ammoClass, inaccuracy);
 
         task.runTaskTimer(plugin, 0, 1);
     }
@@ -554,12 +567,25 @@ public class GunListener implements Listener {
         private final double SPEED = 6.0; // 1ティックに進む距離
         private final int ammoClass;
 
-        public BulletTask(LivingEntity shooter, double damage, int ammoClass) {
+        public BulletTask(LivingEntity shooter, double damage, int ammoClass, double inaccuracy) {
             this.shooter = shooter;
             this.damage = damage;
             this.currentLoc = shooter.getEyeLocation();
             this.origin = this.currentLoc.toVector(); // 初期位置を保存
-            this.velocity = shooter.getEyeLocation().getDirection().multiply(SPEED);
+            
+            Vector dir = shooter.getEyeLocation().getDirection();
+            
+            // 拡散（インナキュラシー）の適用
+            if (inaccuracy > 0) {
+                dir.add(new Vector(
+                    (Math.random() - 0.5) * inaccuracy,
+                    (Math.random() - 0.5) * inaccuracy,
+                    (Math.random() - 0.5) * inaccuracy
+                ));
+                dir.normalize();
+            }
+            
+            this.velocity = dir.multiply(SPEED);
             this.ammoClass = ammoClass;
         }
 
@@ -748,6 +774,9 @@ public class GunListener implements Listener {
                 } else {
                     this.cancel();
                 }
+
+                // ティックの終わりに現在地を記録（次のティックでの移動判定用）
+                lastLocationMap.put(uuid, player.getLocation());
             }
         };
         task.runTaskTimer(plugin, 0, 1);
@@ -761,6 +790,7 @@ public class GunListener implements Listener {
             stateTasks.remove(uuid);
         }
         stateMachines.remove(uuid);
+        lastLocationMap.remove(uuid);
     }
 
     // Helpers used by shooting logic
