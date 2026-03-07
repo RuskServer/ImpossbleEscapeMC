@@ -1,6 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.animation.state;
 
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPlayerAbilities;
 import com.lunar_prototype.impossbleEscapeMC.item.GunStats;
+import org.bukkit.GameMode;
+import org.bukkit.entity.Player;
 
 public class AimingState implements WeaponState {
 
@@ -22,17 +26,20 @@ public class AimingState implements WeaponState {
             ctx.setAimProgress(Math.min(1.0, current + aimStep));
         }
 
-        // Apply Zoom (Slowness affects FOV)
-        // Zoom only when aim progress is significant
-        if (ctx.getAimProgress() > 0.8 && stats.scope != null && stats.scope.zoom > 1.0) {
-            // Amplifer 0 = 15% FOV reduction approx
-            // We can approximate Tarkov-like zoom with SLOWNESS.
-            // Higher zoom = higher level of slowness.
-            // zoom=2.0 -> approx level 3 or 4
-            int amplifier = (int) Math.round((stats.scope.zoom - 1.0) * 3.0);
-            if (amplifier >= 0) {
-                ctx.getPlayer().addPotionEffect(new org.bukkit.potion.PotionEffect(
-                        org.bukkit.potion.PotionEffectType.SLOWNESS, 3, amplifier, false, false, false));
+        // Apply Zoom via Packet
+        if (stats.scope != null && stats.scope.zoom > 1.0) {
+            Player player = ctx.getPlayer();
+            float baseWalkSpeed = player.getWalkSpeed() / 2.0f; // Bukkit default 0.2 -> Packet default 0.1
+            
+            float targetZoom = (float) stats.scope.zoom;
+            float currentZoom = 1.0f + (targetZoom - 1.0f) * (float) ctx.getAimProgress();
+            
+            float newWalkSpeed = baseWalkSpeed / currentZoom;
+
+            // Only send if significant change to avoid packet spam
+            if (Math.abs(ctx.getLastSentWalkSpeed() - newWalkSpeed) > 0.0001f) {
+                sendAbilitiesPacket(player, newWalkSpeed);
+                ctx.setLastSentWalkSpeed(newWalkSpeed);
             }
         }
 
@@ -49,8 +56,26 @@ public class AimingState implements WeaponState {
 
     @Override
     public void onExit(WeaponContext ctx) {
-        // Clear potential zoom effect
-        ctx.getPlayer().removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
+        // Reset zoom
+        Player player = ctx.getPlayer();
+        float originalWalkSpeed = player.getWalkSpeed() / 2.0f;
+        sendAbilitiesPacket(player, originalWalkSpeed);
+        ctx.setLastSentWalkSpeed(-1.0f);
+    }
+
+    private void sendAbilitiesPacket(Player player, float walkSpeed) {
+        boolean isCreative = player.getGameMode() == GameMode.CREATIVE;
+        boolean isSpectator = player.getGameMode() == GameMode.SPECTATOR;
+        
+        WrapperPlayServerPlayerAbilities packet = new WrapperPlayServerPlayerAbilities(
+                isCreative || isSpectator, // invulnerable
+                player.isFlying(),
+                player.getAllowFlight(),
+                isCreative, // creative
+                player.getFlySpeed(),
+                walkSpeed
+        );
+        PacketEvents.getAPI().getPlayerManager().sendPacket(player, packet);
     }
 
     @Override

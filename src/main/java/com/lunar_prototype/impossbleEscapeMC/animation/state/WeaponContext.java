@@ -30,6 +30,7 @@ public class WeaponContext {
     // Rendering cache
     private String lastModelKey = "";
     private int lastFrame = -1;
+    private float lastSentWalkSpeed = -1.0f;
 
     public WeaponContext(ImpossbleEscapeMC plugin, Player player, ItemStack item, GunStats stats) {
         this.plugin = plugin;
@@ -116,6 +117,15 @@ public class WeaponContext {
     public void resetCache() {
         this.lastModelKey = "";
         this.lastFrame = -1;
+        this.lastSentWalkSpeed = -1.0f;
+    }
+
+    public float getLastSentWalkSpeed() {
+        return lastSentWalkSpeed;
+    }
+
+    public void setLastSentWalkSpeed(float lastSentWalkSpeed) {
+        this.lastSentWalkSpeed = lastSentWalkSpeed;
     }
 
     private List<String> getAttachments(ItemStack item) {
