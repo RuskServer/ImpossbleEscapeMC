@@ -137,6 +137,7 @@ public class ItemRegistry {
                         gStats.aimAnimation = parseAnimation(gunSection, "aimAnimation");
                         gStats.sprintAnimation = parseAnimation(gunSection, "sprintAnimation");
                         gStats.idleAnimation = parseAnimation(gunSection, "idleAnimation");
+                        gStats.scope = parseScope(gunSection, "scope"); // 【追加】スコープ設定
 
                         def.gunStats = gStats;
                     }
@@ -225,6 +226,18 @@ public class ItemRegistry {
         stats.model = animSection.getString("model");
         stats.frameCount = animSection.getInt("frameCount");
         stats.fps = animSection.getInt("fps");
+        return stats;
+    }
+
+    private static GunStats.ScopeStats parseScope(ConfigurationSection section, String key) {
+        if (!section.contains(key))
+            return null;
+        ConfigurationSection scopeSection = section.getConfigurationSection(key);
+        if (scopeSection == null)
+            return null;
+
+        GunStats.ScopeStats stats = new GunStats.ScopeStats();
+        stats.zoom = scopeSection.getDouble("zoom", 1.0);
         return stats;
     }
 }

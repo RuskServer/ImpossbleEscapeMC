@@ -20,10 +20,15 @@ public class GunStats {
     public AnimationStats aimAnimation;
     public AnimationStats sprintAnimation;
     public AnimationStats idleAnimation;
+    public ScopeStats scope; // 【追加】スコープ・ズーム設定
 
     public static class AnimationStats {
         public String model;
         public int frameCount;
         public int fps;
+    }
+
+    public static class ScopeStats {
+        public double zoom = 1.0; // ズーム倍率 (1.0 = 標準)
     }
 }
