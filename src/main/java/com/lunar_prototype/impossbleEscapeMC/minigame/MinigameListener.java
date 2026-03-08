@@ -8,6 +8,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 
+import java.util.UUID;
+
 public class MinigameListener implements Listener {
     private final MinigameManager manager;
 
@@ -19,12 +21,22 @@ public class MinigameListener implements Listener {
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         if (manager.isRunning() && manager.getAlivePlayers().contains(player.getUniqueId())) {
-            manager.onPlayerDeath(player);
-            
+            // 先にキルを記録（これを後にすると、ラウンド終了判定時に最後のキルが反映されないため）
+            UUID killerUUID = null;
             Player killer = player.getKiller();
+            
             if (killer != null) {
-                manager.recordKill(killer.getUniqueId(), player.getUniqueId());
+                killerUUID = killer.getUniqueId();
+            } else {
+                // getKiller() が null の場合、最後にダメージを与えたプレイヤーをキラーとする（ラグ対策）
+                killerUUID = manager.getLastAttacker(player.getUniqueId());
             }
+
+            if (killerUUID != null) {
+                manager.recordKill(killerUUID, player.getUniqueId());
+            }
+
+            manager.onPlayerDeath(player);
 
             event.setKeepInventory(true);
             event.getDrops().clear();
@@ -36,7 +48,7 @@ public class MinigameListener implements Listener {
         if (!manager.isRunning()) return;
         if (!(event.getEntity() instanceof Player victim) || !(event.getDamager() instanceof Player attacker)) return;
 
-        if (manager.getAlivePlayers().contains(victim.getUniqueId()) && manager.getAlivePlayers().contains(attacker.getUniqueId())) {
+        if (manager.isParticipant(victim.getUniqueId()) && manager.isParticipant(attacker.getUniqueId())) {
             manager.addDamage(attacker.getUniqueId(), victim.getUniqueId(), event.getFinalDamage());
         }
     }
