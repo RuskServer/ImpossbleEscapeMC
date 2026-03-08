@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.minigame;
 
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -37,6 +38,17 @@ public class MinigameListener implements Listener {
 
         if (manager.getAlivePlayers().contains(victim.getUniqueId()) && manager.getAlivePlayers().contains(attacker.getUniqueId())) {
             manager.addDamage(attacker.getUniqueId(), victim.getUniqueId(), event.getFinalDamage());
+        }
+    }
+
+    @EventHandler
+    public void onMove(org.bukkit.event.player.PlayerMoveEvent event) {
+        if (manager.isRunning() && manager.isCountdown()) {
+            Location from = event.getFrom();
+            Location to = event.getTo();
+            if (from.getX() != to.getX() || from.getZ() != to.getZ()) {
+                event.setTo(from.setDirection(to.getDirection()));
+            }
         }
     }
 
