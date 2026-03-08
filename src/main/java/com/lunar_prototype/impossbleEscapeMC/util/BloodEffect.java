@@ -23,7 +23,7 @@ public class BloodEffect {
         World world = loc.getWorld();
         if (world == null) return;
 
-        int particleCount = (int) (intensity * 2); // 以前の5倍から2倍に減少
+        int particleCount = (int) (intensity); // 2倍からさらに半分（1倍）に減少
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
         // 1. メインの飛沫
@@ -45,11 +45,11 @@ public class BloodEffect {
             );
         }
 
-        // 2. 血霧（量を減らす）
+        // 2. 血霧（量をさらに減らす）
         world.spawnParticle(
                 Particle.DUST,
                 loc,
-                (int) (intensity / 2 + 1),
+                (int) (intensity / 4 + 1),
                 0.1, 0.1, 0.1,
                 0.05,
                 new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 0, 0), 0.8f)

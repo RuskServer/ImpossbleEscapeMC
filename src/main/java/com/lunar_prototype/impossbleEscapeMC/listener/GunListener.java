@@ -148,13 +148,17 @@ public class GunListener implements Listener {
     // --- 持ち替え時の処理 ---
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
-        // Reset state on switch? Or maintain?
-        // Usually creating a new machine or resetting current one is best.
-        // Let updateWeaponModel handle it.
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        // 射撃を強制停止
+        stopShooting(uuid);
+
         new BukkitRunnable() {
             @Override
             public void run() {
-                updateWeaponModel(event.getPlayer());
+                if (!player.isOnline()) return;
+                updateWeaponModel(player);
             }
         }.runTaskLater(plugin, 1);
     }
@@ -227,24 +231,6 @@ public class GunListener implements Listener {
         String startId = originalPdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
 
         return startId != null && startId.equals(currentId);
-    }
-
-    // 武器を切り替えたら強制停止
-    @EventHandler
-    public void onItemChange(PlayerItemHeldEvent event) {
-        shootingPlayers.remove(event.getPlayer().getUniqueId());
-
-        Player player = event.getPlayer();
-
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                ItemStack item = player.getInventory().getItemInMainHand();
-                boolean holdingGun = isGun(item);
-
-                updateWeaponModel(player);
-            }
-        }.runTaskLater(plugin, 1);
     }
 
     @EventHandler
@@ -553,6 +539,21 @@ public class GunListener implements Listener {
         }
     }
 
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        cleanup(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        cleanup(event.getEntity());
+    }
+
+    private void cleanup(Player player) {
+        stopShooting(player.getUniqueId());
+        stopStateTask(player);
+    }
+
     // 弾丸の挙動を管理するインナークラス
     private class BulletTask extends BukkitRunnable {
         private final LivingEntity shooter;
@@ -622,32 +623,64 @@ public class GunListener implements Listener {
             // 曳光弾のエフェクト (前回の地点から今回の地点まで線を引くようにパーティクルを出す)
             spawnTracer(prevLoc, currentLoc);
 
-            // 当たり判定 (ブロック & エンティティ)
-            var rayTrace = currentLoc.getWorld().rayTrace(
-                    prevLoc,
-                    velocity,
-                    SPEED,
-                    FluidCollisionMode.NEVER,
-                    true,
-                    0.2,
-                    (e) -> e instanceof LivingEntity && !e.equals(shooter));
+            // 当たり判定 (ループ化して貫通に対応)
+            double distanceRemaining = SPEED;
+            Location rayStart = prevLoc.clone();
+            Vector rayDir = velocity.clone().normalize();
 
-            if (rayTrace != null) {
+            while (distanceRemaining > 0.01) {
+                var rayTrace = currentLoc.getWorld().rayTrace(
+                        rayStart,
+                        rayDir,
+                        distanceRemaining,
+                        FluidCollisionMode.NEVER,
+                        true,
+                        0.2,
+                        (e) -> e instanceof LivingEntity && !e.equals(shooter));
+
+                if (rayTrace == null) break;
+
                 if (rayTrace.getHitEntity() instanceof LivingEntity victim) {
                     Vector bulletDir = velocity.clone().normalize();
-                    handleDamage(victim, shooter, damage, ammoClass, currentLoc);
+                    handleDamage(victim, shooter, damage, ammoClass, rayTrace.getHitPosition().toLocation(currentLoc.getWorld()));
                     BloodEffect.spawn(
                             rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
                             bulletDir,
                             damage);
+                    this.cancel();
+                    return;
                 } else if (rayTrace.getHitBlock() != null) {
-                    // 壁に着弾
-                    rayTrace.getHitBlock().getWorld().playEffect(
-                            rayTrace.getHitPosition().toLocation(currentLoc.getWorld()), Effect.STEP_SOUND,
-                            rayTrace.getHitBlock().getType());
+                    Block block = rayTrace.getHitBlock();
+                    if (isPenetrable(block.getType())) {
+                        // 貫通処理: エフェクトだけ出して続行
+                        block.getWorld().playEffect(
+                                rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
+                                Effect.STEP_SOUND,
+                                block.getType());
+                        
+                        double hitDist = rayTrace.getHitPosition().distance(rayStart.toVector());
+                        // ヒット地点から少し先に進めて再開
+                        rayStart = rayTrace.getHitPosition().toLocation(currentLoc.getWorld()).add(rayDir.clone().multiply(0.01));
+                        distanceRemaining -= (hitDist + 0.01);
+                        continue;
+                    } else {
+                        // 壁に着弾
+                        block.getWorld().playEffect(
+                                rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
+                                Effect.STEP_SOUND,
+                                block.getType());
+                        this.cancel();
+                        return;
+                    }
+                } else {
+                    break;
                 }
-                this.cancel();
             }
+        }
+
+        private boolean isPenetrable(Material material) {
+            String name = material.name();
+            return name.contains("GLASS") || name.equals("IRON_BARS");
         }
 
         private void spawnTracer(Location from, Location to) {
@@ -730,8 +763,6 @@ public class GunListener implements Listener {
         var sm = getOrCreateStateMachine(player);
         ItemStack item = player.getInventory().getItemInMainHand();
 
-        // Check if gun changed
-
         if (!isGun(item)) {
             stopStateTask(player);
             stateMachines.remove(player.getUniqueId());
@@ -745,8 +776,27 @@ public class GunListener implements Listener {
         ItemDefinition def = ItemRegistry.get(itemId);
 
         if (def != null && def.gunStats != null) {
+            // 現在のコンテキストにあるアイテムと、新しく持ったアイテムが異なる場合
+            ItemStack oldItem = sm.getContext().getItem();
+            boolean itemChanged = true;
+
+            if (oldItem != null && oldItem.getType() != Material.AIR && oldItem.hasItemMeta()) {
+                String oldId = oldItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+                if (itemId.equals(oldId)) {
+                    // 同じIDでも、メタ（例えば弾数）が違う可能性はあるが、
+                    // ここでは「銃の種類が変わったか」を主眼に置く。
+                    // もし「全く同じアイテムインスタンス」かチェックしたいなら item.equals(oldItem)
+                    itemChanged = !item.equals(oldItem);
+                }
+            }
+
             sm.getContext().setItem(item);
             sm.getContext().setStats(def.gunStats);
+
+            if (itemChanged) {
+                sm.reset();
+            }
+
             // Also ensure task is running
             if (!stateTasks.containsKey(player.getUniqueId())) {
                 startStateTask(player);

@@ -29,6 +29,17 @@ public class WeaponStateMachine {
         }
     }
 
+    public void reset() {
+        if (currentState != null) {
+            currentState.onExit(context);
+        }
+        context.resetProgress();
+        currentState = new IdleState();
+        if (currentState != null) {
+            currentState.onEnter(context);
+        }
+    }
+
     public void transitionTo(WeaponState nextState) {
         if (currentState != null) {
             currentState.onExit(context);

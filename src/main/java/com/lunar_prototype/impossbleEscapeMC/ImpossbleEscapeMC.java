@@ -35,6 +35,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     private GunListener gunListener;
     private ResourcePackListener resourcePackListener;
+    private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
 
     @Override
     public void onEnable() {
@@ -47,15 +48,22 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         gunListener = new GunListener(this);
         scavSpawner = new ScavSpawner(this, gunListener);
         resourcePackListener = new ResourcePackListener(this);
+        minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
 
         getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(resourcePackListener, this);
         getServer().getPluginManager().registerEvents(new PlayerListener(), this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
         getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
+
         getCommand("getitem").setExecutor(new GetItemCommand());
         getCommand("scavspawn").setExecutor(new ScavCommand(this));
         getCommand("attachment").setExecutor(new AttachmentCommand());
+        com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand mgCmd = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager);
+        getCommand("mg").setExecutor(mgCmd);
+        getCommand("mg").setTabCompleter(mgCmd);
+
         CrossbowTask.start(this);
 
         asyncComputeResourcePackHash();
@@ -93,6 +101,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // Plugin shutdown logic
         if (scavSpawner != null) {
             scavSpawner.cleanup();
+        }
+        if (minigameManager != null) {
+            minigameManager.stopGame();
         }
     }
 }
