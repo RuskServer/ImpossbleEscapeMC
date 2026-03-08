@@ -15,3 +15,6 @@ commands:
   attachment:
     description: 銃のアタッチメントGUIを開きます。
     usage: /attachment
+  mg:
+    description: ミニゲーム管理コマンド
+    permission: op

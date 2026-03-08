@@ -114,6 +114,12 @@ public class WeaponContext {
         lastFrame = frameIndex;
     }
 
+    public void resetProgress() {
+        this.aimProgress = 0.0;
+        this.sprintProgress = player.isSprinting() ? 1.0 : 0.0;
+        this.resetCache();
+    }
+
     public void resetCache() {
         this.lastModelKey = "";
         this.lastFrame = -1;
