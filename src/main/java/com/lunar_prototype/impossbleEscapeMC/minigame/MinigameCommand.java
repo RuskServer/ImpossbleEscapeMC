@@ -26,11 +26,18 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
         if (!player.isOp()) return true;
 
         if (args.length == 0) {
-            player.sendMessage("§c/mg <create/setspawn/split/start/stop>");
+            player.sendMessage("§c/mg <create/setspawn/split/start/stop/loadout>");
             return true;
         }
 
         switch (args[0].toLowerCase()) {
+            case "loadout":
+                if (args.length < 2) {
+                    player.sendMessage("§c/mg loadout <m4a1/ak74>");
+                    return true;
+                }
+                manager.setLoadout(player, args[1]);
+                break;
             case "create":
                 if (args.length < 2) {
                     player.sendMessage("§c/mg create <name>");
@@ -85,7 +92,7 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "setspawn", "split", "start", "stop").stream()
+            return Arrays.asList("create", "setspawn", "split", "start", "stop", "loadout").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
@@ -94,6 +101,10 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
             String sub = args[0].toLowerCase();
             if (sub.equals("setspawn") || sub.equals("start")) {
                 return manager.getMapNames().stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            } else if (sub.equals("loadout")) {
+                return Arrays.asList("m4a1", "ak74").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             }

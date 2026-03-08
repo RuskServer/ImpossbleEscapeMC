@@ -13,9 +13,17 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.Material;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 
 import java.io.File;
 import java.io.FileReader;
@@ -45,6 +53,11 @@ public class MinigameManager {
     private final Set<UUID> team1 = new HashSet<>();
     private final Set<UUID> team2 = new HashSet<>();
     private final Set<UUID> alivePlayers = new HashSet<>();
+
+    // Loadout & Inventory
+    private final Map<UUID, String> chosenLoadout = new HashMap<>();
+    private final Map<UUID, ItemStack[]> savedInventories = new HashMap<>();
+    private final Map<UUID, ItemStack[]> savedArmor = new HashMap<>();
 
     // Win Counters
     private int team1Wins = 0;
@@ -118,6 +131,17 @@ public class MinigameManager {
         currentMap = maps.get(mapName);
         if (currentMap == null) return;
         
+        // Save Inventories for all participants
+        Set<UUID> allParticipants = new HashSet<>();
+        allParticipants.addAll(team1);
+        allParticipants.addAll(team2);
+        for (UUID uuid : allParticipants) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                saveInventory(p);
+            }
+        }
+
         this.maxRounds = rounds;
         isRunning = true;
         currentRound = 1;
@@ -219,35 +243,36 @@ public class MinigameManager {
         
         Bukkit.broadcast(Component.text("ラウンド " + currentRound + " 開始！", NamedTextColor.GREEN, TextDecoration.BOLD));
     }
+private void spawnPlayers() {
+    List<Location> s1 = currentMap.getSpawns(1);
+    List<Location> s2 = currentMap.getSpawns(2);
 
-    private void spawnPlayers() {
-        List<Location> s1 = currentMap.getSpawns(1);
-        List<Location> s2 = currentMap.getSpawns(2);
-        
-        int i = 0;
-        for (UUID uuid : team1) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                p.setGameMode(GameMode.SURVIVAL);
-                p.setHealth(20);
-                p.setFoodLevel(20);
-                p.teleport(s1.get(i % s1.size()));
-                i++;
-            }
-        }
-        
-        i = 0;
-        for (UUID uuid : team2) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                p.setGameMode(GameMode.SURVIVAL);
-                p.setHealth(20);
-                p.setFoodLevel(20);
-                p.teleport(s2.get(i % s2.size()));
-                i++;
-            }
+    int i = 0;
+    for (UUID uuid : team1) {
+        Player p = Bukkit.getPlayer(uuid);
+        if (p != null) {
+            p.setGameMode(GameMode.ADVENTURE);
+            p.setHealth(20);
+            p.setFoodLevel(20);
+            p.teleport(s1.get(i % s1.size()));
+            giveLoadout(p);
+            i++;
         }
     }
+
+    i = 0;
+    for (UUID uuid : team2) {
+        Player p = Bukkit.getPlayer(uuid);
+        if (p != null) {
+            p.setGameMode(GameMode.ADVENTURE);
+            p.setHealth(20);
+            p.setFoodLevel(20);
+            p.teleport(s2.get(i % s2.size()));
+            giveLoadout(p);
+            i++;
+        }
+    }
+}
 
     private void updateBossBar() {
         int t1Alive = (int) alivePlayers.stream().filter(team1::contains).count();
@@ -383,9 +408,86 @@ public class MinigameManager {
         isCountdown = false;
         if (gameTask != null) gameTask.cancel();
         if (bossBar != null) Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bossBar));
+        
+        Set<UUID> participants = new HashSet<>();
+        participants.addAll(team1);
+        participants.addAll(team2);
+        for (UUID uuid : participants) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                restoreInventory(p);
+                p.setGameMode(GameMode.SURVIVAL);
+            }
+        }
+        
         alivePlayers.clear();
         clearMinecraftTeams();
-        Bukkit.getOnlinePlayers().forEach(p -> p.setGameMode(GameMode.SURVIVAL));
+    }
+
+    public void setLoadout(Player player, String loadout) {
+        chosenLoadout.put(player.getUniqueId(), loadout.toLowerCase());
+        player.sendMessage(Component.text("ロードアウトを " + loadout.toUpperCase() + " に設定しました。", NamedTextColor.GREEN));
+    }
+
+    private void giveLoadout(Player player) {
+        player.getInventory().clear();
+        String loadout = chosenLoadout.getOrDefault(player.getUniqueId(), "m4a1");
+        
+        // Weapon
+        ItemStack weapon = ItemFactory.create(loadout);
+        if (weapon != null) {
+            player.getInventory().setItem(0, weapon);
+            
+            // Ammo
+            ItemDefinition def = ItemRegistry.get(loadout);
+            if (def != null && def.gunStats != null) {
+                AmmoDefinition ammoDef = ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
+                if (ammoDef != null) {
+                    ItemStack ammo = ItemFactory.create(ammoDef.id);
+                    if (ammo != null) {
+                        ammo.setAmount(64);
+                        player.getInventory().setItem(1, ammo);
+                        player.getInventory().setItem(2, ammo.clone());
+                        player.getInventory().setItem(3, ammo.clone());
+                        ItemStack lastAmmo = ammo.clone();
+                        lastAmmo.setAmount(8); // 64*3 + 8 = 200
+                        player.getInventory().setItem(4, lastAmmo);
+                    }
+                }
+            }
+        }
+
+        // Iron Armor (Fallback to vanilla with PDC if custom definition missing)
+        player.getInventory().setHelmet(createArmor("iron_helmet", Material.IRON_HELMET, 2));
+        player.getInventory().setChestplate(createArmor("iron_chestplate", Material.IRON_CHESTPLATE, 2));
+    }
+
+    private ItemStack createArmor(String id, Material fallback, int armorClass) {
+        ItemStack item = ItemFactory.create(id);
+        if (item != null) return item;
+        
+        ItemStack vanilla = new ItemStack(fallback);
+        var meta = vanilla.getItemMeta();
+        if (meta != null) {
+            meta.getPersistentDataContainer().set(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, armorClass);
+            vanilla.setItemMeta(meta);
+        }
+        return vanilla;
+    }
+
+    private void saveInventory(Player player) {
+        savedInventories.put(player.getUniqueId(), player.getInventory().getContents());
+        savedArmor.put(player.getUniqueId(), player.getInventory().getArmorContents());
+        player.getInventory().clear();
+    }
+
+    private void restoreInventory(Player player) {
+        if (savedInventories.containsKey(player.getUniqueId())) {
+            player.getInventory().setContents(savedInventories.remove(player.getUniqueId()));
+        }
+        if (savedArmor.containsKey(player.getUniqueId())) {
+            player.getInventory().setArmorContents(savedArmor.remove(player.getUniqueId()));
+        }
     }
 
     public void addDamage(UUID attacker, UUID victim, double damage) {
@@ -406,6 +508,15 @@ public class MinigameManager {
         player.setGameMode(GameMode.SPECTATOR);
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
         Bukkit.broadcast(Component.text(player.getName() + " が脱落しました！ 残り: " + alivePlayers.size() + "人", NamedTextColor.RED));
+    }
+
+    public void onPlayerQuit(Player player) {
+        if (!isRunning) return;
+        alivePlayers.remove(player.getUniqueId());
+        restoreInventory(player);
+        team1.remove(player.getUniqueId());
+        team2.remove(player.getUniqueId());
+        checkWinCondition();
     }
 
     public void createMap(String name) {

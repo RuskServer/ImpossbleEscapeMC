@@ -59,4 +59,11 @@ public class MinigameListener implements Listener {
             player.setGameMode(GameMode.SPECTATOR);
         }
     }
+
+    @EventHandler
+    public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        if (manager.isRunning()) {
+            manager.onPlayerQuit(event.getPlayer());
+        }
+    }
 }
