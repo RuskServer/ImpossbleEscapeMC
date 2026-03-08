@@ -32,14 +32,25 @@ public class GetItemCommand implements CommandExecutor, TabCompleter {
 
         // 引数チェック
         if (args.length < 1) {
-            player.sendMessage("§7Usage: /getitem <itemId>");
+            player.sendMessage("§7Usage: /getitem <itemId> [amount]");
             return true;
         }
 
         String itemId = args[0];
+        int amount = 1;
+
+        if (args.length >= 2) {
+            try {
+                amount = Integer.parseInt(args[1]);
+                if (amount < 1) amount = 1;
+                if (amount > 64) amount = 64; // スタック制限（必要に応じて調整）
+            } catch (NumberFormatException e) {
+                player.sendMessage("§cInvalid amount: " + args[1]);
+                return true;
+            }
+        }
 
         // --- 修正ポイント：Registryからアイテムを生成 ---
-        // ItemFactory.create(String id) 内で Registry.get() を呼ぶ設計にしています
         ItemStack item = ItemFactory.create(itemId);
 
         if (item == null) {
@@ -47,9 +58,11 @@ public class GetItemCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        item.setAmount(amount);
+
         // インベントリに追加
         player.getInventory().addItem(item);
-        player.sendMessage("§aYou received item: §f" + itemId);
+        player.sendMessage("§aYou received " + amount + "x item: §f" + itemId);
 
         return true;
     }
@@ -60,6 +73,11 @@ public class GetItemCommand implements CommandExecutor, TabCompleter {
             List<String> completions = new ArrayList<>();
             StringUtil.copyPartialMatches(args[0], ItemRegistry.getAllItemIds(), completions);
             Collections.sort(completions);
+            return completions;
+        } else if (args.length == 2) {
+            List<String> amounts = List.of("1", "16", "32", "64");
+            List<String> completions = new ArrayList<>();
+            StringUtil.copyPartialMatches(args[1], amounts, completions);
             return completions;
         }
         return Collections.emptyList();

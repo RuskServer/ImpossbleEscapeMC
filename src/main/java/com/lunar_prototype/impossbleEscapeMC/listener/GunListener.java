@@ -237,14 +237,24 @@ public class GunListener implements Listener {
     public void onReload(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
 
+        // クリエイティブや他のインベントリ（チェスト等）を開いている時は除外
         if (player.getOpenInventory().getType() != InventoryType.CRAFTING &&
                 player.getOpenInventory().getType() != InventoryType.CREATIVE) {
             return;
         }
 
-        ItemStack item = event.getItemDrop().getItemStack();
-        if (!isGun(item))
+        ItemStack droppedItem = event.getItemDrop().getItemStack();
+        if (!isGun(droppedItem))
             return;
+
+        // 【修正】メインハンドにアイテムが残っている場合、それはインベントリ内の別のスロットから
+        // 投げ出された（ドラッグ等）と判断し、リロードではなく通常のドロップとして扱う。
+        // Qキーで手持ちの銃を落とした場合は、この時点でメインハンドは一時的にAIRになるため、
+        // 以下のチェックを通過してリロード処理（キャンセル）が行われる。
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (mainHand != null && mainHand.getType() != Material.AIR) {
+            return;
+        }
 
         // 通常プレイ中のドロップ（リロード）処理
         event.setCancelled(true);
@@ -679,12 +689,12 @@ public class GunListener implements Listener {
         private void spawnBulletHole(Location loc, org.bukkit.block.BlockFace face) {
             if (face == null) return;
             
-            // 壁から0.5ブロック離す
-            Vector offset = face.getDirection().multiply(0.5);
+            // 壁から0.2ブロック離す
+            Vector offset = face.getDirection().multiply(0.2);
             Location holeLoc = loc.clone().add(offset);
             
-            // 指定された色: [0.149, 0.137, 0.122] -> 約 RGB(38, 35, 31)
-            org.bukkit.Color color = org.bukkit.Color.fromRGB(38, 35, 31);
+            // より濃い色に変更 (RGB: 10, 10, 10)
+            org.bukkit.Color color = org.bukkit.Color.fromRGB(10, 10, 10);
             // targetを現在地と同じにすることで移動させず、duration: 600 (30秒) 残留させる
             Particle.Trail trailData = new Particle.Trail(holeLoc, color, 600);
             
@@ -890,7 +900,11 @@ public class GunListener implements Listener {
         if (item == null || item.getType() == Material.AIR || !item.hasItemMeta())
             return false;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        return pdc.has(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId == null) return false;
+        
+        ItemDefinition def = ItemRegistry.get(itemId);
+        return def != null && "GUN".equalsIgnoreCase(def.type);
     }
 
     // startReload and helper methods removed (moved to ReloadingState)

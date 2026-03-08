@@ -163,6 +163,14 @@ public class ItemFactory {
 
         item.setItemMeta(meta);
 
+        // --- 初期モデル設定 (銃の場合、Idleアニメーションがあれば適用) ---
+        if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null && def.gunStats.idleAnimation != null) {
+            item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL, net.kyori.adventure.key.Key.key(def.gunStats.idleAnimation.model));
+            item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
+                    .addFloat(0.0f) // Frame 0
+                    .build());
+        }
+
         // --- Lore (説明欄) の生成 ---
         return updateLore(item);
     }
