@@ -510,59 +510,52 @@ public class GunListener implements Listener {
     private void spawnMuzzleFlash(LivingEntity player) {
         Location eye = player.getEyeLocation();
         Vector dir = eye.getDirection();
-        UUID uuid = player.getUniqueId();
-
         boolean isAiming = isAiming(player.getUniqueId());
 
+        // マズルの位置計算
         Location muzzleLoc;
         if (isAiming) {
+            // ADS（エイム）時は少し前方
             muzzleLoc = eye.clone().add(dir.clone().multiply(2.2));
         } else {
+            // 腰撃ち時は右下へオフセット（右利き想定）
             Vector offset = dir.clone().crossProduct(new Vector(0, 1, 0)).normalize().multiply(0.3);
             offset.add(new Vector(0, -0.2, 0));
             muzzleLoc = eye.clone().add(dir.clone().multiply(1.0)).add(offset);
         }
 
-        // 確率でパーティクルを間引く
-        double rand = Math.random();
-
-        // --- 1. 芯の部分 (50%の確率で1粒) ---
-        if (rand < 0.5) {
-            player.getWorld().spawnParticle(
-                    Particle.DUST,
-                    muzzleLoc,
-                    1, 0.01, 0.01, 0.01, 0.05,
-                    new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 255, 220), 0.6f));
-        }
-
-        // --- 2. 広がる火花 (常に1粒) ---
+        // --- 硝煙パーティクル (white_smoke 的な見た目) ---
+        // Particle.CLOUD は白くてふわっと広がるので、1粒でも十分「撃った感」が出ます
         player.getWorld().spawnParticle(
-                Particle.DUST,
-                muzzleLoc.clone().add(dir.clone().multiply(0.2)),
-                1, 0.03, 0.03, 0.03, 0.1,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 140, 20), 0.4f));
+                Particle.WHITE_SMOKE,
+                muzzleLoc,
+                1,       // 個数（1個で十分）
+                0.0, 0.0, 0.0, // 散らばり（0にすると一点から出る）
+                0.05     // 速度（少しだけ動かすとリアル）
+        );
 
-        // --- 3. 硝煙 (30%の確率で1粒) ---
-        if (rand < 0.3) {
-            player.getWorld().spawnParticle(
-                    Particle.DUST,
-                    muzzleLoc,
-                    1, 0.05, 0.05, 0.05, 0.02,
-                    new Particle.DustOptions(org.bukkit.Color.fromRGB(200, 200, 200), 0.8f));
-        }
+        // --- 光源処理（一瞬だけ光らせる） ---
+        handleMuzzleLight(muzzleLoc);
+    }
 
-        // --- 光源処理 ---
-        if (muzzleLoc.getBlock().getType() == Material.AIR) {
-            muzzleLoc.getBlock().setType(Material.LIGHT);
-            if (muzzleLoc.getBlock().getBlockData() instanceof org.bukkit.block.data.Levelled light) {
+    /**
+     * 光源処理を別メソッドに切り出してスッキリさせました
+     */
+    private void handleMuzzleLight(Location loc) {
+        if (loc.getBlock().getType() == Material.AIR) {
+            loc.getBlock().setType(Material.LIGHT);
+            if (loc.getBlock().getBlockData() instanceof org.bukkit.block.data.Levelled light) {
                 light.setLevel(12);
-                muzzleLoc.getBlock().setBlockData(light);
+                loc.getBlock().setBlockData(light);
             }
+
+            // 1回(1tick)後に消去
             new BukkitRunnable() {
                 @Override
                 public void run() {
-                    if (muzzleLoc.getBlock().getType() == Material.LIGHT)
-                        muzzleLoc.getBlock().setType(Material.AIR);
+                    if (loc.getBlock().getType() == Material.LIGHT) {
+                        loc.getBlock().setType(Material.AIR);
+                    }
                 }
             }.runTaskLater(plugin, 1);
         }
