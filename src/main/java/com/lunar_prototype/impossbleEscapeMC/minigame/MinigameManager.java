@@ -39,7 +39,7 @@ public class MinigameManager {
     private boolean isCountdown = false;
     private MinigameMap currentMap;
     private int currentRound = 0;
-    private final int MAX_ROUNDS = 2;
+    private int maxRounds = 2; // Default
     private int timeLeft = 0;
     
     private final Set<UUID> team1 = new HashSet<>();
@@ -82,6 +82,7 @@ public class MinigameManager {
         team.color(color);
         team.displayName(Component.text(displayName));
         team.setAllowFriendlyFire(false);
+        // ユーザー環境に合わせて FOR_OTHER_TEAMS を使用
         team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.FOR_OTHER_TEAMS);
         team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER);
     }
@@ -112,11 +113,12 @@ public class MinigameManager {
         if (mgTeam2 != null) mgTeam2.getEntries().forEach(e -> mgTeam2.removeEntry(e));
     }
 
-    public void startGame(String mapName) {
+    public void startGame(String mapName, int rounds) {
         if (isRunning) return;
         currentMap = maps.get(mapName);
         if (currentMap == null) return;
         
+        this.maxRounds = rounds;
         isRunning = true;
         currentRound = 1;
         team1Wins = 0;
@@ -182,7 +184,7 @@ public class MinigameManager {
         
         if (bossBar != null) Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bossBar));
         bossBar = BossBar.bossBar(
-                Component.text("Round " + currentRound),
+                Component.text("Round " + currentRound + " / " + maxRounds),
                 1.0f,
                 BossBar.Color.RED,
                 BossBar.Overlay.PROGRESS
@@ -225,7 +227,7 @@ public class MinigameManager {
         for (UUID uuid : team1) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                p.setGameMode(GameMode.ADVENTURE);
+                p.setGameMode(GameMode.SURVIVAL);
                 p.setHealth(20);
                 p.setFoodLevel(20);
                 p.teleport(s1.get(i % s1.size()));
@@ -237,7 +239,7 @@ public class MinigameManager {
         for (UUID uuid : team2) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                p.setGameMode(GameMode.ADVENTURE);
+                p.setGameMode(GameMode.SURVIVAL);
                 p.setHealth(20);
                 p.setFoodLevel(20);
                 p.teleport(s2.get(i % s2.size()));
@@ -251,7 +253,7 @@ public class MinigameManager {
         int t2Alive = (int) alivePlayers.stream().filter(team2::contains).count();
         
         String timeStr = String.format("%02d:%02d", timeLeft / 60, timeLeft % 60);
-        bossBar.name(Component.text("Team1: " + t1Alive + " vs Team2: " + t2Alive + " | " + timeStr, NamedTextColor.WHITE));
+        bossBar.name(Component.text("Team1: " + t1Alive + " vs Team2: " + t2Alive + " | " + timeStr + " (R" + currentRound + "/" + maxRounds + ")", NamedTextColor.WHITE));
         bossBar.progress((float) timeLeft / 180.0f);
     }
 
@@ -288,7 +290,7 @@ public class MinigameManager {
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (currentRound < MAX_ROUNDS) {
+                if (currentRound < maxRounds) {
                     currentRound++;
                     startRound();
                 } else {

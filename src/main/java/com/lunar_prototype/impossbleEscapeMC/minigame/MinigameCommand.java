@@ -59,10 +59,19 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
                 break;
             case "start":
                 if (args.length < 2) {
-                    player.sendMessage("§c/mg start <name>");
+                    player.sendMessage("§c/mg start <name> [rounds]");
                     return true;
                 }
-                manager.startGame(args[1]);
+                int rounds = 2;
+                if (args.length >= 3) {
+                    try {
+                        rounds = Integer.parseInt(args[2]);
+                    } catch (NumberFormatException e) {
+                        player.sendMessage("§cInvalid rounds number.");
+                        return true;
+                    }
+                }
+                manager.startGame(args[1], rounds);
                 break;
             case "stop":
                 manager.stopGame();
@@ -90,8 +99,12 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        if (args.length == 3 && args[0].equalsIgnoreCase("setspawn")) {
-            return Arrays.asList("1", "2");
+        if (args.length == 3) {
+            if (args[0].equalsIgnoreCase("setspawn")) {
+                return Arrays.asList("1", "2");
+            } else if (args[0].equalsIgnoreCase("start")) {
+                return Arrays.asList("1", "2", "3", "5");
+            }
         }
 
         return new ArrayList<>();
