@@ -1,6 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.CustomModelData;
+import net.kyori.adventure.key.Key;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -12,6 +15,8 @@ import org.bukkit.inventory.meta.components.EquippableComponent;
 import org.bukkit.persistence.PersistentDataContainer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -82,6 +87,7 @@ public class ItemFactory {
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
+                // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
                 meta.setCustomModelData(def.gunStats.customModelData);
                 pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, def.gunStats.magSize);
 
@@ -165,9 +171,19 @@ public class ItemFactory {
 
         // --- 初期モデル設定 (銃の場合、Idleアニメーションがあれば適用) ---
         if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null && def.gunStats.idleAnimation != null) {
-            item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL, net.kyori.adventure.key.Key.key(def.gunStats.idleAnimation.model));
-            item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
+            item.setData(DataComponentTypes.ITEM_MODEL, Key.key(def.gunStats.idleAnimation.model));
+            
+            // WeaponContext と同様にアタッチメント情報を含めて CustomModelData を構成
+            List<String> attachments = new ArrayList<>();
+            PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+            String joined = pdc.get(PDCKeys.ATTACHMENTS, PDCKeys.STRING);
+            if (joined != null && !joined.isEmpty()) {
+                attachments = Arrays.asList(joined.split(","));
+            }
+
+            item.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData()
                     .addFloat(0.0f) // Frame 0
+                    .addStrings(attachments)
                     .build());
         }
 

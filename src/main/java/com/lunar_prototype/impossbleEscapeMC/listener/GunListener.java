@@ -54,6 +54,24 @@ public class GunListener implements Listener {
 
     public GunListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
+        // 既にオンラインのプレイヤーに監視タスクを開始
+        for (org.bukkit.entity.Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
+            startStateTask(p);
+        }
+    }
+
+    @EventHandler
+    public void onJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+        startStateTask(event.getPlayer());
+    }
+
+    private void cleanup(Player player, boolean quit) {
+        stopShooting(player.getUniqueId());
+        if (quit) {
+            stopStateTask(player);
+        } else {
+            stateMachines.remove(player.getUniqueId());
+        }
     }
 
     @EventHandler
@@ -360,33 +378,34 @@ public class GunListener implements Listener {
         int shots = consecutiveShots.getOrDefault(player.getUniqueId(), 0);
         consecutiveShots.put(player.getUniqueId(), shots + 1);
 
-        // --- タルコフ式 反動係数の計算 ---
-        double recoilMultiplier;
-        double horizontalMultiplier = 1.0;
+        // --- 旧タルコフ風 反動ロジック (Initial Kick -> Auto Compensation) ---
+        double verticalMultiplier;
+        double horizontalFactor;
 
         if (shots == 0) {
-            // 【1発目】 初弾は強烈な跳ね上がり (例: 2.5倍)
-            recoilMultiplier = 2.5;
-            horizontalMultiplier = 0.5; // 初弾は横ブレ少なめ
-        } else if (shots < 5) {
-            // 【2~5発目】 まだ暴れるが、急速に制御しようとする (線形補間的に下げる)
-            // shots=1 -> 2.0, shots=4 -> 1.1 みたいなイメージ
-            recoilMultiplier = 2.0 - (shots * 0.3);
+            // 【初弾】強烈な跳ね上がり
+            verticalMultiplier = 4.5;
+            horizontalFactor = 1.5;
+        } else if (shots < 4) {
+            // 【2-4発目】激しく暴れる
+            verticalMultiplier = 3.5 - (shots * 0.6);
+            horizontalFactor = 2.5;
+        } else if (shots < 8) {
+            // 【5-8発目】急激に反動が収束
+            verticalMultiplier = 1.2 - ((shots - 4) * 0.15);
+            horizontalFactor = 3.5;
         } else {
-            // 【6発目以降】 完全に制御下にある状態 (例: 0.6倍)
-            recoilMultiplier = 0.6;
-            // 逆に安定時は横ブレが少し目立つようにする
-            horizontalMultiplier = 1.5;
+            // 【9発目以降】安定期（縦は抑えられるが、横ブレは続く）
+            verticalMultiplier = 0.6;
+            horizontalFactor = 4.0;
         }
 
-        // 最低値ガード
-        recoilMultiplier = Math.max(0.4, recoilMultiplier);
+        // 最終的な反動値（縦）
+        double verticalNoise = (Math.random() - 0.5) * (baseRecoil * 0.3);
+        double finalVerticalRecoil = (baseRecoil * verticalMultiplier) + verticalNoise;
 
-        // 最終的な反動値
-        double finalVerticalRecoil = baseRecoil * recoilMultiplier;
-
-        // 横反動 (ランダムに左右に振る: -1.0 ~ 1.0)
-        double horizontalRecoil = (Math.random() - 0.5) * (baseRecoil * 0.5) * horizontalMultiplier;
+        // 横反動 (ランダムに左右に大きく振る)
+        double horizontalRecoil = (Math.random() - 0.5) * (baseRecoil * 0.8) * horizontalFactor;
 
         // --- 処理の適用 ---
         spawnMuzzleFlash(player);
@@ -552,6 +571,7 @@ public class GunListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         cleanup(event.getPlayer());
+        cleanup(event.getPlayer(), true);
     }
 
     @EventHandler
