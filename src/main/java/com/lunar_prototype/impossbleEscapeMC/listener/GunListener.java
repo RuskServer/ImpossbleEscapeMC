@@ -651,24 +651,22 @@ public class GunListener implements Listener {
                     return;
                 } else if (rayTrace.getHitBlock() != null) {
                     Block block = rayTrace.getHitBlock();
-                    if (isPenetrable(block.getType())) {
+                    Location hitLoc = rayTrace.getHitPosition().toLocation(currentLoc.getWorld());
+                    org.bukkit.block.BlockFace face = rayTrace.getHitBlockFace();
+
+                    // 70%の確率で貫通可能なブロックか判定
+                    if (isPenetrable(block.getType()) && Math.random() < 0.7) {
                         // 貫通処理: エフェクトだけ出して続行
-                        block.getWorld().playEffect(
-                                rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
-                                Effect.STEP_SOUND,
-                                block.getType());
+                        block.getWorld().playEffect(hitLoc, Effect.STEP_SOUND, block.getType());
                         
                         double hitDist = rayTrace.getHitPosition().distance(rayStart.toVector());
                         // ヒット地点から少し先に進めて再開
-                        rayStart = rayTrace.getHitPosition().toLocation(currentLoc.getWorld()).add(rayDir.clone().multiply(0.01));
+                        rayStart = hitLoc.clone().add(rayDir.clone().multiply(0.01));
                         distanceRemaining -= (hitDist + 0.01);
                         continue;
                     } else {
-                        // 壁に着弾
-                        block.getWorld().playEffect(
-                                rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
-                                Effect.STEP_SOUND,
-                                block.getType());
+                        // 壁に着弾 (または貫通失敗)
+                        spawnBulletHole(hitLoc, face);
                         this.cancel();
                         return;
                     }
@@ -678,9 +676,28 @@ public class GunListener implements Listener {
             }
         }
 
+        private void spawnBulletHole(Location loc, org.bukkit.block.BlockFace face) {
+            if (face == null) return;
+            
+            // 壁から0.5ブロック離す
+            Vector offset = face.getDirection().multiply(0.5);
+            Location holeLoc = loc.clone().add(offset);
+            
+            // 指定された色: [0.149, 0.137, 0.122] -> 約 RGB(38, 35, 31)
+            org.bukkit.Color color = org.bukkit.Color.fromRGB(38, 35, 31);
+            // targetを現在地と同じにすることで移動させず、duration: 600 (30秒) 残留させる
+            Particle.Trail trailData = new Particle.Trail(holeLoc, color, 600);
+            
+            loc.getWorld().spawnParticle(Particle.TRAIL, holeLoc, 1, 0, 0, 0, 0, trailData);
+            
+            // 着弾時の火花
+            loc.getWorld().spawnParticle(Particle.DUST, holeLoc, 2, 0.02, 0.02, 0.02, 0.05,
+                    new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 150, 150), 0.4f));
+        }
+
         private boolean isPenetrable(Material material) {
             String name = material.name();
-            return name.contains("GLASS") || name.equals("IRON_BARS");
+            return name.contains("GLASS") || name.equals("IRON_BARS") || name.contains("COPPER_BARS");
         }
 
         private void spawnTracer(Location from, Location to) {

@@ -193,7 +193,8 @@ public class MinigameManager {
 
         Title startTitle = Title.title(
                 Component.text("START!", NamedTextColor.GREEN, TextDecoration.BOLD),
-                Component.text("殲滅せよ", NamedTextColor.WHITE)
+                Component.text("殲滅せよ", NamedTextColor.WHITE),
+                Title.Times.times(Duration.ofMillis(250), Duration.ofMillis(1500), Duration.ofMillis(500))
         );
         Bukkit.getOnlinePlayers().forEach(p -> {
             p.showTitle(startTitle);
