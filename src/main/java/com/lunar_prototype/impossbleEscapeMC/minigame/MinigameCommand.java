@@ -33,7 +33,7 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
             case "loadout":
                 if (args.length < 2) {
-                    player.sendMessage("§c/mg loadout <m4a1/ak74>");
+                    player.sendMessage("§c/mg loadout <m4a1/ak74/m700>");
                     return true;
                 }
                 manager.setLoadout(player, args[1]);
@@ -104,7 +104,7 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             } else if (sub.equals("loadout")) {
-                return Arrays.asList("m4a1", "ak74").stream()
+                return Arrays.asList("m4a1", "ak74", "m700").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             }
