@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,7 @@ public class MinigameManager {
 
     // Game State
     private boolean isRunning = false;
+    private boolean isCountdown = false;
     private MinigameMap currentMap;
     private int currentRound = 0;
     private final int MAX_ROUNDS = 2;
@@ -43,6 +45,10 @@ public class MinigameManager {
     private final Set<UUID> team1 = new HashSet<>();
     private final Set<UUID> team2 = new HashSet<>();
     private final Set<UUID> alivePlayers = new HashSet<>();
+
+    // Win Counters
+    private int team1Wins = 0;
+    private int team2Wins = 0;
 
     // Stats
     private final Map<UUID, Double> damageDealt = new HashMap<>();
@@ -84,7 +90,6 @@ public class MinigameManager {
         List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
         Collections.shuffle(players);
         
-        // クリア
         clearMinecraftTeams();
         team1.clear();
         team2.clear();
@@ -114,6 +119,8 @@ public class MinigameManager {
         
         isRunning = true;
         currentRound = 1;
+        team1Wins = 0;
+        team2Wins = 0;
         resetStats();
         startRound();
     }
@@ -130,9 +137,48 @@ public class MinigameManager {
         alivePlayers.addAll(team1);
         alivePlayers.addAll(team2);
         
-        timeLeft = 180; // 3分
-        
         spawnPlayers();
+        startCountdown();
+    }
+
+    private void startCountdown() {
+        isCountdown = true;
+        new BukkitRunnable() {
+            int count = 5;
+
+            @Override
+            public void run() {
+                if (!isRunning) {
+                    this.cancel();
+                    return;
+                }
+
+                if (count <= 0) {
+                    isCountdown = false;
+                    beginActualRound();
+                    this.cancel();
+                    return;
+                }
+
+                NamedTextColor color = count <= 3 ? NamedTextColor.RED : NamedTextColor.YELLOW;
+                Title title = Title.title(
+                        Component.text(count, color, TextDecoration.BOLD),
+                        Component.text("準備してください...", NamedTextColor.GRAY),
+                        Title.Times.times(Duration.ZERO, Duration.ofMillis(800), Duration.ofMillis(200))
+                );
+                
+                Bukkit.getOnlinePlayers().forEach(p -> {
+                    p.showTitle(title);
+                    p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+                });
+
+                count--;
+            }
+        }.runTaskTimer(plugin, 0, 20);
+    }
+
+    private void beginActualRound() {
+        timeLeft = 180; // 3分
         
         if (bossBar != null) Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bossBar));
         bossBar = BossBar.bossBar(
@@ -142,6 +188,15 @@ public class MinigameManager {
                 BossBar.Overlay.PROGRESS
         );
         Bukkit.getOnlinePlayers().forEach(p -> p.showBossBar(bossBar));
+
+        Title startTitle = Title.title(
+                Component.text("START!", NamedTextColor.GREEN, TextDecoration.BOLD),
+                Component.text("殲滅せよ", NamedTextColor.WHITE)
+        );
+        Bukkit.getOnlinePlayers().forEach(p -> {
+            p.showTitle(startTitle);
+            p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        });
 
         if (gameTask != null) gameTask.cancel();
         gameTask = new BukkitRunnable() {
@@ -170,7 +225,7 @@ public class MinigameManager {
         for (UUID uuid : team1) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                p.setGameMode(GameMode.SURVIVAL);
+                p.setGameMode(GameMode.ADVENTURE);
                 p.setHealth(20);
                 p.setFoodLevel(20);
                 p.teleport(s1.get(i % s1.size()));
@@ -182,7 +237,7 @@ public class MinigameManager {
         for (UUID uuid : team2) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                p.setGameMode(GameMode.SURVIVAL);
+                p.setGameMode(GameMode.ADVENTURE);
                 p.setHealth(20);
                 p.setFoodLevel(20);
                 p.teleport(s2.get(i % s2.size()));
@@ -218,6 +273,9 @@ public class MinigameManager {
             else if (t2Alive > t1Alive) winnerTeam = 2;
         }
 
+        if (winnerTeam == 1) team1Wins++;
+        else if (winnerTeam == 2) team2Wins++;
+
         String winMsg = (winnerTeam == 1) ? "Team1 の勝利！" : (winnerTeam == 2 ? "Team2 の勝利！" : "引き分け！");
         Bukkit.broadcast(Component.text("ラウンド終了: " + winMsg, NamedTextColor.GOLD, TextDecoration.BOLD));
 
@@ -227,7 +285,6 @@ public class MinigameManager {
         // Show Rankings
         showRankings();
 
-        int finalWinner = winnerTeam;
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -235,7 +292,7 @@ public class MinigameManager {
                     currentRound++;
                     startRound();
                 } else {
-                    displayFinalVictory(finalWinner);
+                    displayFinalResult();
                     stopGame();
                 }
             }
@@ -243,6 +300,7 @@ public class MinigameManager {
     }
 
     private void checkSpecialAchievements(int winnerTeam) {
+        if (winnerTeam == 0) return;
         Set<UUID> winnerMembers = (winnerTeam == 1) ? team1 : team2;
         Set<UUID> loserMembers = (winnerTeam == 1) ? team2 : team1;
 
@@ -289,20 +347,37 @@ public class MinigameManager {
         Bukkit.broadcast(Component.text("--------------------------------", NamedTextColor.GRAY));
     }
 
-    private void displayFinalVictory(int winnerTeam) {
-        if (winnerTeam == 0) return;
-        Component titleText = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
-        Component subText = Component.text("Team" + winnerTeam + " が総合優勝！", NamedTextColor.YELLOW);
+    private void displayFinalResult() {
+        Component titleText;
+        Component subText;
+        NamedTextColor color;
+
+        if (team1Wins > team2Wins) {
+            titleText = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
+            subText = Component.text("Team1 の総合優勝！ (" + team1Wins + " - " + team2Wins + ")", NamedTextColor.YELLOW);
+            color = NamedTextColor.GOLD;
+        } else if (team2Wins > team1Wins) {
+            titleText = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
+            subText = Component.text("Team2 の総合優勝！ (" + team2Wins + " - " + team1Wins + ")", NamedTextColor.YELLOW);
+            color = NamedTextColor.GOLD;
+        } else {
+            titleText = Component.text("DRAW", NamedTextColor.GRAY, TextDecoration.BOLD);
+            subText = Component.text("同点！ (" + team1Wins + " - " + team2Wins + ")", NamedTextColor.WHITE);
+            color = NamedTextColor.GRAY;
+        }
         
         Title title = Title.title(titleText, subText);
         Bukkit.getOnlinePlayers().forEach(p -> {
             p.showTitle(title);
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         });
+        
+        Bukkit.broadcast(Component.text("ゲーム終了！ 最終結果: Team1 [" + team1Wins + "] - [" + team2Wins + "] Team2", color, TextDecoration.BOLD));
     }
 
     public void stopGame() {
         isRunning = false;
+        isCountdown = false;
         if (gameTask != null) gameTask.cancel();
         if (bossBar != null) Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bossBar));
         alivePlayers.clear();
@@ -311,7 +386,7 @@ public class MinigameManager {
     }
 
     public void addDamage(UUID attacker, UUID victim, double damage) {
-        if (!isRunning) return;
+        if (!isRunning || isCountdown) return;
         damageDealt.put(attacker, damageDealt.getOrDefault(attacker, 0.0) + damage);
         damageTaken.put(victim, damageTaken.getOrDefault(victim, 0.0) + damage);
     }
@@ -376,6 +451,10 @@ public class MinigameManager {
 
     public boolean isRunning() {
         return isRunning;
+    }
+
+    public boolean isCountdown() {
+        return isCountdown;
     }
 
     public Set<UUID> getAlivePlayers() {
