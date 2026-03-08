@@ -53,9 +53,10 @@ public class MinigameManager {
     private final Set<UUID> team1 = new HashSet<>();
     private final Set<UUID> team2 = new HashSet<>();
     private final Set<UUID> alivePlayers = new HashSet<>();
+    private final Set<UUID> roundParticipants = new HashSet<>();
 
     // Loadout & Inventory
-    private final Map<UUID, String> chosenLoadout = new HashMap<>();
+    private Map<UUID, String> chosenLoadout = new HashMap<>();
     private final Map<UUID, ItemStack[]> savedInventories = new HashMap<>();
     private final Map<UUID, ItemStack[]> savedArmor = new HashMap<>();
 
@@ -67,7 +68,11 @@ public class MinigameManager {
     private final Map<UUID, Double> damageDealt = new HashMap<>();
     private final Map<UUID, Double> damageTaken = new HashMap<>();
     private final Map<UUID, Integer> kills = new HashMap<>();
-    private final Map<UUID, Set<UUID>> killedByPlayer = new HashMap<>(); // Killer -> Set of victims
+    private final Map<UUID, Integer> deaths = new HashMap<>();
+    private final Map<UUID, Integer> assists = new HashMap<>();
+    private final Map<UUID, Map<UUID, Double>> victimDamageMap = new HashMap<>(); // Victim -> (Attacker -> Damage)
+    private final Map<UUID, Set<UUID>> roundKills = new HashMap<>(); // Killer -> Set of victims in current round
+    private final Map<UUID, Set<UUID>> killedByPlayer = new HashMap<>(); // Killer -> Set of victims (Cumulative)
     
     private BossBar bossBar;
     private BukkitRunnable gameTask;
@@ -76,6 +81,28 @@ public class MinigameManager {
         this.plugin = plugin;
         setupTeams();
         loadMaps();
+        loadLoadouts();
+    }
+
+    private void loadLoadouts() {
+        File file = new File(plugin.getDataFolder(), "loadouts.json");
+        if (!file.exists()) return;
+        try (FileReader reader = new FileReader(file)) {
+            java.lang.reflect.Type type = new com.google.common.reflect.TypeToken<Map<UUID, String>>(){}.getType();
+            Map<UUID, String> loaded = gson.fromJson(reader, type);
+            if (loaded != null) chosenLoadout = loaded;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveLoadouts() {
+        File file = new File(plugin.getDataFolder(), "loadouts.json");
+        try (FileWriter writer = new FileWriter(file)) {
+            gson.toJson(chosenLoadout, writer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void setupTeams() {
@@ -101,7 +128,9 @@ public class MinigameManager {
     }
 
     public void splitTeams() {
-        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        List<Player> players = Bukkit.getOnlinePlayers().stream()
+                .filter(p -> p.getGameMode() != GameMode.SPECTATOR)
+                .collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(players);
         
         clearMinecraftTeams();
@@ -155,6 +184,10 @@ public class MinigameManager {
         damageDealt.clear();
         damageTaken.clear();
         kills.clear();
+        deaths.clear();
+        assists.clear();
+        victimDamageMap.clear();
+        roundKills.clear();
         killedByPlayer.clear();
     }
 
@@ -162,6 +195,13 @@ public class MinigameManager {
         alivePlayers.clear();
         alivePlayers.addAll(team1);
         alivePlayers.addAll(team2);
+        
+        roundParticipants.clear();
+        roundParticipants.addAll(alivePlayers);
+
+        // Round stats reset
+        roundKills.clear();
+        victimDamageMap.clear(); // Damage for assists is per-round logic
         
         spawnPlayers();
         startCountdown();
@@ -309,9 +349,9 @@ private void spawnPlayers() {
 
         // ACE / Clutch Check
         checkSpecialAchievements(winnerTeam);
-        
-        // Show Rankings
-        showRankings();
+
+        // Show cumulative damage ranking after round
+        showRankings(false);
 
         new BukkitRunnable() {
             @Override
@@ -331,11 +371,17 @@ private void spawnPlayers() {
         if (winnerTeam == 0) return;
         Set<UUID> winnerMembers = (winnerTeam == 1) ? team1 : team2;
         Set<UUID> loserMembers = (winnerTeam == 1) ? team2 : team1;
+        
+        // Initial participants of the losing team this round
+        Set<UUID> initialLoserParticipants = roundParticipants.stream()
+                .filter(loserMembers::contains)
+                .collect(Collectors.toSet());
 
+        // CLUTCH Check: Only if the winner survived alone against 2+ initial enemies
         List<UUID> winnersAlive = alivePlayers.stream().filter(winnerMembers::contains).collect(Collectors.toList());
         if (winnersAlive.size() == 1) {
             Player clutcher = Bukkit.getPlayer(winnersAlive.get(0));
-            if (clutcher != null && loserMembers.size() >= 2) {
+            if (clutcher != null && initialLoserParticipants.size() >= 2) {
                 clutcher.showTitle(Title.title(
                         Component.text("CLUTCH", NamedTextColor.RED, TextDecoration.BOLD),
                         Component.text("不屈の精神で逆転勝利！", NamedTextColor.YELLOW)
@@ -344,9 +390,12 @@ private void spawnPlayers() {
             }
         }
 
-        for (UUID killerId : killedByPlayer.keySet()) {
-            Set<UUID> victims = killedByPlayer.get(killerId);
-            if (victims.containsAll(loserMembers)) {
+        // ACE Check: Winner killed ALL enemies who started THIS round
+        for (UUID killerId : roundKills.keySet()) {
+            if (!winnerMembers.contains(killerId)) continue; // Must be on the winning team
+            
+            Set<UUID> victimsInRound = roundKills.get(killerId);
+            if (victimsInRound.containsAll(initialLoserParticipants)) {
                 Player acer = Bukkit.getPlayer(killerId);
                 if (acer != null) {
                     acer.showTitle(Title.title(
@@ -359,50 +408,83 @@ private void spawnPlayers() {
         }
     }
 
-    private void showRankings() {
+    private void showRankings(boolean isFinal) {
         Bukkit.broadcast(Component.text("--------------------------------", NamedTextColor.GRAY));
-        Bukkit.broadcast(Component.text("   ダメージランキング (与 / 被)", NamedTextColor.YELLOW, TextDecoration.BOLD));
+        String title = isFinal ? "   最終 KD ランキング" : "   累計ダメージランキング";
+        Bukkit.broadcast(Component.text(title, NamedTextColor.YELLOW, TextDecoration.BOLD));
         
-        damageDealt.entrySet().stream()
-                .sorted(Map.Entry.<UUID, Double>comparingByValue().reversed())
+        damageDealt.keySet().stream()
+                .sorted((u1, u2) -> {
+                    if (isFinal) {
+                        return Double.compare(getKDRatio(u2), getKDRatio(u1));
+                    } else {
+                        return Double.compare(damageDealt.getOrDefault(u2, 0.0), damageDealt.getOrDefault(u1, 0.0));
+                    }
+                })
                 .limit(5)
-                .forEach(entry -> {
-                    String name = Bukkit.getOfflinePlayer(entry.getKey()).getName();
-                    double dealt = entry.getValue();
-                    double taken = damageTaken.getOrDefault(entry.getKey(), 0.0);
-                    Bukkit.broadcast(Component.text(String.format(" %s: %.1f / %.1f", name, dealt, taken), NamedTextColor.WHITE));
+                .forEach(uuid -> {
+                    String name = Bukkit.getOfflinePlayer(uuid).getName();
+                    double dealt = damageDealt.getOrDefault(uuid, 0.0);
+                    double taken = damageTaken.getOrDefault(uuid, 0.0);
+                    int k = kills.getOrDefault(uuid, 0);
+                    int d = deaths.getOrDefault(uuid, 0);
+                    int a = assists.getOrDefault(uuid, 0);
+                    double kd = getKDRatio(uuid);
+                    Bukkit.broadcast(Component.text(String.format(" %s: %.1f / %.1f [K:%d D:%d A:%d KD:%.2f]", name, dealt, taken, k, d, a, kd), NamedTextColor.WHITE));
                 });
         Bukkit.broadcast(Component.text("--------------------------------", NamedTextColor.GRAY));
     }
 
-    private void displayFinalResult() {
-        Component titleText;
-        Component subText;
-        NamedTextColor color;
-
-        if (team1Wins > team2Wins) {
-            titleText = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
-            subText = Component.text("Team1 の総合優勝！ (" + team1Wins + " - " + team2Wins + ")", NamedTextColor.YELLOW);
-            color = NamedTextColor.GOLD;
-        } else if (team2Wins > team1Wins) {
-            titleText = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
-            subText = Component.text("Team2 の総合優勝！ (" + team2Wins + " - " + team1Wins + ")", NamedTextColor.YELLOW);
-            color = NamedTextColor.GOLD;
-        } else {
-            titleText = Component.text("DRAW", NamedTextColor.GRAY, TextDecoration.BOLD);
-            subText = Component.text("同点！ (" + team1Wins + " - " + team2Wins + ")", NamedTextColor.WHITE);
-            color = NamedTextColor.GRAY;
-        }
-        
-        Title title = Title.title(titleText, subText);
-        Bukkit.getOnlinePlayers().forEach(p -> {
-            p.showTitle(title);
-            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-        });
-        
-        Bukkit.broadcast(Component.text("ゲーム終了！ 最終結果: Team1 [" + team1Wins + "] - [" + team2Wins + "] Team2", color, TextDecoration.BOLD));
+    private double getKDRatio(UUID uuid) {
+        int k = kills.getOrDefault(uuid, 0);
+        int d = deaths.getOrDefault(uuid, 0);
+        return (d == 0) ? k : (double) k / d;
     }
 
+    private void displayFinalResult() {
+        if (team1Wins > team2Wins) {
+            broadcastFinalResult(1);
+        } else if (team2Wins > team1Wins) {
+            broadcastFinalResult(2);
+        } else {
+            broadcastFinalResult(0);
+        }
+        showRankings(true);
+    }
+
+    private void broadcastFinalResult(int winnerTeam) {
+        Component victoryTitle = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
+        Component defeatTitle = Component.text("DEFEAT", NamedTextColor.RED, TextDecoration.BOLD);
+        Component drawTitle = Component.text("DRAW", NamedTextColor.GRAY, TextDecoration.BOLD);
+
+        String scoreStr = "(" + team1Wins + " - " + team2Wins + ")";
+        Component subText1 = Component.text("Team1 の総合優勝！ " + scoreStr, NamedTextColor.YELLOW);
+        Component subText2 = Component.text("Team2 の総合優勝！ " + scoreStr, NamedTextColor.YELLOW);
+        Component subTextDraw = Component.text("同点！ " + scoreStr, NamedTextColor.WHITE);
+
+        Bukkit.getOnlinePlayers().forEach(p -> {
+            Title title;
+            Sound sound;
+            if (winnerTeam == 0) {
+                title = Title.title(drawTitle, subTextDraw);
+                sound = Sound.UI_TOAST_CHALLENGE_COMPLETE;
+            } else {
+                boolean isWinner = (winnerTeam == 1 && team1.contains(p.getUniqueId())) || (winnerTeam == 2 && team2.contains(p.getUniqueId()));
+                if (isWinner) {
+                    title = Title.title(victoryTitle, (winnerTeam == 1 ? subText1 : subText2));
+                    sound = Sound.UI_TOAST_CHALLENGE_COMPLETE;
+                } else {
+                    title = Title.title(defeatTitle, (winnerTeam == 1 ? subText1 : subText2));
+                    sound = Sound.ENTITY_WITHER_SPAWN;
+                }
+            }
+            p.showTitle(title);
+            p.playSound(p.getLocation(), sound, 1.0f, 1.0f);
+        });
+
+        NamedTextColor broadcastColor = (winnerTeam == 1 || winnerTeam == 2) ? NamedTextColor.GOLD : NamedTextColor.GRAY;
+        Bukkit.broadcast(Component.text("ゲーム終了！ 最終結果: Team1 [" + team1Wins + "] - [" + team2Wins + "] Team2", broadcastColor, TextDecoration.BOLD));
+    }
     public void stopGame() {
         isRunning = false;
         isCountdown = false;
@@ -421,11 +503,12 @@ private void spawnPlayers() {
         }
         
         alivePlayers.clear();
-        clearMinecraftTeams();
+        // clearMinecraftTeams(); // ゲーム終了後もチーム分けを維持するためコメントアウト
     }
 
     public void setLoadout(Player player, String loadout) {
         chosenLoadout.put(player.getUniqueId(), loadout.toLowerCase());
+        saveLoadouts();
         player.sendMessage(Component.text("ロードアウトを " + loadout.toUpperCase() + " に設定しました。", NamedTextColor.GREEN));
     }
 
@@ -494,20 +577,39 @@ private void spawnPlayers() {
         if (!isRunning || isCountdown) return;
         damageDealt.put(attacker, damageDealt.getOrDefault(attacker, 0.0) + damage);
         damageTaken.put(victim, damageTaken.getOrDefault(victim, 0.0) + damage);
+        
+        // Track per-victim damage for assists
+        victimDamageMap.computeIfAbsent(victim, k -> new HashMap<>())
+                       .merge(attacker, damage, Double::sum);
     }
 
     public void recordKill(UUID killer, UUID victim) {
         if (!isRunning) return;
         kills.put(killer, kills.getOrDefault(killer, 0) + 1);
+        roundKills.computeIfAbsent(killer, k -> new HashSet<>()).add(victim);
         killedByPlayer.computeIfAbsent(killer, k -> new HashSet<>()).add(victim);
+
+        // Calculate Assists: Everyone who damaged the victim but is NOT the killer
+        Map<UUID, Double> damageSources = victimDamageMap.get(victim);
+        if (damageSources != null) {
+            for (UUID attacker : damageSources.keySet()) {
+                if (attacker.equals(killer)) continue;
+                // Deal at least 1 damage to get an assist (prevents accidental assists)
+                if (damageSources.get(attacker) >= 1.0) {
+                    assists.put(attacker, assists.getOrDefault(attacker, 0) + 1);
+                }
+            }
+        }
     }
 
     public void onPlayerDeath(Player player) {
         if (!isRunning) return;
+        deaths.put(player.getUniqueId(), deaths.getOrDefault(player.getUniqueId(), 0) + 1);
         alivePlayers.remove(player.getUniqueId());
         player.setGameMode(GameMode.SPECTATOR);
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
         Bukkit.broadcast(Component.text(player.getName() + " が脱落しました！ 残り: " + alivePlayers.size() + "人", NamedTextColor.RED));
+        checkWinCondition();
     }
 
     public void onPlayerQuit(Player player) {

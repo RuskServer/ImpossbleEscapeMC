@@ -221,13 +221,9 @@ public class GunListener implements Listener {
         // 射撃を強制停止
         stopShooting(uuid);
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (!player.isOnline()) return;
-                updateWeaponModel(player);
-            }
-        }.runTaskLater(plugin, 1);
+        // 次のティックを待たずに、新しいスロットのアイテムで即座に更新
+        ItemStack newItem = player.getInventory().getItem(event.getNewSlot());
+        updateWeaponModel(player, newItem);
     }
 
     private void startShooting(Player player, PersistentDataContainer pdc, GunStats stats, long firstShotDelayMs) {
@@ -325,6 +321,7 @@ public class GunListener implements Listener {
 
         // 通常プレイ中のドロップ（リロード）処理
         event.setCancelled(true);
+        int slotIndex = player.getInventory().getHeldItemSlot();
 
         // キャンセル直後はインベントリにアイテムが戻っていない可能性があるため、1tick後に処理する
         new BukkitRunnable() {
@@ -332,19 +329,19 @@ public class GunListener implements Listener {
             public void run() {
                 if (!player.isOnline())
                     return;
-
-                var sm = getOrCreateStateMachine(player);
-                ItemStack currentItem = player.getInventory().getItemInMainHand();
-
-                // 射撃停止
-                stopShooting(player.getUniqueId());
-
-                // アイテムが戻っているか確認 (AIRなら何もしない)
-                if (currentItem == null || currentItem.getType() == Material.AIR) {
+                
+                // 1ティックの間にスロットが切り替わっていたら中断
+                if (player.getInventory().getHeldItemSlot() != slotIndex)
                     return;
-                }
 
-                sm.getContext().setItem(currentItem);
+                ItemStack currentItem = player.getInventory().getItemInMainHand();
+                if (currentItem == null || currentItem.getType() == Material.AIR)
+                    return;
+
+                // ステートマシンのアイテム参照を最新に更新
+                updateWeaponModel(player, currentItem);
+                
+                var sm = getOrCreateStateMachine(player);
                 sm.handleInput(com.lunar_prototype.impossbleEscapeMC.animation.state.InputType.RELOAD);
             }
         }.runTaskLater(plugin, 1);
@@ -882,17 +879,18 @@ public class GunListener implements Listener {
         return sm;
     }
 
-    private void updateWeaponModel(Player player) {
-        // Update context with current item
-        var sm = getOrCreateStateMachine(player);
-        ItemStack item = player.getInventory().getItemInMainHand();
-
+    private void updateWeaponModel(Player player, ItemStack item) {
+        UUID uuid = player.getUniqueId();
+        
         if (!isGun(item)) {
+            stopShooting(uuid);
             stopStateTask(player);
-            stateMachines.remove(player.getUniqueId());
+            stateMachines.remove(uuid);
             return;
         }
 
+        var sm = getOrCreateStateMachine(player);
+        
         // Update Context Item
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
@@ -900,29 +898,21 @@ public class GunListener implements Listener {
         ItemDefinition def = ItemRegistry.get(itemId);
 
         if (def != null && def.gunStats != null) {
-            // 現在のコンテキストにあるアイテムと、新しく持ったアイテムが異なる場合
             ItemStack oldItem = sm.getContext().getItem();
-            boolean itemChanged = true;
-
-            if (oldItem != null && oldItem.getType() != Material.AIR && oldItem.hasItemMeta()) {
-                String oldId = oldItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-                if (itemId.equals(oldId)) {
-                    // 同じIDでも、メタ（例えば弾数）が違う可能性はあるが、
-                    // ここでは「銃の種類が変わったか」を主眼に置く。
-                    // もし「全く同じアイテムインスタンス」かチェックしたいなら item.equals(oldItem)
-                    itemChanged = !item.equals(oldItem);
-                }
-            }
-
-            sm.getContext().setItem(item);
-            sm.getContext().setStats(def.gunStats);
-
-            if (itemChanged) {
+            
+            // アイテムが物理的に異なる（またはスロットが違う、メタが違う等）場合はリセット
+            if (oldItem == null || !oldItem.equals(item)) {
+                // 持ち替え時は強制的にリセットして Idle 状態へ
+                sm.getContext().setItem(item);
+                sm.getContext().setStats(def.gunStats);
                 sm.reset();
+            } else {
+                // 同じアイテムならコンテキストの参照だけ更新（メタ情報の同期のため）
+                sm.getContext().setItem(item);
             }
 
-            // Also ensure task is running
-            if (!stateTasks.containsKey(player.getUniqueId())) {
+            // 監視タスクが止まっていれば再開
+            if (!stateTasks.containsKey(uuid)) {
                 startStateTask(player);
             }
         }
@@ -940,13 +930,20 @@ public class GunListener implements Listener {
                     stopStateTask(player);
                     return;
                 }
-                if (stateMachines.containsKey(uuid)) {
-                    stateMachines.get(uuid).update();
-                } else {
-                    this.cancel();
+                
+                // 現在持っているアイテムを取得
+                ItemStack current = player.getInventory().getItemInMainHand();
+                if (!isGun(current)) {
+                    stopStateTask(player);
+                    stateMachines.remove(uuid);
+                    return;
                 }
 
-                // ティックの終わりに現在地を記録（次のティックでの移動判定用）
+                if (stateMachines.containsKey(uuid)) {
+                    stateMachines.get(uuid).update();
+                }
+
+                // ティックの終わりに現在地を記録
                 lastLocationMap.put(uuid, player.getLocation());
             }
         };
