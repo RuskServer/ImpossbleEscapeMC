@@ -31,6 +31,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -49,6 +50,10 @@ public class GunListener implements Listener {
     private final Map<UUID, BukkitRunnable> stateTasks = new HashMap<>();
     private final Map<UUID, Location> lastLocationMap = new HashMap<>();
 
+    // Lag Compensation History
+    private final Map<UUID, NavigableMap<Long, BoundingBox>> entityHistory = new HashMap<>();
+    private static final long HISTORY_DURATION_MS = 1000;
+
     private static final int MODEL_ADD_SCOPE = 1000;
     private static final int MODEL_ADD_SPRINT = 2000;
 
@@ -58,6 +63,44 @@ public class GunListener implements Listener {
         for (org.bukkit.entity.Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
             startStateTask(p);
         }
+        startHistoryTask();
+    }
+
+    private void startHistoryTask() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                long now = System.currentTimeMillis();
+                for (World world : Bukkit.getWorlds()) {
+                    for (LivingEntity entity : world.getLivingEntities()) {
+                        if (!(entity instanceof Player) && !(entity instanceof Mob)) continue;
+                        
+                        var history = entityHistory.computeIfAbsent(entity.getUniqueId(), k -> new TreeMap<>());
+                        history.put(now, entity.getBoundingBox().clone());
+                        
+                        while (!history.isEmpty() && history.firstKey() < now - HISTORY_DURATION_MS) {
+                            history.pollFirstEntry();
+                        }
+                    }
+                }
+                // クリーンアップ: オンラインでない/存在しないエンティティの履歴を削除
+                entityHistory.entrySet().removeIf(entry -> Bukkit.getEntity(entry.getKey()) == null);
+            }
+        }.runTaskTimer(plugin, 0, 1);
+    }
+
+    private BoundingBox getCompensatedBox(LivingEntity entity, long targetTime) {
+        NavigableMap<Long, BoundingBox> history = entityHistory.get(entity.getUniqueId());
+        if (history == null || history.isEmpty()) return entity.getBoundingBox();
+        
+        Map.Entry<Long, BoundingBox> floor = history.floorEntry(targetTime);
+        Map.Entry<Long, BoundingBox> ceil = history.ceilingEntry(targetTime);
+        
+        if (floor == null) return ceil.getValue();
+        if (ceil == null) return floor.getValue();
+        
+        // 近い方のデータを採用
+        return (targetTime - floor.getKey() < ceil.getKey() - targetTime) ? floor.getValue() : ceil.getValue();
     }
 
     @EventHandler
@@ -114,17 +157,23 @@ public class GunListener implements Listener {
         long now = System.currentTimeMillis();
         long lastShot = lastShotTimeMap.getOrDefault(uuid, 0L);
         long requiredIntervalMs = (long) (60000.0 / def.gunStats.rpm);
-        long delayTicks = 0;
-
-        if (now - lastShot < requiredIntervalMs) {
-            long remainingMs = requiredIntervalMs - (now - lastShot);
-            delayTicks = remainingMs / 50;
-            if (delayTicks < 1)
-                delayTicks = 1;
-        }
 
         // 3. 射撃ループ開始
-        startShooting(player, pdc, def.gunStats, delayTicks);
+        if (now - lastShot >= requiredIntervalMs) {
+            // クールダウンが完了している場合、1発目を即座に発射
+            consecutiveShots.put(uuid, 0); // バースト開始
+            executeShoot(player, pdc, def.gunStats);
+            lastShotTimeMap.put(uuid, now);
+
+            if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
+                return;
+            }
+            // フルオートの場合は、次弾のタイミングを指定してループタスクを開始
+            startShooting(player, pdc, def.gunStats, requiredIntervalMs);
+        } else {
+            // クールダウン中の場合は、最短で発射できるミリ秒後を指定して開始
+            startShooting(player, pdc, def.gunStats, requiredIntervalMs - (now - lastShot));
+        }
     }
 
     // --- 左クリックでエイム切り替え (トグル) ---
@@ -181,15 +230,16 @@ public class GunListener implements Listener {
         }.runTaskLater(plugin, 1);
     }
 
-    private void startShooting(Player player, PersistentDataContainer pdc, GunStats stats, long delayTicks) {
+    private void startShooting(Player player, PersistentDataContainer pdc, GunStats stats, long firstShotDelayMs) {
         UUID uuid = player.getUniqueId();
 
-        consecutiveShots.put(uuid, 0);
+        // Burst開始時にカウントをリセット
+        consecutiveShots.putIfAbsent(uuid, 0);
 
         double msPerShot = 60000.0 / stats.rpm;
 
         BukkitRunnable task = new BukkitRunnable() {
-            private double nextShotTime = (double) System.currentTimeMillis() + (delayTicks * 50);
+            private double nextShotTime = (double) System.currentTimeMillis() + firstShotDelayMs;
             private boolean firstShot = true;
 
             @Override
@@ -198,7 +248,7 @@ public class GunListener implements Listener {
                 long lastClick = lastRightClickMap.getOrDefault(uuid, 0L);
 
                 // 300ms以上イベントが来なければ「指を離した」とみなす
-                if (!firstShot && now - lastClick > 300) {
+                if (now - lastClick > 300) {
                     stopShooting(uuid);
                     return;
                 }
@@ -209,7 +259,7 @@ public class GunListener implements Listener {
                     return;
                 }
 
-                // 時間が来ている分だけ射撃実行 (RPM > 1200 の複数回射撃にも対応)
+                // 時間が来ている分だけ射撃実行
                 int shotsFiredThisTick = 0;
                 while ((double) now >= nextShotTime && shotsFiredThisTick < 5) {
                     executeShoot(player, pdc, stats);
@@ -218,7 +268,6 @@ public class GunListener implements Listener {
                     firstShot = false;
                     shotsFiredThisTick++;
 
-                    // セミオートの場合は1回で終了
                     if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
                         stopShooting(uuid);
                         return;
@@ -228,7 +277,7 @@ public class GunListener implements Listener {
         };
 
         activeTasks.put(uuid, task);
-        task.runTaskTimer(plugin, 0, 1); // 常に1tick間隔でチェック
+        task.runTaskTimer(plugin, 0, 1);
     }
 
     private void stopShooting(UUID uuid) {
@@ -415,7 +464,7 @@ public class GunListener implements Listener {
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
 
-            new BulletTask(player, damage, ammoClass, inaccuracy).runTaskTimer(plugin, 0, 1);
+            new BulletTask(player, damage, ammoClass, inaccuracy).start();
         }
 
         // 縦反動: 銃は跳ね上がる(視線は上に行く)ため、ピッチはマイナス方向へ動かす
@@ -484,9 +533,7 @@ public class GunListener implements Listener {
         shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 8.0f, 1.8f);
 
         // 2. 弾丸の生成 (inaccuracyをコンストラクタで渡すように変更)
-        BulletTask task = new BulletTask(shooter, stats.damage, ammoClass, inaccuracy);
-
-        task.runTaskTimer(plugin, 0, 1);
+        new BulletTask(shooter, stats.damage, ammoClass, inaccuracy).start();
     }
 
     /**
@@ -585,10 +632,12 @@ public class GunListener implements Listener {
         private Location currentLoc;
         private Vector velocity;
         private int ticksAlive = 0;
+        private final int shooterPing;
+        private boolean active = true;
 
         // 設定値 (後でYAMLから読み込めるようにすると良い)
         private final double GRAVITY = 0.015; // 1ティックあたりの落下量
-        private final double SPEED = 6.0; // 1ティックに進む距離
+        private final double SPEED = 20.0; // 弾速を大幅に向上 (120m/s -> 400m/s)
         private final int ammoClass;
 
         public BulletTask(LivingEntity shooter, double damage, int ammoClass, double inaccuracy) {
@@ -596,6 +645,7 @@ public class GunListener implements Listener {
             this.damage = damage;
             this.currentLoc = shooter.getEyeLocation();
             this.origin = this.currentLoc.toVector(); // 初期位置を保存
+            this.shooterPing = (shooter instanceof Player p) ? PacketEvents.getAPI().getPlayerManager().getPing(p) : 0;
             
             Vector dir = shooter.getEyeLocation().getDirection();
             
@@ -613,8 +663,27 @@ public class GunListener implements Listener {
             this.ammoClass = ammoClass;
         }
 
+        public void start() {
+            // 初回の判定を即座に実行 (0tick遅延)
+            this.run();
+            if (active) {
+                this.runTaskTimer(plugin, 1, 1);
+            }
+        }
+
+        @Override
+        public void cancel() {
+            if (!active) return;
+            active = false;
+            try {
+                super.cancel();
+            } catch (IllegalStateException ignored) {}
+        }
+
         @Override
         public void run() {
+            if (!active) return;
+
             ticksAlive++;
             if (ticksAlive > 100) { // 5秒経ったら消滅
                 this.cancel();
@@ -646,50 +715,59 @@ public class GunListener implements Listener {
             // 曳光弾のエフェクト (前回の地点から今回の地点まで線を引くようにパーティクルを出す)
             spawnTracer(prevLoc, currentLoc);
 
-            // 当たり判定 (ループ化して貫通に対応)
+            // 当たり判定 (ラグ補填あり)
             double distanceRemaining = SPEED;
             Location rayStart = prevLoc.clone();
             Vector rayDir = velocity.clone().normalize();
+            long targetTime = System.currentTimeMillis() - shooterPing;
 
             while (distanceRemaining > 0.01) {
-                var rayTrace = currentLoc.getWorld().rayTrace(
-                        rayStart,
-                        rayDir,
-                        distanceRemaining,
-                        FluidCollisionMode.NEVER,
-                        true,
-                        0.2,
-                        (e) -> e instanceof LivingEntity && !e.equals(shooter));
+                // 1. ブロックの当たり判定
+                var blockTrace = currentLoc.getWorld().rayTraceBlocks(rayStart, rayDir, distanceRemaining, FluidCollisionMode.NEVER, true);
+                double blockDist = (blockTrace != null) ? blockTrace.getHitPosition().distance(rayStart.toVector()) : Double.MAX_VALUE;
 
-                if (rayTrace == null) break;
+                // 2. エンティティの当たり判定 (ラグ補填)
+                Entity victim = null;
+                Vector hitPos = null;
+                double bestDist = blockDist;
 
-                if (rayTrace.getHitEntity() instanceof LivingEntity victim) {
+                // 近くのエンティティを検索
+                Collection<Entity> potentialVictims = currentLoc.getWorld().getNearbyEntities(rayStart, distanceRemaining + 2, distanceRemaining + 2, distanceRemaining + 2);
+                for (Entity e : potentialVictims) {
+                    if (!(e instanceof LivingEntity le) || e.equals(shooter)) continue;
+
+                    BoundingBox box = getCompensatedBox(le, targetTime);
+                    org.bukkit.util.RayTraceResult entityTrace = box.rayTrace(rayStart.toVector(), rayDir, distanceRemaining);
+
+                    if (entityTrace != null) {
+                        double dist = entityTrace.getHitPosition().distance(rayStart.toVector());
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            victim = e;
+                            hitPos = entityTrace.getHitPosition();
+                        }
+                    }
+                }
+
+                if (victim != null) {
                     Vector bulletDir = velocity.clone().normalize();
-                    handleDamage(victim, shooter, damage, ammoClass, rayTrace.getHitPosition().toLocation(currentLoc.getWorld()));
-                    BloodEffect.spawn(
-                            rayTrace.getHitPosition().toLocation(currentLoc.getWorld()),
-                            bulletDir,
-                            damage);
+                    handleDamage((LivingEntity) victim, shooter, damage, ammoClass, hitPos.toLocation(currentLoc.getWorld()));
+                    BloodEffect.spawn(hitPos.toLocation(currentLoc.getWorld()), bulletDir, damage);
                     this.cancel();
                     return;
-                } else if (rayTrace.getHitBlock() != null) {
-                    Block block = rayTrace.getHitBlock();
-                    Location hitLoc = rayTrace.getHitPosition().toLocation(currentLoc.getWorld());
-                    org.bukkit.block.BlockFace face = rayTrace.getHitBlockFace();
+                } else if (blockTrace != null) {
+                    Block block = blockTrace.getHitBlock();
+                    Location hLoc = blockTrace.getHitPosition().toLocation(currentLoc.getWorld());
+                    org.bukkit.block.BlockFace face = blockTrace.getHitBlockFace();
 
-                    // 70%の確率で貫通可能なブロックか判定
-                    if (isPenetrable(block.getType()) && Math.random() < 0.7) {
-                        // 貫通処理: エフェクトだけ出して続行
-                        block.getWorld().playEffect(hitLoc, Effect.STEP_SOUND, block.getType());
-                        
-                        double hitDist = rayTrace.getHitPosition().distance(rayStart.toVector());
-                        // ヒット地点から少し先に進めて再開
-                        rayStart = hitLoc.clone().add(rayDir.clone().multiply(0.01));
+                    if (isPenetrable(block.getType()) && Math.random() < 0.9) {
+                        block.getWorld().playEffect(hLoc, Effect.STEP_SOUND, block.getType());
+                        double hitDist = blockTrace.getHitPosition().distance(rayStart.toVector());
+                        rayStart = hLoc.clone().add(rayDir.clone().multiply(0.01));
                         distanceRemaining -= (hitDist + 0.01);
                         continue;
                     } else {
-                        // 壁に着弾 (または貫通失敗)
-                        spawnBulletHole(hitLoc, face);
+                        spawnBulletHole(hLoc, face);
                         this.cancel();
                         return;
                     }
@@ -720,7 +798,13 @@ public class GunListener implements Listener {
 
         private boolean isPenetrable(Material material) {
             String name = material.name();
-            return name.contains("GLASS") || name.equals("IRON_BARS") || name.contains("COPPER_BARS");
+            return name.contains("GLASS") || 
+                   name.contains("PANE") || 
+                   name.contains("BARS") || 
+                   name.contains("GRATE") || 
+                   name.contains("LEAVES") || 
+                   name.contains("CHAIN") ||
+                   name.contains("SCAFFOLDING");
         }
 
         private void spawnTracer(Location from, Location to) {
