@@ -898,6 +898,14 @@ public class GunListener implements Listener {
         victim.setRotation(loc.getYaw(), loc.getPitch() + (float) (Math.random() * 2 - 1));
     }
 
+    @EventHandler
+    public void onKnockback(io.papermc.paper.event.entity.EntityKnockbackEvent event) {
+        if (event.getEntity().hasMetadata("no_knockback")) {
+            event.setCancelled(true);
+            event.getEntity().removeMetadata("no_knockback", plugin);
+        }
+    }
+
     private void handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass,
             Location hitLoc) {
         double finalDamage = baseDamage;
@@ -917,7 +925,6 @@ public class GunListener implements Listener {
         if (isHeadshot) {
             // ヘッドショット (1.2倍 + ヘルメット参照)
             finalDamage *= 1.2;
-            victim.getWorld().spawnParticle(Particle.CRIT, hitLoc, 15, 0.1, 0.1, 0.1, 0.2);
             armorClass = getArmorClassFromSlot(victim, EquipmentSlot.HEAD);
         } else if (isLegShot) {
             // レッグショット (ダメージ60% + アーマー無視)
@@ -977,7 +984,8 @@ public class GunListener implements Listener {
             controller.getBrain().reward(reward); // AIに学習させる
         }
 
-        // 最終ダメージの適用
+        // 最終ダメージの適用 (ノックバックを一時的に無効化)
+        victim.setMetadata("no_knockback", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
         victim.damage(finalDamage, shooter);
     }
 
