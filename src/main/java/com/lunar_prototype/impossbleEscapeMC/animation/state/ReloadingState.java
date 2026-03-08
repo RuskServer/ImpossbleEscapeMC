@@ -87,11 +87,11 @@ public class ReloadingState implements WeaponState {
         }
 
         // Calculate Duration
-        if (animStats != null && animStats.fps > 0) {
-            double durationSeconds = (double) animStats.frameCount / animStats.fps;
+        if (animStats != null && animStats.fps > 0 && animStats.playbackSpeed > 0) {
+            double durationSeconds = (double) animStats.frameCount / (animStats.fps * animStats.playbackSpeed);
             totalTicks = (int) Math.ceil(durationSeconds * 20);
         } else {
-            totalTicks = Math.max(1, stats.reloadTime / 50);
+            totalTicks = 20; // Default 1s if no animation or invalid stats
         }
 
         // Apply initial model
@@ -126,7 +126,7 @@ public class ReloadingState implements WeaponState {
 
         // Render Animation
         if (animStats != null) {
-            int frameIndex = (int) ((elapsed / 20.0) * animStats.fps);
+            int frameIndex = (int) ((elapsed / 20.0) * animStats.fps * animStats.playbackSpeed);
             if (frameIndex >= animStats.frameCount) {
                 frameIndex = animStats.frameCount - 1;
             }

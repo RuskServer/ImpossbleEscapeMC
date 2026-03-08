@@ -7,7 +7,6 @@ public class GunStats {
     public int magSize;
     public String fireMode; // "SEMI" or "AUTO"
     public int customModelData; // 【追加】 ベースとなるモデル番号 (例: 20)
-    public int reloadTime; // 【追加】リロード時間 (ミリ秒)
     public int adsTime; // 【追加】ADS時間 (ミリ秒)
     public int boltingTime; // 【追加】手動コッキングの時間 (ミリ秒)
     public String shotSound;
@@ -26,6 +25,7 @@ public class GunStats {
         public String model;
         public int frameCount;
         public int fps;
+        public double playbackSpeed = 1.0; // 【追加】 再生速度
     }
 
     public static class ScopeStats {

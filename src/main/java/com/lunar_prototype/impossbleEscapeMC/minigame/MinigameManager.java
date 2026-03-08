@@ -73,6 +73,7 @@ public class MinigameManager {
     private final Map<UUID, Map<UUID, Double>> victimDamageMap = new HashMap<>(); // Victim -> (Attacker -> Damage)
     private final Map<UUID, Set<UUID>> roundKills = new HashMap<>(); // Killer -> Set of victims in current round
     private final Map<UUID, Set<UUID>> killedByPlayer = new HashMap<>(); // Killer -> Set of victims (Cumulative)
+    private final Map<UUID, UUID> lastAttacker = new HashMap<>(); // Victim -> Last Attacker
     
     private BossBar bossBar;
     private BukkitRunnable gameTask;
@@ -189,6 +190,7 @@ public class MinigameManager {
         victimDamageMap.clear();
         roundKills.clear();
         killedByPlayer.clear();
+        lastAttacker.clear();
     }
 
     private void startRound() {
@@ -202,6 +204,7 @@ public class MinigameManager {
         // Round stats reset
         roundKills.clear();
         victimDamageMap.clear(); // Damage for assists is per-round logic
+        lastAttacker.clear();
         
         spawnPlayers();
         startCountdown();
@@ -573,10 +576,15 @@ private void spawnPlayers() {
         }
     }
 
+    public boolean isParticipant(UUID uuid) {
+        return team1.contains(uuid) || team2.contains(uuid);
+    }
+
     public void addDamage(UUID attacker, UUID victim, double damage) {
         if (!isRunning || isCountdown) return;
         damageDealt.put(attacker, damageDealt.getOrDefault(attacker, 0.0) + damage);
         damageTaken.put(victim, damageTaken.getOrDefault(victim, 0.0) + damage);
+        lastAttacker.put(victim, attacker);
         
         // Track per-victim damage for assists
         victimDamageMap.computeIfAbsent(victim, k -> new HashMap<>())
@@ -619,6 +627,10 @@ private void spawnPlayers() {
         team1.remove(player.getUniqueId());
         team2.remove(player.getUniqueId());
         checkWinCondition();
+    }
+
+    public UUID getLastAttacker(UUID victim) {
+        return lastAttacker.get(victim);
     }
 
     public void createMap(String name) {

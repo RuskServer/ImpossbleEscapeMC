@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.BrainManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.command.AttachmentCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.GetItemCommand;
+import com.lunar_prototype.impossbleEscapeMC.command.ItemReloadCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.ScavCommand;
 import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUIListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
@@ -60,6 +61,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("getitem").setExecutor(new GetItemCommand());
         getCommand("scavspawn").setExecutor(new ScavCommand(this));
         getCommand("attachment").setExecutor(new AttachmentCommand());
+        getCommand("itemreload").setExecutor(new ItemReloadCommand(this));
         com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand mgCmd = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager);
         getCommand("mg").setExecutor(mgCmd);
         getCommand("mg").setTabCompleter(mgCmd);

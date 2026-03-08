@@ -18,3 +18,6 @@ commands:
   mg:
     description: ミニゲーム管理コマンド
     permission: op
+  itemreload:
+    description: アイテム設定をリロードします。
+    permission: op

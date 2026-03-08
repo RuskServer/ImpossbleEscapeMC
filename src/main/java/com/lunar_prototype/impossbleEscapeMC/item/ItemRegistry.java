@@ -123,7 +123,6 @@ public class ItemRegistry {
                         gStats.magSize = gunSection.getInt("magSize");
                         gStats.fireMode = gunSection.getString("fireMode", "SEMI");
                         gStats.customModelData = gunSection.getInt("customModelData", 0);
-                        gStats.reloadTime = gunSection.getInt("reloadTime", 2000);
                         gStats.adsTime = gunSection.getInt("adsTime", 200);
                         gStats.boltingTime = gunSection.getInt("boltingTime", 1000); // デフォルト1000ms
                         gStats.caliber = gunSection.getString("caliber");
@@ -230,6 +229,7 @@ public class ItemRegistry {
         stats.model = animSection.getString("model");
         stats.frameCount = animSection.getInt("frameCount");
         stats.fps = animSection.getInt("fps");
+        stats.playbackSpeed = animSection.getDouble("playbackSpeed", 1.0);
         return stats;
     }
 

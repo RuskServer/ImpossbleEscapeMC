@@ -162,7 +162,7 @@ public class WeaponContext {
     public int getLoopFrameIndex(int tick, GunStats.AnimationStats anim) {
         if (anim == null || anim.fps <= 0 || anim.frameCount <= 1)
             return 0;
-        return (int) ((tick / 20.0) * anim.fps) % anim.frameCount;
+        return (int) ((tick / 20.0) * anim.fps * anim.playbackSpeed) % anim.frameCount;
     }
 
     // Helper to calculate frame index for progress (0.0 - 1.0)
