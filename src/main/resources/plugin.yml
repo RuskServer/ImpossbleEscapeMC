@@ -21,3 +21,6 @@ commands:
   itemreload:
     description: アイテム設定をリロードします。
     permission: op
+  raid:
+    description: レイドシステム管理・出撃コマンド
+    permission: op

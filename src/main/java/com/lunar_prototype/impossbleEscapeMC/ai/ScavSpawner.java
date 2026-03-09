@@ -154,6 +154,7 @@ public class ScavSpawner implements Listener {
                 controller.getBrain().terminate();
                 Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
             }
+            plugin.getRaidManager().onScavDeath(uuid);
         }
     }
 

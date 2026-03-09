@@ -5,15 +5,13 @@ import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class RaidManager {
     private final ImpossbleEscapeMC plugin;
@@ -22,6 +20,10 @@ public class RaidManager {
     private final Map<String, RaidInstance> activeRaids = new HashMap<>();
     private final File mapsFolder;
 
+    private int globalTimeLeft; // seconds
+    private final int cycleDuration = 1500; // 25 minutes
+    private BukkitRunnable globalTimerTask;
+
     public RaidManager(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.mapsFolder = new File(plugin.getDataFolder(), "raids");
@@ -29,20 +31,45 @@ public class RaidManager {
             mapsFolder.mkdirs();
         }
         loadMaps();
+        startGlobalTimer();
+    }
+
+    private void startGlobalTimer() {
+        this.globalTimeLeft = cycleDuration;
+        globalTimerTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (globalTimeLeft <= 0) {
+                    onCycleEnd();
+                    globalTimeLeft = cycleDuration;
+                }
+                globalTimeLeft--;
+            }
+        };
+        globalTimerTask.runTaskTimer(plugin, 0, 20);
+    }
+
+    private void onCycleEnd() {
+        plugin.getLogger().info("Raid cycle ended. Resetting all maps and loot...");
+        for (RaidInstance raid : activeRaids.values()) {
+            raid.handleMIA(); // Force MIA for those who didn't extract
+            raid.resetCycle(); // Refresh extractions and state
+        }
+        // TODO: Trigger loot reset here
+        Bukkit.broadcast(net.kyori.adventure.text.Component.text("新たなレイドサイクルが開始されました。全ての物資が補充されました。", net.kyori.adventure.text.format.NamedTextColor.AQUA));
+    }
+
+    public int getGlobalTimeLeft() {
+        return globalTimeLeft;
     }
 
     public void startRaid(String mapId, List<Player> participants) {
         RaidMap map = maps.get(mapId);
         if (map == null) return;
         
-        RaidInstance raid = activeRaids.get(mapId);
-        if (raid != null) {
-            for (Player p : participants) {
-                raid.joinPlayer(p);
-            }
-        } else {
-            raid = new RaidInstance(plugin, map, participants);
-            activeRaids.put(mapId, raid);
+        RaidInstance raid = activeRaids.computeIfAbsent(mapId, id -> new RaidInstance(plugin, map, new ArrayList<>()));
+        for (Player p : participants) {
+            raid.joinPlayer(p);
         }
     }
 
@@ -76,6 +103,12 @@ public class RaidManager {
                 raid.onPlayerQuit(player);
                 return;
             }
+        }
+    }
+
+    public void onScavDeath(UUID uuid) {
+        for (RaidInstance raid : activeRaids.values()) {
+            raid.onScavDeath(uuid);
         }
     }
 
