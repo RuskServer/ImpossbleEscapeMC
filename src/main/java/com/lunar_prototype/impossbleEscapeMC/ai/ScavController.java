@@ -7,7 +7,10 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.Openable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -220,6 +223,7 @@ public class ScavController {
                     peekPhase = 0;
                 }
             }
+            checkAndInteractWithDoors();
             brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
             return;
         }
@@ -275,6 +279,8 @@ public class ScavController {
                 handleSearching(); 
             }
         }
+
+        checkAndInteractWithDoors();
 
         // 射撃実行
         if (actions[1] == 0) {
@@ -683,4 +689,50 @@ public class ScavController {
     public Mob getScav() {
         return this.scav;
     }
-}
+
+    /**
+     * 周辺のドアを検知して開ける
+     */
+    private void checkAndInteractWithDoors() {
+        Location loc = scav.getLocation();
+        Vector direction = loc.getDirection();
+        direction.setY(0); // 水平方向のみを考慮
+        if (direction.lengthSquared() > 0) direction.normalize();
+        else direction = new Vector(1, 0, 0); // 万が一のデフォルト
+        
+        // 現在の足元と頭のブロックもチェック
+        tryOpenDoor(loc.getBlock());
+        tryOpenDoor(loc.clone().add(0, 1, 0).getBlock());
+
+        // 少し先にあるブロックを確認
+        double[] checkDistances = { 1.0, 1.5 };
+        for (double d : checkDistances) {
+            Block footBlock = loc.clone().add(direction.clone().multiply(d)).getBlock();
+            Block headBlock = loc.clone().add(0, 1, 0).add(direction.clone().multiply(d)).getBlock();
+
+            if (tryOpenDoor(footBlock) || tryOpenDoor(headBlock)) {
+                break; 
+            }
+        }
+    }
+
+    private boolean tryOpenDoor(Block block) {
+        if (block.getBlockData() instanceof Openable openable) {
+            if (!openable.isOpen()) {
+                // 鉄のドアはここでは開けないように制限することも可能だが、
+                // SCAVの利便性のためにOpenableなら開ける
+                openable.setOpen(true);
+                block.setBlockData(openable);
+
+                Sound sound = Sound.BLOCK_WOODEN_DOOR_OPEN;
+                String type = block.getType().toString();
+                if (type.contains("IRON")) sound = Sound.BLOCK_IRON_DOOR_OPEN;
+                else if (type.contains("FENCE_GATE")) sound = Sound.BLOCK_FENCE_GATE_OPEN;
+
+                block.getWorld().playSound(block.getLocation(), sound, 1.0f, 1.0f);
+                return true;
+            }
+        }
+        return false;
+    }
+    }
