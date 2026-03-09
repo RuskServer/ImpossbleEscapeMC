@@ -110,7 +110,7 @@ public class RaidInstance {
 
     private void playStartEffect(Player p) {
         p.sendMessage(Component.text("レイド開始: " + map.getMapId(), NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
-        p.playSound(p.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+        p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.2f);
         
         // タイトル表示
         p.showTitle(net.kyori.adventure.title.Title.title(
@@ -200,7 +200,7 @@ public class RaidInstance {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 p.sendMessage(Component.text("脱出に失敗しました (MIA)。", NamedTextColor.RED));
-                p.teleport(p.getWorld().getSpawnLocation());
+                p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 p.hideBossBar(bossBar);
             }
         }
@@ -294,8 +294,8 @@ public class RaidInstance {
             players.remove(p.getUniqueId());
             p.hideBossBar(bossBar);
             
-            // ワールドの初期スポーン地点へテレポート
-            p.teleport(p.getWorld().getSpawnLocation()); 
+            // メインワールド（オーバーワールド）の初期スポーン地点へテレポート
+            p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation()); 
             
             if (players.isEmpty()) {
                 endRaid();
