@@ -1,31 +1,64 @@
-# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: Java CI with Maven
+name: Maven Build + CalVer Release
 
 on:
   push:
     branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+
+permissions:
+  contents: write
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
         java-version: '21'
         distribution: 'temurin'
         cache: maven
-    - name: Build with Maven
+
+    - name: Generate CalVer
+      id: calver
+      run: |
+        VERSION=$(date +'%Y.%m.%d')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    # MavenのversionをCalVerに変更
+    - name: Set Maven Version
+      run: |
+        mvn -B versions:set \
+          -DnewVersion=${{ steps.calver.outputs.version }} \
+          -DgenerateBackupPoms=false
+
+    - name: Build
       run: mvn -B package --file pom.xml
+
+    - name: Get Jar
+      id: jar
+      run: |
+        JAR=$(ls target/*.jar | head -n 1)
+        echo "jar=$JAR" >> $GITHUB_OUTPUT
+
+    # changelog自動生成
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        git log -10 --pretty=format:"- %s (%h)" > CHANGELOG.md
+
+    # Release作成 or 更新
+    - name: Create or Update Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.calver.outputs.version }}
+        name: ${{ steps.calver.outputs.version }}
+        body_path: CHANGELOG.md
+        files: ${{ steps.jar.outputs.jar }}
+        replace_assets: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
