@@ -3,6 +3,8 @@ name: Maven Build + CalVer Release
 on:
   push:
     branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 permissions:
   contents: write
@@ -29,7 +31,6 @@ jobs:
         VERSION=$(date +'%Y.%m.%d')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-    # MavenのversionをCalVerに変更
     - name: Set Maven Version
       run: |
         mvn -B versions:set \
@@ -45,14 +46,23 @@ jobs:
         JAR=$(ls target/*.jar | head -n 1)
         echo "jar=$JAR" >> $GITHUB_OUTPUT
 
-    # changelog自動生成
+    # PR用artifact
+    - name: Upload PR Artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: plugin-pr-${{ github.event.pull_request.number }}
+        path: ${{ steps.jar.outputs.jar }}
+
+    # changelog生成 (pushのみ)
     - name: Generate Changelog
-      id: changelog
+      if: github.event_name == 'push'
       run: |
         git log -10 --pretty=format:"- %s (%h)" > CHANGELOG.md
 
-    # Release作成 or 更新
+    # Release (pushのみ)
     - name: Create or Update Release
+      if: github.event_name == 'push'
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.calver.outputs.version }}
