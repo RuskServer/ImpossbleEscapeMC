@@ -68,11 +68,20 @@ public class ScavController {
     private static final double MAX_VISION_DISTANCE = 96.0; // 6 Chunks
     private static final double FOV_ANGLE = 120.0;
 
+    private int voiceLineCooldown = 0;
+    private static final int VOICE_LINE_COOLDOWN_TICKS = 100; // 5秒
+
     public ScavController(Mob scav, GunListener listener) {
         this.scav = scav;
         this.brain = new ScavBrain(scav);
         this.gunListener = listener;
         this.currentAimVector = scav.getEyeLocation().getDirection();
+    }
+
+    private void playVoiceLine(String sound) {
+        if (voiceLineCooldown > 0) return;
+        scav.getWorld().playSound(scav.getLocation(), sound, 1.0f, 1.0f);
+        voiceLineCooldown = VOICE_LINE_COOLDOWN_TICKS;
     }
 
     public void onTick() {
@@ -90,6 +99,8 @@ public class ScavController {
             coverStayTicks--;
         if (coverSearchCooldown > 0)
             coverSearchCooldown--;
+        if (voiceLineCooldown > 0)
+            voiceLineCooldown--;
 
         // --- 1. 分隊ロジック & スイッチング更新 ---
         lastSquadUpdate++;
@@ -105,6 +116,7 @@ public class ScavController {
             if (target != null) {
                 scav.setTarget(target);
                 shareTargetWithAllies(target.getLocation());
+                playVoiceLine("minecraft:scav1");
             }
         }
 
@@ -391,6 +403,9 @@ public class ScavController {
     }
 
     private void shareTargetWithAllies(Location loc) {
+        if (nearbyAllies.isEmpty()) return;
+        
+        playVoiceLine("minecraft:scav2");
         double distToTarget = scav.getLocation().distance(loc);
         for (ScavController ally : nearbyAllies) {
             if (ally.scav.getTarget() != null && ally.scav.hasLineOfSight(ally.scav.getTarget())) continue;
@@ -629,8 +644,18 @@ public class ScavController {
         }
     }
 
+    public void onKill(LivingEntity victim) {
+        playVoiceLine("minecraft:scav4");
+    }
+
     public void onDamage(Entity attacker) {
         suppression = Math.min(1.0f, suppression + 0.3f);
+        
+        double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+        if (healthPercent < 0.5) {
+            playVoiceLine("minecraft:scav3");
+        }
+
         if (attacker instanceof LivingEntity living) {
             Location loc = scav.getLocation();
             loc.setDirection(living.getLocation().toVector().subtract(loc.toVector()).normalize());
