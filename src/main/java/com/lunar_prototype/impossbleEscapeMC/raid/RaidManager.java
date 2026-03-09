@@ -139,7 +139,7 @@ public class RaidManager {
         File file = new File(mapsFolder, map.getMapId() + ".json");
         try (FileWriter writer = new FileWriter(file)) {
             gson.toJson(map, writer);
-        } catch (IOException e) {
+        } catch (IOException | com.google.gson.JsonSyntaxException e) {
             plugin.getLogger().warning("Failed to save raid map: " + map.getMapId());
             e.printStackTrace();
         }

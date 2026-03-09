@@ -366,8 +366,10 @@ public class RaidInstance {
         List<Location> spawns = map.getSpawnPoints();
         if (!spawns.isEmpty()) {
             Location loc = findSafeSpawn(spawns);
-            player.teleport(loc);
-            applySpawnProtection(player);
+            if (loc != null) {
+                player.teleport(loc);
+                applySpawnProtection(player);
+            }
         }
         
         playStartEffect(player);
