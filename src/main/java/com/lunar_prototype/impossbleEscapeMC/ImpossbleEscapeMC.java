@@ -38,6 +38,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private ResourcePackListener resourcePackListener;
     private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
     private com.lunar_prototype.impossbleEscapeMC.raid.RaidManager raidManager;
+    private com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager;
 
     public com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager getMinigameManager() {
         return minigameManager;
@@ -45,6 +46,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     public com.lunar_prototype.impossbleEscapeMC.raid.RaidManager getRaidManager() {
         return raidManager;
+    }
+
+    public com.lunar_prototype.impossbleEscapeMC.party.PartyManager getPartyManager() {
+        return partyManager;
     }
 
     @Override
@@ -60,6 +65,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         resourcePackListener = new ResourcePackListener(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
         raidManager = new com.lunar_prototype.impossbleEscapeMC.raid.RaidManager(this);
+        partyManager = new com.lunar_prototype.impossbleEscapeMC.party.PartyManager(this);
 
         getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(resourcePackListener, this);
@@ -80,6 +86,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.raid.RaidCommand raidCmd = new com.lunar_prototype.impossbleEscapeMC.raid.RaidCommand(raidManager);
         getCommand("raid").setExecutor(raidCmd);
         getCommand("raid").setTabCompleter(raidCmd);
+
+        com.lunar_prototype.impossbleEscapeMC.party.PartyCommand partyCmd = new com.lunar_prototype.impossbleEscapeMC.party.PartyCommand(partyManager);
+        getCommand("party").setExecutor(partyCmd);
+        getCommand("party").setTabCompleter(partyCmd);
 
         CrossbowTask.start(this);
 

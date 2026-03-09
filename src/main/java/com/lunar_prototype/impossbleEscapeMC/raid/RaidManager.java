@@ -68,9 +68,7 @@ public class RaidManager {
         if (map == null) return;
         
         RaidInstance raid = activeRaids.computeIfAbsent(mapId, id -> new RaidInstance(plugin, map, new ArrayList<>()));
-        for (Player p : participants) {
-            raid.joinPlayer(p);
-        }
+        raid.joinPlayers(participants);
     }
 
     public RaidInstance getActiveRaid(String mapId) {

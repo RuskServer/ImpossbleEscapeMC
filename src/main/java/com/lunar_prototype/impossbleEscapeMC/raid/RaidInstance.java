@@ -29,17 +29,16 @@ public class RaidInstance {
         this.map = map;
         this.startTime = System.currentTimeMillis();
 
-        for (Player p : participants) {
-            players.add(p.getUniqueId());
-        }
-
         for (RaidMap.ScavSpawnPoint sp : map.getScavSpawnPoints()) {
             virtualScavs.add(new VirtualScav(sp.getLocation(map.getWorldName()), sp.isPermanent()));
         }
 
         assignExtractions();
-        spawnPlayers();
         startTask();
+        
+        if (!participants.isEmpty()) {
+            joinPlayers(participants);
+        }
     }
 
     private void assignExtractions() {
@@ -51,22 +50,6 @@ public class RaidInstance {
         int count = Math.max(1, all.size() / 2);
         for (int i = 0; i < count; i++) {
             activeExtractions.add(all.get(i));
-        }
-    }
-
-    private void spawnPlayers() {
-        List<Location> spawns = map.getSpawnPoints();
-        if (spawns.isEmpty()) return;
-
-        for (UUID uuid : players) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                Location loc = findSafeSpawn(spawns);
-                p.teleport(loc);
-                applySpawnProtection(p);
-                playStartEffect(p);
-                showExtractions(p);
-            }
         }
     }
 
@@ -367,20 +350,28 @@ public class RaidInstance {
     }
 
     public void joinPlayer(Player player) {
-        players.add(player.getUniqueId());
-        player.showBossBar(bossBar);
-        
+        joinPlayers(Collections.singletonList(player));
+    }
+
+    public void joinPlayers(List<Player> participants) {
         List<Location> spawns = map.getSpawnPoints();
+        Location groupSpawn = null;
         if (!spawns.isEmpty()) {
-            Location loc = findSafeSpawn(spawns);
-            if (loc != null) {
-                player.teleport(loc);
+            groupSpawn = findSafeSpawn(spawns);
+        }
+
+        for (Player player : participants) {
+            players.add(player.getUniqueId());
+            player.showBossBar(bossBar);
+
+            if (groupSpawn != null) {
+                player.teleport(groupSpawn);
                 applySpawnProtection(player);
             }
+
+            playStartEffect(player);
+            showExtractions(player);
         }
-        
-        playStartEffect(player);
-        showExtractions(player);
     }
 
     public int getPlayerCount() {
