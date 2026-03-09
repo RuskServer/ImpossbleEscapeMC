@@ -134,12 +134,14 @@ public class PlayerListener implements Listener {
 
         plugin.getRaidManager().onPlayerDeath(player);
         plugin.getMinigameManager().onPlayerDeath(player);
+        clearMovementState(player.getUniqueId());
     }
 
     @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         plugin.getRaidManager().onPlayerQuit(event.getPlayer());
         plugin.getMinigameManager().onPlayerQuit(event.getPlayer());
+        clearMovementState(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -207,5 +209,10 @@ public class PlayerListener implements Listener {
             // 必要に応じて、インベントリを更新してクライアントと同期を強制する
             player.updateInventory();
         }
+    }
+
+    private void clearMovementState(UUID uuid) {
+        walkDistanceMap.remove(uuid);
+        continuousNoiseTicks.remove(uuid);
     }
 }

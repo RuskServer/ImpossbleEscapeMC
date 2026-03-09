@@ -78,7 +78,7 @@ public class RaidManager {
     }
 
     public void stopAllRaids() {
-        for (RaidInstance raid : activeRaids.values()) {
+        for (RaidInstance raid : new ArrayList<>(activeRaids.values())) {
             raid.stop();
         }
         activeRaids.clear();
@@ -155,7 +155,7 @@ public class RaidManager {
                 if (map != null) {
                     maps.put(map.getMapId(), map);
                 }
-            } catch (IOException e) {
+            } catch (IOException | com.google.gson.JsonSyntaxException e) {
                 plugin.getLogger().warning("Failed to load raid map from: " + file.getName());
                 e.printStackTrace();
             }
