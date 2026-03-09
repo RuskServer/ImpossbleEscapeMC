@@ -70,8 +70,6 @@ public class RaidSelectionGUI implements Listener {
 
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            String mapId = ((Component) meta.displayName()).examinableName(); // Simple way to get text
-            // More robust way to get display name text
             String plainName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(meta.displayName());
             
             manager.startRaid(plainName, Collections.singletonList(player));
