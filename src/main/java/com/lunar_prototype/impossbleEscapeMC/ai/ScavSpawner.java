@@ -3,10 +3,13 @@ package com.lunar_prototype.impossbleEscapeMC.ai;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
+import me.libraryaddict.disguise.DisguiseAPI;
+import me.libraryaddict.disguise.disguisetypes.Disguise;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -41,6 +44,12 @@ public class ScavSpawner implements Listener {
 
         // タルコフ風の装備設定 (必要に応じてItemRegistryから取得)
         setupScavEquipment(scav);
+
+        // 例: プレイヤー風に偽装（名前は"SCAV"）
+        Disguise disguise = DisguiseAPI.getCustomDisguise("SCAV");
+
+        // 適用
+        DisguiseAPI.disguiseToAll(scav, disguise);
 
         // コントローラーを生成して登録
         ScavController controller = new ScavController(scav, gunListener);
@@ -111,7 +120,19 @@ public class ScavSpawner implements Listener {
 
     @EventHandler
     public void onScavDeath(EntityDeathEvent event) {
-        UUID uuid = event.getEntity().getUniqueId();
+        LivingEntity victim = event.getEntity();
+        
+        // --- 1. SCAVが誰かを殺したかチェック ---
+        LivingEntity killer = victim.getKiller();
+        if (killer != null) {
+            ScavController killerController = controllers.get(killer.getUniqueId());
+            if (killerController != null) {
+                killerController.onKill(victim);
+            }
+        }
+
+        // --- 2. 死んだのがSCAV自身かチェック ---
+        UUID uuid = victim.getUniqueId();
         if (controllers.containsKey(uuid)) {
             ScavController controller = controllers.remove(uuid);
             if (controller != null) {

@@ -71,6 +71,12 @@
       <version>2.11.2</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>me.libraryaddict.disguises</groupId>
+      <artifactId>libsdisguises</artifactId>
+      <version>11.0.14</version>
+      <scope>provided</scope>
+    </dependency>
   </dependencies>
   <properties>
     <java.version>21</java.version>
