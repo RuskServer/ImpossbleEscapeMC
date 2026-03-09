@@ -103,7 +103,14 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
         if (args.length >= 5) {
             try {
                 radius = Double.parseDouble(args[4]);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+                player.sendMessage(Component.text("Radius must be a number greater than 0.", NamedTextColor.RED));
+                return;
+            }
+            if (radius <= 0) {
+                player.sendMessage(Component.text("Radius must be greater than 0.", NamedTextColor.RED));
+                return;
+            }
         }
         map.addExtractionPoint(player.getLocation(), name, radius);
         manager.saveMap(map);

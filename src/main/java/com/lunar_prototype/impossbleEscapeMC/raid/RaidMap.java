@@ -30,8 +30,20 @@ public class RaidMap {
         this.worldName = worldName;
     }
 
+    private void ensureWorld(Location loc) {
+        if (loc.getWorld() == null) {
+            throw new IllegalArgumentException("Location world must not be null");
+        }
+        String currentWorldName = loc.getWorld().getName();
+        if (worldName == null) {
+            worldName = currentWorldName;
+        } else if (!worldName.equals(currentWorldName)) {
+            throw new IllegalArgumentException("RaidMap cannot contain points from multiple worlds");
+        }
+    }
+
     public void addSpawnPoint(Location loc) {
-        this.worldName = loc.getWorld().getName();
+        ensureWorld(loc);
         spawnPoints.add(locationToCoords(loc));
     }
 
@@ -47,7 +59,7 @@ public class RaidMap {
     }
 
     public void addExtractionPoint(Location loc, String name, double radius) {
-        this.worldName = loc.getWorld().getName();
+        ensureWorld(loc);
         extractionPoints.add(new ExtractionPoint(name, locationToCoords(loc), radius));
     }
 
@@ -56,7 +68,7 @@ public class RaidMap {
     }
 
     public void addScavSpawnPoint(Location loc, boolean permanent) {
-        this.worldName = loc.getWorld().getName();
+        ensureWorld(loc);
         scavSpawnPoints.add(new ScavSpawnPoint(locationToCoords(loc), permanent));
     }
 

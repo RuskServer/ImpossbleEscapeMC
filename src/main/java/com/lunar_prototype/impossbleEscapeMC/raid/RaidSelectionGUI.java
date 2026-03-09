@@ -27,7 +27,10 @@ public class RaidSelectionGUI implements Listener {
 
     public void open(Player player) {
         List<String> mapIds = manager.getMapIds();
-        int size = ((mapIds.size() / 9) + 1) * 9;
+        int size = Math.max(9, ((mapIds.size() + 8) / 9) * 9);
+        if (size > 54) {
+            throw new IllegalStateException("RaidSelectionGUI requires pagination for more than 54 maps");
+        }
         Inventory inv = Bukkit.createInventory(null, size, Component.text(title));
 
         for (String id : mapIds) {
@@ -61,6 +64,7 @@ public class RaidSelectionGUI implements Listener {
         event.setCancelled(true);
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getClickedInventory() == null || !event.getClickedInventory().equals(event.getView().getTopInventory())) return;
         ItemStack item = event.getCurrentItem();
         if (item == null || item.getType() == Material.AIR) return;
 

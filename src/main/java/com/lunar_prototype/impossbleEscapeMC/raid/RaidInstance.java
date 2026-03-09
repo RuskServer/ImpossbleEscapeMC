@@ -44,6 +44,9 @@ public class RaidInstance {
 
     private void assignExtractions() {
         List<RaidMap.ExtractionPoint> all = new ArrayList<>(map.getExtractionPoints());
+        if (all.isEmpty()) {
+            throw new IllegalStateException("Raid map '" + map.getMapId() + "' has no extraction points");
+        }
         Collections.shuffle(all);
         int count = Math.max(1, all.size() / 2);
         for (int i = 0; i < count; i++) {
@@ -197,6 +200,7 @@ public class RaidInstance {
 
     public void handleMIA() {
         for (UUID uuid : new HashSet<>(players)) {
+            extractionTimer.remove(uuid);
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 p.sendMessage(Component.text("脱出に失敗しました (MIA)。", NamedTextColor.RED));
@@ -264,7 +268,9 @@ public class RaidInstance {
             boolean inZone = false;
             for (RaidMap.ExtractionPoint ep : activeExtractions) {
                 Location epLoc = ep.getLocation(map.getWorldName());
-                if (epLoc != null && p.getLocation().distance(epLoc) <= ep.getRadius()) {
+                if (epLoc != null
+                        && p.getWorld().equals(epLoc.getWorld())
+                        && p.getLocation().distance(epLoc) <= ep.getRadius()) {
                     inZone = true;
                     handleExtraction(p, ep);
                     break;
@@ -288,6 +294,7 @@ public class RaidInstance {
             // カウントダウン音 (1秒ごと)
             p.playSound(p.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.8f, 1.5f);
         } else {
+            extractionTimer.remove(p.getUniqueId());
             p.sendMessage(Component.text("脱出に成功しました！", NamedTextColor.GREEN));
             p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
             
@@ -328,7 +335,7 @@ public class RaidInstance {
 
     public void onPlayerDeath(Player player) {
         if (!players.contains(player.getUniqueId())) return;
-        
+        extractionTimer.remove(player.getUniqueId());
         player.sendMessage(Component.text("死亡しました。レイド失敗です。", NamedTextColor.RED));
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
@@ -340,7 +347,8 @@ public class RaidInstance {
 
     public void onPlayerQuit(Player player) {
         if (!players.contains(player.getUniqueId())) return;
-        
+
+        extractionTimer.remove(player.getUniqueId());
         players.remove(player.getUniqueId());
         if (players.isEmpty()) {
             endRaid();
