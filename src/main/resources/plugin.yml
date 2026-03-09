@@ -24,3 +24,6 @@ commands:
   raid:
     description: レイドシステム管理・出撃コマンド
     permission: op
+  party:
+    description: パーティーシステムコマンド
+    usage: /party <subcommand>

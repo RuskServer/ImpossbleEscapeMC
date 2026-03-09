@@ -72,7 +72,27 @@ public class RaidSelectionGUI implements Listener {
         if (meta != null) {
             String plainName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(meta.displayName());
             
-            manager.startRaid(plainName, Collections.singletonList(player));
+            ImpossbleEscapeMC plugin = ImpossbleEscapeMC.getInstance();
+            com.lunar_prototype.impossbleEscapeMC.party.Party party = plugin.getPartyManager().getParty(player.getUniqueId());
+            
+            List<Player> participants;
+            if (party != null) {
+                if (!party.isLeader(player.getUniqueId())) {
+                    player.sendMessage(Component.text("リーダーのみがレイドを開始できます。", NamedTextColor.RED));
+                    return;
+                }
+                participants = new ArrayList<>();
+                for (java.util.UUID uuid : party.getMembers()) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p != null && p.isOnline()) {
+                        participants.add(p);
+                    }
+                }
+            } else {
+                participants = Collections.singletonList(player);
+            }
+
+            manager.startRaid(plainName, participants);
             player.closeInventory();
         }
     }
