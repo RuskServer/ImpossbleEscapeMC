@@ -504,7 +504,7 @@ public class GunListener implements Listener {
             public void run() {
                 if (player.isValid()) {
                     float pitch = 1.0f + (float) ((Math.random() - 0.5) * 0.1);
-                    player.getWorld().playSound(player.getLocation(), "minecraft:gunshell", 5.0f, pitch);
+                    player.getWorld().playSound(player.getLocation(), "minecraft:custom.gunshell", 5.0f, pitch);
                 }
             }
         }.runTaskLater(plugin, 20);
@@ -549,7 +549,7 @@ public class GunListener implements Listener {
             public void run() {
                 if (shooter.isValid()) {
                     float pitch = 1.0f + (float) ((Math.random() - 0.5) * 0.1);
-                    shooter.getWorld().playSound(shooter.getLocation(), "minecraft:gunshell", 5.0f, pitch);
+                    shooter.getWorld().playSound(shooter.getLocation(), "minecraft:custom.gunshell", 5.0f, pitch);
                 }
             }
         }.runTaskLater(plugin, 20);
