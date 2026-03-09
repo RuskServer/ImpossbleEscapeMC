@@ -21,9 +21,14 @@ import java.util.Map;
 import java.util.UUID;
 
 public class PlayerListener implements Listener {
+    private final com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin;
     private final Map<UUID, Double> walkDistanceMap = new HashMap<>();
     private final Map<UUID, Integer> continuousNoiseTicks = new HashMap<>();
     private final java.util.Random random = new java.util.Random();
+
+    public PlayerListener(com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin) {
+        this.plugin = plugin;
+    }
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
@@ -126,6 +131,17 @@ public class PlayerListener implements Listener {
                 org.bukkit.SoundCategory.PLAYERS,
                 1.0f,
                 1.0f);
+
+        plugin.getRaidManager().onPlayerDeath(player);
+        plugin.getMinigameManager().onPlayerDeath(player);
+        clearMovementState(player.getUniqueId());
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        plugin.getRaidManager().onPlayerQuit(event.getPlayer());
+        plugin.getMinigameManager().onPlayerQuit(event.getPlayer());
+        clearMovementState(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -193,5 +209,10 @@ public class PlayerListener implements Listener {
             // 必要に応じて、インベントリを更新してクライアントと同期を強制する
             player.updateInventory();
         }
+    }
+
+    private void clearMovementState(UUID uuid) {
+        walkDistanceMap.remove(uuid);
+        continuousNoiseTicks.remove(uuid);
     }
 }
