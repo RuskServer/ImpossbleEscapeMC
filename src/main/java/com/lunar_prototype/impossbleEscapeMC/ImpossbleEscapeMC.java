@@ -37,6 +37,15 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private GunListener gunListener;
     private ResourcePackListener resourcePackListener;
     private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
+    private com.lunar_prototype.impossbleEscapeMC.raid.RaidManager raidManager;
+
+    public com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager getMinigameManager() {
+        return minigameManager;
+    }
+
+    public com.lunar_prototype.impossbleEscapeMC.raid.RaidManager getRaidManager() {
+        return raidManager;
+    }
 
     @Override
     public void onEnable() {
@@ -50,13 +59,15 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         scavSpawner = new ScavSpawner(this, gunListener);
         resourcePackListener = new ResourcePackListener(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
+        raidManager = new com.lunar_prototype.impossbleEscapeMC.raid.RaidManager(this);
 
         getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(resourcePackListener, this);
-        getServer().getPluginManager().registerEvents(new PlayerListener(), this);
+        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
         getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.raid.RaidSelectionGUI(raidManager), this);
 
         getCommand("getitem").setExecutor(new GetItemCommand());
         getCommand("scavspawn").setExecutor(new ScavCommand(this));
@@ -65,6 +76,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand mgCmd = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager);
         getCommand("mg").setExecutor(mgCmd);
         getCommand("mg").setTabCompleter(mgCmd);
+
+        com.lunar_prototype.impossbleEscapeMC.raid.RaidCommand raidCmd = new com.lunar_prototype.impossbleEscapeMC.raid.RaidCommand(raidManager);
+        getCommand("raid").setExecutor(raidCmd);
+        getCommand("raid").setTabCompleter(raidCmd);
 
         CrossbowTask.start(this);
 
@@ -106,6 +121,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         }
         if (minigameManager != null) {
             minigameManager.stopGame();
+        }
+        if (raidManager != null) {
+            raidManager.stopAllRaids();
         }
     }
 }
