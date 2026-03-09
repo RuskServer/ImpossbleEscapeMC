@@ -9,11 +9,21 @@ public class VirtualScav {
     private final boolean permanent;
     private UUID entityId;
     private boolean isSpawned;
+    private boolean dead;
 
     public VirtualScav(Location spawnLocation, boolean permanent) {
         this.spawnLocation = spawnLocation;
         this.permanent = permanent;
         this.isSpawned = false;
+        this.dead = false;
+    }
+
+    public boolean isDead() {
+        return dead;
+    }
+
+    public void setDead(boolean dead) {
+        this.dead = dead;
     }
 
     public boolean isPermanent() {
