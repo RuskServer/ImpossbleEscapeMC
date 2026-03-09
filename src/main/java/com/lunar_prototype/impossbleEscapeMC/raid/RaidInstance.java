@@ -151,6 +151,13 @@ public class RaidInstance {
                 BossBar.Color.GREEN,
                 BossBar.Overlay.PROGRESS
         );
+
+        for (UUID uuid : players) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                player.showBossBar(bossBar);
+            }
+        }
         
         task = new BukkitRunnable() {
             @Override

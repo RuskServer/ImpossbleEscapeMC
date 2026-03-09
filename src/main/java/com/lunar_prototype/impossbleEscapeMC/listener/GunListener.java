@@ -498,6 +498,17 @@ public class GunListener implements Listener {
             player.getWorld().playSound(player.getLocation(), soundName, 8.0f, 1.8f);
         }
 
+        // 1秒後に薬莢の落ちる音を再生
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isValid()) {
+                    float pitch = 1.0f + (float) ((Math.random() - 0.5) * 0.1);
+                    player.getWorld().playSound(player.getLocation(), "minecraft:gunshell", 5.0f, pitch);
+                }
+            }
+        }.runTaskLater(plugin, 20);
+
         // --- 射撃後の状態遷移 (オートコッキングなど) ---
         if (isBoltAction) {
             // ボルトアクションのオートコッキング
@@ -531,6 +542,17 @@ public class GunListener implements Listener {
 
         // 2. 弾丸の生成 (inaccuracyをコンストラクタで渡すように変更)
         new BulletTask(shooter, stats.damage, ammoClass, inaccuracy).start();
+
+        // 1秒後に薬莢の落ちる音を再生 (AI用)
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (shooter.isValid()) {
+                    float pitch = 1.0f + (float) ((Math.random() - 0.5) * 0.1);
+                    shooter.getWorld().playSound(shooter.getLocation(), "minecraft:gunshell", 5.0f, pitch);
+                }
+            }
+        }.runTaskLater(plugin, 20);
     }
 
     /**
