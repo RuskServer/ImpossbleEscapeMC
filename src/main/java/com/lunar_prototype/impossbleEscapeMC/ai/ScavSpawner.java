@@ -38,8 +38,9 @@ public class ScavSpawner implements Listener {
 
     /**
      * 指定した座標にAI SCAVをスポーンさせる
+     * @return スポーンしたエンティティのUUID
      */
-    public void spawnScav(Location loc) {
+    public UUID spawnScav(Location loc) {
         Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.SKELETON); // または独自のEntityType
 
         // タルコフ風の装備設定 (必要に応じてItemRegistryから取得)
@@ -56,6 +57,7 @@ public class ScavSpawner implements Listener {
         controllers.put(scav.getUniqueId(), controller);
 
         Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId());
+        return scav.getUniqueId();
     }
 
     private void setupScavEquipment(Mob scav) {
@@ -89,6 +91,19 @@ public class ScavSpawner implements Listener {
         // 防具のドロップ率も低めに設定
         inv.setHelmetDropChance(0.05f);
         inv.setChestplateDropChance(0.05f);
+    }
+
+    /**
+     * 指定したUUIDのSCAVを削除する (非アクティブ化用)
+     */
+    public void removeScav(UUID uuid) {
+        ScavController controller = controllers.remove(uuid);
+        if (controller != null) {
+            if (controller.getScav() != null && !controller.getScav().isDead()) {
+                controller.getScav().remove();
+            }
+            controller.getBrain().terminate();
+        }
     }
 
     /**
