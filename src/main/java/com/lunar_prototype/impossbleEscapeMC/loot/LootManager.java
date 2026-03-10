@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
@@ -64,9 +65,12 @@ public class LootManager {
         if (config.contains("crates")) {
             ConfigurationSection cratesSection = config.getConfigurationSection("crates");
             for (String crateId : cratesSection.getKeys(false)) {
-                ConfigurationSection section = cratesSection.getConfigurationSection(crateId);
+                ConfigurationSection section = cratesSection.getKeys(false).contains(crateId) ? cratesSection.getConfigurationSection(crateId) : null;
+                if (section == null) continue;
+
                 LootCrate crate = new LootCrate();
                 crate.id = crateId;
+                crate.color = section.getString("color", "WHITE").toUpperCase();
                 
                 ConfigurationSection weightsSection = section.getConfigurationSection("tables");
                 if (weightsSection != null) {
@@ -101,6 +105,19 @@ public class LootManager {
         LootTable tableToRoll = null;
 
         if (crate != null) {
+            // Check and update shulker box color if needed
+            String colorName = crate.color + "_SHULKER_BOX";
+            Material shulkerMat = Material.matchMaterial(colorName);
+            if (shulkerMat != null && container.getType() != shulkerMat) {
+                Location loc = container.getLocation();
+                loc.getBlock().setType(shulkerMat);
+                if (loc.getBlock().getState() instanceof Container newContainer) {
+                    // Update metadata on new block state
+                    newContainer.getPersistentDataContainer().set(PDCKeys.LOOT_TABLE_ID, PDCKeys.STRING, crateId);
+                    newContainer.update();
+                    container = newContainer;
+                }
+            }
             // Select a table from crate weights
             tableToRoll = selectWeightedTable(crate);
         } else {
@@ -119,11 +136,17 @@ public class LootManager {
         container.update();
 
         List<ItemStack> items = LootRoller.roll(tableToRoll);
-        Collections.shuffle(items);
+        
+        // Randomize positions in the inventory
+        List<Integer> slots = new ArrayList<>();
+        for (int i = 0; i < inv.getSize(); i++) slots.add(i);
+        Collections.shuffle(slots);
 
         for (int i = 0; i < Math.min(items.size(), inv.getSize()); i++) {
-            inv.setItem(i, items.get(i));
+            inv.setItem(slots.get(i), items.get(i));
         }
+        container.update();
+        plugin.getLogger().info("Refilled container " + crateId + " with " + items.size() + " items.");
     }
 
     private LootTable selectWeightedTable(LootCrate crate) {
@@ -139,6 +162,10 @@ public class LootManager {
 
     public List<String> getCrateIds() {
         return new ArrayList<>(lootCrates.keySet());
+    }
+
+    public LootCrate getCrate(String id) {
+        return lootCrates.get(id);
     }
     
     public List<String> getTableIds() {

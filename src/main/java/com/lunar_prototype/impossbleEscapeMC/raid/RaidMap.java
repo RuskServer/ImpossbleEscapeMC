@@ -13,7 +13,7 @@ public class RaidMap {
     private final List<double[]> spawnPoints = new ArrayList<>();
     private final List<ExtractionPoint> extractionPoints = new ArrayList<>();
     private final List<ScavSpawnPoint> scavSpawnPoints = new ArrayList<>();
-    private final List<LootContainer> lootContainers = new ArrayList<>();
+    private List<LootContainer> lootContainers = new ArrayList<>(); // Changed to non-final for safety
 
     public RaidMap(String mapId) {
         this.mapId = mapId;
@@ -79,10 +79,16 @@ public class RaidMap {
 
     public void addLootContainer(Location loc, String tableId) {
         ensureWorld(loc);
+        if (lootContainers == null) {
+            lootContainers = new ArrayList<>();
+        }
         lootContainers.add(new LootContainer(locationToCoords(loc), tableId));
     }
 
     public List<LootContainer> getLootContainers() {
+        if (lootContainers == null) {
+            lootContainers = new ArrayList<>();
+        }
         return lootContainers;
     }
 
@@ -134,6 +140,10 @@ public class RaidMap {
         public boolean isPermanent() {
             return permanent;
         }
+    }
+
+    public static class LootCrateReference {
+        // Alias for compatibility if needed, but we use LootContainer class name for now
     }
 
     public static class LootContainer {

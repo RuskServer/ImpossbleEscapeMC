@@ -155,6 +155,10 @@ public class ScavSpawner implements Listener {
                 Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
             }
             plugin.getRaidManager().onScavDeath(uuid);
+
+            // Spawn Corpse and cancel vanilla drops
+            event.getDrops().clear();
+            plugin.getCorpseManager().spawnCorpse(victim);
         }
     }
 
