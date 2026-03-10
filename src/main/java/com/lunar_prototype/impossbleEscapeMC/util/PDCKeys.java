@@ -23,6 +23,7 @@ public class PDCKeys {
     public static final NamespacedKey ATTACHMENTS = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "attachments");
     public static final NamespacedKey ARMOR_CLASS = new NamespacedKey(ImpossbleEscapeMC.getInstance(),
             "armor_class_int");
+    public static final NamespacedKey LOOT_TABLE_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "loot_table_id");
 
     public static NamespacedKey affix(String stat) {
         return new NamespacedKey(ImpossbleEscapeMC.getInstance(), "affix_" + stat);

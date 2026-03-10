@@ -13,6 +13,7 @@ public class RaidMap {
     private final List<double[]> spawnPoints = new ArrayList<>();
     private final List<ExtractionPoint> extractionPoints = new ArrayList<>();
     private final List<ScavSpawnPoint> scavSpawnPoints = new ArrayList<>();
+    private final List<LootContainer> lootContainers = new ArrayList<>();
 
     public RaidMap(String mapId) {
         this.mapId = mapId;
@@ -76,6 +77,15 @@ public class RaidMap {
         return scavSpawnPoints;
     }
 
+    public void addLootContainer(Location loc, String tableId) {
+        ensureWorld(loc);
+        lootContainers.add(new LootContainer(locationToCoords(loc), tableId));
+    }
+
+    public List<LootContainer> getLootContainers() {
+        return lootContainers;
+    }
+
     private double[] locationToCoords(Location loc) {
         return new double[]{loc.getX(), loc.getY(), loc.getZ(), loc.getYaw(), loc.getPitch()};
     }
@@ -123,6 +133,26 @@ public class RaidMap {
 
         public boolean isPermanent() {
             return permanent;
+        }
+    }
+
+    public static class LootContainer {
+        private final double[] coords;
+        private final String tableId;
+
+        public LootContainer(double[] coords, String tableId) {
+            this.coords = coords;
+            this.tableId = tableId;
+        }
+
+        public Location getLocation(String worldName) {
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) return null;
+            return new Location(world, coords[0], coords[1], coords[2]);
+        }
+
+        public String getTableId() {
+            return tableId;
         }
     }
 }
