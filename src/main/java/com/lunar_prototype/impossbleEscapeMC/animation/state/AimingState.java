@@ -10,7 +10,8 @@ public class AimingState implements WeaponState {
 
     @Override
     public void onEnter(WeaponContext ctx) {
-        // Play aim sound if needed
+        // Play aim sound
+        ctx.getPlayer().playSound(ctx.getPlayer().getLocation(), "minecraft:scope.in", 1.0f, 1.0f);
     }
 
     @Override
@@ -62,6 +63,9 @@ public class AimingState implements WeaponState {
         float originalWalkSpeed = player.getWalkSpeed() / 2.0f;
         sendAbilitiesPacket(player, originalWalkSpeed);
         ctx.setLastSentWalkSpeed(-1.0f);
+
+        // Play exit sound
+        player.playSound(player.getLocation(), "minecraft:scope.out", 1.0f, 1.0f);
     }
 
     private void sendAbilitiesPacket(Player player, float walkSpeed) {
