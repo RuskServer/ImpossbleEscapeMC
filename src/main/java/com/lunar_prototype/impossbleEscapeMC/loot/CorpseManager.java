@@ -2,6 +2,8 @@ package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import io.papermc.paper.datacomponent.item.ResolvableProfile;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -15,6 +17,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.profile.PlayerTextures;
 import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
 import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
@@ -37,8 +40,10 @@ public class CorpseManager {
         Location loc = victim.getLocation();
         Mannequin mannequin = (Mannequin) loc.getWorld().spawnEntity(loc, EntityType.MANNEQUIN);
         
-        mannequin.setCustomNameVisible(true);
+        mannequin.setCustomNameVisible(false);
         mannequin.customName(Component.text("SCAV の死体", NamedTextColor.GRAY));
+
+        mannequin.setProfile(ResolvableProfile.resolvableProfile().skinPatch(skinPatchBuilder -> skinPatchBuilder.model(PlayerTextures.SkinModel.CLASSIC).body(Key.key("minecraft","scav"))).build());
         
         // Posing (Simple "lying down" look)
         // Mannequin poses are rotations in EulerAngle
