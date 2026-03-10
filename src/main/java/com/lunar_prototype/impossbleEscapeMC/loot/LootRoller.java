@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import org.bukkit.inventory.ItemStack;
 
@@ -32,6 +33,8 @@ public class LootRoller {
                     }
                     item.setAmount(amount);
                     results.add(item);
+                } else {
+                    ImpossbleEscapeMC.getInstance().getLogger().warning("Loot Error: Item ID '" + entry.itemId + "' not found in ItemRegistry!");
                 }
             }
         }

@@ -45,20 +45,23 @@ tables:
 
 # Crates Definition
 # Crate ID is used in /loot container set <map> <crateId>
-# Selecting a table based on weights.
+# color: SHULKER_BOX color (WHITE, ORANGE, MAGENTA, LIGHT_BLUE, YELLOW, LIME, PINK, GRAY, LIGHT_GRAY, CYAN, PURPLE, BLUE, BROWN, GREEN, RED, BLACK)
 crates:
   standard_crate:
+    color: "GRAY"
     tables:
       common_pool: 80.0
       rare_pool: 20.0
 
   secret_crate:
+    color: "LIME"
     tables:
       common_pool: 60.0
       rare_pool: 35.0
       legendary_pool: 5.0
 
   weapon_box:
+    color: "ORANGE"
     tables:
       rare_pool: 90.0
       legendary_pool: 10.0
