@@ -88,14 +88,20 @@ public class LootManager {
         for (RaidMap map : plugin.getRaidManager().getMaps().values()) {
             String worldName = map.getWorldName();
             if (worldName == null) continue;
+            org.bukkit.World world = Bukkit.getWorld(worldName);
+            if (world == null) continue;
 
             for (RaidMap.LootContainer lc : map.getLootContainers()) {
                 Location loc = lc.getLocation(worldName);
                 if (loc == null) continue;
-                Block block = loc.getBlock();
-                if (block.getState() instanceof Container container) {
-                    refillContainer(container, lc.getTableId());
-                }
+
+                // チャンクを非同期でロードし、完了後に補充を実行
+                world.getChunkAtAsync(loc).thenAccept(chunk -> {
+                    Block block = loc.getBlock();
+                    if (block.getState() instanceof Container container) {
+                        refillContainer(container, lc.getTableId());
+                    }
+                });
             }
         }
     }
