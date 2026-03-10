@@ -40,6 +40,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.raid.RaidManager raidManager;
     private com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootManager lootManager;
+    private com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI searchGUI;
 
     public com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager getMinigameManager() {
         return minigameManager;
@@ -57,6 +58,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         return lootManager;
     }
 
+    public com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI getSearchGUI() {
+        return searchGUI;
+    }
+
     @Override
     public void onEnable() {
         // Plugin startup logic
@@ -72,6 +77,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         raidManager = new com.lunar_prototype.impossbleEscapeMC.raid.RaidManager(this);
         partyManager = new com.lunar_prototype.impossbleEscapeMC.party.PartyManager(this);
         lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
+        searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
 
         getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(resourcePackListener, this);
@@ -80,6 +86,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.raid.RaidSelectionGUI(raidManager), this);
+        getServer().getPluginManager().registerEvents(searchGUI, this);
 
         getCommand("getitem").setExecutor(new GetItemCommand());
         getCommand("scavspawn").setExecutor(new ScavCommand(this));

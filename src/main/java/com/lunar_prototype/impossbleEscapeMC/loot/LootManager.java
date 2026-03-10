@@ -1,74 +1,86 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class LootManager {
     private final ImpossbleEscapeMC plugin;
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Map<String, LootTable> lootTables = new HashMap<>();
-    private final File lootFolder;
+    private final Map<String, LootCrate> lootCrates = new HashMap<>();
+    private final File lootFile;
 
     public LootManager(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
-        this.lootFolder = new File(plugin.getDataFolder(), "loot");
-        if (!lootFolder.exists()) {
-            lootFolder.mkdirs();
+        this.lootFile = new File(plugin.getDataFolder(), "loot.yml");
+        if (!lootFile.exists()) {
+            plugin.saveResource("loot.yml", false);
         }
-        loadLootTables();
+        loadAll();
     }
 
-    public void loadLootTables() {
+    public void loadAll() {
         lootTables.clear();
-        File[] files = lootFolder.listFiles((dir, name) -> name.endsWith(".json"));
-        if (files == null) return;
+        lootCrates.clear();
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(lootFile);
 
-        for (File file : files) {
-            try (FileReader reader = new FileReader(file)) {
-                LootTable table = gson.fromJson(reader, LootTable.class);
-                lootTables.put(table.id, table);
-            } catch (IOException e) {
-                plugin.getLogger().warning("Failed to load loot table: " + file.getName());
+        // Load Tables
+        if (config.contains("tables")) {
+            ConfigurationSection tablesSection = config.getConfigurationSection("tables");
+            for (String tableId : tablesSection.getKeys(false)) {
+                ConfigurationSection section = tablesSection.getConfigurationSection(tableId);
+                LootTable table = new LootTable();
+                table.id = tableId;
+                table.minItems = section.getInt("min_items", 1);
+                table.maxItems = section.getInt("max_items", 5);
+                
+                List<Map<?, ?>> itemList = section.getMapList("items");
+                for (Map<?, ?> itemMap : itemList) {
+                    LootTable.LootEntry entry = new LootTable.LootEntry();
+                    entry.itemId = (String) itemMap.get("item");
+                    entry.chance = ((Number) itemMap.get("chance")).doubleValue();
+                    entry.minAmount = itemMap.containsKey("min") ? ((Number) itemMap.get("min")).intValue() : 1;
+                    entry.maxAmount = itemMap.containsKey("max") ? ((Number) itemMap.get("max")).intValue() : 1;
+                    table.items.add(entry);
+                }
+                lootTables.put(tableId, table);
             }
         }
-        plugin.getLogger().info("Loaded " + lootTables.size() + " loot tables.");
-    }
 
-    public void saveLootTable(LootTable table) {
-        File file = new File(lootFolder, table.id + ".json");
-        try (FileWriter writer = new FileWriter(file)) {
-            gson.toJson(table, writer);
-            lootTables.put(table.id, table);
-        } catch (IOException e) {
-            plugin.getLogger().warning("Failed to save loot table: " + table.id);
+        // Load Crates
+        if (config.contains("crates")) {
+            ConfigurationSection cratesSection = config.getConfigurationSection("crates");
+            for (String crateId : cratesSection.getKeys(false)) {
+                ConfigurationSection section = cratesSection.getConfigurationSection(crateId);
+                LootCrate crate = new LootCrate();
+                crate.id = crateId;
+                
+                ConfigurationSection weightsSection = section.getConfigurationSection("tables");
+                if (weightsSection != null) {
+                    for (String tId : weightsSection.getKeys(false)) {
+                        crate.tableWeights.put(tId, weightsSection.getDouble(tId));
+                    }
+                }
+                lootCrates.put(crateId, crate);
+            }
         }
-    }
-
-    public LootTable getLootTable(String id) {
-        return lootTables.get(id);
+        plugin.getLogger().info("Loaded " + lootTables.size() + " tables and " + lootCrates.size() + " crates from loot.yml.");
     }
 
     public void refillAllContainers() {
-        plugin.getLogger().info("Refilling all loot containers...");
         for (RaidMap map : plugin.getRaidManager().getMaps().values()) {
             String worldName = map.getWorldName();
             if (worldName == null) continue;
@@ -76,7 +88,6 @@ public class LootManager {
             for (RaidMap.LootContainer lc : map.getLootContainers()) {
                 Location loc = lc.getLocation(worldName);
                 if (loc == null) continue;
-
                 Block block = loc.getBlock();
                 if (block.getState() instanceof Container container) {
                     refillContainer(container, lc.getTableId());
@@ -85,14 +96,29 @@ public class LootManager {
         }
     }
 
-    public void refillContainer(Container container, String tableId) {
-        LootTable table = lootTables.get(tableId);
-        if (table == null) return;
+    public void refillContainer(Container container, String crateId) {
+        LootCrate crate = lootCrates.get(crateId);
+        LootTable tableToRoll = null;
+
+        if (crate != null) {
+            // Select a table from crate weights
+            tableToRoll = selectWeightedTable(crate);
+        } else {
+            // Fallback to table if crate not found (legacy compatibility)
+            tableToRoll = lootTables.get(crateId);
+        }
+
+        if (tableToRoll == null) return;
 
         Inventory inv = container.getInventory();
         inv.clear();
 
-        List<ItemStack> items = LootRoller.roll(table);
+        // Reset searched slots
+        NamespacedKey searchedKey = new NamespacedKey(plugin, "searched_slots");
+        container.getPersistentDataContainer().remove(searchedKey);
+        container.update();
+
+        List<ItemStack> items = LootRoller.roll(tableToRoll);
         Collections.shuffle(items);
 
         for (int i = 0; i < Math.min(items.size(), inv.getSize()); i++) {
@@ -100,14 +126,22 @@ public class LootManager {
         }
     }
 
-    public void createLootTable(String id) {
-        if (lootTables.containsKey(id)) return;
-        LootTable table = new LootTable();
-        table.id = id;
-        saveLootTable(table);
+    private LootTable selectWeightedTable(LootCrate crate) {
+        double totalWeight = crate.tableWeights.values().stream().mapToDouble(d -> d).sum();
+        double r = Math.random() * totalWeight;
+        double cur = 0;
+        for (Map.Entry<String, Double> entry : crate.tableWeights.entrySet()) {
+            cur += entry.getValue();
+            if (r <= cur) return lootTables.get(entry.getKey());
+        }
+        return null;
     }
 
-    public List<String> getLootTableIds() {
-        return lootTables.keySet().stream().toList();
+    public List<String> getCrateIds() {
+        return new ArrayList<>(lootCrates.keySet());
+    }
+    
+    public List<String> getTableIds() {
+        return new ArrayList<>(lootTables.keySet());
     }
 }

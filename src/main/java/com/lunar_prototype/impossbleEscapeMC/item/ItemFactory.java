@@ -45,6 +45,10 @@ public class ItemFactory {
             String rarityColor = getRarityColor(attDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', attDef.displayName));
 
+            if (attDef.customModelData != 0) {
+                meta.setCustomModelData(attDef.customModelData);
+            }
+
             List<String> lore = new ArrayList<>();
             lore.add("§7Type: §fATTACHMENT");
             lore.add("§7Slot: §e" + (attDef.slot != null ? attDef.slot.name() : "UNKNOWN"));
@@ -65,6 +69,9 @@ public class ItemFactory {
 
             String rarityColor = getRarityColor(ammoDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', ammoDef.displayName));
+            if (ammoDef.customModelData != 0) {
+                meta.setCustomModelData(ammoDef.customModelData);
+            }
         } else {
             Material mat = Material.matchMaterial(def.material);
             if (mat == null)
@@ -72,6 +79,10 @@ public class ItemFactory {
 
             item = new ItemStack(mat);
             meta = item.getItemMeta();
+
+            if (def.customModelData != 0) {
+                meta.setCustomModelData(def.customModelData);
+            }
 
             // クロスボウの場合、最初からチャーチ済みにする
             if (mat == Material.CROSSBOW && meta instanceof org.bukkit.inventory.meta.CrossbowMeta crossbowMeta) {
@@ -88,7 +99,9 @@ public class ItemFactory {
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
                 // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
-                meta.setCustomModelData(def.gunStats.customModelData);
+                if (def.gunStats.customModelData != 0) {
+                    meta.setCustomModelData(def.gunStats.customModelData);
+                }
                 pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, def.gunStats.magSize);
 
                 AmmoDefinition defaultAmmo = ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
@@ -114,7 +127,9 @@ public class ItemFactory {
 
             // --- Armor Configuration ---
             if (def.armorStats != null) {
-                meta.setCustomModelData(def.armorStats.customModelData);
+                if (def.armorStats.customModelData != 0) {
+                    meta.setCustomModelData(def.armorStats.customModelData);
+                }
                 pdc.set(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, def.armorStats.armorClass);
 
                 // EquippableComponent check (for 1.20.6+)

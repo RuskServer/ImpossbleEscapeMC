@@ -51,6 +51,7 @@ public class ItemRegistry {
                 ammo.displayName = section.getString("displayName", key);
                 ammo.material = section.getString("material", "IRON_NUGGET");
                 ammo.rarity = section.getInt("rarity", 1);
+                ammo.customModelData = section.getInt("customModelData", 0);
                 AMMO_MAP.put(key, ammo);
             }
         }
@@ -74,6 +75,7 @@ public class ItemRegistry {
                     att.material = section.getString("material", "IRON_NUGGET");
                     att.slot = AttachmentSlot.fromName(section.getString("slot", "SIGHT"));
                     att.modelId = section.getString("modelId", key);
+                    att.customModelData = section.getInt("customModelData", 0);
                     att.rarity = section.getInt("rarity", 1);
                     ATTACHMENT_MAP.put(key, att);
                 }
@@ -96,6 +98,7 @@ public class ItemRegistry {
                 def.type = section.getString("type");
                 def.material = section.getString("material");
                 def.rarity = section.getInt("rarity");
+                def.customModelData = section.getInt("customModelData", 0);
                 def.maxDurability = section.getInt("maxDurability");
                 def.displayName = section.getString("displayName", key);
 
