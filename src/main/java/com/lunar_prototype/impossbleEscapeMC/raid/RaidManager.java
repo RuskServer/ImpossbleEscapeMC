@@ -95,9 +95,18 @@ public class RaidManager {
         for (RaidInstance raid : activeRaids.values()) {
             if (raid.isParticipant(player.getUniqueId())) {
                 raid.onPlayerDeath(player);
+                // Mark for failure effect on respawn
+                player.setMetadata("raid_death_failure", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
                 return;
             }
         }
+    }
+
+    public void applyFailureEffect(Player player) {
+        // Blindness for 5 seconds
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.BLINDNESS, 100, 0, false, false, false));
+        // Play custom death sound (private to the player, loud)
+        player.playSound(player.getLocation(), "minecraft:custom.death", org.bukkit.SoundCategory.MASTER, 2.0f, 1.0f);
     }
 
     public void onPlayerQuit(Player player) {

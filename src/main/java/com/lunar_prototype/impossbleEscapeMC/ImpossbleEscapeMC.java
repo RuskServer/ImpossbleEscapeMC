@@ -78,6 +78,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         instance = this;
         saveDefaultConfig(); // Config must be saved first
 
+        // ヒートマップ読み込み
+        com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.load(new java.io.File(getDataFolder(), "heatmap.yml"));
+
         BrainManager.init(this); // 追加
         ItemRegistry.loadAllItems(this);
         gunListener = new GunListener(this);
@@ -100,6 +103,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.raid.RaidSelectionGUI(raidManager), this);
         getServer().getPluginManager().registerEvents(searchGUI, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
+
+        // ヒートマップの定期クリーンアップ (5秒ごと)
+        org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
 
         getCommand("getitem").setExecutor(new GetItemCommand());
         getCommand("scavspawn").setExecutor(new ScavCommand(this));
@@ -155,6 +161,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // ヒートマップ保存
+        com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.save(new java.io.File(getDataFolder(), "heatmap.yml"));
+
         // Plugin shutdown logic
         if (scavSpawner != null) {
             scavSpawner.cleanup();

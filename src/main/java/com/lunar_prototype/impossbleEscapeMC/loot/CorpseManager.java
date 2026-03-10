@@ -67,8 +67,35 @@ public class CorpseManager {
             virtualInv.addItem(victim.getEquipment().getChestplate());
             virtualInv.addItem(victim.getEquipment().getLeggings());
             virtualInv.addItem(victim.getEquipment().getBoots());
-            virtualInv.addItem(victim.getEquipment().getItemInMainHand());
+            
+            ItemStack mainHand = victim.getEquipment().getItemInMainHand();
+            virtualInv.addItem(mainHand);
             virtualInv.addItem(victim.getEquipment().getItemInOffHand());
+
+            // --- [追加] 対応する弾薬を 30~60 発分追加 ---
+            if (mainHand != null && mainHand.hasItemMeta()) {
+                PersistentDataContainer pdc = mainHand.getItemMeta().getPersistentDataContainer();
+                String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+                com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
+                
+                if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
+                    // 現在装填されている弾、または口径に応じた最弱の弾を取得
+                    String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
+                    if (ammoId == null) {
+                        com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition defaultAmmo = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
+                        if (defaultAmmo != null) ammoId = defaultAmmo.id;
+                    }
+
+                    if (ammoId != null) {
+                        int amount = 30 + (int)(Math.random() * 31); // 30 ~ 60
+                        ItemStack ammoStack = com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.create(ammoId);
+                        if (ammoStack != null) {
+                            ammoStack.setAmount(amount);
+                            virtualInv.addItem(ammoStack);
+                        }
+                    }
+                }
+            }
         }
         
         // Save serialized inventory to PDC

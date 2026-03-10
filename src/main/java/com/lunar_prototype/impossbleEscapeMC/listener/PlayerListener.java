@@ -138,6 +138,27 @@ public class PlayerListener implements Listener {
     }
 
     @EventHandler
+    public void onPlayerRespawn(org.bukkit.event.player.PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        if (player.hasMetadata("raid_death_failure")) {
+            player.removeMetadata("raid_death_failure", plugin);
+
+            // 脱出失敗（死亡）時はメインワールドの初期スポーン地点へ戻す
+            event.setRespawnLocation(org.bukkit.Bukkit.getWorlds().get(0).getSpawnLocation());
+
+            // テレポート（リスポーン）後にエフェクトを適用
+            new org.bukkit.scheduler.BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (player.isOnline()) {
+                        plugin.getRaidManager().applyFailureEffect(player);
+                    }
+                }
+            }.runTaskLater(plugin, 5); // 0.25秒後に実行
+        }
+    }
+
+    @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         plugin.getRaidManager().onPlayerQuit(event.getPlayer());
         plugin.getMinigameManager().onPlayerQuit(event.getPlayer());
@@ -199,6 +220,8 @@ public class PlayerListener implements Listener {
     public void onShootBow(org.bukkit.event.entity.EntityShootBowEvent event) {
         // 1. まずはイベントをキャンセル
         event.setCancelled(true);
+        event.setConsumeArrow(false);
+        event.setConsumeArrow(false);
 
         // 2. [重要] すでに生成されてしまった「矢」をこの世から消す
         // これをやらないと、一瞬だけクライアント側にエンティティが残ることがあります
