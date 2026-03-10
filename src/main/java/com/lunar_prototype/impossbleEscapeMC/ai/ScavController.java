@@ -1,6 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
@@ -90,6 +89,11 @@ public class ScavController {
     public void onTick() {
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
+
+        // ヒートマップへの「安全」記録 (遮蔽にいて制圧されていない場合)
+        if (tacticalCoverLoc != null && suppression < 0.2f && scav.getLocation().distance(tacticalCoverLoc) < 1.5) {
+            CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.SAFE, 0.1f);
+        }
 
         // 各種タイマーの減衰
         if (suppression > 0)
@@ -377,8 +381,12 @@ public class ScavController {
         Location tLoc = target.getEyeLocation();
         World world = scav.getWorld();
 
-        for (int x = -8; x <= 8; x++) {
-            for (int z = -8; z <= 8; z++) {
+        Location bestCover = null;
+        float bestScore = Float.MAX_VALUE;
+
+        // 検索範囲内で複数の候補をサンプリング
+        for (int x = -8; x <= 8; x += 2) { // 2ブロック飛ばしで効率化
+            for (int z = -8; z <= 8; z += 2) {
                 for (int y = -1; y <= 2; y++) {
                     Location checkLoc = sLoc.clone().add(x, y, z);
                     if (checkLoc.getBlock().getType().isSolid()) continue;
@@ -389,13 +397,24 @@ public class ScavController {
                     var result = world.rayTraceBlocks(eyeAtCheck, toTarget.normalize(), toTarget.length(), 
                         org.bukkit.FluidCollisionMode.NEVER, true);
                     
+                    // 視線が遮られている場所が候補
                     if (result != null && result.getHitBlock() != null) {
-                        return checkLoc;
+                        // ヒートマップから危険度を取得 (低いほど良い)
+                        float dangerScore = CombatHeatmapManager.getScore(checkLoc);
+                        
+                        // 距離も加味 (近すぎず遠すぎず)
+                        double dist = checkLoc.distance(sLoc);
+                        float finalScore = dangerScore + (float)(dist * 0.2); 
+
+                        if (finalScore < bestScore) {
+                            bestScore = finalScore;
+                            bestCover = checkLoc;
+                        }
                     }
                 }
             }
         }
-        return null;
+        return bestCover;
     }
 
     private void updateNearbyAllies() {
@@ -656,6 +675,7 @@ public class ScavController {
 
     public void onDamage(Entity attacker) {
         suppression = Math.min(1.0f, suppression + 0.3f);
+        CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
         
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
         if (healthPercent < 0.5) {

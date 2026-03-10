@@ -505,7 +505,7 @@ public class GunListener implements Listener {
             public void run() {
                 if (player.isValid()) {
                     float pitch = 1.0f + (float) ((Math.random() - 0.5) * 0.1);
-                    player.getWorld().playSound(player.getLocation(), "minecraft:custom.gunshell", 5.0f, pitch);
+                    player.getWorld().playSound(player.getLocation(), "minecraft:custom.gunshell", 0.5f, pitch);
                 }
             }
         }.runTaskLater(plugin, 20);
@@ -551,7 +551,7 @@ public class GunListener implements Listener {
             public void run() {
                 if (shooter.isValid()) {
                     float pitch = 1.0f + (float) ((Math.random() - 0.5) * 0.1);
-                    shooter.getWorld().playSound(shooter.getLocation(), "minecraft:custom.gunshell", 5.0f, pitch);
+                    shooter.getWorld().playSound(shooter.getLocation(), "minecraft:custom.gunshell", 0.5f, pitch);
                 }
             }
         }.runTaskLater(plugin, 20);
@@ -717,6 +717,11 @@ public class GunListener implements Listener {
             // 重力の適用
             velocity.add(new Vector(0, -GRAVITY, 0));
             currentLoc.add(velocity);
+
+            // ヒートマップへの制圧記録 (プレイヤーが撃った場合のみ)
+            if (shooter instanceof Player) {
+                com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.recordLine(prevLoc, velocity.clone().normalize(), SPEED, 1.0f);
+            }
 
             // ニアミス判定 (回避報酬)
             // 弾丸の軌道近くにいるスカブに「避けた」報酬を与える

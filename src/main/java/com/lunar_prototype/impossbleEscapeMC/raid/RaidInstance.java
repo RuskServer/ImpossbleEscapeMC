@@ -193,8 +193,10 @@ public class RaidInstance {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 p.sendMessage(Component.text("脱出に失敗しました (MIA)。", NamedTextColor.RED));
+                p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 p.hideBossBar(bossBar);
+                plugin.getRaidManager().applyFailureEffect(p);
             }
         }
         players.clear();
@@ -289,6 +291,7 @@ public class RaidInstance {
             
             players.remove(p.getUniqueId());
             p.hideBossBar(bossBar);
+            p.setGameMode(org.bukkit.GameMode.ADVENTURE);
             
             // メインワールド（オーバーワールド）の初期スポーン地点へテレポート
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation()); 
@@ -362,6 +365,7 @@ public class RaidInstance {
         for (Player player : participants) {
             players.add(player.getUniqueId());
             player.showBossBar(bossBar);
+            player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
             if (groupSpawn != null) {
                 player.teleport(groupSpawn);
