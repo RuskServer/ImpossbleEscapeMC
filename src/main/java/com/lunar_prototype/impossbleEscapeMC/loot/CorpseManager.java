@@ -43,7 +43,7 @@ public class CorpseManager {
         mannequin.setCustomNameVisible(false);
         mannequin.customName(Component.text("SCAV の死体", NamedTextColor.GRAY));
 
-        mannequin.setProfile(ResolvableProfile.resolvableProfile().skinPatch(skinPatchBuilder -> skinPatchBuilder.model(PlayerTextures.SkinModel.CLASSIC).body(Key.key("minecraft","scav"))).build());
+        mannequin.setProfile(ResolvableProfile.resolvableProfile().skinPatch(skinPatchBuilder -> skinPatchBuilder.model(PlayerTextures.SkinModel.CLASSIC).body(Key.key("minecraft","entity/player/wide/scav"))).build());
         
         // Posing (Simple "lying down" look)
         // Mannequin poses are rotations in EulerAngle
