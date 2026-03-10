@@ -8,4 +8,5 @@ public class AmmoDefinition {
     public String displayName; // 表示名
     public String material;
     public int rarity;
+    public int customModelData;
 }

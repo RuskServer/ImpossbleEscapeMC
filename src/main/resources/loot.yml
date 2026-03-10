@@ -1,0 +1,64 @@
+# Loot Tables Definition
+# Independent chances: each item is rolled separately.
+# min_items/max_items limit the total amount of items in the container.
+tables:
+  common_pool:
+    min_items: 1
+    max_items: 4
+    items:
+      - item: "scrap"
+        chance: 60.0
+        min: 1
+        max: 3
+      - item: "bandage"
+        chance: 40.0
+      - item: "tape"
+        chance: 50.0
+      - item: "lighter"
+        chance: 45.0
+
+  rare_pool:
+    min_items: 1
+    max_items: 3
+    items:
+      - item: "medkit"
+        chance: 35.0
+      - item: "ammo_9x19_pst"
+        chance: 40.0
+        min: 10
+        max: 30
+      - item: "rare_component"
+        chance: 20.0
+      - item: "scope_red_dot"
+        chance: 15.0
+
+  legendary_pool:
+    min_items: 1
+    max_items: 2
+    items:
+      - item: "spectre_prototype"
+        chance: 5.0
+      - item: "tier4_armor"
+        chance: 8.0
+      - item: "m4a1_full_auto"
+        chance: 3.0
+
+# Crates Definition
+# Crate ID is used in /loot container set <map> <crateId>
+# Selecting a table based on weights.
+crates:
+  standard_crate:
+    tables:
+      common_pool: 80.0
+      rare_pool: 20.0
+
+  secret_crate:
+    tables:
+      common_pool: 60.0
+      rare_pool: 35.0
+      legendary_pool: 5.0
+
+  weapon_box:
+    tables:
+      rare_pool: 90.0
+      legendary_pool: 10.0

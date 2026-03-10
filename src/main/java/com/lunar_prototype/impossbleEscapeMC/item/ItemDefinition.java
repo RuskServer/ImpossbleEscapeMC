@@ -8,6 +8,7 @@ public class ItemDefinition {
     public String material; // Bukkit material
     public String displayName;
     public int rarity; // 1-5
+    public int customModelData;
     public int maxDurability;
     public List<Affix> affixes;
     public GunStats gunStats;
