@@ -40,10 +40,21 @@ public class LootRoller {
         }
 
         // Ensure minimum items if possible
-        while (results.size() < table.minItems && results.size() < pool.size()) {
-            // Force pick items that weren't selected (though simple chance might already cover it)
-            // For now, Tarkov-style simple chance is what user requested.
-            break; 
+        int safetyBreak = 0;
+        while (results.size() < table.minItems && !pool.isEmpty() && safetyBreak < 20) {
+            safetyBreak++;
+            // まだ選ばれていないものから優先的に選ぶ、あるいはランダムに選ぶ
+            LootTable.LootEntry entry = pool.get(random.nextInt(pool.size()));
+            
+            ItemStack item = ItemFactory.create(entry.itemId);
+            if (item != null) {
+                int amount = entry.minAmount;
+                if (entry.maxAmount > entry.minAmount) {
+                    amount += random.nextInt(entry.maxAmount - entry.minAmount + 1);
+                }
+                item.setAmount(amount);
+                results.add(item);
+            }
         }
 
         return results;
