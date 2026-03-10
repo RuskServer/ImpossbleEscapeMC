@@ -20,8 +20,8 @@ public class RaidManager {
     private final Map<String, RaidInstance> activeRaids = new HashMap<>();
     private final File mapsFolder;
 
+    public static final int CYCLE_DURATION = 1500; // 25 minutes
     private int globalTimeLeft; // seconds
-    private final int cycleDuration = 1500; // 25 minutes
     private BukkitRunnable globalTimerTask;
 
     public RaidManager(ImpossbleEscapeMC plugin) {
@@ -35,13 +35,13 @@ public class RaidManager {
     }
 
     private void startGlobalTimer() {
-        this.globalTimeLeft = cycleDuration;
+        this.globalTimeLeft = CYCLE_DURATION;
         globalTimerTask = new BukkitRunnable() {
             @Override
             public void run() {
                 if (globalTimeLeft <= 0) {
                     onCycleEnd();
-                    globalTimeLeft = cycleDuration;
+                    globalTimeLeft = CYCLE_DURATION;
                 }
                 globalTimeLeft--;
             }
@@ -55,7 +55,12 @@ public class RaidManager {
             raid.handleMIA(); // Force MIA for those who didn't extract
             raid.resetCycle(); // Refresh extractions and state
         }
-        // TODO: Trigger loot reset here
+        
+        // Trigger loot reset
+        if (plugin.getLootManager() != null) {
+            plugin.getLootManager().refillAllContainers();
+        }
+        
         Bukkit.broadcast(net.kyori.adventure.text.Component.text("新たなレイドサイクルが開始されました。全ての物資が補充されました。", net.kyori.adventure.text.format.NamedTextColor.AQUA));
     }
 
@@ -131,6 +136,10 @@ public class RaidManager {
 
     public List<String> getMapIds() {
         return new ArrayList<>(maps.keySet());
+    }
+
+    public Map<String, RaidMap> getMaps() {
+        return maps;
     }
 
     public void saveMap(RaidMap map) {

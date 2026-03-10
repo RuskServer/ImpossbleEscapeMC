@@ -27,3 +27,6 @@ commands:
   party:
     description: パーティーシステムコマンド
     usage: /party <subcommand>
+  loot:
+    description: ルートシステム管理コマンド
+    permission: op

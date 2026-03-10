@@ -129,7 +129,7 @@ public class RaidInstance {
 
     private void startTask() {
         bossBar = BossBar.bossBar(
-                Component.text("レイド進行中: " + map.getMapId()),
+                Component.text("残りレイド時間: 計算中..."),
                 1.0f,
                 BossBar.Color.GREEN,
                 BossBar.Overlay.PROGRESS
@@ -183,9 +183,8 @@ public class RaidInstance {
     private void updateBossBar() {
         int timeLeft = plugin.getRaidManager().getGlobalTimeLeft();
         String timeStr = String.format("%02d:%02d", timeLeft / 60, timeLeft % 60);
-        bossBar.name(Component.text("Raid: " + map.getMapId() + " | 全体リセットまで " + timeStr, NamedTextColor.WHITE));
-        // cycleDuration = 1500
-        bossBar.progress((float) timeLeft / 1500.0f);
+        bossBar.name(Component.text("残りレイド時間: " + timeStr, NamedTextColor.WHITE));
+        bossBar.progress((float) timeLeft / (float) RaidManager.CYCLE_DURATION);
     }
 
     public void handleMIA() {

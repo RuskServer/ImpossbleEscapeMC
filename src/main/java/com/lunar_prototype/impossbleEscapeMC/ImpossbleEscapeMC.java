@@ -39,6 +39,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
     private com.lunar_prototype.impossbleEscapeMC.raid.RaidManager raidManager;
     private com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager;
+    private com.lunar_prototype.impossbleEscapeMC.loot.LootManager lootManager;
 
     public com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager getMinigameManager() {
         return minigameManager;
@@ -50,6 +51,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     public com.lunar_prototype.impossbleEscapeMC.party.PartyManager getPartyManager() {
         return partyManager;
+    }
+
+    public com.lunar_prototype.impossbleEscapeMC.loot.LootManager getLootManager() {
+        return lootManager;
     }
 
     @Override
@@ -66,6 +71,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
         raidManager = new com.lunar_prototype.impossbleEscapeMC.raid.RaidManager(this);
         partyManager = new com.lunar_prototype.impossbleEscapeMC.party.PartyManager(this);
+        lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
 
         getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(resourcePackListener, this);
@@ -90,6 +96,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.party.PartyCommand partyCmd = new com.lunar_prototype.impossbleEscapeMC.party.PartyCommand(partyManager);
         getCommand("party").setExecutor(partyCmd);
         getCommand("party").setTabCompleter(partyCmd);
+
+        com.lunar_prototype.impossbleEscapeMC.loot.LootCommand lootCmd = new com.lunar_prototype.impossbleEscapeMC.loot.LootCommand(this);
+        getCommand("loot").setExecutor(lootCmd);
+        getCommand("loot").setTabCompleter(lootCmd);
 
         CrossbowTask.start(this);
 
