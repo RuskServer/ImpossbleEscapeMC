@@ -80,8 +80,10 @@ public class RaidSelectionGUI implements Listener {
                 
                 lore.add(Component.empty());
                 if (isQueued) {
-                    lore.add(Component.text("▶ 出撃待機中 (クリックでキャンセル)", NamedTextColor.YELLOW));
-                    item.setType(Material.MAP); // 待機中はアイテムを変えるなどの演出
+                    lore.add(Component.text("▶ 出撃待機中 (クリックでキャンセル)", NamedTextColor.YELLOW, TextDecoration.BOLD));
+                    // 待機中はエンチャントの輝きを追加して目立たせる
+                    meta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 1, true);
+                    meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
                 } else {
                     lore.add(Component.text("▶ クリックで出撃待機列に参加", NamedTextColor.YELLOW));
                 }

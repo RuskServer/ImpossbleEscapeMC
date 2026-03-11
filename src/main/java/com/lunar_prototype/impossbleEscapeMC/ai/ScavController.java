@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalMath;
+import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalVision;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
@@ -25,16 +27,18 @@ public class ScavController {
     private final GunListener gunListener;
 
     private Location lastKnownLocation = null;
+    private Location slicingPoint = null; // パイ・スライシングの待機地点
     private int searchTicks = 0;
     private float suppression = 0.0f; // 制圧レベル (0.0 - 1.0)
     private int jumpCooldown = 0;
 
     // --- Search & Recognition States ---
-    private boolean isAlerted = false; // 警戒状態（ターゲットはいないが音などで気づいている）
+    private boolean isAlerted = false; 
     private int cornerCheckTicks = 0;
+    private boolean isHoldingAngle = false;
 
     // --- Tactical Movement States ---
-    private int strafeDir = 1; // 1: Right, -1: Left
+    private int strafeDir = 1; 
     private int strafeTicks = 0;
 
     // --- Squad States ---
@@ -253,7 +257,14 @@ public class ScavController {
         }
 
         // 移動の実行
-        if (tacticalCoverLoc != null && coverStayTicks > 0) {
+        if (moveAction == 8) { // HOLD
+            isHoldingAngle = true;
+            if (lastKnownLocation != null) {
+                updatePreAim(lastKnownLocation); // 最後に見失った場所を注視
+            }
+            scav.getPathfinder().stopPathfinding();
+        } else if (tacticalCoverLoc != null && coverStayTicks > 0) {
+            isHoldingAngle = false;
             double distToCover = scav.getLocation().distance(tacticalCoverLoc);
             if (distToCover > 1.0) {
                 scav.getPathfinder().moveTo(tacticalCoverLoc, isSprinting ? 1.5 : 1.0);
@@ -268,8 +279,10 @@ public class ScavController {
                 tacticalCoverLoc = null;
             }
         } else if (canSeeTarget) {
+            isHoldingAngle = false;
             handleCombatMovement(moveAction, target);
         } else if (lastKnownLocation != null) {
+            isHoldingAngle = false;
             if (moveAction == 7) {
                 coverLocation = scav.getLocation().clone();
                 Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
@@ -473,40 +486,51 @@ public class ScavController {
         if (lastKnownLocation == null) {
             if (isAlerted && Math.random() < 0.05) {
                 float yaw = scav.getLocation().getYaw() + (float) (Math.random() - 0.5) * 90f;
-                // 上下も少し見渡す
                 float pitch = (float) (Math.random() - 0.5) * 40f;
                 scav.setRotation(yaw, pitch);
             }
             return;
         }
-        double dist = scav.getLocation().distance(lastKnownLocation);
+
+        // --- パイ・スライシングのロジック ---
+        if (slicingPoint == null || searchTicks % 40 == 0) {
+            slicingPoint = TacticalVision.findSlicingPoint(scav.getLocation(), lastKnownLocation);
+        }
+
+        double distToLast = scav.getLocation().distance(lastKnownLocation);
         double speed = isSprinting ? 1.4 : 1.0;
-        if (dist < 2.5) {
+
+        if (slicingPoint != null && scav.getLocation().distance(slicingPoint) > 1.5) {
+            // まずは角の手前（Slicing Point）まで移動
+            scav.getPathfinder().moveTo(slicingPoint, speed);
+            updatePreAim(lastKnownLocation);
+        } else if (distToLast > 2.5) {
+            // 角に到達。ここからは横歩き（Strafe）で少しずつ視界を広げる
+            Vector toTarget = lastKnownLocation.toVector().subtract(scav.getLocation().toVector()).normalize();
+            Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX()).normalize();
+            
+            // 少しずつターゲットの方へ向かいながら、横にスライド
+            Vector moveVec = tangent.multiply(strafeDir * 0.5).add(toTarget.multiply(0.3));
+            scav.getPathfinder().moveTo(scav.getLocation().add(moveVec), 0.8);
+            updatePreAim(lastKnownLocation);
+
+            if (searchTicks > 200) { // 長すぎたら直行に切り替え
+                scav.getPathfinder().moveTo(lastKnownLocation, speed);
+            }
+        } else {
+            // ほぼ到着。角のクリアリング終了
             cornerCheckTicks++;
-            if (cornerCheckTicks < 80) {
-                float angle = (cornerCheckTicks < 40) ? 70f : -70f;
-                Location loc = scav.getLocation();
-                Vector dir = lastKnownLocation.toVector().subtract(loc.toVector()).normalize();
-                float baseYaw = loc.setDirection(dir).getYaw();
-                scav.setRotation(baseYaw + angle, 0);
-            } else {
+            if (cornerCheckTicks > 60) {
                 lastKnownLocation = null;
+                slicingPoint = null;
                 cornerCheckTicks = 0;
                 isAlerted = false;
             }
-        } else {
-            if (searchTicks == 0) {
-                Vector toLast = lastKnownLocation.toVector().subtract(scav.getLocation().toVector()).normalize();
-                Vector flank = new Vector(-toLast.getZ(), 0, toLast.getX()).multiply(5.0 * (Math.random() > 0.5 ? 1 : -1));
-                scav.getPathfinder().moveTo(lastKnownLocation.clone().add(flank), speed);
-            } else if (searchTicks > 20) {
-                scav.getPathfinder().moveTo(lastKnownLocation, speed);
-            }
-            searchTicks++;
-            if (searchTicks > 400) {
-                lastKnownLocation = null;
-                isAlerted = false;
-            }
+        }
+        searchTicks++;
+        if (searchTicks > 600) {
+            lastKnownLocation = null;
+            isAlerted = false;
         }
     }
 
@@ -615,56 +639,38 @@ public class ScavController {
     private void handleCombatMovement(int action, LivingEntity target) {
         Location sLoc = scav.getLocation();
         Location tLoc = target.getLocation();
-        Vector toTarget = tLoc.toVector().subtract(sLoc.toVector()).normalize();
         double dist = sLoc.distance(tLoc);
+        
         if (strafeTicks <= 0) {
             strafeDir = (Math.random() > 0.5) ? 1 : -1;
-            strafeTicks = 10 + (int) (Math.random() * 20);
+            strafeTicks = 20 + (int) (Math.random() * 30);
         }
-        Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX()).normalize();
+
+        // --- ベクトルの合成 ---
         Vector moveVec = new Vector(0, 0, 0);
-        Vector repulsion = new Vector(0, 0, 0);
+        
+        // 1. 接近・維持ベクトル
+        Vector toTarget = tLoc.toVector().subtract(sLoc.toVector()).normalize();
+        double targetDist = (action == 0) ? 5.0 : 12.0; // 突撃か維持か
+        moveVec.add(toTarget.clone().multiply((dist - targetDist) * 0.2));
+
+        // 2. 遠心力（横移動）ベクトル
+        moveVec.add(TacticalMath.calculateCentrifugalForce(sLoc, tLoc, strafeDir, dist));
+
+        // 3. プレイヤーの射線からの斥力
+        moveVec.add(TacticalMath.calculateRepulsion(sLoc, tLoc, target.getEyeLocation().getDirection()));
+
+        // 4. 仲間との衝突回避（斥力）
         for (ScavController ally : nearbyAllies) {
             double allyDist = sLoc.distance(ally.scav.getLocation());
             if (allyDist < 4.0) {
-                repulsion.add(sLoc.toVector().subtract(ally.scav.getLocation().toVector()).normalize().multiply(4.0 - allyDist));
+                moveVec.add(sLoc.toVector().subtract(ally.scav.getLocation().toVector()).normalize().multiply(0.5));
             }
         }
-        switch (action) {
-            case 0:
-            case 1:
-                double flankWeight = 0.5;
-                for (ScavController ally : nearbyAllies) {
-                    if (ally.scav.getTarget() != null && ally.scav.hasLineOfSight(ally.scav.getTarget())) {
-                        flankWeight = 1.2;
-                        break;
-                    }
-                }
-                moveVec = toTarget.clone().add(tangent.clone().multiply(strafeDir * flankWeight));
-                break;
-            case 2:
-                moveVec = toTarget.clone().multiply(-1).add(tangent.clone().multiply(strafeDir * 0.3));
-                break;
-            case 3:
-            case 4:
-                double targetDist = 12.0;
-                double distError = dist - targetDist;
-                moveVec = tangent.clone().multiply(strafeDir).add(toTarget.clone().multiply(distError * 0.2));
-                break;
-            case 5:
-                if (scav.isOnGround() && jumpCooldown <= 0) {
-                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)).add(tangent.clone().multiply(strafeDir * 0.5)));
-                    jumpCooldown = 60;
-                }
-                return;
-        }
-        if (myRole == SquadRole.COVERMAN) {
-            moveVec.add(tangent.clone().multiply(strafeDir * 1.5));
-            moveVec.add(toTarget.clone().multiply(-0.5)); 
-        }
-        if (moveVec.lengthSquared() > 0 || repulsion.lengthSquared() > 0) {
-            Vector finalMove = moveVec.add(repulsion).normalize();
-            Location dest = sLoc.clone().add(finalMove.multiply(1.5));
+
+        if (moveVec.lengthSquared() > 0) {
+            Vector finalMove = moveVec.normalize();
+            Location dest = sLoc.clone().add(finalMove.multiply(2.0));
             scav.getPathfinder().moveTo(dest, isSprinting ? 1.5 : 1.0);
         }
     }

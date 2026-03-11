@@ -24,6 +24,7 @@ public class RaidModule implements IModule {
     private final Map<String, RaidInstance> activeRaids = new HashMap<>();
     private final Map<String, Set<UUID>> raidQueues = new HashMap<>();
     private final File mapsFolder;
+    private final File stateFile;
 
     public static final int CYCLE_DURATION = 600; // 10 minutes (600 seconds)
     private int globalTimeLeft; // seconds
@@ -32,6 +33,7 @@ public class RaidModule implements IModule {
     public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.mapsFolder = new File(plugin.getDataFolder(), "raids");
+        this.stateFile = new File(plugin.getDataFolder(), "raid_state.json");
         if (!mapsFolder.exists()) {
             mapsFolder.mkdirs();
         }
@@ -40,14 +42,75 @@ public class RaidModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         loadMaps();
+        loadState(); // 状態の復元
         startGlobalTimer();
+        
+        // 1分ごとのオートセーブ
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::saveState, 1200L, 1200L);
     }
 
     @Override
     public void onDisable() {
+        saveState(); // 終了時に保存
         stopAllRaids();
         if (globalTimerTask != null) {
             globalTimerTask.cancel();
+        }
+    }
+
+    private void saveState() {
+        Map<String, Object> state = new HashMap<>();
+        state.put("globalTimeLeft", globalTimeLeft);
+        
+        Map<String, List<String>> raidPlayers = new HashMap<>();
+        for (Map.Entry<String, RaidInstance> entry : activeRaids.entrySet()) {
+            List<String> uuids = new ArrayList<>();
+            for (UUID uuid : entry.getValue().getParticipantUuids()) {
+                uuids.add(uuid.toString());
+            }
+            raidPlayers.put(entry.getKey(), uuids);
+        }
+        state.put("activeRaids", raidPlayers);
+
+        try (FileWriter writer = new FileWriter(stateFile)) {
+            gson.toJson(state, writer);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to save raid state.");
+        }
+    }
+
+    private void loadState() {
+        if (!stateFile.exists()) return;
+        try (FileReader reader = new FileReader(stateFile)) {
+            Map<String, Object> state = gson.fromJson(reader, Map.class);
+            if (state == null) return;
+
+            if (state.containsKey("globalTimeLeft")) {
+                this.globalTimeLeft = ((Double) state.get("globalTimeLeft")).intValue();
+            }
+
+            if (state.containsKey("activeRaids")) {
+                Map<String, List<String>> raidPlayers = (Map<String, List<String>>) state.get("activeRaids");
+                for (Map.Entry<String, List<String>> entry : raidPlayers.entrySet()) {
+                    String mapId = entry.getKey();
+                    RaidMap map = maps.get(mapId);
+                    if (map == null) continue;
+
+                    Set<UUID> uuids = new HashSet<>();
+                    for (String uuidStr : entry.getValue()) {
+                        uuids.add(UUID.fromString(uuidStr));
+                    }
+
+                    if (!uuids.isEmpty()) {
+                        RaidInstance raid = new RaidInstance(plugin, map, new ArrayList<>());
+                        raid.restoreParticipants(uuids); // 復元用メソッド
+                        activeRaids.put(mapId, raid);
+                    }
+                }
+            }
+            stateFile.delete(); // 読み込み後は削除
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to load raid state.");
         }
     }
 
