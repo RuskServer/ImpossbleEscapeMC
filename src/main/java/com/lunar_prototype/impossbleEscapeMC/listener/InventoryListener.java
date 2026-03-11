@@ -49,6 +49,8 @@ public class InventoryListener implements Listener {
 
                         // GUI処理だけ自前で実行
                         Player player = (Player) event.getPlayer();
+                        if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
+                            player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
 
                         WrapperPlayServerSetSlot cursorClear = new WrapperPlayServerSetSlot(
                                 -1,
@@ -105,9 +107,20 @@ public class InventoryListener implements Listener {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 InventoryView view = player.getOpenInventory();
                 if (isPlayerCraftingGrid(view)) {
+                    // サバイバルとアドベンチャーのみに限定
+                    boolean shouldHaveButton = (player.getGameMode() == org.bukkit.GameMode.SURVIVAL || 
+                                               player.getGameMode() == org.bukkit.GameMode.ADVENTURE);
+                    
                     ItemStack current = view.getItem(4);
-                    if (!isGuiTrigger(current)) {
-                        view.setItem(4, getGuiTriggerButton());
+                    if (shouldHaveButton) {
+                        if (!isGuiTrigger(current)) {
+                            view.setItem(4, getGuiTriggerButton());
+                        }
+                    } else {
+                        // もし既にボタンがあれば消去する
+                        if (isGuiTrigger(current)) {
+                            view.setItem(4, null);
+                        }
                     }
                 }
             }
@@ -129,11 +142,14 @@ public class InventoryListener implements Listener {
         InventoryView view = event.getView();
         if (!isPlayerCraftingGrid(view)) return;
 
+        Player player = (Player) event.getWhoClicked();
+        if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
+            player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
+
         // スロット4（クラフトグリッド右下）への干渉は常に制限
         if (event.getRawSlot() == 4) {
             event.setCancelled(true);
             
-            Player player = (Player) event.getWhoClicked();
             ItemStack mainHand = player.getInventory().getItemInMainHand();
             
             // 銃を持っている場合のみGUIを開く
