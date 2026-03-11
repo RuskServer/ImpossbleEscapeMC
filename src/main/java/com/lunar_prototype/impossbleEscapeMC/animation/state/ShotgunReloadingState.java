@@ -30,7 +30,7 @@ public class ShotgunReloadingState implements WeaponState {
     // ====================== 内部フェーズ ======================
 
     private enum Phase {
-        INTRO, LOOP, DONE
+        INTRO, LOOP, OUTRO, DONE
     }
 
     // ====================== フィールド ======================
@@ -124,11 +124,13 @@ public class ShotgunReloadingState implements WeaponState {
         isPossible = true;
 
         // --- アニメーション設定 ---
-        // 撃ち切り → reload、残弾あり → tactical_reload
-        introAnim = isEmpty ? stats.reloadAnimation : stats.tacticalReloadAnimation;
-        // tactical_reload が未定義なら reloadAnimation で代用
-        if (!isEmpty && introAnim == null) {
+        // 撃ち切り（弾なし） → tactical_reload、通常（弾あり） → reload
+        introAnim = isEmpty ? stats.tacticalReloadAnimation : stats.reloadAnimation;
+        // フォールバック
+        if (isEmpty && introAnim == null) {
             introAnim = stats.reloadAnimation;
+        } else if (!isEmpty && introAnim == null) {
+            introAnim = stats.tacticalReloadAnimation;
         }
         loopAnim = stats.reloadLoopAnimation;
 
@@ -161,6 +163,7 @@ public class ShotgunReloadingState implements WeaponState {
         switch (phase) {
             case INTRO -> tickIntro(ctx);
             case LOOP -> tickLoop(ctx);
+            case OUTRO -> tickOutro(ctx);
             case DONE -> transitionOut(ctx);
         }
     }
@@ -185,11 +188,12 @@ public class ShotgunReloadingState implements WeaponState {
 
         switch (input) {
             case LEFT_CLICK, RIGHT_CLICK_START -> {
-                // キャンセル → 即 DONE へ
-                phase = Phase.DONE;
-                // 発射・ADS などへ移行
-                WeaponState next = new IdleState().handleInput(ctx, input);
-                return next != null ? next : new IdleState();
+                // キャンセル → OUTRO へ（即終了ではなく締める動作へ）
+                if (phase == Phase.INTRO || phase == Phase.LOOP) {
+                    phase = Phase.OUTRO;
+                    phaseElapsed = 0;
+                }
+                return null;
             }
             case RELOAD, SPRINT_START, SPRINT_END -> {
                 return null; // リロード中は無視
@@ -241,14 +245,36 @@ public class ShotgunReloadingState implements WeaponState {
             phaseElapsed = 0;
 
             if (!loaded || loadsCompleted >= maxLoads) {
-                // 装填完了 or 弾が切れた
-                phase = Phase.DONE;
+                // 装填完了 or 弾が切れた -> OUTRO へ
+                phase = Phase.OUTRO;
+                phaseElapsed = 0;
             } else {
                 // 次の1発へ（ループ継続）
                 if (loopAnim != null) {
                     ctx.applyModel(loopAnim, 0);
                 }
             }
+        }
+    }
+
+    /** OUTRO フェーズの毎Tick処理（逆再生） */
+    private void tickOutro(WeaponContext ctx) {
+        phaseElapsed++;
+
+        // アウトロは常に stats.reloadAnimation を使用する（逆再生）
+        GunStats.AnimationStats outroAnim = ctx.getStats().reloadAnimation;
+        int totalTicks = animDurationTicks(outroAnim, 10);
+
+        if (outroAnim != null) {
+            // 逆再生フレーム計算: (1.0 - 進捗) * frameCount
+            double progress = (double) phaseElapsed / totalTicks;
+            int frame = (int) ((1.0 - progress) * (outroAnim.frameCount - 1));
+            frame = Math.max(0, frame);
+            ctx.applyModel(outroAnim, frame);
+        }
+
+        if (phaseElapsed >= totalTicks) {
+            phase = Phase.DONE;
         }
     }
 
@@ -315,6 +341,11 @@ public class ShotgunReloadingState implements WeaponState {
         if (phase == Phase.INTRO) {
             filled = (int) ((double) phaseElapsed / introTotalTicks * bar);
             label = "§7Preparing...";
+        } else if (phase == Phase.OUTRO) {
+            filled = (int) ((1.0 - (double) phaseElapsed / animDurationTicks(ctx.getStats().reloadAnimation, 10))
+                    * bar);
+            filled = Math.max(0, filled);
+            label = "§7Closing...";
         } else {
             // LOOP: 全装填進捗を表示
             int totalProgress = loadsCompleted * loopTotalTicks + phaseElapsed;

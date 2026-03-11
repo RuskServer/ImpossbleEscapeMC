@@ -135,11 +135,13 @@ public class ItemRegistry {
 
                         gStats.reloadAnimation = parseAnimation(gunSection, "reloadAnimation");
                         gStats.tacticalReloadAnimation = parseAnimation(gunSection, "tacticalReloadAnimation");
+                        gStats.reloadLoopAnimation = parseAnimation(gunSection, "reloadLoopAnimation"); // ショットガン用
                         gStats.boltingAnimation = parseAnimation(gunSection, "boltingAnimation"); // ボルトアニメーション
                         gStats.aimAnimation = parseAnimation(gunSection, "aimAnimation");
                         gStats.sprintAnimation = parseAnimation(gunSection, "sprintAnimation");
                         gStats.idleAnimation = parseAnimation(gunSection, "idleAnimation");
                         gStats.scope = parseScope(gunSection, "scope"); // 【追加】スコープ設定
+                        gStats.pelletCount = gunSection.getInt("pelletCount", 1); // ショットガン用（デフォルト1）
 
                         def.gunStats = gStats;
                     }
@@ -170,10 +172,10 @@ public class ItemRegistry {
                         aStats.equipSound = armorSection.getString("equipSound");
                         aStats.model = armorSection.getString("model");
                         // Support both camelCase and snake_case
-                        aStats.cameraOverlay = armorSection.contains("camera_overlay") ? 
-                                armorSection.getString("camera_overlay") : 
-                                armorSection.getString("cameraOverlay");
-                        
+                        aStats.cameraOverlay = armorSection.contains("camera_overlay")
+                                ? armorSection.getString("camera_overlay")
+                                : armorSection.getString("cameraOverlay");
+
                         aStats.dispensable = armorSection.getBoolean("dispensable", true);
                         aStats.swappable = armorSection.getBoolean("swappable", true);
                         aStats.damageOnHurt = armorSection.getBoolean("damageOnHurt", true);
