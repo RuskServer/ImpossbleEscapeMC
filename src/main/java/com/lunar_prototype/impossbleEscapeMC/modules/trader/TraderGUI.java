@@ -50,7 +50,7 @@ public class TraderGUI implements Listener {
             ItemDefinition def = ItemRegistry.get(ti.itemId);
             if (def == null) continue;
 
-            ItemStack icon = ItemFactory.createItem(ti.itemId);
+            ItemStack icon = ItemFactory.create(ti.itemId);
             ItemMeta meta = icon.getItemMeta();
             List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
             if (lore == null) lore = new ArrayList<>();
@@ -121,7 +121,7 @@ public class TraderGUI implements Listener {
 
         // 所持金チェックと支払い
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), ti.price)) {
-            ItemStack item = ItemFactory.createItem(ti.itemId);
+            ItemStack item = ItemFactory.create(ti.itemId);
             if (player.getInventory().addItem(item).isEmpty()) {
                 if (ti.dailyLimit > 0) {
                     data.incrementPurchase(trader.id + "_" + ti.itemId);
