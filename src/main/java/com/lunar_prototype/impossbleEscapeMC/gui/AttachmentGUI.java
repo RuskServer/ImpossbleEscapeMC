@@ -53,8 +53,18 @@ public class AttachmentGUI implements InventoryHolder {
             int guiSlot = slot.getGuiSlot();
             String attachmentId = (slot.getId() < attachments.size()) ? attachments.get(slot.getId()) : null;
 
-            if (attachmentId != null && !attachmentId.isEmpty()) {
-                // 装着済みアタッチメントを表示
+            // デフォルトのアタッチメントを取得
+            String defaultAtt = "";
+            String gunId = gunItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+            ItemDefinition gunDef = ItemRegistry.get(gunId);
+            if (gunDef != null && gunDef.gunStats != null && gunDef.gunStats.defaultAttachments != null) {
+                if (gunDef.gunStats.defaultAttachments.size() > slot.getId()) {
+                    defaultAtt = gunDef.gunStats.defaultAttachments.get(slot.getId());
+                }
+            }
+
+            // 装着済みかつデフォルトでないアタッチメントを表示
+            if (attachmentId != null && !attachmentId.isEmpty() && !attachmentId.equals(defaultAtt)) {
                 AttachmentDefinition attDef = ItemRegistry.getAttachment(attachmentId);
                 if (attDef != null) {
                     ItemStack attItem = ItemFactory.create(attachmentId);
@@ -72,7 +82,7 @@ public class AttachmentGUI implements InventoryHolder {
                 }
             }
 
-            // 空きスロットのプレースホルダー
+            // 空きスロット（またはデフォルトパーツ装着中）のプレースホルダー
             inventory.setItem(guiSlot, createSlotPlaceholder(slot));
         }
     }
