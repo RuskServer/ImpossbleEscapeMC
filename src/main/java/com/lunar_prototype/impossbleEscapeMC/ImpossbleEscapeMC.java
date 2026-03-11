@@ -124,8 +124,11 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // モジュールの登録
         moduleBootstrap.registerModule(new PlayerDataModule(this));
         moduleBootstrap.registerModule(new EconomyModule());
-        moduleBootstrap.registerModule(new LevelModule());
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule());
         moduleBootstrap.registerModule(raidModule); // すでにインスタンス化されているのでそのまま登録
+        
+        com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule traderModule = new com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule(this);
+        moduleBootstrap.registerModule(traderModule);
 
         // モジュールの有効化
         moduleBootstrap.enableModules();
@@ -148,6 +151,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("scavspawn").setExecutor(new ScavCommand(this));
         getCommand("attachment").setExecutor(new AttachmentCommand());
         getCommand("itemreload").setExecutor(new ItemReloadCommand(this));
+        
+        com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCommand traderCmd = new com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCommand(traderModule);
+        getCommand("trader").setExecutor(traderCmd);
+        getCommand("trader").setTabCompleter(traderCmd);
         com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand mgCmd = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager);
         getCommand("mg").setExecutor(mgCmd);
         getCommand("mg").setTabCompleter(mgCmd);

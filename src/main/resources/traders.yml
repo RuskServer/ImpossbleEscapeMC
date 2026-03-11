@@ -1,0 +1,26 @@
+# トレーダー設定ファイル
+# type: BUY (購入専用) または SELL (売却専用)
+# limit: 1日の購入制限数 (0は無制限)
+
+prapor:
+  displayName: "§6Prapor (Buy Only)"
+  type: BUY
+  items:
+    - id: "gun_ak74"
+      price: 15000
+      limit: 2
+    - id: "ammo_545x39_ps"
+      price: 150
+      limit: 300
+    - id: "med_ifak"
+      price: 1200
+      limit: 5
+
+fence:
+  displayName: "§dFence (Sell Only)"
+  type: SELL
+  items:
+    - id: "gun_ak74"
+      price: 5000
+    - id: "med_ifak"
+      price: 400
