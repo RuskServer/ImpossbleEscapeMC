@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -149,6 +150,16 @@ public class ScavSpawner implements Listener {
         // --- 2. 死んだのがSCAV自身かチェック ---
         UUID uuid = victim.getUniqueId();
         if (controllers.containsKey(uuid)) {
+            // キラーがプレイヤーなら経験値付与 (50 EXP)
+            if (killer instanceof org.bukkit.entity.Player) {
+                com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule = 
+                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+                if (levelModule != null) {
+                    levelModule.addExperience(killer.getUniqueId(), 50);
+                    killer.sendMessage(Component.text("§a+50 EXP (SCAV Kill)"));
+                }
+            }
+
             ScavController controller = controllers.remove(uuid);
             if (controller != null) {
                 controller.getBrain().terminate();

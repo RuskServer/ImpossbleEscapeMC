@@ -289,6 +289,13 @@ public class RaidInstance {
             p.sendMessage(Component.text("脱出に成功しました！", NamedTextColor.GREEN));
             p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
             
+            // 経験値追加 (脱出成功: 250 EXP)
+            com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule = 
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+            if (levelModule != null) {
+                levelModule.addExperience(p.getUniqueId(), 250);
+            }
+
             players.remove(p.getUniqueId());
             p.hideBossBar(bossBar);
             p.setGameMode(org.bukkit.GameMode.ADVENTURE);
@@ -329,6 +336,14 @@ public class RaidInstance {
         if (!players.contains(player.getUniqueId())) return;
         extractionTimer.remove(player.getUniqueId());
         player.sendMessage(Component.text("死亡しました。レイド失敗です。", NamedTextColor.RED));
+
+        // 経験値追加 (死亡救済: 150 EXP)
+        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule = 
+            plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        if (levelModule != null) {
+            levelModule.addExperience(player.getUniqueId(), 150);
+        }
+
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
 

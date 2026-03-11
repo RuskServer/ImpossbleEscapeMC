@@ -6,6 +6,11 @@ import com.lunar_prototype.impossbleEscapeMC.command.AttachmentCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.GetItemCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.ItemReloadCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.ScavCommand;
+import com.lunar_prototype.impossbleEscapeMC.core.ModuleBootstrap;
+import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUIListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
@@ -44,6 +49,13 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener lootEggListener;
     private com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager corpseManager;
 
+    private ServiceContainer serviceContainer;
+    private ModuleBootstrap moduleBootstrap;
+
+    public ServiceContainer getServiceContainer() {
+        return serviceContainer;
+    }
+
     public com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager getMinigameManager() {
         return minigameManager;
     }
@@ -78,6 +90,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         instance = this;
         saveDefaultConfig(); // Config must be saved first
 
+        // 基盤の初期化
+        serviceContainer = new ServiceContainer();
+        moduleBootstrap = new ModuleBootstrap(this, serviceContainer);
+
         // ヒートマップ読み込み
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.load(new java.io.File(getDataFolder(), "heatmap.yml"));
 
@@ -93,6 +109,24 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
         lootEggListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener(this);
         corpseManager = new com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager(this);
+
+        // 既存マネージャーをコンテナに登録
+        serviceContainer.register(ScavSpawner.class, scavSpawner);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager.class, minigameManager);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.raid.RaidManager.class, raidManager);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.party.PartyManager.class, partyManager);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootManager.class, lootManager);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class, searchGUI);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener.class, lootEggListener);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager.class, corpseManager);
+
+        // モジュールの登録
+        moduleBootstrap.registerModule(new PlayerDataModule(this));
+        moduleBootstrap.registerModule(new EconomyModule());
+        moduleBootstrap.registerModule(new LevelModule());
+
+        // モジュールの有効化
+        moduleBootstrap.enableModules();
 
         getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(resourcePackListener, this);
@@ -162,6 +196,11 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // モジュールの無効化
+        if (moduleBootstrap != null) {
+            moduleBootstrap.disableModules();
+        }
+
         // ヒートマップ保存
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.save(new java.io.File(getDataFolder(), "heatmap.yml"));
 
