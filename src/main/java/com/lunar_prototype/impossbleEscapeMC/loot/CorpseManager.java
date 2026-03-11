@@ -46,7 +46,6 @@ public class CorpseManager {
         mannequin.setRemoveWhenFarAway(false);
         
         mannequin.setCustomNameVisible(false);
-        mannequin.customName(Component.text("SCAV の死体", NamedTextColor.GRAY));
 
         mannequin.setProfile(ResolvableProfile.resolvableProfile().skinPatch(skinPatchBuilder -> skinPatchBuilder.model(PlayerTextures.SkinModel.CLASSIC).body(Key.key("minecraft","entity/player/wide/scav"))).build());
         
@@ -66,14 +65,14 @@ public class CorpseManager {
         // Create virtual inventory
         Inventory virtualInv = Bukkit.createInventory(null, 27, Component.text("死体漁り"));
         if (victim.getEquipment() != null) {
-            virtualInv.addItem(victim.getEquipment().getHelmet());
-            virtualInv.addItem(victim.getEquipment().getChestplate());
-            virtualInv.addItem(victim.getEquipment().getLeggings());
-            virtualInv.addItem(victim.getEquipment().getBoots());
+            virtualInv.setItem(0, victim.getEquipment().getHelmet());
+            virtualInv.setItem(1, victim.getEquipment().getChestplate());
+            virtualInv.setItem(2, victim.getEquipment().getLeggings());
+            virtualInv.setItem(3, victim.getEquipment().getBoots());
             
             ItemStack mainHand = victim.getEquipment().getItemInMainHand();
-            virtualInv.addItem(mainHand);
-            virtualInv.addItem(victim.getEquipment().getItemInOffHand());
+            virtualInv.setItem(4, mainHand);
+            virtualInv.setItem(5, victim.getEquipment().getItemInOffHand());
 
             if (mainHand != null && mainHand.hasItemMeta()) {
                 PersistentDataContainer pdc = mainHand.getItemMeta().getPersistentDataContainer();
@@ -122,6 +121,16 @@ public class CorpseManager {
                 if (e != null) e.remove();
             }
         }, 1800L);
+    }
+
+    public static void updateMannequinAppearance(Mannequin mannequin, Inventory inventory) {
+        if (mannequin.getEquipment() == null) return;
+        mannequin.getEquipment().setHelmet(inventory.getItem(0));
+        mannequin.getEquipment().setChestplate(inventory.getItem(1));
+        mannequin.getEquipment().setLeggings(inventory.getItem(2));
+        mannequin.getEquipment().setBoots(inventory.getItem(3));
+        mannequin.getEquipment().setItemInMainHand(inventory.getItem(4));
+        mannequin.getEquipment().setItemInOffHand(inventory.getItem(5));
     }
 
     public void cleanup() {
