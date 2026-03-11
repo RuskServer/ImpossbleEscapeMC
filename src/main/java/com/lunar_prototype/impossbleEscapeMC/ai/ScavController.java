@@ -280,7 +280,8 @@ public class ScavController {
             }
         } else if (canSeeTarget) {
             isHoldingAngle = false;
-            handleCombatMovement(moveAction, target);
+            boolean isAuto = def.gunStats != null && "AUTO".equalsIgnoreCase(def.gunStats.fireMode);
+            handleCombatMovement(moveAction, target, isAuto, agg);
         } else if (lastKnownLocation != null) {
             isHoldingAngle = false;
             if (moveAction == 7) {
@@ -307,6 +308,12 @@ public class ScavController {
             if (canSeeTarget) {
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
+                    // セミオートの場合は人間らしい「タップ遅延」を追加 (追加で 50ms - 200ms)
+                    if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
+                        long semiDelay = 50 + (long)(Math.random() * 150);
+                        if (now - lastMobShotTime < interval + semiDelay) return;
+                    }
+
                     double dynamicInaccuracy = 0.04 + (suppression * 0.1);
                     if (scav.getVelocity().length() > 0.1) dynamicInaccuracy += 0.04;
                     gunListener.executeMobShoot(scav, def.gunStats, 1, dynamicInaccuracy);
@@ -316,10 +323,15 @@ public class ScavController {
                 // プリエイム中に「決め撃ち」を低確率で行う
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
+                    if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
+                        long semiDelay = 100 + (long)(Math.random() * 200);
+                        if (now - lastMobShotTime < interval + semiDelay) return;
+                    }
                     gunListener.executeMobShoot(scav, def.gunStats, 1, 0.3);
                     lastMobShotTime = now;
                 }
-            } else if (target != null && scav.isOnGround() && jumpCooldown <= 0 && checkJumpShotVision(target)) {
+            }
+ else if (target != null && scav.isOnGround() && jumpCooldown <= 0 && checkJumpShotVision(target)) {
 
                 if (Math.random() < 0.4) {
                     scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
@@ -636,31 +648,55 @@ public class ScavController {
         return false;
     }
 
-    private void handleCombatMovement(int action, LivingEntity target) {
+    private void handleCombatMovement(int action, LivingEntity target, boolean isAuto, float aggression) {
         Location sLoc = scav.getLocation();
         Location tLoc = target.getLocation();
         double dist = sLoc.distance(tLoc);
         
-        if (strafeTicks <= 0) {
+        // --- レレレ（高速ストレイフ）モードの判定 ---
+        boolean isCQC = dist < 10.0;
+        int minTicks = (isCQC && isAuto && aggression > 0.5f) ? 5 : 20;
+        int varTicks = (isCQC && isAuto && aggression > 0.5f) ? 10 : 30;
+
+        if (strafeTicks <= 0 || (isCQC && isAuto && strafeTicks > 15)) {
             strafeDir = (Math.random() > 0.5) ? 1 : -1;
-            strafeTicks = 20 + (int) (Math.random() * 30);
+            strafeTicks = minTicks + (int) (Math.random() * varTicks);
         }
 
-        // --- ベクトルの合成 ---
-        Vector moveVec = new Vector(0, 0, 0);
-        
-        // 1. 接近・維持ベクトル
         Vector toTarget = tLoc.toVector().subtract(sLoc.toVector()).normalize();
-        double targetDist = (action == 0) ? 5.0 : 12.0; // 突撃か維持か
-        moveVec.add(toTarget.clone().multiply((dist - targetDist) * 0.2));
+        Vector moveVec = new Vector(0, 0, 0);
 
-        // 2. 遠心力（横移動）ベクトル
-        moveVec.add(TacticalMath.calculateCentrifugalForce(sLoc, tLoc, strafeDir, dist));
+        // --- A. ベースアクションの決定 ---
+        switch (action) {
+            case 0: // Aggressive Push
+                moveVec.add(toTarget.clone().multiply(1.0));
+                break;
+            case 1: // Maintain
+                double distError = dist - 12.0;
+                moveVec.add(toTarget.clone().multiply(distError * 0.2));
+                break;
+            case 2: // Retreat
+                moveVec.add(toTarget.clone().multiply(-1.2));
+                break;
+            case 5: // Jump
+                if (scav.isOnGround() && jumpCooldown <= 0) {
+                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
+                    jumpCooldown = 60;
+                }
+                break;
+        }
 
-        // 3. プレイヤーの射線からの斥力
+        // --- B. タクティカル・スパイスの統合 ---
+        // 遠心力（横移動）: レレレモードなら重みを1.5倍に
+        double centrifugalWeight = (action == 3 || action == 4) ? 1.5 : 0.8;
+        if (isCQC && isAuto) centrifugalWeight *= 1.8; 
+        
+        moveVec.add(TacticalMath.calculateCentrifugalForce(sLoc, tLoc, strafeDir, dist).multiply(centrifugalWeight));
+
+        // プレイヤーの射線からの斥力
         moveVec.add(TacticalMath.calculateRepulsion(sLoc, tLoc, target.getEyeLocation().getDirection()));
 
-        // 4. 仲間との衝突回避（斥力）
+        // 3. 仲間との衝突回避
         for (ScavController ally : nearbyAllies) {
             double allyDist = sLoc.distance(ally.scav.getLocation());
             if (allyDist < 4.0) {
@@ -668,6 +704,7 @@ public class ScavController {
             }
         }
 
+        // --- C. 移動の実行 ---
         if (moveVec.lengthSquared() > 0) {
             Vector finalMove = moveVec.normalize();
             Location dest = sLoc.clone().add(finalMove.multiply(2.0));
