@@ -11,6 +11,7 @@ import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUIListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
@@ -42,7 +43,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private GunListener gunListener;
     private ResourcePackListener resourcePackListener;
     private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
-    private com.lunar_prototype.impossbleEscapeMC.raid.RaidManager raidManager;
+    private RaidModule raidModule;
     private com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootManager lootManager;
     private com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI searchGUI;
@@ -60,8 +61,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         return minigameManager;
     }
 
-    public com.lunar_prototype.impossbleEscapeMC.raid.RaidManager getRaidManager() {
-        return raidManager;
+    public RaidModule getRaidModule() {
+        return raidModule;
     }
 
     public com.lunar_prototype.impossbleEscapeMC.party.PartyManager getPartyManager() {
@@ -103,7 +104,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         scavSpawner = new ScavSpawner(this, gunListener);
         resourcePackListener = new ResourcePackListener(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
-        raidManager = new com.lunar_prototype.impossbleEscapeMC.raid.RaidManager(this);
+        raidModule = new RaidModule(this);
         partyManager = new com.lunar_prototype.impossbleEscapeMC.party.PartyManager(this);
         lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
         searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
@@ -113,7 +114,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 既存マネージャーをコンテナに登録
         serviceContainer.register(ScavSpawner.class, scavSpawner);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager.class, minigameManager);
-        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.raid.RaidManager.class, raidManager);
+        serviceContainer.register(RaidModule.class, raidModule);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.party.PartyManager.class, partyManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootManager.class, lootManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class, searchGUI);
@@ -124,6 +125,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         moduleBootstrap.registerModule(new PlayerDataModule(this));
         moduleBootstrap.registerModule(new EconomyModule());
         moduleBootstrap.registerModule(new LevelModule());
+        moduleBootstrap.registerModule(raidModule); // すでにインスタンス化されているのでそのまま登録
 
         // モジュールの有効化
         moduleBootstrap.enableModules();
@@ -135,7 +137,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(scavSpawner, this);
         getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
-        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.raid.RaidSelectionGUI(raidManager), this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI(raidModule), this);
         getServer().getPluginManager().registerEvents(searchGUI, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
 
@@ -150,7 +152,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("mg").setExecutor(mgCmd);
         getCommand("mg").setTabCompleter(mgCmd);
 
-        com.lunar_prototype.impossbleEscapeMC.raid.RaidCommand raidCmd = new com.lunar_prototype.impossbleEscapeMC.raid.RaidCommand(raidManager);
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidCommand raidCmd = new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidCommand(raidModule);
         getCommand("raid").setExecutor(raidCmd);
         getCommand("raid").setTabCompleter(raidCmd);
 
@@ -211,8 +213,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         if (minigameManager != null) {
             minigameManager.stopGame();
         }
-        if (raidManager != null) {
-            raidManager.stopAllRaids();
+        if (raidModule != null) {
+            raidModule.stopAllRaids();
         }
         if (corpseManager != null) {
             corpseManager.cleanup();

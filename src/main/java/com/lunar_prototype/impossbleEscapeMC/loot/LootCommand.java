@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.raid.RaidMap;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -89,14 +89,14 @@ public class LootCommand implements CommandExecutor, TabCompleter {
                 String mapId = args[2];
                 String crateId = args[3];
 
-                RaidMap map = plugin.getRaidManager().getMap(mapId);
+                RaidMap map = plugin.getRaidModule().getMap(mapId);
                 if (map == null) {
                     player.sendMessage(Component.text("マップが見つかりません。", NamedTextColor.RED));
                     return;
                 }
 
                 map.addLootContainer(block.getLocation(), crateId);
-                plugin.getRaidManager().saveMap(map);
+                plugin.getRaidModule().saveMap(map);
 
                 Container container = (Container) block.getState();
                 container.getPersistentDataContainer().set(PDCKeys.LOOT_TABLE_ID, PDCKeys.STRING, crateId);
@@ -129,12 +129,12 @@ public class LootCommand implements CommandExecutor, TabCompleter {
 
         if (args[0].equalsIgnoreCase("container")) {
             if (args.length == 2) return Arrays.asList("set", "remove");
-            if (args.length == 3) return plugin.getRaidManager().getMapIds();
+            if (args.length == 3) return plugin.getRaidModule().getMapIds();
             if (args.length == 4) return plugin.getLootManager().getCrateIds();
         }
 
         if (args[0].equalsIgnoreCase("egg")) {
-            if (args.length == 2) return plugin.getRaidManager().getMapIds();
+            if (args.length == 2) return plugin.getRaidModule().getMapIds();
             if (args.length == 3) return plugin.getLootManager().getCrateIds();
         }
 

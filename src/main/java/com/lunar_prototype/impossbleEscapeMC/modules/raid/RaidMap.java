@@ -1,4 +1,4 @@
-package com.lunar_prototype.impossbleEscapeMC.raid;
+package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;

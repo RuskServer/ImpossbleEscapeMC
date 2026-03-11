@@ -1,8 +1,12 @@
-package com.lunar_prototype.impossbleEscapeMC.raid;
+package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.IModule;
+import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -13,25 +17,38 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 
-public class RaidManager {
+public class RaidModule implements IModule {
     private final ImpossbleEscapeMC plugin;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Map<String, RaidMap> maps = new HashMap<>();
     private final Map<String, RaidInstance> activeRaids = new HashMap<>();
+    private final Map<String, Set<UUID>> raidQueues = new HashMap<>();
     private final File mapsFolder;
 
-    public static final int CYCLE_DURATION = 1500; // 25 minutes
+    public static final int CYCLE_DURATION = 600; // 10 minutes (600 seconds)
     private int globalTimeLeft; // seconds
     private BukkitRunnable globalTimerTask;
 
-    public RaidManager(ImpossbleEscapeMC plugin) {
+    public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.mapsFolder = new File(plugin.getDataFolder(), "raids");
         if (!mapsFolder.exists()) {
             mapsFolder.mkdirs();
         }
+    }
+
+    @Override
+    public void onEnable(ServiceContainer container) {
         loadMaps();
         startGlobalTimer();
+    }
+
+    @Override
+    public void onDisable() {
+        stopAllRaids();
+        if (globalTimerTask != null) {
+            globalTimerTask.cancel();
+        }
     }
 
     private void startGlobalTimer() {
@@ -43,37 +60,127 @@ public class RaidManager {
                     onCycleEnd();
                     globalTimeLeft = CYCLE_DURATION;
                 }
+                
+                // 待機中のプレイヤーに通知 (例: 1分前、10秒前)
+                notifyQueuedPlayers();
+                
                 globalTimeLeft--;
             }
         };
         globalTimerTask.runTaskTimer(plugin, 0, 20);
     }
 
-    private void onCycleEnd() {
-        plugin.getLogger().info("Raid cycle ended. Resetting all maps and loot...");
-        for (RaidInstance raid : activeRaids.values()) {
-            raid.handleMIA(); // Force MIA for those who didn't extract
-            raid.resetCycle(); // Refresh extractions and state
+    private void notifyQueuedPlayers() {
+        if (globalTimeLeft == 60 || globalTimeLeft <= 10 && globalTimeLeft > 0) {
+            String message = "§e[RAID] §f出撃まであと §b" + globalTimeLeft + "秒";
+            for (Set<UUID> queue : raidQueues.values()) {
+                for (UUID uuid : queue) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p != null) {
+                        p.sendMessage(message);
+                        p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.0f);
+                    }
+                }
+            }
         }
-        
-        // Trigger loot reset
+    }
+
+    private void onCycleEnd() {
+        plugin.getLogger().info("Raid cycle ended. Starting new raids and MIA processing...");
+
+        // 1. 既存レイドの終了処理 (MIA)
+        for (RaidInstance raid : new ArrayList<>(activeRaids.values())) {
+            raid.handleMIA();
+            raid.stop();
+        }
+        activeRaids.clear();
+
+        // 2. 物資リセット
         if (plugin.getLootManager() != null) {
             plugin.getLootManager().refillAllContainers();
         }
+
+        // 3. 一斉スタート (キューの掃き出し)
+        for (Map.Entry<String, Set<UUID>> entry : raidQueues.entrySet()) {
+            String mapId = entry.getKey();
+            Set<UUID> playerUuids = entry.getValue();
+            if (playerUuids.isEmpty()) continue;
+
+            List<Player> participants = new ArrayList<>();
+            for (UUID uuid : playerUuids) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) participants.add(p);
+            }
+
+            if (!participants.isEmpty()) {
+                RaidMap map = maps.get(mapId);
+                if (map != null) {
+                    RaidInstance raid = new RaidInstance(plugin, map, participants);
+                    activeRaids.put(mapId, raid);
+                }
+            }
+        }
+        raidQueues.clear();
+
+        Bukkit.broadcast(Component.text("新たなレイドサイクルが開始されました。出撃隊は各マップへ転送されました。", NamedTextColor.AQUA));
+    }
+
+    /**
+     * キューに参加
+     */
+    public boolean joinQueue(Player player, String mapId) {
+        if (!maps.containsKey(mapId)) return false;
         
-        Bukkit.broadcast(net.kyori.adventure.text.Component.text("新たなレイドサイクルが開始されました。全ての物資が補充されました。", net.kyori.adventure.text.format.NamedTextColor.AQUA));
+        // すでにどこかのレイドに参加中かチェック
+        for (RaidInstance raid : activeRaids.values()) {
+            if (raid.isParticipant(player.getUniqueId())) {
+                player.sendMessage(Component.text("すでにレイドに参加中です。", NamedTextColor.RED));
+                return false;
+            }
+        }
+
+        // すでに別のキューにいる場合は削除
+        leaveQueue(player);
+
+        raidQueues.computeIfAbsent(mapId, k -> new HashSet<>()).add(player.getUniqueId());
+        player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(globalTimeLeft), NamedTextColor.GREEN));
+        return true;
+    }
+
+    /**
+     * キューから離脱
+     */
+    public void leaveQueue(Player player) {
+        for (Set<UUID> queue : raidQueues.values()) {
+            queue.remove(player.getUniqueId());
+        }
+    }
+
+    public boolean isInQueue(Player player) {
+        for (Set<UUID> queue : raidQueues.values()) {
+            if (queue.contains(player.getUniqueId())) return true;
+        }
+        return false;
+    }
+
+    public String getQueuedMap(Player player) {
+        for (Map.Entry<String, Set<UUID>> entry : raidQueues.entrySet()) {
+            if (entry.getValue().contains(player.getUniqueId())) return entry.getKey();
+        }
+        return null;
+    }
+
+    public int getQueueCount(String mapId) {
+        Set<UUID> queue = raidQueues.get(mapId);
+        return queue != null ? queue.size() : 0;
+    }
+
+    private String formatTime(int seconds) {
+        return String.format("%02d:%02d", seconds / 60, seconds % 60);
     }
 
     public int getGlobalTimeLeft() {
         return globalTimeLeft;
-    }
-
-    public void startRaid(String mapId, List<Player> participants) {
-        RaidMap map = maps.get(mapId);
-        if (map == null) return;
-        
-        RaidInstance raid = activeRaids.computeIfAbsent(mapId, id -> new RaidInstance(plugin, map, new ArrayList<>()));
-        raid.joinPlayers(participants);
     }
 
     public RaidInstance getActiveRaid(String mapId) {
@@ -103,13 +210,12 @@ public class RaidManager {
     }
 
     public void applyFailureEffect(Player player) {
-        // Blindness for 5 seconds
         player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.BLINDNESS, 100, 0, false, false, false));
-        // Play custom death sound (private to the player, loud)
         player.playSound(player.getLocation(), "minecraft:custom.death", org.bukkit.SoundCategory.MASTER, 2.0f, 1.0f);
     }
 
     public void onPlayerQuit(Player player) {
+        leaveQueue(player);
         for (RaidInstance raid : activeRaids.values()) {
             if (raid.isParticipant(player.getUniqueId())) {
                 raid.onPlayerQuit(player);

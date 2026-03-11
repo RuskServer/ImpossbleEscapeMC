@@ -1,4 +1,4 @@
-package com.lunar_prototype.impossbleEscapeMC.raid;
+package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -16,19 +16,18 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class RaidCommand implements CommandExecutor, TabCompleter {
-    private final RaidManager manager;
+    private final RaidModule manager;
 
-    public RaidCommand(RaidManager manager) {
+    public RaidCommand(RaidModule manager) {
         this.manager = manager;
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) return true;
-        if (!player.isOp()) return true;
 
         if (args.length == 0) {
-            sendHelp(player);
+            new RaidSelectionGUI(manager).open(player);
             return true;
         }
 
@@ -36,17 +35,24 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
             case "open":
                 new RaidSelectionGUI(manager).open(player);
                 break;
+            case "join":
+                handleJoin(player, args);
+                break;
+            case "leave":
+                manager.leaveQueue(player);
+                player.sendMessage(Component.text("出撃待機列から離脱しました。", NamedTextColor.YELLOW));
+                break;
             case "map":
-                handleMap(player, args);
+                if (player.isOp()) handleMap(player, args);
                 break;
             case "spawn":
-                handleSpawn(player, args);
+                if (player.isOp()) handleSpawn(player, args);
                 break;
             case "extract":
-                handleExtract(player, args);
+                if (player.isOp()) handleExtract(player, args);
                 break;
             case "scavspawn":
-                handleScavSpawn(player, args);
+                if (player.isOp()) handleScavSpawn(player, args);
                 break;
             default:
                 sendHelp(player);
@@ -54,6 +60,17 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
         }
 
         return true;
+    }
+
+    private void handleJoin(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage(Component.text("/raid join <mapID>", NamedTextColor.RED));
+            return;
+        }
+        String mapId = args[1];
+        if (!manager.joinQueue(player, mapId)) {
+            player.sendMessage(Component.text("待機列への参加に失敗しました。マップIDを確認してください。", NamedTextColor.RED));
+        }
     }
 
     private void handleMap(Player player, String[] args) {
@@ -138,24 +155,40 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
 
     private void sendHelp(Player player) {
         player.sendMessage(Component.text("--- Raid System Commands ---", NamedTextColor.YELLOW));
-        player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/raid spawn add <mapID>", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/raid scavspawn add <mapID> [permanent]", NamedTextColor.WHITE));
+        player.sendMessage(Component.text("/raid open - レイド選択GUIを開く", NamedTextColor.WHITE));
+        player.sendMessage(Component.text("/raid join <mapID> - 出撃待機列に参加", NamedTextColor.WHITE));
+        player.sendMessage(Component.text("/raid leave - 出撃待機列から離脱", NamedTextColor.WHITE));
+        
+        if (player.isOp()) {
+            player.sendMessage(Component.text("--- Admin Commands ---", NamedTextColor.RED));
+            player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid spawn add <mapID>", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid scavspawn add <mapID> [permanent]", NamedTextColor.WHITE));
+        }
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("open", "map", "spawn", "extract", "scavspawn").stream()
+            List<String> subs = new ArrayList<>(Arrays.asList("open", "join", "leave"));
+            if (sender.isOp()) {
+                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn"));
+            }
+            return subs.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
 
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
-            if (sub.equals("map")) return Arrays.asList("create", "delete");
-            if (sub.equals("spawn") || sub.equals("extract") || sub.equals("scavspawn")) return Arrays.asList("add");
+            if (sub.equals("join")) return manager.getMapIds().stream()
+                    .filter(s -> s.startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
+            if (sender.isOp()) {
+                if (sub.equals("map")) return Arrays.asList("create", "delete");
+                if (sub.equals("spawn") || sub.equals("extract") || sub.equals("scavspawn")) return Arrays.asList("add");
+            }
         }
 
         if (args.length == 3) {

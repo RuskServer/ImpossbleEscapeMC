@@ -132,7 +132,7 @@ public class PlayerListener implements Listener {
                 1.0f,
                 1.0f);
 
-        plugin.getRaidManager().onPlayerDeath(player);
+        plugin.getRaidModule().onPlayerDeath(player);
         plugin.getMinigameManager().onPlayerDeath(player);
         clearMovementState(player.getUniqueId());
     }
@@ -151,7 +151,7 @@ public class PlayerListener implements Listener {
                 @Override
                 public void run() {
                     if (player.isOnline()) {
-                        plugin.getRaidManager().applyFailureEffect(player);
+                        plugin.getRaidModule().applyFailureEffect(player);
                     }
                 }
             }.runTaskLater(plugin, 5); // 0.25秒後に実行
@@ -160,7 +160,7 @@ public class PlayerListener implements Listener {
 
     @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
-        plugin.getRaidManager().onPlayerQuit(event.getPlayer());
+        plugin.getRaidModule().onPlayerQuit(event.getPlayer());
         plugin.getMinigameManager().onPlayerQuit(event.getPlayer());
         if (plugin.getPartyManager() != null) {
             plugin.getPartyManager().leaveParty(event.getPlayer());
