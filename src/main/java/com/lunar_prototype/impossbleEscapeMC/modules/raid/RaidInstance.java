@@ -1,4 +1,4 @@
-package com.lunar_prototype.impossbleEscapeMC.raid;
+package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import net.kyori.adventure.bossbar.BossBar;
@@ -181,10 +181,10 @@ public class RaidInstance {
     }
 
     private void updateBossBar() {
-        int timeLeft = plugin.getRaidManager().getGlobalTimeLeft();
+        int timeLeft = plugin.getRaidModule().getGlobalTimeLeft();
         String timeStr = String.format("%02d:%02d", timeLeft / 60, timeLeft % 60);
         bossBar.name(Component.text("残りレイド時間: " + timeStr, NamedTextColor.WHITE));
-        bossBar.progress((float) timeLeft / (float) RaidManager.CYCLE_DURATION);
+        bossBar.progress((float) timeLeft / (float) RaidModule.CYCLE_DURATION);
     }
 
     public void handleMIA() {
@@ -196,7 +196,7 @@ public class RaidInstance {
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 p.hideBossBar(bossBar);
-                plugin.getRaidManager().applyFailureEffect(p);
+                plugin.getRaidModule().applyFailureEffect(p);
             }
         }
         players.clear();
@@ -329,7 +329,7 @@ public class RaidInstance {
             }
         }
         players.clear();
-        plugin.getRaidManager().removeRaid(map.getMapId());
+        plugin.getRaidModule().removeRaid(map.getMapId());
     }
 
     public void onPlayerDeath(Player player) {
@@ -397,7 +397,7 @@ public class RaidInstance {
     }
 
     public int getTimeLeft() {
-        return plugin.getRaidManager().getGlobalTimeLeft();
+        return plugin.getRaidModule().getGlobalTimeLeft();
     }
 
     public boolean isParticipant(UUID uuid) {

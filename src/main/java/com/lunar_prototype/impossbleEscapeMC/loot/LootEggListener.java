@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.raid.RaidMap;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -74,7 +74,7 @@ public class LootEggListener implements Listener {
         }
 
         // マップの存在確認
-        RaidMap map = plugin.getRaidManager().getMap(mapId);
+        RaidMap map = plugin.getRaidModule().getMap(mapId);
         if (map == null) {
             player.sendMessage(Component.text("エラー: 指定されたマップ " + mapId + " が見つかりません。", NamedTextColor.RED));
             return;
@@ -96,7 +96,7 @@ public class LootEggListener implements Listener {
             
             // マップに登録
             map.addLootContainer(target.getLocation(), crateId);
-            plugin.getRaidManager().saveMap(map);
+            plugin.getRaidModule().saveMap(map);
             
             // 補充を即座に行う
             plugin.getLootManager().refillContainer(container, crateId);

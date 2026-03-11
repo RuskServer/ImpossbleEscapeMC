@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.raid.RaidMap;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -85,7 +85,7 @@ public class LootManager {
     }
 
     public void refillAllContainers() {
-        for (RaidMap map : plugin.getRaidManager().getMaps().values()) {
+        for (RaidMap map : plugin.getRaidModule().getMaps().values()) {
             String worldName = map.getWorldName();
             if (worldName == null) continue;
 
