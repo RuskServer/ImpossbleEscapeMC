@@ -47,7 +47,7 @@ public class LootManager {
                 table.id = tableId;
                 table.minItems = section.getInt("min_items", 1);
                 table.maxItems = section.getInt("max_items", 5);
-                
+
                 List<Map<?, ?>> itemList = section.getMapList("items");
                 for (Map<?, ?> itemMap : itemList) {
                     LootTable.LootEntry entry = new LootTable.LootEntry();
@@ -71,7 +71,7 @@ public class LootManager {
                 LootCrate crate = new LootCrate();
                 crate.id = crateId;
                 crate.color = section.getString("color", "WHITE").toUpperCase();
-                
+
                 ConfigurationSection weightsSection = section.getConfigurationSection("tables");
                 if (weightsSection != null) {
                     for (String tId : weightsSection.getKeys(false)) {
@@ -88,20 +88,14 @@ public class LootManager {
         for (RaidMap map : plugin.getRaidManager().getMaps().values()) {
             String worldName = map.getWorldName();
             if (worldName == null) continue;
-            org.bukkit.World world = Bukkit.getWorld(worldName);
-            if (world == null) continue;
 
             for (RaidMap.LootContainer lc : map.getLootContainers()) {
                 Location loc = lc.getLocation(worldName);
                 if (loc == null) continue;
-
-                // チャンクを非同期でロードし、完了後に補充を実行
-                world.getChunkAtAsync(loc).thenAccept(chunk -> {
-                    Block block = loc.getBlock();
-                    if (block.getState() instanceof Container container) {
-                        refillContainer(container, lc.getTableId());
-                    }
-                });
+                Block block = loc.getBlock();
+                if (block.getState() instanceof Container container) {
+                    refillContainer(container, lc.getTableId());
+                }
             }
         }
     }
@@ -142,16 +136,11 @@ public class LootManager {
         container.update();
 
         List<ItemStack> items = LootRoller.roll(tableToRoll);
-        
-        // Randomize positions in the inventory
-        List<Integer> slots = new ArrayList<>();
-        for (int i = 0; i < inv.getSize(); i++) slots.add(i);
-        Collections.shuffle(slots);
+        Collections.shuffle(items);
 
         for (int i = 0; i < Math.min(items.size(), inv.getSize()); i++) {
-            inv.setItem(slots.get(i), items.get(i));
+            inv.setItem(i, items.get(i));
         }
-        container.update();
         plugin.getLogger().info("Refilled container " + crateId + " with " + items.size() + " items.");
     }
 
@@ -173,7 +162,7 @@ public class LootManager {
     public LootCrate getCrate(String id) {
         return lootCrates.get(id);
     }
-    
+
     public List<String> getTableIds() {
         return new ArrayList<>(lootTables.keySet());
     }

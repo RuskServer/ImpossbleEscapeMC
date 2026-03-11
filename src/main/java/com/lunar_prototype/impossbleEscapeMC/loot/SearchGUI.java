@@ -62,7 +62,7 @@ public class SearchGUI implements Listener {
     @EventHandler
     public void onEntityInteract(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof Mannequin mannequin)) return;
-        
+
         PersistentDataContainer pdc = mannequin.getPersistentDataContainer();
         if (!pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.STRING)) return;
 
@@ -140,7 +140,7 @@ public class SearchGUI implements Listener {
         int slot = event.getRawSlot();
         Object source = holder.getSource();
         PersistentDataContainer pdc = getPDCFromSource(source);
-        
+
         Set<Integer> searchedSlots = getSearchedSlots(pdc);
 
         if (searchedSlots.contains(slot)) {
@@ -225,7 +225,7 @@ public class SearchGUI implements Listener {
             sb.append(s);
         }
         pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
-        
+
         if (source instanceof Container c) c.update();
     }
 }

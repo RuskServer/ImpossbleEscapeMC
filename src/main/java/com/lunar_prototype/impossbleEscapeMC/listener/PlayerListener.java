@@ -220,8 +220,6 @@ public class PlayerListener implements Listener {
     public void onShootBow(org.bukkit.event.entity.EntityShootBowEvent event) {
         // 1. まずはイベントをキャンセル
         event.setCancelled(true);
-        event.setConsumeArrow(false);
-        event.setConsumeArrow(false);
 
         // 2. [重要] すでに生成されてしまった「矢」をこの世から消す
         // これをやらないと、一瞬だけクライアント側にエンティティが残ることがあります

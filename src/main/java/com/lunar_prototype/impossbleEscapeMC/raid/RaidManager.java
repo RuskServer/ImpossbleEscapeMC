@@ -151,6 +151,10 @@ public class RaidManager {
         return maps;
     }
 
+    public Collection<RaidInstance> getActiveRaids() {
+        return activeRaids.values();
+    }
+
     public void saveMap(RaidMap map) {
         File file = new File(mapsFolder, map.getMapId() + ".json");
         try (FileWriter writer = new FileWriter(file)) {

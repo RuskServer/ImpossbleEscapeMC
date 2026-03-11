@@ -25,12 +25,13 @@ import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class CorpseManager {
     private final ImpossbleEscapeMC plugin;
-    private final List<Mannequin> activeCorpses = new ArrayList<>();
+    private final Map<UUID, Location> activeCorpseLocations = new HashMap<>();
 
     public CorpseManager(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -40,13 +41,16 @@ public class CorpseManager {
         Location loc = victim.getLocation();
         Mannequin mannequin = (Mannequin) loc.getWorld().spawnEntity(loc, EntityType.MANNEQUIN);
         
+        // --- 永続化を無効化 (サーバー再起動時に残らないようにする) ---
+        mannequin.setPersistent(false);
+        mannequin.setRemoveWhenFarAway(false);
+        
         mannequin.setCustomNameVisible(false);
         mannequin.customName(Component.text("SCAV の死体", NamedTextColor.GRAY));
 
         mannequin.setProfile(ResolvableProfile.resolvableProfile().skinPatch(skinPatchBuilder -> skinPatchBuilder.model(PlayerTextures.SkinModel.CLASSIC).body(Key.key("minecraft","entity/player/wide/scav"))).build());
         
         // Posing (Simple "lying down" look)
-        // Mannequin poses are rotations in EulerAngle
         mannequin.setPose(Pose.SWIMMING);
         
         // Sync Equipment
@@ -59,10 +63,9 @@ public class CorpseManager {
             mannequin.getEquipment().setItemInOffHand(victim.getEquipment().getItemInOffHand());
         }
 
-        // Create virtual inventory from drops (or equipment + extras)
+        // Create virtual inventory
         Inventory virtualInv = Bukkit.createInventory(null, 27, Component.text("死体漁り"));
         if (victim.getEquipment() != null) {
-            // Add equipment to inventory so they can be looted
             virtualInv.addItem(victim.getEquipment().getHelmet());
             virtualInv.addItem(victim.getEquipment().getChestplate());
             virtualInv.addItem(victim.getEquipment().getLeggings());
@@ -72,14 +75,12 @@ public class CorpseManager {
             virtualInv.addItem(mainHand);
             virtualInv.addItem(victim.getEquipment().getItemInOffHand());
 
-            // --- [追加] 対応する弾薬を 30~60 発分追加 ---
             if (mainHand != null && mainHand.hasItemMeta()) {
                 PersistentDataContainer pdc = mainHand.getItemMeta().getPersistentDataContainer();
                 String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
                 com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
                 
                 if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
-                    // 現在装填されている弾、または口径に応じた最弱の弾を取得
                     String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
                     if (ammoId == null) {
                         com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition defaultAmmo = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
@@ -87,7 +88,7 @@ public class CorpseManager {
                     }
 
                     if (ammoId != null) {
-                        int amount = 30 + (int)(Math.random() * 31); // 30 ~ 60
+                        int amount = 30 + (int)(Math.random() * 31);
                         ItemStack ammoStack = com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.create(ammoId);
                         if (ammoStack != null) {
                             ammoStack.setAmount(amount);
@@ -98,7 +99,6 @@ public class CorpseManager {
             }
         }
         
-        // Save serialized inventory to PDC
         try {
             String serialized = serializeInventory(virtualInv);
             mannequin.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING, serialized);
@@ -106,22 +106,41 @@ public class CorpseManager {
             plugin.getLogger().severe("Failed to serialize corpse inventory!");
         }
 
-        activeCorpses.add(mannequin);
+        UUID uuid = mannequin.getUniqueId();
+        activeCorpseLocations.put(uuid, loc);
 
         // Schedule removal (90 seconds = 1800 ticks)
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (mannequin.isValid()) {
-                mannequin.remove();
-                activeCorpses.remove(mannequin);
+            activeCorpseLocations.remove(uuid);
+            org.bukkit.entity.Entity entity = Bukkit.getEntity(uuid);
+            if (entity != null) {
+                entity.remove();
+            } else {
+                // チャンクがアンロードされている可能性があるため、強制的にロードして消去
+                loc.getChunk().load();
+                org.bukkit.entity.Entity e = Bukkit.getEntity(uuid);
+                if (e != null) e.remove();
             }
         }, 1800L);
     }
 
     public void cleanup() {
-        for (Mannequin m : activeCorpses) {
-            if (m.isValid()) m.remove();
+        plugin.getLogger().info("Cleaning up " + activeCorpseLocations.size() + " corpses...");
+        for (Map.Entry<UUID, Location> entry : activeCorpseLocations.entrySet()) {
+            Location loc = entry.getValue();
+            if (loc.getWorld() == null) continue;
+
+            // チャンクを強制ロードして削除を確実にする
+            if (!loc.getChunk().isLoaded()) {
+                loc.getChunk().load();
+            }
+
+            org.bukkit.entity.Entity entity = Bukkit.getEntity(entry.getKey());
+            if (entity != null) {
+                entity.remove();
+            }
         }
-        activeCorpses.clear();
+        activeCorpseLocations.clear();
     }
 
     // Serialization utilities
