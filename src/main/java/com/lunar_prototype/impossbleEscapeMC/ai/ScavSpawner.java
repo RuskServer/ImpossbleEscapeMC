@@ -42,9 +42,16 @@ public class ScavSpawner implements Listener {
      * @return スポーンしたエンティティのUUID
      */
     public UUID spawnScav(Location loc) {
-        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.SKELETON); // または独自のEntityType
+        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.SKELETON);
 
-        // タルコフ風の装備設定 (必要に応じてItemRegistryから取得)
+        // 体力を40 (バニラの2倍) に固定
+        var healthAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        if (healthAttr != null) {
+            healthAttr.setBaseValue(40.0);
+            scav.setHealth(40.0);
+        }
+
+        // タルコフ風の装備設定
         setupScavEquipment(scav);
 
         // 例: プレイヤー風に偽装（名前は"SCAV"）
@@ -54,7 +61,7 @@ public class ScavSpawner implements Listener {
         DisguiseAPI.disguiseToAll(scav, disguise);
 
         // コントローラーを生成して登録
-        ScavController controller = new ScavController(scav, gunListener);
+        ScavController controller = new ScavController(plugin, scav, gunListener);
         controllers.put(scav.getUniqueId(), controller);
 
         Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId());
@@ -63,7 +70,7 @@ public class ScavSpawner implements Listener {
 
     private void setupScavEquipment(Mob scav) {
         // 1. スポーン時に持たせる銃の候補リスト
-        String[] gunPool = { "ak74", "m4a1", "m700" };
+        String[] gunPool = { "ak74", "m4a1", "m700", "mossberg_590" };
         String randomGunId = gunPool[new java.util.Random().nextInt(gunPool.length)];
 
         // 2. ItemFactoryで銃を生成 (ここでPDCにAMMOやITEM_IDが書き込まれる)
@@ -103,7 +110,7 @@ public class ScavSpawner implements Listener {
             if (controller.getScav() != null && !controller.getScav().isDead()) {
                 controller.getScav().remove();
             }
-            controller.getBrain().terminate();
+            controller.terminate();
         }
     }
 
@@ -117,7 +124,7 @@ public class ScavSpawner implements Listener {
                 // 実行中にMapが変更されないよう、Iterator等で制御
                 controllers.values().removeIf(controller -> {
                     if (controller.getScav().isDead() || !controller.getScav().isValid()) {
-                        controller.getBrain().terminate(); // メモリ解放
+                        controller.terminate(); // メモリ解放 & チャンク解放
                         return true;
                     }
                     controller.onTick();
@@ -162,7 +169,7 @@ public class ScavSpawner implements Listener {
 
             ScavController controller = controllers.remove(uuid);
             if (controller != null) {
-                controller.getBrain().terminate();
+                controller.terminate();
                 Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
             }
             plugin.getRaidModule().onScavDeath(uuid);
@@ -175,7 +182,7 @@ public class ScavSpawner implements Listener {
 
     public void cleanup() {
         for (ScavController controller : controllers.values()) {
-            controller.getBrain().terminate();
+            controller.terminate();
         }
         controllers.clear();
     }

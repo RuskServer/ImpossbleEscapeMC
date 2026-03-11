@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalMath;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalVision;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
@@ -7,6 +8,7 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -22,9 +24,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ScavController {
+    private final ImpossbleEscapeMC plugin;
     private final Mob scav;
     private final ScavBrain brain;
     private final GunListener gunListener;
+
+    private Chunk currentChunk = null;
 
     private Location lastKnownLocation = null;
     private Location slicingPoint = null; // パイ・スライシングの待機地点
@@ -77,11 +82,40 @@ public class ScavController {
     private int voiceLineCooldown = 0;
     private static final int VOICE_LINE_COOLDOWN_TICKS = 100; // 5秒
 
-    public ScavController(Mob scav, GunListener listener) {
+    public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
+        this.plugin = plugin;
         this.scav = scav;
         this.brain = new ScavBrain(scav);
         this.gunListener = listener;
         this.currentAimVector = scav.getEyeLocation().getDirection();
+
+        // 初期スポーン位置のチャンクロードを開始
+        updateChunkTicket();
+    }
+
+    private void updateChunkTicket() {
+        Chunk newChunk = scav.getLocation().getChunk();
+        if (currentChunk == null || !currentChunk.equals(newChunk)) {
+            // 古いチケットを解除
+            if (currentChunk != null) {
+                currentChunk.removePluginChunkTicket(plugin);
+            }
+            // 新しいチケットを追加
+            currentChunk = newChunk;
+            currentChunk.addPluginChunkTicket(plugin);
+        }
+    }
+
+    public void releaseChunkTicket() {
+        if (currentChunk != null) {
+            currentChunk.removePluginChunkTicket(plugin);
+            currentChunk = null;
+        }
+    }
+
+    public void terminate() {
+        brain.terminate();
+        releaseChunkTicket();
     }
 
     private void playVoiceLine(String sound) {
@@ -91,6 +125,9 @@ public class ScavController {
     }
 
     public void onTick() {
+        // チャンクロードの維持/更新
+        updateChunkTicket();
+
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
 
@@ -780,6 +817,7 @@ public class ScavController {
     }
 
     private boolean tryOpenDoor(Block block) {
+        if (block.getType().toString().contains("TRAPDOOR")) return false;
         if (block.getBlockData() instanceof Openable openable) {
             if (!openable.isOpen()) {
                 // 鉄のドアはここでは開けないように制限することも可能だが、

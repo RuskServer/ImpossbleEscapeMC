@@ -405,7 +405,8 @@ public class GunListener implements Listener {
         boolean isAiming = isAiming(player.getUniqueId());
 
         if (isAiming) {
-            inaccuracy = 0.005; // エイム時はほぼ正確
+            // ショットガンの場合はエイム時でも一定の拡散を残す (8%程度)
+            inaccuracy = (stats.pelletCount > 1) ? 0.15 : 0.005;
         } else {
             // 腰撃ち
             inaccuracy = 0.25; // 基本の拡散率 (2.5ブロック相当 / 10m)
