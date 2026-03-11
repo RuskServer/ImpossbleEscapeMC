@@ -31,6 +31,14 @@ public class ReloadingState implements WeaponState {
         GunStats stats = ctx.getStats();
         ItemStack item = ctx.getItem();
 
+        // PUMP_ACTION はショットガン専用ステートへ委譲
+        if ("PUMP_ACTION".equalsIgnoreCase(stats.boltType)) {
+            if (ctx.getStateMachine() != null) {
+                ctx.getStateMachine().transitionTo(new ShotgunReloadingState());
+            }
+            return;
+        }
+
         // 1. Find Ammo logic
         String targetCaliber = stats.caliber;
         Map<String, List<ItemStack>> ammoPool = ctx.findAmmo(targetCaliber);
@@ -208,7 +216,8 @@ public class ReloadingState implements WeaponState {
 
         // 1. Calculate how much we actually need from inventory
         // Closed bolt: Max is magSize + 1 (if we keep the chambered round)
-        // BUT, since we are ejecting the magazine, we want to end up with a full magazine (magSize)
+        // BUT, since we are ejecting the magazine, we want to end up with a full
+        // magazine (magSize)
         // and a loaded chamber (1). Total maxPossible.
         int maxPossible = isClosedBolt ? stats.magSize + 1 : stats.magSize;
         int currentTotal = currentAmmo + (isChamberLoaded ? 1 : 0);
@@ -217,8 +226,10 @@ public class ReloadingState implements WeaponState {
         // 2. Consume from inventory
         int takenFromInventory = 0;
         for (ItemStack ammoStack : finalAmmoStacks) {
-            if (neededFromInventory <= 0) break;
-            if (ammoStack == null || ammoStack.getType() == Material.AIR) continue;
+            if (neededFromInventory <= 0)
+                break;
+            if (ammoStack == null || ammoStack.getType() == Material.AIR)
+                continue;
 
             int amount = ammoStack.getAmount();
             int take = Math.min(amount, neededFromInventory);
@@ -242,7 +253,8 @@ public class ReloadingState implements WeaponState {
         }
 
         // 4. Update Gun State
-        // New total in gun = old total (including chamber) + what we took from inventory
+        // New total in gun = old total (including chamber) + what we took from
+        // inventory
         int newTotal = currentTotal + takenFromInventory;
 
         if (isClosedBolt) {

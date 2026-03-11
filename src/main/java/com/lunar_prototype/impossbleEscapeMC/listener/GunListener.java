@@ -73,11 +73,12 @@ public class GunListener implements Listener {
                 long now = System.currentTimeMillis();
                 for (World world : Bukkit.getWorlds()) {
                     for (LivingEntity entity : world.getLivingEntities()) {
-                        if (!(entity instanceof Player) && !(entity instanceof Mob)) continue;
-                        
+                        if (!(entity instanceof Player) && !(entity instanceof Mob))
+                            continue;
+
                         var history = entityHistory.computeIfAbsent(entity.getUniqueId(), k -> new TreeMap<>());
                         history.put(now, entity.getBoundingBox().clone());
-                        
+
                         while (!history.isEmpty() && history.firstKey() < now - HISTORY_DURATION_MS) {
                             history.pollFirstEntry();
                         }
@@ -91,14 +92,17 @@ public class GunListener implements Listener {
 
     private BoundingBox getCompensatedBox(LivingEntity entity, long targetTime) {
         NavigableMap<Long, BoundingBox> history = entityHistory.get(entity.getUniqueId());
-        if (history == null || history.isEmpty()) return entity.getBoundingBox();
-        
+        if (history == null || history.isEmpty())
+            return entity.getBoundingBox();
+
         Map.Entry<Long, BoundingBox> floor = history.floorEntry(targetTime);
         Map.Entry<Long, BoundingBox> ceil = history.ceilingEntry(targetTime);
-        
-        if (floor == null) return ceil.getValue();
-        if (ceil == null) return floor.getValue();
-        
+
+        if (floor == null)
+            return ceil.getValue();
+        if (ceil == null)
+            return floor.getValue();
+
         // 近い方のデータを採用
         return (targetTime - floor.getKey() < ceil.getKey() - targetTime) ? floor.getValue() : ceil.getValue();
     }
@@ -329,7 +333,7 @@ public class GunListener implements Listener {
             public void run() {
                 if (!player.isOnline())
                     return;
-                
+
                 // 1ティックの間にスロットが切り替わっていたら中断
                 if (player.getInventory().getHeldItemSlot() != slotIndex)
                     return;
@@ -340,7 +344,7 @@ public class GunListener implements Listener {
 
                 // ステートマシンのアイテム参照を最新に更新
                 updateWeaponModel(player, currentItem);
-                
+
                 var sm = getOrCreateStateMachine(player);
                 sm.handleInput(com.lunar_prototype.impossbleEscapeMC.animation.state.InputType.RELOAD);
             }
@@ -460,8 +464,10 @@ public class GunListener implements Listener {
 
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
-
-            new BulletTask(player, damage, ammoClass, inaccuracy).start();
+            int pellets = Math.max(1, stats.pelletCount);
+            for (int i = 0; i < pellets; i++) {
+                new BulletTask(player, damage, ammoClass, inaccuracy).start();
+            }
         }
 
         // 縦反動: 銃は跳ね上がる(視線は上に行く)ため、ピッチはマイナス方向へ動かす
@@ -474,7 +480,8 @@ public class GunListener implements Listener {
         sendRecoilPacket(player, recoilYaw, recoilPitch);
 
         // --- 視覚的・音響的メタデータの付与 (AI用) ---
-        player.setMetadata("last_fired_tick", new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
+        player.setMetadata("last_fired_tick",
+                new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
 
         // --- SCAVへの音響通知 ---
         for (Entity entity : player.getNearbyEntities(64, 64, 64)) {
@@ -542,8 +549,11 @@ public class GunListener implements Listener {
         float shotPitch = 1.8f + (float) ((Math.random() - 0.5) * 0.1); // 銃声のピッチにノイズを追加
         shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 8.0f, shotPitch);
 
-        // 2. 弾丸の生成 (inaccuracyをコンストラクタで渡すように変更)
-        new BulletTask(shooter, stats.damage, ammoClass, inaccuracy).start();
+        // 2. 弾丸の生成
+        int pellets = Math.max(1, stats.pelletCount);
+        for (int i = 0; i < pellets; i++) {
+            new BulletTask(shooter, stats.damage, ammoClass, inaccuracy).start();
+        }
 
         // 1秒後に薬莢の落ちる音を再生 (AI用)
         new BukkitRunnable() {
@@ -597,9 +607,9 @@ public class GunListener implements Listener {
         player.getWorld().spawnParticle(
                 Particle.WHITE_SMOKE,
                 muzzleLoc,
-                1,       // 個数（1個で十分）
+                1, // 個数（1個で十分）
                 0.0, 0.0, 0.0, // 散らばり（0にすると一点から出る）
-                0.05     // 速度（少しだけ動かすとリアル）
+                0.05 // 速度（少しだけ動かすとリアル）
         );
 
         // --- 光源処理（一瞬だけ光らせる） ---
@@ -667,19 +677,18 @@ public class GunListener implements Listener {
             this.currentLoc = shooter.getEyeLocation();
             this.origin = this.currentLoc.toVector(); // 初期位置を保存
             this.shooterPing = (shooter instanceof Player p) ? PacketEvents.getAPI().getPlayerManager().getPing(p) : 0;
-            
+
             Vector dir = shooter.getEyeLocation().getDirection();
-            
+
             // 拡散（インナキュラシー）の適用
             if (inaccuracy > 0) {
                 dir.add(new Vector(
-                    (Math.random() - 0.5) * inaccuracy,
-                    (Math.random() - 0.5) * inaccuracy,
-                    (Math.random() - 0.5) * inaccuracy
-                ));
+                        (Math.random() - 0.5) * inaccuracy,
+                        (Math.random() - 0.5) * inaccuracy,
+                        (Math.random() - 0.5) * inaccuracy));
                 dir.normalize();
             }
-            
+
             this.velocity = dir.multiply(SPEED);
             this.ammoClass = ammoClass;
         }
@@ -694,16 +703,19 @@ public class GunListener implements Listener {
 
         @Override
         public void cancel() {
-            if (!active) return;
+            if (!active)
+                return;
             active = false;
             try {
                 super.cancel();
-            } catch (IllegalStateException ignored) {}
+            } catch (IllegalStateException ignored) {
+            }
         }
 
         @Override
         public void run() {
-            if (!active) return;
+            if (!active)
+                return;
 
             ticksAlive++;
             if (ticksAlive > 100) { // 5秒経ったら消滅
@@ -720,7 +732,8 @@ public class GunListener implements Listener {
 
             // ヒートマップへの制圧記録 (プレイヤーが撃った場合のみ)
             if (shooter instanceof Player) {
-                com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.recordLine(prevLoc, velocity.clone().normalize(), SPEED, 1.0f);
+                com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.recordLine(prevLoc,
+                        velocity.clone().normalize(), SPEED, 1.0f);
             }
 
             // ニアミス判定 (回避報酬)
@@ -749,8 +762,10 @@ public class GunListener implements Listener {
 
             while (distanceRemaining > 0.01) {
                 // 1. ブロックの当たり判定
-                var blockTrace = currentLoc.getWorld().rayTraceBlocks(rayStart, rayDir, distanceRemaining, FluidCollisionMode.NEVER, true);
-                double blockDist = (blockTrace != null) ? blockTrace.getHitPosition().distance(rayStart.toVector()) : Double.MAX_VALUE;
+                var blockTrace = currentLoc.getWorld().rayTraceBlocks(rayStart, rayDir, distanceRemaining,
+                        FluidCollisionMode.NEVER, true);
+                double blockDist = (blockTrace != null) ? blockTrace.getHitPosition().distance(rayStart.toVector())
+                        : Double.MAX_VALUE;
 
                 // 2. エンティティの当たり判定 (ラグ補填)
                 Entity victim = null;
@@ -758,12 +773,15 @@ public class GunListener implements Listener {
                 double bestDist = blockDist;
 
                 // 近くのエンティティを検索
-                Collection<Entity> potentialVictims = currentLoc.getWorld().getNearbyEntities(rayStart, distanceRemaining + 2, distanceRemaining + 2, distanceRemaining + 2);
+                Collection<Entity> potentialVictims = currentLoc.getWorld().getNearbyEntities(rayStart,
+                        distanceRemaining + 2, distanceRemaining + 2, distanceRemaining + 2);
                 for (Entity e : potentialVictims) {
-                    if (!(e instanceof LivingEntity le) || e.equals(shooter)) continue;
+                    if (!(e instanceof LivingEntity le) || e.equals(shooter))
+                        continue;
 
                     BoundingBox box = getCompensatedBox(le, targetTime);
-                    org.bukkit.util.RayTraceResult entityTrace = box.rayTrace(rayStart.toVector(), rayDir, distanceRemaining);
+                    org.bukkit.util.RayTraceResult entityTrace = box.rayTrace(rayStart.toVector(), rayDir,
+                            distanceRemaining);
 
                     if (entityTrace != null) {
                         double dist = entityTrace.getHitPosition().distance(rayStart.toVector());
@@ -777,7 +795,8 @@ public class GunListener implements Listener {
 
                 if (victim != null) {
                     Vector bulletDir = velocity.clone().normalize();
-                    handleDamage((LivingEntity) victim, shooter, damage, ammoClass, hitPos.toLocation(currentLoc.getWorld()));
+                    handleDamage((LivingEntity) victim, shooter, damage, ammoClass,
+                            hitPos.toLocation(currentLoc.getWorld()));
                     BloodEffect.spawn(hitPos.toLocation(currentLoc.getWorld()), bulletDir, damage);
                     this.cancel();
                     return;
@@ -804,19 +823,20 @@ public class GunListener implements Listener {
         }
 
         private void spawnBulletHole(Location loc, org.bukkit.block.BlockFace face) {
-            if (face == null) return;
-            
+            if (face == null)
+                return;
+
             // 壁から0.2ブロック離す
             Vector offset = face.getDirection().multiply(0.2);
             Location holeLoc = loc.clone().add(offset);
-            
+
             // より濃い色に変更 (RGB: 10, 10, 10)
             org.bukkit.Color color = org.bukkit.Color.fromRGB(10, 10, 10);
             // targetを現在地と同じにすることで移動させず、duration: 600 (30秒) 残留させる
             Particle.Trail trailData = new Particle.Trail(holeLoc, color, 600);
-            
+
             loc.getWorld().spawnParticle(Particle.TRAIL, holeLoc, 1, 0, 0, 0, 0, trailData);
-            
+
             // 着弾時の火花
             loc.getWorld().spawnParticle(Particle.DUST, holeLoc, 2, 0.02, 0.02, 0.02, 0.05,
                     new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 150, 150), 0.4f));
@@ -824,13 +844,13 @@ public class GunListener implements Listener {
 
         private boolean isPenetrable(Material material) {
             String name = material.name();
-            return name.contains("GLASS") || 
-                   name.contains("PANE") || 
-                   name.contains("BARS") || 
-                   name.contains("GRATE") || 
-                   name.contains("LEAVES") || 
-                   name.contains("CHAIN") ||
-                   name.contains("SCAFFOLDING");
+            return name.contains("GLASS") ||
+                    name.contains("PANE") ||
+                    name.contains("BARS") ||
+                    name.contains("GRATE") ||
+                    name.contains("LEAVES") ||
+                    name.contains("CHAIN") ||
+                    name.contains("SCAFFOLDING");
         }
 
         private void spawnTracer(Location from, Location to) {
@@ -861,7 +881,8 @@ public class GunListener implements Listener {
                         Vector pos = start.clone().add(direction.clone().multiply(d));
 
                         // 【追加】発射地点から3ブロック以内は描画しない (距離の2乗で比較)
-                        if (pos.distanceSquared(origin) < 9.0) continue;
+                        if (pos.distanceSquared(origin) < 9.0)
+                            continue;
 
                         try {
                             // count=1, offsets=0, extra=0
@@ -910,7 +931,7 @@ public class GunListener implements Listener {
 
     private void updateWeaponModel(Player player, ItemStack item) {
         UUID uuid = player.getUniqueId();
-        
+
         if (!isGun(item)) {
             stopShooting(uuid);
             stopStateTask(player);
@@ -919,7 +940,7 @@ public class GunListener implements Listener {
         }
 
         var sm = getOrCreateStateMachine(player);
-        
+
         // Update Context Item
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
@@ -928,7 +949,7 @@ public class GunListener implements Listener {
 
         if (def != null && def.gunStats != null) {
             ItemStack oldItem = sm.getContext().getItem();
-            
+
             // アイテムが物理的に異なる（またはスロットが違う、メタが違う等）場合はリセット
             if (oldItem == null || !oldItem.equals(item)) {
                 // 持ち替え時は強制的にリセットして Idle 状態へ
@@ -959,7 +980,7 @@ public class GunListener implements Listener {
                     stopStateTask(player);
                     return;
                 }
-                
+
                 // 現在持っているアイテムを取得
                 ItemStack current = player.getInventory().getItemInMainHand();
                 if (!isGun(current)) {
@@ -986,12 +1007,12 @@ public class GunListener implements Listener {
             stateTasks.get(uuid).cancel();
             stateTasks.remove(uuid);
         }
-        
+
         var sm = stateMachines.get(uuid);
         if (sm != null) {
             sm.transitionTo(null);
         }
-        
+
         stateMachines.remove(uuid);
         lastLocationMap.remove(uuid);
     }
@@ -1024,8 +1045,9 @@ public class GunListener implements Listener {
             return false;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        if (itemId == null) return false;
-        
+        if (itemId == null)
+            return false;
+
         ItemDefinition def = ItemRegistry.get(itemId);
         return def != null && "GUN".equalsIgnoreCase(def.type);
     }
@@ -1102,10 +1124,11 @@ public class GunListener implements Listener {
         } else {
             // 貫通成功
             playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
-            
+
             // 更にヘッドショットだった場合は別音を追加で鳴らす（既存処理維持ならここでヘッドショットの音も鳴らす）
             if (isHeadshot) {
-                //playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
+                // playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot",
+                // "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
             }
         }
 
@@ -1143,9 +1166,11 @@ public class GunListener implements Listener {
         victim.damage(finalDamage, shooter);
     }
 
-    private void playConfiguredSound(Player player, Location loc, String configKey, String defaultSoundName, float volume, float pitch) {
+    private void playConfiguredSound(Player player, Location loc, String configKey, String defaultSoundName,
+            float volume, float pitch) {
         String soundName = plugin.getConfig().getString(configKey, defaultSoundName);
-        if (soundName == null || soundName.isEmpty()) return;
+        if (soundName == null || soundName.isEmpty())
+            return;
 
         // プレイヤーが指定されている場合は、耳元（現在地）で鳴らすことで距離に関わらず聞こえるようにする
         Location playAt = (player != null) ? player.getLocation() : loc;

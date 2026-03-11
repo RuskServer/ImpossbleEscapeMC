@@ -6,6 +6,7 @@ public class GunStats {
     public int rpm;
     public int magSize;
     public String fireMode; // "SEMI" or "AUTO"
+    public int pelletCount = 1; // 同時発射弾数（ショットガン用。デフォルト1 = 通常銃と同じ）
     public int customModelData; // 【追加】 ベースとなるモデル番号 (例: 20)
     public int adsTime; // 【追加】ADS時間 (ミリ秒)
     public int boltingTime; // 【追加】手動コッキングの時間 (ミリ秒)
@@ -15,6 +16,7 @@ public class GunStats {
     public java.util.List<String> defaultAttachments; // 【追加】デフォルトのアタッチメント構成
     public AnimationStats reloadAnimation;
     public AnimationStats tacticalReloadAnimation;
+    public AnimationStats reloadLoopAnimation; // 1発装填ループ用（ショットガン専用）
     public AnimationStats boltingAnimation; // 【追加】ボルトアクション用アニメーション
     public AnimationStats aimAnimation;
     public AnimationStats sprintAnimation;
