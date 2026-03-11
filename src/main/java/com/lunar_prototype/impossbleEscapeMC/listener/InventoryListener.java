@@ -18,7 +18,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.*;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -114,6 +116,16 @@ public class InventoryListener implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
+        // トリガーアイテムが不正な位置にあれば削除
+        if (isGuiTrigger(event.getCurrentItem())) {
+            if (!isPlayerCraftingGrid(event.getView()) || event.getRawSlot() != 4) {
+                event.setCurrentItem(null);
+            }
+        }
+        if (isGuiTrigger(event.getCursor())) {
+            event.setCursor(null);
+        }
+
         InventoryView view = event.getView();
         if (!isPlayerCraftingGrid(view)) return;
 
@@ -133,6 +145,21 @@ public class InventoryListener implements Listener {
             } else if (event.getCurrentItem() != null && isGuiTrigger(event.getCurrentItem())) {
                 player.sendMessage("§cメインハンドに有効な銃を持っていません");
             }
+        }
+    }
+
+    @EventHandler
+    public void onPickup(EntityPickupItemEvent event) {
+        if (isGuiTrigger(event.getItem().getItemStack())) {
+            event.getItem().remove();
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent event) {
+        if (isGuiTrigger(event.getItemDrop().getItemStack())) {
+            event.getItemDrop().remove();
         }
     }
 

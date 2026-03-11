@@ -164,6 +164,7 @@ public class SearchGUI implements Listener {
             inv.setItem(slot, null);
             try {
                 m.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING, CorpseManager.serializeInventory(inv));
+                CorpseManager.updateMannequinAppearance(m, inv);
             } catch (IOException e) {
                 plugin.getLogger().warning("Failed to save updated corpse inventory!");
             }
