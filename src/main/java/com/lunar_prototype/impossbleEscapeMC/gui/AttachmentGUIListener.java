@@ -31,12 +31,48 @@ public class AttachmentGUIListener implements Listener {
         ItemStack cursor = event.getCursor();
         ItemStack gunItem = gui.getGunItem();
 
-        // プレイヤーのインベントリ部分 (GUI外) のクリックは許可
-        // これによりアタッチメントをカーソルに持てる
+        // プレイヤーのインベントリ部分 (GUI外) のクリック
         if (clickedSlot >= guiSize) {
-            // ただしShift+クリックはアイテムがGUIに入ってしまうのでキャンセル
             if (event.isShiftClick()) {
                 event.setCancelled(true);
+                ItemStack clickedItem = event.getCurrentItem();
+                if (clickedItem == null || clickedItem.getType() == Material.AIR || !clickedItem.hasItemMeta())
+                    return;
+
+                // 編集中の銃自体をシフトクリックした場合は無視
+                if (clickedItem.isSimilar(gunItem))
+                    return;
+
+                String itemId = clickedItem.getItemMeta().getPersistentDataContainer()
+                        .get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+                AttachmentDefinition attDef = ItemRegistry.getAttachment(itemId);
+
+                if (attDef != null) {
+                    AttachmentSlot targetSlot = attDef.slot;
+                    List<String> attachments = getAttachmentList(gunItem);
+                    ensureListSize(attachments, targetSlot.getId() + 1);
+
+                    // 既存のアタッチメントがあれば排出
+                    String existing = attachments.get(targetSlot.getId());
+                    if (existing != null && !existing.isEmpty()) {
+                        ItemStack ejected = ItemFactory.create(existing);
+                        if (ejected != null) {
+                            player.getInventory().addItem(ejected).forEach(
+                                    (i, drop) -> player.getWorld().dropItemNaturally(player.getLocation(), drop));
+                        }
+                    }
+
+                    // 新しいアタッチメントをセット
+                    attachments.set(targetSlot.getId(), attDef.id);
+                    saveAttachmentList(gunItem, attachments);
+
+                    // アイテムを1つ消費
+                    clickedItem.setAmount(clickedItem.getAmount() - 1);
+
+                    // GUIを更新
+                    new AttachmentGUI(player, gunItem).open();
+                    player.sendMessage("§a" + attDef.displayName + " を装着しました");
+                }
             }
             return;
         }
@@ -102,7 +138,18 @@ public class AttachmentGUIListener implements Listener {
                 // 取り外し処理
                 List<String> attachments = getAttachmentList(gunItem);
                 ensureListSize(attachments, targetSlot.getId() + 1);
-                attachments.set(targetSlot.getId(), "");
+                
+                // デフォルトのアタッチメントを取得
+                String defaultAtt = "";
+                String itemId = gunItem.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+                ItemDefinition gunDef = ItemRegistry.get(itemId);
+                if (gunDef != null && gunDef.gunStats != null && gunDef.gunStats.defaultAttachments != null) {
+                    if (gunDef.gunStats.defaultAttachments.size() > targetSlot.getId()) {
+                        defaultAtt = gunDef.gunStats.defaultAttachments.get(targetSlot.getId());
+                    }
+                }
+                
+                attachments.set(targetSlot.getId(), defaultAtt);
                 saveAttachmentList(gunItem, attachments);
 
                 // アタッチメントアイテムをプレイヤーに返却

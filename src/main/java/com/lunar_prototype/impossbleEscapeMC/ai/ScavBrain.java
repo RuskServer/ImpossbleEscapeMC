@@ -17,12 +17,19 @@ public class ScavBrain {
     private float fear;
     private float tactical;
 
-    private int[] lastActions;
+    // --- Decision Persistence ---
+    private int[] currentActions; // [Movement, Shooting]
+    private int decisionTimer = 0;
+    
+    // --- State Tracking for Interrupts ---
+    private float lastSuppression = 0.0f;
+    private double lastHealthPercent = 1.0;
+    private boolean lastCanSee = false;
 
     public ScavBrain(Mob entity) {
         this.entity = entity;
         this.random = new Random();
-        this.lastActions = new int[] { 0, 0 }; // [Movement, Shooting]
+        this.currentActions = new int[] { 0, 1 }; // Default: Push, Don't Shoot
 
         // Initial state
         this.aggression = 0.2f + random.nextFloat() * 0.3f;
@@ -32,26 +39,68 @@ public class ScavBrain {
 
     public int[] decide(LivingEntity target, GunStats stats, float suppression, float tacticalAdvice) {
         boolean canSee = target != null;
+        double healthPercent = entity.getHealth() / entity.getAttribute(Attribute.MAX_HEALTH).getValue();
+        
+        // --- 1. Update Internal States ---
+        updateInternalStates(target, stats, suppression, tacticalAdvice, canSee, healthPercent);
 
-        // --- 1. Update Internal States based on context ---
-        updateInternalStates(target, stats, suppression, tacticalAdvice, canSee);
+        // --- 2. Check for Interrupts ---
+        boolean interrupted = shouldInterrupt(canSee, suppression, healthPercent, stats);
 
-        // --- 2. Determine Move Action (0: Push, 1: Push, 2: Retreat, 3: Strafe L, 4:
-        // Strafe R, 5: Jump, 6: Jump Peek) ---
-        int moveAction = determineMoveAction(suppression, canSee, tacticalAdvice);
+        // --- 3. Decision Logic ---
+        if (decisionTimer <= 0 || interrupted) {
+            // Determine new actions
+            int moveAction = determineMoveAction(suppression, canSee, tacticalAdvice);
+            int shootAction = determineShootAction(canSee, suppression);
+            
+            this.currentActions = new int[] { moveAction, shootAction };
+            
+            // Set duration based on action type (Current AI tick is 5 ticks = 0.25s)
+            // 2 to 6 ticks = 0.5s to 1.5s
+            this.decisionTimer = 2 + random.nextInt(4);
+            
+            // Critical actions (Retreat/Evasion) should have shorter reconsideration times
+            if (moveAction == 2 || moveAction == 3 || moveAction == 4) {
+                this.decisionTimer = 2 + random.nextInt(2);
+            }
+        } else {
+            decisionTimer--;
+        }
 
-        // --- 3. Determine Shoot Action (0: Shoot, 1: Don't Shoot) ---
-        int shootAction = determineShootAction(canSee, suppression);
+        // Update tracking states for next tick
+        this.lastCanSee = canSee;
+        this.lastSuppression = suppression;
+        this.lastHealthPercent = healthPercent;
 
-        this.lastActions = new int[] { moveAction, shootAction };
-        return lastActions;
+        return currentActions;
+    }
+
+    private boolean shouldInterrupt(boolean canSee, float suppression, double healthPercent, GunStats stats) {
+        // A. Sudden sight change (Found target or lost target)
+        if (canSee != lastCanSee) return true;
+
+        // B. Heavy damage or sudden suppression spike
+        if (healthPercent < lastHealthPercent - 0.1) return true; // Took significant damage
+        if (suppression > lastSuppression + 0.3f) return true;    // Sudden heavy fire
+
+        // C. Panic state (Fear spikes)
+        if (fear > 0.8f && lastSuppression < 0.5f) return true;
+
+        // D. Out of ammo while trying to shoot
+        if (currentActions[1] == 0) { // If currently wanting to shoot
+            ItemStack gun = entity.getEquipment().getItemInMainHand();
+            if (gun != null && gun.hasItemMeta()) {
+                int ammo = gun.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+                if (ammo <= 0) return true; // Need to change action to cover/reload
+            }
+        }
+
+        return false;
     }
 
     private void updateInternalStates(LivingEntity target, GunStats stats, float suppression, float tacticalAdvice,
-            boolean canSee) {
-        // Evaluate inputs
-        double healthPercent = entity.getHealth() / entity.getAttribute(Attribute.MAX_HEALTH).getValue();
-
+            boolean canSee, double healthPercent) {
+        
         ItemStack gun = entity.getEquipment().getItemInMainHand();
         int currentAmmo = 0;
         int magSize = 30;
@@ -184,7 +233,7 @@ public class ScavBrain {
     }
 
     public int[] getLastActions() {
-        return lastActions != null ? lastActions : new int[] { 0, 1 };
+        return currentActions != null ? currentActions : new int[] { 0, 1 };
     }
 
     // Removed ML feedback loops

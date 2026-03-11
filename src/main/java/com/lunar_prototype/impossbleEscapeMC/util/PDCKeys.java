@@ -25,6 +25,7 @@ public class PDCKeys {
             "armor_class_int");
     public static final NamespacedKey LOOT_TABLE_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "loot_table_id");
     public static final NamespacedKey CORPSE_INVENTORY = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "corpse_inventory");
+    public static final NamespacedKey GUI_TRIGGER = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "gui_trigger");
 
     public static NamespacedKey affix(String stat) {
         return new NamespacedKey(ImpossbleEscapeMC.getInstance(), "affix_" + stat);
