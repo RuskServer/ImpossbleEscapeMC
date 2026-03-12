@@ -147,7 +147,6 @@ public class ItemRegistry {
                     }
                 }
 
-                // --- MedStats の読み込み処理も同様に追加可能 ---
                 if (section.contains("medStats")) {
                     ConfigurationSection medSection = section.getConfigurationSection("medStats");
                     if (medSection != null) {
@@ -155,6 +154,12 @@ public class ItemRegistry {
                         mStats.heal = medSection.getDouble("heal");
                         mStats.useTime = medSection.getInt("useTime");
                         mStats.bleedStop = medSection.getBoolean("bleedStop");
+                        
+                        // --- Continuous medical settings ---
+                        mStats.continuous = medSection.getBoolean("continuous", false);
+                        mStats.healPerUse = medSection.getDouble("healPerUse", 0.0);
+                        mStats.durabilityPerUse = medSection.getInt("durabilityPerUse", 0);
+                        mStats.usingCustomModelData = medSection.getInt("usingCustomModelData", 0);
 
                         def.medStats = mStats;
                     }

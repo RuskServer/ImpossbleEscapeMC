@@ -281,6 +281,14 @@ public class ItemFactory {
             lore.add("");
         }
 
+        // --- 4.5 医療ステータス (MEDの場合、耐久度表示) ---
+        if (def != null && "MED".equalsIgnoreCase(def.type) && def.medStats != null && def.medStats.continuous) {
+            int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            lore.add("§a§l<< MEDICAL KIT >>");
+            lore.add("§7Durability: §e" + durability + " §8/ §7" + def.maxDurability);
+            lore.add("");
+        }
+
         // --- 5. アタッチメントステータス ---
         if (attDef != null) {
             lore.add("§e§l<< ATTACHMENT >>");
