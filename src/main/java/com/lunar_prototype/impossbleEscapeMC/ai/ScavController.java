@@ -1,8 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalMath;
-import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalVision;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
@@ -11,7 +9,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Sound;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Openable;
 import org.bukkit.entity.Entity;
@@ -20,156 +17,95 @@ import org.bukkit.entity.Mob;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class ScavController {
     private final ImpossbleEscapeMC plugin;
     private final Mob scav;
     private final ScavBrain brain;
     private final GunListener gunListener;
 
+    // Components
+    private final ScavVision vision;
+    private final ScavSquad squad;
+    private final ScavTactics tactics;
+
     private Chunk currentChunk = null;
-
     private Location lastKnownLocation = null;
-    private Location slicingPoint = null; // パイ・スライシングの待機地点
     private int searchTicks = 0;
-    private float suppression = 0.0f; // 制圧レベル (0.0 - 1.0)
-    private int jumpCooldown = 0;
-
-    // --- Search & Recognition States ---
-    private boolean isAlerted = false; 
+    private float suppression = 0.0f;
+    private boolean isAlerted = false;
     private int cornerCheckTicks = 0;
     private boolean isHoldingAngle = false;
-
-    // --- Tactical Movement States ---
-    private int strafeDir = 1; 
-    private int strafeTicks = 0;
-
-    // --- Squad States ---
     private int lastSquadUpdate = 0;
-    private List<ScavController> nearbyAllies = new ArrayList<>();
-    private boolean isSprinting = false;
 
     public boolean isSprinting() {
         return isSprinting;
     }
 
-    private enum SquadRole { NONE, POINTMAN, COVERMAN }
-    private SquadRole myRole = SquadRole.NONE;
-
-    // --- Cover & Tactical States ---
-    private Location tacticalCoverLoc = null;
-    private int coverStayTicks = 0;
-    private int coverSearchCooldown = 0;
+    private boolean isSprinting = false;
     private boolean isPreAiming = false;
 
-    // --- Aiming States (Human-like) ---
     private Vector currentAimVector = null;
     private double aimErrorYaw = 0;
     private double aimErrorPitch = 0;
     private long lastMobShotTime = 0;
 
-    // --- Peek & Hide Maneuver States ---
-    private int peekPhase = 0; // 0: None, 1: Moving out, 2: Moving back
-    private Location coverLocation = null;
-    private Location peekLocation = null;
-    private int peekTicks = 0;
-
-    private static final double MAX_VISION_DISTANCE = 96.0; // 6 Chunks
-    private static final double FOV_ANGLE = 120.0;
-
     private int voiceLineCooldown = 0;
-    private static final int VOICE_LINE_COOLDOWN_TICKS = 100; // 5秒
+    private static final int VOICE_LINE_COOLDOWN_TICKS = 100;
 
     public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
         this.plugin = plugin;
         this.scav = scav;
         this.brain = new ScavBrain(scav);
         this.gunListener = listener;
+        this.vision = new ScavVision(scav);
+        this.squad = new ScavSquad(scav);
+        this.tactics = new ScavTactics(scav, listener, brain);
         this.currentAimVector = scav.getEyeLocation().getDirection();
-
-        // 初期スポーン位置のチャンクロードを開始
         updateChunkTicket();
     }
 
-    private void updateChunkTicket() {
-        Chunk newChunk = scav.getLocation().getChunk();
-        if (currentChunk == null || !currentChunk.equals(newChunk)) {
-            // 古いチケットを解除
-            if (currentChunk != null) {
-                currentChunk.removePluginChunkTicket(plugin);
-            }
-            // 新しいチケットを追加
-            currentChunk = newChunk;
-            currentChunk.addPluginChunkTicket(plugin);
-        }
-    }
-
-    public void releaseChunkTicket() {
-        if (currentChunk != null) {
-            currentChunk.removePluginChunkTicket(plugin);
-            currentChunk = null;
-        }
-    }
-
-    public void terminate() {
-        brain.terminate();
-        releaseChunkTicket();
-    }
-
-    private void playVoiceLine(String sound) {
-        if (voiceLineCooldown > 0) return;
-        scav.getWorld().playSound(scav.getLocation(), sound, 1.0f, 1.0f);
-        voiceLineCooldown = VOICE_LINE_COOLDOWN_TICKS;
-    }
+    public Mob getScav() { return scav; }
+    public ScavSquad getSquad() { return squad; }
+    public ScavBrain getBrain() { return brain; }
+    public void setLastKnownLocation(Location loc) { this.lastKnownLocation = loc; }
+    public void setAlerted(boolean alerted) { this.isAlerted = alerted; }
+    public int getSearchTicks() { return searchTicks; }
+    public void setSearchTicks(int ticks) { this.searchTicks = ticks; }
 
     public void onTick() {
-        // チャンクロードの維持/更新
         updateChunkTicket();
-
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
 
-        // ヒートマップへの「安全」記録 (遮蔽にいて制圧されていない場合)
-        if (tacticalCoverLoc != null && suppression < 0.2f && scav.getLocation().distance(tacticalCoverLoc) < 1.5) {
+        // ヒートマップ記録
+        if (tactics.getTacticalCoverLoc() != null && suppression < 0.2f && scav.getLocation().distance(tactics.getTacticalCoverLoc()) < 1.5) {
             CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.SAFE, 0.1f);
         }
 
-        // 各種タイマーの減衰
-        if (suppression > 0)
-            suppression = Math.max(0, suppression - 0.02f);
-        if (jumpCooldown > 0)
-            jumpCooldown--;
-        if (strafeTicks > 0)
-            strafeTicks--;
-        if (coverStayTicks > 0)
-            coverStayTicks--;
-        if (coverSearchCooldown > 0)
-            coverSearchCooldown--;
-        if (voiceLineCooldown > 0)
-            voiceLineCooldown--;
+        // タイマー更新
+        if (suppression > 0) suppression = Math.max(0, suppression - 0.02f);
+        if (voiceLineCooldown > 0) voiceLineCooldown--;
+        tactics.updateTimers();
 
-        // --- 1. 分隊ロジック & スイッチング更新 ---
+        // 1. 分隊更新
         lastSquadUpdate++;
-        if (lastSquadUpdate >= 10) { // 0.5秒ごとに役割を再評価
-            updateNearbyAllies();
-            handleSquadRoles();
+        if (lastSquadUpdate >= 10) {
+            squad.updateNearbyAllies();
+            squad.handleSquadRoles();
             lastSquadUpdate = 0;
         }
 
-        // --- 2. 能動的な索敵 & 情報共有 ---
+        // 2. 索敵 & 情報共有
         if (target == null) {
-            target = scanForTargets();
+            target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
-                shareTargetWithAllies(target.getLocation());
-                playVoiceLine("minecraft:scav1");
+                squad.shareTargetWithAllies(target.getLocation(), "minecraft:scav1");
             }
         }
 
         if (target != null) {
-            canSeeTarget = checkVision(target);
+            canSeeTarget = vision.checkVision(target);
             if (canSeeTarget) {
                 lastKnownLocation = target.getLocation();
                 searchTicks = 0;
@@ -178,11 +114,10 @@ public class ScavController {
                 updateHumanAim(target);
 
                 if (Bukkit.getCurrentTick() % 10 == 0) {
-                    shareTargetWithAllies(lastKnownLocation);
+                    squad.shareTargetWithAllies(lastKnownLocation, "minecraft:scav2");
                 }
             } else {
                 handleSearching();
-                // 視認していないがターゲットが存在し、最後に見失った場所がある場合はプリエイム
                 if (lastKnownLocation != null && !isSprinting) {
                     isPreAiming = true;
                     updatePreAim(lastKnownLocation);
@@ -195,645 +130,222 @@ public class ScavController {
             handleSearching();
         }
 
-        // 装備中の銃のステータス取得
+        // 装備チェック
         ItemStack item = scav.getEquipment().getItemInMainHand();
         String itemId = (item != null && item.hasItemMeta()) ? 
             item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
         ItemDefinition def = ItemRegistry.get(itemId);
+        if (def == null || def.gunStats == null) return;
 
-        if (def == null || def.gunStats == null) {
-            return;
-        }
-
-        // 状況の判断
         int currentAmmo = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
         boolean needsReload = currentAmmo <= 0;
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
 
-        // --- 3. スイッチングの意思決定 (前衛がピンチなら後衛と交代) ---
-        if (myRole == SquadRole.POINTMAN && (suppression > 0.8f || needsReload || healthPercent < 0.4)) {
-            requestRoleSwitch();
+        // 3. スイッチング
+        if (squad.getMyRole() == ScavSquad.SquadRole.POINTMAN && (suppression > 0.8f || needsReload || healthPercent < 0.4)) {
+            squad.requestRoleSwitch();
         }
 
-        // --- 4. タクティカル・カバー検索の意思決定 ---
-        if (target != null && coverSearchCooldown <= 0) {
+        // 4. カバー検索
+        if (target != null && tactics.getCoverSearchCooldown() <= 0) {
             if (suppression > 0.6f || healthPercent < 0.4 || needsReload) {
-                tacticalCoverLoc = findCover(target);
-                coverSearchCooldown = 60;
-                if (tacticalCoverLoc != null) coverStayTicks = 100;
+                Location cover = tactics.findCover(target);
+                tactics.setTacticalCoverLoc(cover);
+                tactics.setCoverSearchCooldown(60);
+                if (cover != null) tactics.setCoverStayTicks(100);
             }
         }
 
-        // ダッシュ状態の判定
-        float aggression = brain.getAdrenaline();
-        float fear = brain.getFrustration();
-        if (nearbyAllies.size() >= 2)
-            fear *= 0.7f;
+        this.isSprinting = brain.getAdrenaline() > 0.6f || brain.getFrustration() > 0.7f || tactics.getPeekPhase() > 0 || tactics.getTacticalCoverLoc() != null;
 
-        this.isSprinting = aggression > 0.6f || fear > 0.7f || peekPhase > 0 || tacticalCoverLoc != null;
-
-        // --- 5. タクティカル・アドバイスの計算 ---
+        // 5. タクティカルアドバイス
         float tacticalAdvice = 0.0f;
         boolean hasLos = target != null && scav.hasLineOfSight(target);
-        if (!hasLos && lastKnownLocation != null) {
-            tacticalAdvice = 0.8f; 
-        } else if (suppression > 0.5f) {
-            tacticalAdvice = 0.5f; 
-        }
+        if (!hasLos && lastKnownLocation != null) tacticalAdvice = 0.8f;
+        else if (suppression > 0.5f) tacticalAdvice = 0.5f;
 
-        // --- 6. Peek and Hide Maneuver (Priority Override) ---
-        if (peekPhase > 0) {
-            peekTicks++;
-            if (peekPhase == 1) { // 飛び出し
-                double speed = isSprinting ? 1.5 : 1.0;
-                scav.getPathfinder().moveTo(peekLocation, speed);
-                boolean currentLos = target != null && scav.hasLineOfSight(target);
-                if (currentLos || peekTicks >= 5) {
-                    if (currentLos) updateHumanAim(target);
-                    applyAimToEntity();
-                    
-                    long now = System.currentTimeMillis();
-                    long interval = (long) (60000.0 / def.gunStats.rpm);
-                    if (now - lastMobShotTime >= interval) {
-                        gunListener.executeMobShoot(scav, def.gunStats, 1, 0.1 + (suppression * 0.1));
-                        lastMobShotTime = now;
-                        peekPhase = 2;
-                        peekTicks = 0;
-                    }
-                }
-            } else if (peekPhase == 2) { // 戻り
-                double speed = isSprinting ? 1.5 : 1.0;
-                scav.getPathfinder().moveTo(coverLocation, speed);
-                if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 5) {
-                    peekPhase = 0;
-                }
-            }
+        // 6. Peek Maneuver
+        if (tactics.getPeekPhase() > 0) {
+            tactics.handlePeekManeuver(target, def.gunStats, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
             brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
             return;
         }
 
-        // --- 7. AI思考 & 移動実行 ---
+        // 7. AI思考 & 移動
         brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
         int[] actions = brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
         if (actions.length < 2) return;
 
         int moveAction = actions[0];
+        // 特殊移動判定
         float[] neurons = brain.getNeuronStates();
-        float agg = neurons[0], f = neurons[1], tac = neurons[2];
-
-        if (f > 0.7f || (suppression > 0.8f && agg < 0.4f)) {
-            moveAction = (Math.random() > 0.5) ? 3 : 4;
-        }
-        if (tac > 0.7f && !hasLos && lastKnownLocation != null) {
-            if (agg > 0.6f && Math.random() > 0.6) {
-                moveAction = 7; 
-            } else if (Math.random() > 0.8) {
-                moveAction = 6; 
-            }
+        if (neurons[1] > 0.7f) moveAction = (Math.random() > 0.5) ? 3 : 4; // Retreat
+        if (neurons[2] > 0.7f && !hasLos && lastKnownLocation != null) {
+            if (neurons[0] > 0.6f && Math.random() > 0.6) moveAction = 7; // Peek
+            else if (Math.random() > 0.8) moveAction = 6; // Search
         }
 
-        // 移動の実行
-        if (moveAction == 8) { // HOLD
+        if (moveAction == 8) {
             isHoldingAngle = true;
-            if (lastKnownLocation != null) {
-                updatePreAim(lastKnownLocation); // 最後に見失った場所を注視
-            }
+            if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
             scav.getPathfinder().stopPathfinding();
-        } else if (tacticalCoverLoc != null && coverStayTicks > 0) {
+        } else if (tactics.getTacticalCoverLoc() != null && tactics.getCoverStayTicks() > 0) {
             isHoldingAngle = false;
-            double distToCover = scav.getLocation().distance(tacticalCoverLoc);
-            if (distToCover > 1.0) {
-                scav.getPathfinder().moveTo(tacticalCoverLoc, isSprinting ? 1.5 : 1.0);
-            } else {
-                if (needsReload) {
-                    scav.setRotation(scav.getLocation().getYaw(), 0);
-                } else if (canSeeTarget) {
-                    applyAimToEntity();
-                }
-            }
-            if (suppression < 0.2f && healthPercent > 0.6 && !needsReload && Math.random() < 0.05) {
-                tacticalCoverLoc = null;
+            double dist = scav.getLocation().distance(tactics.getTacticalCoverLoc());
+            if (dist > 1.0) scav.getPathfinder().moveTo(tactics.getTacticalCoverLoc(), isSprinting ? 1.5 : 1.0);
+            else {
+                if (!needsReload && canSeeTarget) applyAimToEntity();
             }
         } else if (canSeeTarget) {
             isHoldingAngle = false;
-            boolean isAuto = def.gunStats != null && "AUTO".equalsIgnoreCase(def.gunStats.fireMode);
-            handleCombatMovement(moveAction, target, isAuto, agg);
+            boolean isAuto = "AUTO".equalsIgnoreCase(def.gunStats.fireMode);
+            tactics.handleCombatMovement(moveAction, target, isAuto, neurons[0], suppression, isSprinting, squad.getNearbyAllies());
         } else if (lastKnownLocation != null) {
             isHoldingAngle = false;
-            if (moveAction == 7) {
-                coverLocation = scav.getLocation().clone();
-                Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
-                Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX());
-                if (Math.random() > 0.5) tangent.multiply(-1);
-                peekLocation = coverLocation.clone().add(tangent.multiply(2.0));
-                peekPhase = 1;
-                peekTicks = 0;
-                scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
-            } else {
-                handleSearching(); 
-            }
+            if (moveAction == 7) tactics.startPeek(lastKnownLocation, isSprinting);
+            else handleSearching();
         }
 
         checkAndInteractWithDoors();
 
-        // 射撃実行
+        // 射撃
         if (actions[1] == 0) {
             long now = System.currentTimeMillis();
             long interval = (long) (60000.0 / def.gunStats.rpm);
-
             if (canSeeTarget) {
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
-                    // セミオートの場合は人間らしい「タップ遅延」を追加 (追加で 50ms - 200ms)
                     if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
-                        long semiDelay = 50 + (long)(Math.random() * 150);
-                        if (now - lastMobShotTime < interval + semiDelay) return;
+                        if (now - lastMobShotTime < interval + (50 + (long)(Math.random() * 150))) return;
                     }
-
-                    double dynamicInaccuracy = 0.04 + (suppression * 0.1);
-                    if (scav.getVelocity().length() > 0.1) dynamicInaccuracy += 0.04;
-                    gunListener.executeMobShoot(scav, def.gunStats, 1, dynamicInaccuracy);
+                    double inacc = 0.04 + (suppression * 0.1) + (scav.getVelocity().length() > 0.1 ? 0.04 : 0);
+                    gunListener.executeMobShoot(scav, def.gunStats, 1, inacc);
                     lastMobShotTime = now;
                 }
             } else if (isPreAiming && Math.random() < 0.05) {
-                // プリエイム中に「決め撃ち」を低確率で行う
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
-                    if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
-                        long semiDelay = 100 + (long)(Math.random() * 200);
-                        if (now - lastMobShotTime < interval + semiDelay) return;
-                    }
                     gunListener.executeMobShoot(scav, def.gunStats, 1, 0.3);
                     lastMobShotTime = now;
                 }
-            }
- else if (target != null && scav.isOnGround() && jumpCooldown <= 0 && checkJumpShotVision(target)) {
-
-                if (Math.random() < 0.4) {
-                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
-                    jumpCooldown = 40;
-                }
+            } else if (target != null) {
+                tactics.handleJumpShot(target);
             }
         }
     }
 
-    private void handleSquadRoles() {
-        if (nearbyAllies.isEmpty()) {
-            myRole = SquadRole.NONE;
+    private void handleSearching() {
+        if (lastKnownLocation == null) {
+            if (isAlerted && Math.random() < 0.05) {
+                scav.setRotation(scav.getLocation().getYaw() + (float)(Math.random()-0.5)*90f, (float)(Math.random()-0.5)*40f);
+            }
             return;
         }
-
-        ScavController closestAlly = null;
-        double minDist = Double.MAX_VALUE;
-        for (ScavController ally : nearbyAllies) {
-            double d = scav.getLocation().distance(ally.scav.getLocation());
-            if (d < minDist) {
-                minDist = d;
-                closestAlly = ally;
+        tactics.handleSearching(lastKnownLocation, searchTicks, isSprinting, this::updatePreAim);
+        double dist = scav.getLocation().distance(lastKnownLocation);
+        if (dist <= 2.5) {
+            cornerCheckTicks++;
+            if (cornerCheckTicks > 60) {
+                lastKnownLocation = null;
+                tactics.resetSlicing();
+                cornerCheckTicks = 0;
+                isAlerted = false;
             }
         }
-
-        if (closestAlly != null && minDist < 6.0) {
-            if (myRole == SquadRole.NONE) {
-                double myDistToTarget = (scav.getTarget() != null) ? scav.getLocation().distance(scav.getTarget().getLocation()) : 100;
-                double allyDistToTarget = (closestAlly.scav.getTarget() != null) ? closestAlly.scav.getLocation().distance(closestAlly.scav.getTarget().getLocation()) : 100;
-                
-                if (myDistToTarget < allyDistToTarget) {
-                    myRole = SquadRole.POINTMAN;
-                    closestAlly.myRole = SquadRole.COVERMAN;
-                } else {
-                    myRole = SquadRole.COVERMAN;
-                    closestAlly.myRole = SquadRole.POINTMAN;
-                }
-            }
-        } else {
-            myRole = SquadRole.NONE;
-        }
-    }
-
-    private void requestRoleSwitch() {
-        for (ScavController ally : nearbyAllies) {
-            if (scav.getLocation().distance(ally.scav.getLocation()) < 8.0 && ally.myRole == SquadRole.COVERMAN) {
-                this.myRole = SquadRole.COVERMAN;
-                ally.myRole = SquadRole.POINTMAN;
-                this.tacticalCoverLoc = findCover(scav.getTarget());
-                this.coverStayTicks = 60;
-                break;
-            }
-        }
-    }
-
-    private void updatePreAim(Location targetLoc) {
-        Location eye = scav.getEyeLocation();
-        Vector idealDir = targetLoc.clone().add(0, 1.5, 0).toVector().subtract(eye.toVector()).normalize();
-        
-        if (currentAimVector == null) currentAimVector = idealDir.clone();
-
-        // プリエイム時は慎重に狙いを定める
-        double lerpFactor = 0.3; 
-        currentAimVector = currentAimVector.clone().add(idealDir.clone().subtract(currentAimVector).multiply(lerpFactor)).normalize();
-        
-        applyAimToEntity();
-    }
-
-    private Location findCover(LivingEntity target) {
-        if (target == null) return null;
-        Location sLoc = scav.getLocation();
-        Location tLoc = target.getEyeLocation();
-        World world = scav.getWorld();
-
-        Location bestCover = null;
-        float bestScore = Float.MAX_VALUE;
-
-        // 検索範囲内で複数の候補をサンプリング
-        for (int x = -8; x <= 8; x += 2) { // 2ブロック飛ばしで効率化
-            for (int z = -8; z <= 8; z += 2) {
-                for (int y = -1; y <= 2; y++) {
-                    Location checkLoc = sLoc.clone().add(x, y, z);
-                    if (checkLoc.getBlock().getType().isSolid()) continue;
-                    if (!checkLoc.clone().add(0, -1, 0).getBlock().getType().isSolid()) continue;
-
-                    Location eyeAtCheck = checkLoc.clone().add(0, 1.6, 0);
-                    Vector toTarget = tLoc.toVector().subtract(eyeAtCheck.toVector());
-                    var result = world.rayTraceBlocks(eyeAtCheck, toTarget.normalize(), toTarget.length(), 
-                        org.bukkit.FluidCollisionMode.NEVER, true);
-                    
-                    // 視線が遮られている場所が候補
-                    if (result != null && result.getHitBlock() != null) {
-                        // ヒートマップから危険度を取得 (低いほど良い)
-                        float dangerScore = CombatHeatmapManager.getScore(checkLoc);
-                        
-                        // 距離も加味 (近すぎず遠すぎず)
-                        double dist = checkLoc.distance(sLoc);
-                        float finalScore = dangerScore + (float)(dist * 0.2); 
-
-                        if (finalScore < bestScore) {
-                            bestScore = finalScore;
-                            bestCover = checkLoc;
-                        }
-                    }
-                }
-            }
-        }
-        return bestCover;
-    }
-
-    private void updateNearbyAllies() {
-        nearbyAllies.clear();
-        for (Entity e : scav.getNearbyEntities(20, 10, 20)) {
-            if (e instanceof Mob mob && !e.equals(scav)) {
-                ScavController controller = ScavSpawner.getController(e.getUniqueId());
-                if (controller != null) nearbyAllies.add(controller);
-            }
-        }
-    }
-
-    private void shareTargetWithAllies(Location loc) {
-        if (nearbyAllies.isEmpty()) return;
-        
-        playVoiceLine("minecraft:scav2");
-        double distToTarget = scav.getLocation().distance(loc);
-        for (ScavController ally : nearbyAllies) {
-            if (ally.scav.getTarget() != null && ally.scav.hasLineOfSight(ally.scav.getTarget())) continue;
-            double errorRange = Math.min(8.0, distToTarget * 0.15);
-            double offsetX = (Math.random() - 0.5) * 2.0 * errorRange;
-            double offsetZ = (Math.random() - 0.5) * 2.0 * errorRange;
-            ally.lastKnownLocation = loc.clone().add(offsetX, 0, offsetZ);
-            ally.isAlerted = true;
-            if (ally.searchTicks > 200) ally.searchTicks = 200; 
-        }
+        searchTicks++;
+        if (searchTicks > 600) { lastKnownLocation = null; isAlerted = false; }
     }
 
     private void updateHumanAim(LivingEntity target) {
         Location eye = scav.getEyeLocation();
         Vector idealDir = target.getEyeLocation().toVector().subtract(eye.toVector()).normalize();
         if (currentAimVector == null) currentAimVector = idealDir.clone();
-        double lerpFactor = 0.7 - (suppression * 0.2); 
-        currentAimVector = currentAimVector.clone().add(idealDir.clone().subtract(currentAimVector).multiply(lerpFactor)).normalize();
-        aimErrorYaw += (Math.random() - 0.5) * 0.04;
-        aimErrorPitch += (Math.random() - 0.5) * 0.04;
-        if (suppression > 0.3) {
-            aimErrorYaw += (Math.random() - 0.5) * suppression * 0.15;
-            aimErrorPitch += (Math.random() - 0.5) * suppression * 0.15;
-        }
-        aimErrorYaw *= 0.4;
-        aimErrorPitch *= 0.4;
+        double lerp = 0.7 - (suppression * 0.2);
+        currentAimVector = currentAimVector.clone().add(idealDir.clone().subtract(currentAimVector).multiply(lerp)).normalize();
+        aimErrorYaw = (aimErrorYaw + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
+        aimErrorPitch = (aimErrorPitch + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
     }
 
-    private LivingEntity scanForTargets() {
-        // Y軸の範囲を拡大 (16 -> 64)
-        for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 64, MAX_VISION_DISTANCE)) {
-            if (e instanceof org.bukkit.entity.Player p) {
-                if (p.getGameMode() == org.bukkit.GameMode.SURVIVAL && checkVision(p)) return p;
-            }
-        }
-        return null;
+    private void updatePreAim(Location loc) {
+        Vector ideal = loc.clone().add(0, 1.5, 0).toVector().subtract(scav.getEyeLocation().toVector()).normalize();
+        if (currentAimVector == null) currentAimVector = ideal.clone();
+        currentAimVector = currentAimVector.clone().add(ideal.clone().subtract(currentAimVector).multiply(0.3)).normalize();
+        applyAimToEntity();
     }
 
-    private void handleSearching() {
-        if (lastKnownLocation == null) {
-            if (isAlerted && Math.random() < 0.05) {
-                float yaw = scav.getLocation().getYaw() + (float) (Math.random() - 0.5) * 90f;
-                float pitch = (float) (Math.random() - 0.5) * 40f;
-                scav.setRotation(yaw, pitch);
-            }
-            return;
-        }
-
-        // --- パイ・スライシングのロジック ---
-        if (slicingPoint == null || searchTicks % 40 == 0) {
-            slicingPoint = TacticalVision.findSlicingPoint(scav.getLocation(), lastKnownLocation);
-        }
-
-        double distToLast = scav.getLocation().distance(lastKnownLocation);
-        double speed = isSprinting ? 1.4 : 1.0;
-
-        if (slicingPoint != null && scav.getLocation().distance(slicingPoint) > 1.5) {
-            // まずは角の手前（Slicing Point）まで移動
-            scav.getPathfinder().moveTo(slicingPoint, speed);
-            updatePreAim(lastKnownLocation);
-        } else if (distToLast > 2.5) {
-            // 角に到達。ここからは横歩き（Strafe）で少しずつ視界を広げる
-            Vector toTarget = lastKnownLocation.toVector().subtract(scav.getLocation().toVector()).normalize();
-            Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX()).normalize();
-            
-            // 少しずつターゲットの方へ向かいながら、横にスライド
-            Vector moveVec = tangent.multiply(strafeDir * 0.5).add(toTarget.multiply(0.3));
-            scav.getPathfinder().moveTo(scav.getLocation().add(moveVec), 0.8);
-            updatePreAim(lastKnownLocation);
-
-            if (searchTicks > 200) { // 長すぎたら直行に切り替え
-                scav.getPathfinder().moveTo(lastKnownLocation, speed);
-            }
-        } else {
-            // ほぼ到着。角のクリアリング終了
-            cornerCheckTicks++;
-            if (cornerCheckTicks > 60) {
-                lastKnownLocation = null;
-                slicingPoint = null;
-                cornerCheckTicks = 0;
-                isAlerted = false;
-            }
-        }
-        searchTicks++;
-        if (searchTicks > 600) {
-            lastKnownLocation = null;
-            isAlerted = false;
-        }
+    private void applyAimToEntity() {
+        if (currentAimVector == null) return;
+        Location l = scav.getLocation();
+        scav.setRotation(l.setDirection(currentAimVector).getYaw() + (float)aimErrorYaw, l.setDirection(currentAimVector).getPitch() + (float)aimErrorPitch);
     }
 
     public void onSoundHeard(Location source) {
         if (scav.getTarget() == null || !scav.hasLineOfSight(scav.getTarget())) {
             isAlerted = true;
             lastKnownLocation = source.clone();
-            Vector dir = source.toVector().subtract(scav.getEyeLocation().toVector()).normalize();
-            Location loc = scav.getLocation();
-            loc.setDirection(dir);
-            scav.setRotation(loc.getYaw(), 0);
-        }
-    }
-
-    private void applyAimToEntity() {
-        if (currentAimVector == null) return;
-        Location loc = scav.getLocation();
-        Vector finalDir = currentAimVector.clone();
-        float yaw = loc.setDirection(finalDir).getYaw() + (float) aimErrorYaw;
-        float pitch = loc.setDirection(finalDir).getPitch() + (float) aimErrorPitch;
-        scav.setRotation(yaw, pitch);
-    }
-
-    private boolean checkJumpShotVision(LivingEntity target) {
-        Location eye = scav.getEyeLocation();
-        Location jumpEye = eye.clone().add(0, 1.2, 0);
-        Vector direction = target.getEyeLocation().toVector().subtract(jumpEye.toVector());
-        var result = jumpEye.getWorld().rayTraceBlocks(jumpEye, direction.normalize(), direction.length(),
-                org.bukkit.FluidCollisionMode.NEVER, true);
-        return result == null || result.getHitBlock() == null;
-    }
-
-    private boolean checkVision(LivingEntity target) {
-        Location eye = scav.getEyeLocation();
-        Location targetLoc = target.getEyeLocation();
-        double dist = eye.distance(targetLoc);
-        if (dist > MAX_VISION_DISTANCE) return false;
-
-        // --- 1. 発砲状態の確認 ---
-        boolean isFiring = false;
-        if (target.hasMetadata("last_fired_tick")) {
-            int lastFired = target.getMetadata("last_fired_tick").get(0).asInt();
-            if (Bukkit.getCurrentTick() - lastFired < 5) {
-                isFiring = true;
-            }
-        }
-
-        // --- 2. 視野角(FOV)チェック ---
-        Vector toTarget = targetLoc.toVector().subtract(eye.toVector()).normalize();
-        Vector direction = eye.getDirection();
-        double angle = direction.angle(toTarget) * 180 / Math.PI;
-        double currentFov = isFiring ? 200.0 : FOV_ANGLE;
-        if (angle > currentFov / 2.0) return false;
-
-        // --- 3. 明るさと隠密性の計算 ---
-        double visibility = 1.0;
-        int light = targetLoc.getBlock().getLightLevel();
-        if (light < 4) visibility *= 0.2;
-        else if (light < 8) visibility *= 0.5;
-        else if (light < 12) visibility *= 0.8;
-
-        if (target instanceof org.bukkit.entity.Player p && p.isSneaking()) visibility *= 0.6;
-        if (target.getVelocity().lengthSquared() > 0.05) visibility *= 1.2;
-        if (isFiring) visibility = 5.0; 
-
-        double effectiveRange = MAX_VISION_DISTANCE * visibility;
-        if (dist > effectiveRange) return false;
-
-        return hasAdvancedLoS(target);
-    }
-
-    private boolean hasAdvancedLoS(LivingEntity target) {
-        Location eye = scav.getEyeLocation();
-        World world = scav.getWorld();
-        
-        double h = target.getHeight();
-        double w = target.getWidth() * 0.45;
-
-        // SCAVから見た横方向のベクトル
-        Vector toTarget = target.getLocation().toVector().subtract(eye.toVector()).normalize();
-        Vector leftVec = new Vector(-toTarget.getZ(), 0, toTarget.getX()).normalize().multiply(w);
-        Vector rightVec = leftVec.clone().multiply(-1);
-
-        // 9地点走査
-        List<Location> checkPoints = new ArrayList<>();
-        Location base = target.getLocation();
-        double[] heights = { h * 0.9, h * 0.5, h * 0.1 };
-
-        for (double y : heights) {
-            Location center = base.clone().add(0, y, 0);
-            checkPoints.add(center);
-            checkPoints.add(center.clone().add(leftVec));
-            checkPoints.add(center.clone().add(rightVec));
-        }
-
-        for (Location targetPoint : checkPoints) {
-            Vector direction = targetPoint.toVector().subtract(eye.toVector());
-            double maxDist = direction.length();
-            var result = world.rayTraceBlocks(eye, direction.normalize(), maxDist, 
-                org.bukkit.FluidCollisionMode.NEVER, true);
-            if (result == null || result.getHitBlock() == null) return true;
-        }
-        return false;
-    }
-
-    private void handleCombatMovement(int action, LivingEntity target, boolean isAuto, float aggression) {
-        Location sLoc = scav.getLocation();
-        Location tLoc = target.getLocation();
-        double dist = sLoc.distance(tLoc);
-        
-        // --- レレレ（高速ストレイフ）モードの判定 ---
-        boolean isCQC = dist < 10.0;
-        int minTicks = (isCQC && isAuto && aggression > 0.5f) ? 5 : 20;
-        int varTicks = (isCQC && isAuto && aggression > 0.5f) ? 10 : 30;
-
-        if (strafeTicks <= 0 || (isCQC && isAuto && strafeTicks > 15)) {
-            strafeDir = (Math.random() > 0.5) ? 1 : -1;
-            strafeTicks = minTicks + (int) (Math.random() * varTicks);
-        }
-
-        Vector toTarget = tLoc.toVector().subtract(sLoc.toVector()).normalize();
-        Vector moveVec = new Vector(0, 0, 0);
-
-        // --- A. ベースアクションの決定 ---
-        switch (action) {
-            case 0: // Aggressive Push
-                moveVec.add(toTarget.clone().multiply(1.0));
-                break;
-            case 1: // Maintain
-                double distError = dist - 12.0;
-                moveVec.add(toTarget.clone().multiply(distError * 0.2));
-                break;
-            case 2: // Retreat
-                moveVec.add(toTarget.clone().multiply(-1.2));
-                break;
-            case 5: // Jump
-                if (scav.isOnGround() && jumpCooldown <= 0) {
-                    scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
-                    jumpCooldown = 60;
-                }
-                break;
-        }
-
-        // --- B. タクティカル・スパイスの統合 ---
-        // 遠心力（横移動）: レレレモードなら重みを1.5倍に
-        double centrifugalWeight = (action == 3 || action == 4) ? 1.5 : 0.8;
-        if (isCQC && isAuto) centrifugalWeight *= 1.8; 
-        
-        moveVec.add(TacticalMath.calculateCentrifugalForce(sLoc, tLoc, strafeDir, dist).multiply(centrifugalWeight));
-
-        // プレイヤーの射線からの斥力
-        moveVec.add(TacticalMath.calculateRepulsion(sLoc, tLoc, target.getEyeLocation().getDirection()));
-
-        // 3. 仲間との衝突回避
-        for (ScavController ally : nearbyAllies) {
-            double allyDist = sLoc.distance(ally.scav.getLocation());
-            if (allyDist < 4.0) {
-                moveVec.add(sLoc.toVector().subtract(ally.scav.getLocation().toVector()).normalize().multiply(0.5));
-            }
-        }
-
-        // --- C. 移動の実行 ---
-        if (moveVec.lengthSquared() > 0) {
-            Vector finalMove = moveVec.normalize();
-            Location dest = sLoc.clone().add(finalMove.multiply(2.0));
-            scav.getPathfinder().moveTo(dest, isSprinting ? 1.5 : 1.0);
+            scav.setRotation(scav.getLocation().setDirection(source.toVector().subtract(scav.getEyeLocation().toVector()).normalize()).getYaw(), 0);
         }
     }
 
     public void onKill(LivingEntity victim) {
-        playVoiceLine("minecraft:scav4");
+        scav.getWorld().playSound(scav.getLocation(), "minecraft:scav4", 1.0f, 1.0f);
     }
 
     public void onDamage(Entity attacker) {
         suppression = Math.min(1.0f, suppression + 0.3f);
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
-        
-        double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
-        if (healthPercent < 0.5) {
-            playVoiceLine("minecraft:scav3");
+        if (scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() < 0.5) {
+            scav.getWorld().playSound(scav.getLocation(), "minecraft:scav3", 1.0f, 1.0f);
         }
-
         if (attacker instanceof LivingEntity living) {
-            Location loc = scav.getLocation();
-            loc.setDirection(living.getLocation().toVector().subtract(loc.toVector()).normalize());
-            scav.teleport(loc);
+            scav.teleport(scav.getLocation().setDirection(living.getLocation().toVector().subtract(scav.getLocation().toVector()).normalize()));
             if (scav.getTarget() == null) {
                 scav.setTarget(living);
                 lastKnownLocation = living.getLocation();
-                shareTargetWithAllies(lastKnownLocation);
+                squad.shareTargetWithAllies(lastKnownLocation, "minecraft:scav2");
             }
         }
     }
 
-    public void addSuppression(float amount) {
-        this.suppression = Math.min(1.0f, this.suppression + amount);
+    public void addSuppression(float amount) { this.suppression = Math.min(1.0f, this.suppression + amount); }
+    public void onDeath() { brain.onDeath(); releaseChunkTicket(); }
+    public void terminate() { brain.terminate(); releaseChunkTicket(); }
+
+    private void updateChunkTicket() {
+        Chunk newChunk = scav.getLocation().getChunk();
+        if (currentChunk == null || !currentChunk.equals(newChunk)) {
+            if (currentChunk != null) currentChunk.removePluginChunkTicket(plugin);
+            currentChunk = newChunk;
+            currentChunk.addPluginChunkTicket(plugin);
+        }
     }
 
-    public void onDeath() {
-        brain.onDeath();
+    private void releaseChunkTicket() {
+        if (currentChunk != null) { currentChunk.removePluginChunkTicket(plugin); currentChunk = null; }
     }
 
-    public ScavBrain getBrain() {
-        return brain;
-    }
-
-    public Mob getScav() {
-        return this.scav;
-    }
-
-    /**
-     * 周辺のドアを検知して開ける
-     */
     private void checkAndInteractWithDoors() {
         Location loc = scav.getLocation();
-        Vector direction = loc.getDirection();
-        direction.setY(0); // 水平方向のみを考慮
-        if (direction.lengthSquared() > 0) direction.normalize();
-        else direction = new Vector(1, 0, 0); // 万が一のデフォルト
-        
-        // 現在の足元と頭のブロックもチェック
+        Vector dir = loc.getDirection().setY(0).normalize();
         tryOpenDoor(loc.getBlock());
         tryOpenDoor(loc.clone().add(0, 1, 0).getBlock());
-
-        // 少し先にあるブロックを確認
-        double[] checkDistances = { 1.0, 1.5 };
-        for (double d : checkDistances) {
-            Block footBlock = loc.clone().add(direction.clone().multiply(d)).getBlock();
-            Block headBlock = loc.clone().add(0, 1, 0).add(direction.clone().multiply(d)).getBlock();
-
-            if (tryOpenDoor(footBlock) || tryOpenDoor(headBlock)) {
-                break; 
-            }
+        for (double d : new double[]{1.0, 1.5}) {
+            if (tryOpenDoor(loc.clone().add(dir.clone().multiply(d)).getBlock()) || 
+                tryOpenDoor(loc.clone().add(0, 1, 0).add(dir.clone().multiply(d)).getBlock())) break;
         }
     }
 
     private boolean tryOpenDoor(Block block) {
         if (block.getType().toString().contains("TRAPDOOR")) return false;
-        if (block.getBlockData() instanceof Openable openable) {
-            if (!openable.isOpen()) {
-                // 鉄のドアはここでは開けないように制限することも可能だが、
-                // SCAVの利便性のためにOpenableなら開ける
-                openable.setOpen(true);
-                block.setBlockData(openable);
-
-                Sound sound = Sound.BLOCK_WOODEN_DOOR_OPEN;
-                String type = block.getType().toString();
-                if (type.contains("IRON")) sound = Sound.BLOCK_IRON_DOOR_OPEN;
-                else if (type.contains("FENCE_GATE")) sound = Sound.BLOCK_FENCE_GATE_OPEN;
-
-                block.getWorld().playSound(block.getLocation(), sound, 1.0f, 1.0f);
-                return true;
-            }
+        if (block.getBlockData() instanceof Openable openable && !openable.isOpen()) {
+            openable.setOpen(true);
+            block.setBlockData(openable);
+            Sound s = block.getType().toString().contains("IRON") ? Sound.BLOCK_IRON_DOOR_OPEN : 
+                     (block.getType().toString().contains("FENCE_GATE") ? Sound.BLOCK_FENCE_GATE_OPEN : Sound.BLOCK_WOODEN_DOOR_OPEN);
+            block.getWorld().playSound(block.getLocation(), s, 1.0f, 1.0f);
+            return true;
         }
         return false;
     }
-    }
+}

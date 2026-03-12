@@ -20,8 +20,10 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.EquipmentSlot;
@@ -1053,33 +1055,25 @@ public class GunListener implements Listener {
         return def != null && "GUN".equalsIgnoreCase(def.type);
     }
 
-    // startReload and helper methods removed (moved to ReloadingState)
-
-    private void applySuppression(Player victim, Location bulletLoc) {
-        // 1. 視覚的ペナルティ (短時間の暗闇と鈍足)
-        // 1.21ならDARKNESSが非常に「視界が狭まる」感じでリアルです
-        victim.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 40, 0, false, false, false));
-        victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 20, 1, false, false, false));
-
-        // 2. ニアミス音 (弾がかすめる音)
-        // 左右どちらを通り過ぎたか分かるように、弾の位置で音を鳴らす
-        victim.playSound(bulletLoc, Sound.ENTITY_ARROW_SHOOT, 1.5f, 1.8f);
-
-        // 3. 心音（パニック表現）
-        // 既に鳴っている場合は重ならないように注意
-        victim.playSound(victim.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASEDRUM, 0.8f, 0.5f);
-
-        // 4. 画面を少し揺らす（カメラシェイク）
-        // 垂直方向の反動をわずかに与えることで衝撃を表現
-        Location loc = victim.getLocation();
-        victim.setRotation(loc.getYaw(), loc.getPitch() + (float) (Math.random() * 2 - 1));
-    }
-
     @EventHandler
     public void onKnockback(io.papermc.paper.event.entity.EntityKnockbackEvent event) {
         if (event.getEntity().hasMetadata("no_knockback")) {
             event.setCancelled(true);
             event.getEntity().removeMetadata("no_knockback", plugin);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (event.getEntity().hasMetadata("bypass_armor")) {
+            event.getEntity().removeMetadata("bypass_armor", plugin);
+
+            // バニラ防具等の全てのダメージ修正を0にする
+            for (EntityDamageEvent.DamageModifier modifier : EntityDamageEvent.DamageModifier.values()) {
+                if (event.isApplicable(modifier) && modifier != EntityDamageEvent.DamageModifier.BASE) {
+                    event.setDamage(modifier, 0.0);
+                }
+            }
         }
     }
 
@@ -1162,8 +1156,9 @@ public class GunListener implements Listener {
             controller.getBrain().reward(reward); // AIに学習させる
         }
 
-        // 最終ダメージの適用 (ノックバックを一時的に無効化)
+        // 最終ダメージの適用 (ノックバックを一時的に無効化し、バニラ防具を無視)
         victim.setMetadata("no_knockback", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+        victim.setMetadata("bypass_armor", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
         victim.damage(finalDamage, shooter);
     }
 
