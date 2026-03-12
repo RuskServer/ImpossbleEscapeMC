@@ -67,6 +67,9 @@ public class ShotgunReloadingState implements WeaponState {
     /** リロード可能かどうか */
     private boolean isPossible = false;
 
+    /** タクティカルリロード（空からのリロード）かどうか */
+    private boolean isTactical = false;
+
     // ====================== WeaponState 実装 ======================
 
     @Override
@@ -99,6 +102,7 @@ public class ShotgunReloadingState implements WeaponState {
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         int currentAmmo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
         boolean isEmpty = (currentAmmo <= 0);
+        isTactical = isEmpty;
 
         // チューブ内弾数のみカウント（チャンバーはBoltingStateに任せる）
         int currentTotal = currentAmmo;
@@ -218,12 +222,49 @@ public class ShotgunReloadingState implements WeaponState {
         displayReloadBar(ctx);
 
         if (phaseElapsed >= introTotalTicks) {
+            // タクティカルリロード（空からのリロード）なら薬室に1発装填
+            if (isTactical) {
+                loadToChamber(ctx);
+            }
+
             // LOOP フェーズへ移行
             phase = Phase.LOOP;
             phaseElapsed = 0;
             if (loopAnim != null) {
                 ctx.applyModel(loopAnim, 0);
             }
+        }
+    }
+
+    /** 薬室（チャンバー）へ1発装填する（タクティカルリロード用） */
+    private void loadToChamber(WeaponContext ctx) {
+        if (ammoStacks == null || ammoStacks.isEmpty()) return;
+
+        // インベントリから1発消費
+        boolean consumed = false;
+        for (ItemStack stack : ammoStacks) {
+            if (stack == null || stack.getType() == Material.AIR || stack.getAmount() <= 0)
+                continue;
+            stack.setAmount(stack.getAmount() - 1);
+            consumed = true;
+            break;
+        }
+
+        if (consumed) {
+            ItemStack item = ctx.getItem();
+            ItemMeta meta = item.getItemMeta();
+            if (meta == null) return;
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+
+            // 薬室を装填済みに設定
+            pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 1);
+            pdc.set(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING, ammoData.id);
+
+            item.setItemMeta(meta);
+            ItemFactory.updateLore(item);
+
+            // 装填音（少し高めのピッチでカチャッという音）
+            ctx.getPlayer().playSound(ctx.getPlayer().getLocation(), "minecraft:reload.start.shotgun", 1.0f, 1.2f);
         }
     }
 

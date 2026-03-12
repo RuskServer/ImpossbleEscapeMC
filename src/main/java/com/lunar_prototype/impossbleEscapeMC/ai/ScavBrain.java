@@ -3,6 +3,8 @@ package com.lunar_prototype.impossbleEscapeMC.ai;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.CombatEvaluator;
 import com.lunar_prototype.impossbleEscapeMC.item.GunStats;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -42,6 +44,10 @@ public class ScavBrain {
 
     // --- Situational Awareness ---
     private int presenceTicks = 0; // ターゲットを見失ってからの時間
+    private int sightDebounceTicks = 0; // 視認変化のデバウンス用カウンター
+    private static final int DEBOUNCE_THRESHOLD_SEE = 2;  // 発見判定までの猶予 (0.1s)
+    private static final int DEBOUNCE_THRESHOLD_LOST = 5; // 見失い判定までの猶予 (0.25s)
+    private boolean debouncedCanSee = false; // デバウンス済みの視認状態
 
     // --- State Tracking for Interrupts ---
     private float lastSuppression = 0.0f;
@@ -60,10 +66,34 @@ public class ScavBrain {
         this.tactical = 0.3f + random.nextFloat() * 0.2f;
     }
 
-    public int[] decide(LivingEntity target, GunStats stats, float suppression, float tacticalAdvice) {
-        boolean canSee = target != null;
+    public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice) {
+        boolean canSeeNow = target != null;
+
+        // --- 視認状態のデバウンス処理 ---
+        if (canSeeNow != debouncedCanSee) {
+            sightDebounceTicks++;
+            int threshold = canSeeNow ? DEBOUNCE_THRESHOLD_SEE : DEBOUNCE_THRESHOLD_LOST;
+            if (sightDebounceTicks >= threshold) {
+                debouncedCanSee = canSeeNow;
+                sightDebounceTicks = 0;
+            }
+        } else {
+            sightDebounceTicks = 0;
+        }
+
+        boolean canSee = debouncedCanSee;
         double healthPercent = entity.getHealth() / entity.getAttribute(Attribute.MAX_HEALTH).getValue();
-        double dist = target != null ? entity.getLocation().distance(target.getLocation()) : 100.0;
+        
+        // --- 距離の計算 (予測モデル) ---
+        double dist;
+        if (canSee && target != null) {
+            dist = entity.getLocation().distance(target.getLocation());
+        } else if (lastKnownLocation != null) {
+            // 見失っていても、最後にいた場所への距離を使用する
+            dist = entity.getLocation().distance(lastKnownLocation);
+        } else {
+            dist = 100.0; // 完全に情報がない場合のみフォールバック
+        }
         
         // ターゲット存在確信度の更新
         if (canSee) presenceTicks = 0;
@@ -73,10 +103,13 @@ public class ScavBrain {
         updateInternalStates(dist, stats, suppression, tacticalAdvice, canSee, healthPercent);
 
         // --- 2. Check for Interrupts ---
-        boolean interrupted = shouldInterrupt(canSee, suppression, healthPercent, stats);
+        String interruptReason = getInterruptReason(canSee, suppression, healthPercent, stats);
+        boolean interrupted = interruptReason != null;
 
         // --- 3. Utility-Based Decision Logic ---
         if (decisionTimer <= 0 || interrupted || modeInertia <= 0) {
+            String trigger = interrupted ? interruptReason : (decisionTimer <= 0 ? "TIMER" : "INERTIA");
+            
             // A. 戦況の評価
             float pressure = (suppression * 0.4f) + (float)((1.0 - healthPercent) * 0.6f);
             
@@ -93,7 +126,14 @@ public class ScavBrain {
 
             // B. 各戦術モードの Utility スコア算出
             float withdrawScore = (pressure * 0.8f) + ((1.0f - advantage) * 0.4f) + (fear * 0.6f);
+            
+            // PUSHスコアの強化: 10m以内かつ視認中(遮蔽が少ない)なら強烈なボーナス
             float pushScore = (advantage * 0.6f) + (aggression * 0.5f) + (float)(Math.max(0, 1.0 - dist/40.0) * 0.3);
+            if (dist < 10.0 && canSee) {
+                pushScore += 0.5f; // 強制的な突撃衝動
+                if (healthPercent > 0.4) aggression += 0.1f; // 余裕があればさらに強気に
+            }
+            
             float peekScore = (presence * 0.6f) + (tactical * 0.4f) + (suppression < 0.2f ? 0.3f : 0.0f);
             float flankScore = (tactical * 0.7f) + ((1.0f - pressure) * 0.4f) + (canSee ? 0.2f : 0.0f);
             float holdScore = (tactical * 0.5f) + ((1.0f - aggression) * 0.3f) + (presence > 0.8f ? 0.4f : 0.0f);
@@ -108,8 +148,9 @@ public class ScavBrain {
             if (flankScore > maxScore) { maxScore = flankScore; bestMode = TacticalMode.FLANK; }
 
             // 戦術的慣性: 以前のモードと大きな差がなければ維持
-            if (currentMode != bestMode && modeInertia > 0) {
-                // ここでは単純化のため、強制的な割り込みがなければ維持
+            // ただし、緊急の割り込み(interrupted)がある場合は、慣性を無視して即座に遷移させる
+            if (!interrupted && currentMode != bestMode && modeInertia > 0) {
+                // 維持
             } else {
                 currentMode = bestMode;
                 modeInertia = 10 + random.nextInt(20); // 0.5s - 1.5s 維持
@@ -118,6 +159,18 @@ public class ScavBrain {
             // D. モードを具体的なアクションに変換
             int moveAction = determineMoveActionByMode(currentMode, suppression, canSee, tacticalAdvice, dist);
             int shootAction = determineShootAction(canSee, suppression);
+            
+            // --- AI Analysis Logging ---
+            // Format: [AI_LOG] UUID | Trigger | Mode | States(A,F,T) | Situational(Pr,Ad,Pres,Dist,SelfHP,TargetHP,Ammo) | Action(M,S)
+            org.bukkit.Bukkit.getLogger().info(String.format(
+                "[AI_LOG] %s | %s | %s | [%.2f,%.2f,%.2f] | [%.2f,%.2f,%.2f,%.1f,%.2f,%.2f,%.2f] | [%d,%d]",
+                entity.getUniqueId().toString().substring(0, 8),
+                trigger,
+                currentMode.name(),
+                aggression, fear, tactical,
+                pressure, advantage, presence, dist, healthPercent, targetHealth, ammo,
+                moveAction, shootAction
+            ));
             
             this.currentActions = new int[] { moveAction, shootAction };
             recordHistory(moveAction);
@@ -145,10 +198,14 @@ public class ScavBrain {
 
             case PUSH:
                 if (canSee) {
-                    // 近距離(CQC)では左右に激しく動きながら詰める
-                    if (dist < 10.0 && r < 0.7f) return random.nextBoolean() ? 3 : 4;
-                    // アドレナリン全開ならたまにジャンプして翻弄
-                    if (aggression > 0.8f && r < 0.2f) return 5; // Jump
+                    // 10m以内の至近距離では、迷わず最短距離で突っ込む (混乱を誘う)
+                    if (dist < 10.0) {
+                        // 至近距離突撃中は、たまにジャンプを混ぜてヘッドショットを避ける
+                        if (r < 0.3f) return 5; // Jump
+                        return 0; // Approach
+                    }
+                    // 少し距離がある場合はレレレを混ぜながら
+                    if (dist < 18.0 && r < 0.6f) return random.nextBoolean() ? 3 : 4;
                     return 0; // Approach
                 }
                 return 0; // Approach
@@ -208,27 +265,31 @@ public class ScavBrain {
         return count;
     }
 
-    private boolean shouldInterrupt(boolean canSee, float suppression, double healthPercent, GunStats stats) {
-        // A. Sudden sight change (Found target or lost target)
-        if (canSee != lastCanSee) return true;
+    private String getInterruptReason(boolean canSee, float suppression, double healthPercent, GunStats stats) {
+        // A. Sudden sight change (Debounced state changed)
+        if (canSee != lastCanSee) return "SIGHT_CHANGE";
 
         // B. Heavy damage or sudden suppression spike
-        if (healthPercent < lastHealthPercent - 0.1) return true; // Took significant damage
-        if (suppression > lastSuppression + 0.3f) return true;    // Sudden heavy fire
+        if (healthPercent < lastHealthPercent - 0.1) return "DAMAGE"; 
+        if (suppression > lastSuppression + 0.3f) return "SUPPRESSION_SPIKE";
 
         // C. Panic state (Fear spikes)
-        if (fear > 0.8f && lastSuppression < 0.5f) return true;
+        if (fear > 0.8f && lastSuppression < 0.5f) return "PANIC";
 
         // D. Out of ammo while trying to shoot
-        if (currentActions[1] == 0) { // If currently wanting to shoot
+        if (currentActions[1] == 0) { 
             ItemStack gun = entity.getEquipment().getItemInMainHand();
             if (gun != null && gun.hasItemMeta()) {
                 int ammo = gun.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-                if (ammo <= 0) return true; // Need to change action to cover/reload
+                if (ammo <= 0) return "OUT_OF_AMMO";
             }
         }
 
-        return false;
+        return null;
+    }
+
+    private boolean shouldInterrupt(boolean canSee, float suppression, double healthPercent, GunStats stats) {
+        return getInterruptReason(canSee, suppression, healthPercent, stats) != null;
     }
 
     private void updateInternalStates(double distance, GunStats stats, float suppression, float tacticalAdvice,
@@ -259,19 +320,22 @@ public class ScavBrain {
         if (fear > 0.5f) tactical += fear * 0.05f;
 
         // 4. 戦術的状況把握は恐怖を抑える (Tactical composure reduces Fear)
-        fear *= (1.0f - (tactical * 0.15f));
+        // 上限を設け、冷静であっても一度の恐怖を削れる量を制限する
+        float tacticalSuppression = Math.min(tactical * 0.15f, 0.08f);
+        fear *= (1.0f - tacticalSuppression);
 
         if (tacticalAdvice > 0.5f) {
             tactical += 0.1f;
         }
-        if (!canSee) {
+        // 冷静な時 (fear < 0.3) のみ、視認ロスト時に戦術的分析が進む
+        if (!canSee && fear < 0.3f) {
             tactical += 0.02f;
         }
 
         // Decay
         aggression = clamp(aggression * 0.96f - 0.005f);
         fear = clamp(fear * 0.94f - 0.01f);
-        tactical = clamp(tactical * 0.98f);
+        tactical = clamp(tactical * 0.95f - 0.01f);
     }
 
     private int determineShootAction(boolean canSee, float suppression) {

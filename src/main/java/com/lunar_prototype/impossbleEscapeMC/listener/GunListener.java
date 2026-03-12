@@ -431,34 +431,36 @@ public class GunListener implements Listener {
         int shots = consecutiveShots.getOrDefault(player.getUniqueId(), 0);
         consecutiveShots.put(player.getUniqueId(), shots + 1);
 
-        // --- 旧タルコフ風 反動ロジック (Initial Kick -> Auto Compensation) ---
+        // --- 改良版 反動ロジック (Initial Kick -> Proportional Stability) ---
         double verticalMultiplier;
         double horizontalFactor;
 
         if (shots == 0) {
             // 【初弾】強烈な跳ね上がり
-            verticalMultiplier = 4.5;
-            horizontalFactor = 1.5;
+            verticalMultiplier = 4.2;
+            horizontalFactor = 0.8;
         } else if (shots < 4) {
             // 【2-4発目】激しく暴れる
-            verticalMultiplier = 3.5 - (shots * 0.6);
-            horizontalFactor = 2.5;
+            verticalMultiplier = 3.2 - (shots * 0.5);
+            horizontalFactor = 1.2;
         } else if (shots < 8) {
             // 【5-8発目】急激に反動が収束
-            verticalMultiplier = 1.2 - ((shots - 4) * 0.15);
-            horizontalFactor = 3.5;
+            verticalMultiplier = 1.2 - ((shots - 4) * 0.1);
+            horizontalFactor = 1.6;
         } else {
             // 【9発目以降】安定期（縦は抑えられるが、横ブレは続く）
-            verticalMultiplier = 0.6;
-            horizontalFactor = 4.0;
+            verticalMultiplier = 0.8;
+            horizontalFactor = 2.0;
         }
 
         // 最終的な反動値（縦）
-        double verticalNoise = (Math.random() - 0.5) * (baseRecoil * 0.3);
+        double verticalNoise = (Math.random() - 0.5) * (baseRecoil * 0.2);
         double finalVerticalRecoil = (baseRecoil * verticalMultiplier) + verticalNoise;
 
-        // 横反動 (ランダムに左右に大きく振る)
-        double horizontalRecoil = (Math.random() - 0.5) * (baseRecoil * 0.8) * horizontalFactor;
+        // 横反動 (縦反動に対して乖離しすぎないように制限)
+        double rawHorizontal = (Math.random() - 0.5) * (baseRecoil * 0.6) * horizontalFactor;
+        double maxHorizontal = Math.abs(finalVerticalRecoil) * 1.2; // 縦の1.2倍までに制限
+        double horizontalRecoil = Math.max(-maxHorizontal, Math.min(maxHorizontal, rawHorizontal));
 
         // --- 処理の適用 ---
         spawnMuzzleFlash(player);
@@ -1156,9 +1158,10 @@ public class GunListener implements Listener {
             controller.getBrain().reward(reward); // AIに学習させる
         }
 
-        // 最終ダメージの適用 (ノックバックを一時的に無効化し、バニラ防具を無視)
+        // 最終ダメージの適用 (ノックバックを一時的に無効化し、バニラ防具を無視、無敵時間無視)
         victim.setMetadata("no_knockback", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
         victim.setMetadata("bypass_armor", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+        victim.setNoDamageTicks(0);
         victim.damage(finalDamage, shooter);
     }
 
