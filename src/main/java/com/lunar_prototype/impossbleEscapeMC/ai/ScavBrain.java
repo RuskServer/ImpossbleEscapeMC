@@ -22,7 +22,27 @@ public class ScavBrain {
     // 0: Approach, 1: Maintain, 2: Retreat, 3: Strafe L, 4: Strafe R, 5: Jump, 6: Peek, 7: Jump Peek, 8: HOLD
     private int[] currentActions; // [Movement, Shooting]
     private int decisionTimer = 0;
-    
+
+    // --- Utility AI: Tactical Modes ---
+    public enum TacticalMode {
+        WITHDRAW, // 離脱
+        PUSH,     // 詰める
+        PEEK,     // ピーク
+        FLANK,    // 裏取り/横移動
+        HOLD      // 立ち止まる
+    }
+    private TacticalMode currentMode = TacticalMode.HOLD;
+    private int modeInertia = 0; // モード維持タイマー
+
+    // --- Action History (Circular Buffer & Bitfield) ---
+    private static final int HISTORY_SIZE = 16;
+    private final int[] moveHistory = new int[HISTORY_SIZE];
+    private int historyIdx = 0;
+    private long moveBitfield = 0;
+
+    // --- Situational Awareness ---
+    private int presenceTicks = 0; // ターゲットを見失ってからの時間
+
     // --- State Tracking for Interrupts ---
     private float lastSuppression = 0.0f;
     private double lastHealthPercent = 1.0;
@@ -31,9 +51,10 @@ public class ScavBrain {
     public ScavBrain(Mob entity) {
         this.entity = entity;
         this.random = new Random();
-        this.currentActions = new int[] { 8, 1 }; // Default: HOLD, Don't Shoot
+        this.currentActions = new int[] { 8, 1 }; 
 
-        // Initial state
+        java.util.Arrays.fill(moveHistory, 8);
+
         this.aggression = 0.2f + random.nextFloat() * 0.3f;
         this.fear = 0.1f;
         this.tactical = 0.3f + random.nextFloat() * 0.2f;
@@ -44,31 +65,66 @@ public class ScavBrain {
         double healthPercent = entity.getHealth() / entity.getAttribute(Attribute.MAX_HEALTH).getValue();
         double dist = target != null ? entity.getLocation().distance(target.getLocation()) : 100.0;
         
+        // ターゲット存在確信度の更新
+        if (canSee) presenceTicks = 0;
+        else presenceTicks++;
+
         // --- 1. Update Internal States ---
         updateInternalStates(dist, stats, suppression, tacticalAdvice, canSee, healthPercent);
 
         // --- 2. Check for Interrupts ---
         boolean interrupted = shouldInterrupt(canSee, suppression, healthPercent, stats);
 
-        // --- 3. Decision Logic ---
-        if (decisionTimer <= 0 || interrupted) {
-            // Determine new actions
-            int moveAction = determineMoveAction(suppression, canSee, tacticalAdvice);
+        // --- 3. Utility-Based Decision Logic ---
+        if (decisionTimer <= 0 || interrupted || modeInertia <= 0) {
+            // A. 戦況の評価
+            float pressure = (suppression * 0.4f) + (float)((1.0 - healthPercent) * 0.6f);
+            
+            ItemStack gun = entity.getEquipment().getItemInMainHand();
+            float ammo = 1.0f;
+            if (gun != null && gun.hasItemMeta() && stats != null) {
+                int currentAmmo = gun.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+                ammo = (float) currentAmmo / stats.magSize;
+            }
+
+            float targetHealth = (target != null) ? (float)(target.getHealth() / target.getAttribute(Attribute.MAX_HEALTH).getValue()) : 1.0f;
+            float advantage = (1.0f - targetHealth) * 0.4f + (ammo * 0.6f);
+            float presence = Math.max(0, 1.0f - (presenceTicks / 600.0f));
+
+            // B. 各戦術モードの Utility スコア算出
+            float withdrawScore = (pressure * 0.8f) + ((1.0f - advantage) * 0.4f) + (fear * 0.6f);
+            float pushScore = (advantage * 0.6f) + (aggression * 0.5f) + (float)(Math.max(0, 1.0 - dist/40.0) * 0.3);
+            float peekScore = (presence * 0.6f) + (tactical * 0.4f) + (suppression < 0.2f ? 0.3f : 0.0f);
+            float flankScore = (tactical * 0.7f) + ((1.0f - pressure) * 0.4f) + (canSee ? 0.2f : 0.0f);
+            float holdScore = (tactical * 0.5f) + ((1.0f - aggression) * 0.3f) + (presence > 0.8f ? 0.4f : 0.0f);
+
+            // C. 最高スコアのモードを選択
+            TacticalMode bestMode = TacticalMode.HOLD;
+            float maxScore = holdScore;
+            
+            if (withdrawScore > maxScore) { maxScore = withdrawScore; bestMode = TacticalMode.WITHDRAW; }
+            if (pushScore > maxScore) { maxScore = pushScore; bestMode = TacticalMode.PUSH; }
+            if (peekScore > maxScore) { maxScore = peekScore; bestMode = TacticalMode.PEEK; }
+            if (flankScore > maxScore) { maxScore = flankScore; bestMode = TacticalMode.FLANK; }
+
+            // 戦術的慣性: 以前のモードと大きな差がなければ維持
+            if (currentMode != bestMode && modeInertia > 0) {
+                // ここでは単純化のため、強制的な割り込みがなければ維持
+            } else {
+                currentMode = bestMode;
+                modeInertia = 10 + random.nextInt(20); // 0.5s - 1.5s 維持
+            }
+
+            // D. モードを具体的なアクションに変換
+            int moveAction = determineMoveActionByMode(currentMode, suppression, canSee, tacticalAdvice, dist);
             int shootAction = determineShootAction(canSee, suppression);
             
             this.currentActions = new int[] { moveAction, shootAction };
-            
-            // Set duration based on action type
-            this.decisionTimer = 4 + random.nextInt(6); // デフォルト 1.0s - 2.5s
-            
-            // 特別なアクションのタイマー調整
-            if (moveAction == 8) { // HOLD (視界喪失時の待機)
-                this.decisionTimer = 12 + random.nextInt(8); // 3s - 5s 待機
-            } else if (moveAction == 2 || moveAction == 3 || moveAction == 4) {
-                this.decisionTimer = 4 + random.nextInt(4); // 回避行動は短めに再検討
-            }
+            recordHistory(moveAction);
+            this.decisionTimer = 4 + random.nextInt(4);
         } else {
             decisionTimer--;
+            modeInertia--;
         }
 
         this.lastCanSee = canSee;
@@ -76,6 +132,80 @@ public class ScavBrain {
         this.lastHealthPercent = healthPercent;
 
         return currentActions;
+    }
+
+    private int determineMoveActionByMode(TacticalMode mode, float suppression, boolean canSee, float tacticalAdvice, double dist) {
+        float r = random.nextFloat();
+        
+        switch (mode) {
+            case WITHDRAW:
+                // 強い制圧下では、背中を見せて逃げるだけでなく、蛇行(Strafe)して弾を避ける
+                if (suppression > 0.5f && r < 0.6f) return random.nextBoolean() ? 3 : 4;
+                return 2; // Retreat
+
+            case PUSH:
+                if (canSee) {
+                    // 近距離(CQC)では左右に激しく動きながら詰める
+                    if (dist < 10.0 && r < 0.7f) return random.nextBoolean() ? 3 : 4;
+                    // アドレナリン全開ならたまにジャンプして翻弄
+                    if (aggression > 0.8f && r < 0.2f) return 5; // Jump
+                    return 0; // Approach
+                }
+                return 0; // Approach
+
+            case PEEK:
+                // プリエイム/ピーク機動。ターゲットが見えていない時が本番
+                if (!canSee && (tacticalAdvice > 0.5f || lastCanSee)) {
+                    return (aggression > 0.4f && random.nextBoolean()) ? 7 : 6;
+                }
+                // 位置調整のための微細な横移動
+                return random.nextBoolean() ? 3 : 4;
+
+            case FLANK:
+                // サークルストレイフのロジック: 横移動を基本に、距離の誤差を修正
+                if (dist > 25.0) return 0; // 遠すぎるなら近づきながら
+                if (dist < 12.0) return 2; // 近すぎるなら離れながら
+                return random.nextBoolean() ? 3 : 4; // 適正距離なら純粋に横移動
+
+            case HOLD:
+            default:
+                if (canSee) return 8; // 視認中は HOLD でエイムに集中
+                // 見失った直後の 2秒間(40ticks) は角待ちを維持
+                if (lastCanSee && presenceTicks < 40) return 8; 
+                return 1; // それ以外は Maintain
+        }
+    }
+
+    private void recordHistory(int moveAction) {
+        moveHistory[historyIdx] = moveAction;
+        historyIdx = (historyIdx + 1) % HISTORY_SIZE;
+        // ビットフィールドの更新 (簡易的な発生履歴)
+        moveBitfield |= (1L << moveAction);
+        
+        // 履歴が一周するごとにビットフィールドをリセット（または減衰）して「最近の傾向」を維持
+        if (historyIdx == 0) {
+            moveBitfield = 0;
+            for (int act : moveHistory) moveBitfield |= (1L << act);
+        }
+    }
+
+    private boolean isRepeatingAction(int action, int count) {
+        int found = 0;
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+            if (moveHistory[i] == action) {
+                found++;
+                if (found >= count) return true;
+            }
+        }
+        return false;
+    }
+
+    private int getActionCount(int action) {
+        int count = 0;
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+            if (moveHistory[i] == action) count++;
+        }
+        return count;
     }
 
     private boolean shouldInterrupt(boolean canSee, float suppression, double healthPercent, GunStats stats) {
@@ -112,9 +242,25 @@ public class ScavBrain {
         }
 
         // Update Aggression/Fear using Evaluator
-        aggression += CombatEvaluator.calculateAggressionSpike(distance, suppression, healthPercent, canSee);
-        fear += CombatEvaluator.calculateFearSpike(suppression, healthPercent, ammoPercent);
+        float spikeAgg = CombatEvaluator.calculateAggressionSpike(distance, suppression, healthPercent, canSee);
+        float spikeFear = CombatEvaluator.calculateFearSpike(suppression, healthPercent, ammoPercent);
         
+        aggression += spikeAgg;
+        fear += spikeFear;
+
+        // --- 感情の相互作用 (Inter-emotional Bleed) ---
+        // 1. 恐怖は攻撃性を抑制する (Aggression influenced by Fear)
+        aggression *= (1.0f - (fear * 0.4f)); 
+
+        // 2. 攻撃性が高いと恐怖を一時的に上書きする (Aggression masks Fear / Adrenaline)
+        fear *= (1.0f - (aggression * 0.2f));
+
+        // 3. 恐怖は戦術的本能を刺激する (Fear increases Tactical focus for survival)
+        if (fear > 0.5f) tactical += fear * 0.05f;
+
+        // 4. 戦術的状況把握は恐怖を抑える (Tactical composure reduces Fear)
+        fear *= (1.0f - (tactical * 0.15f));
+
         if (tacticalAdvice > 0.5f) {
             tactical += 0.1f;
         }
@@ -126,47 +272,6 @@ public class ScavBrain {
         aggression = clamp(aggression * 0.96f - 0.005f);
         fear = clamp(fear * 0.94f - 0.01f);
         tactical = clamp(tactical * 0.98f);
-    }
-
-    private int determineMoveAction(float suppression, boolean canSee, float tacticalAdvice) {
-        // --- 視認中の行動 ---
-        if (canSee) {
-            if (fear > 0.7f && random.nextFloat() < fear) {
-                return 2; // Retreat
-            }
-            if (suppression > 0.6f) {
-                return random.nextBoolean() ? 3 : 4; // Strafe L / R
-            }
-            if (aggression > 0.6f && random.nextFloat() < aggression) {
-                return random.nextBoolean() ? 0 : 1; // Aggressive Push / Approach
-            }
-            // 戦闘中のデフォルト移動
-            float r = random.nextFloat();
-            if (r < 0.4) return 3;
-            if (r < 0.8) return 4;
-            return 5; // Jump
-        }
-
-        // --- 視界喪失後の行動 ---
-        if (lastCanSee) {
-            // 見失った直後は 100% HOLD (角を置く)
-            return 8; 
-        }
-
-        // 待機中
-        if (currentActions[0] == 8) {
-            // 攻撃性が高まれば最後に見失った場所へ向かう
-            if (aggression > 0.5f && random.nextFloat() < aggression) {
-                return 0; // Search Approach
-            }
-            return 8; // Still Holding
-        }
-
-        if (tacticalAdvice > 0.5f && tactical > 0.5f) {
-            return (aggression > 0.4f && random.nextBoolean()) ? 7 : 6; // Peek / Jump Peek
-        }
-
-        return 0; // Default approach
     }
 
     private int determineShootAction(boolean canSee, float suppression) {

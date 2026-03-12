@@ -14,7 +14,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.*;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -27,6 +28,7 @@ public class MedicalModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
     private final Map<UUID, Long> lastInteract = new HashMap<>();
     private final Map<UUID, Integer> activeTasks = new HashMap<>();
+    private final Map<UUID, Integer> usingSlots = new HashMap<>();
 
     @Override
     public void onEnable(ServiceContainer container) {
@@ -46,16 +48,18 @@ public class MedicalModule implements IModule, Listener {
 
     @Override
     public void onDisable() {
-        for (int taskId : activeTasks.values()) {
-            Bukkit.getScheduler().cancelTask(taskId);
+        for (UUID uuid : new java.util.HashSet<>(activeTasks.keySet())) {
+            stopUsing(Bukkit.getPlayer(uuid));
         }
         activeTasks.clear();
         lastInteract.clear();
+        usingSlots.clear();
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
         
         Player player = event.getPlayer();
         ItemStack item = event.getItem();
@@ -76,9 +80,35 @@ public class MedicalModule implements IModule, Listener {
         }
     }
 
+    @EventHandler
+    public void onItemHeld(PlayerItemHeldEvent event) {
+        stopUsing(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onSwapHand(PlayerSwapHandItemsEvent event) {
+        stopUsing(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent event) {
+        stopUsing(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        stopUsing(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        stopUsing(event.getEntity());
+    }
+
     private void startUsing(Player player, ItemStack item, ItemDefinition def) {
         UUID uuid = player.getUniqueId();
         lastInteract.put(uuid, System.currentTimeMillis());
+        usingSlots.put(uuid, player.getInventory().getHeldItemSlot());
 
         // モデル切り替え
         ItemMeta meta = item.getItemMeta();
@@ -99,7 +129,7 @@ public class MedicalModule implements IModule, Listener {
 
     private void handleHeal(Player player, ItemDefinition def) {
         ItemStack item = player.getInventory().getItemInMainHand();
-        ItemMeta meta = item.getItemMeta();
+        ItemMeta meta = (item != null) ? item.getItemMeta() : null;
         if (meta == null) {
             stopUsing(player);
             return;
@@ -156,14 +186,17 @@ public class MedicalModule implements IModule, Listener {
             Bukkit.getScheduler().cancelTask(taskId);
         }
 
-        // モデルを元に戻す
-        ItemStack item = player.getInventory().getItemInMainHand();
+        Integer slot = usingSlots.remove(uuid);
+        if (slot == null) return;
+
+        // 指定されたスロットのアイテムを元に戻す
+        ItemStack item = player.getInventory().getItem(slot);
         if (item != null && item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
             String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
             ItemDefinition def = ItemRegistry.get(itemId);
             if (def != null && def.medStats != null && def.medStats.continuous) {
-                if (meta.getCustomModelData() != def.customModelData) {
+                if (meta.getCustomModelData() == def.medStats.usingCustomModelData) {
                     meta.setCustomModelData(def.customModelData);
                     item.setItemMeta(meta);
                     player.playSound(player.getLocation(), Sound.BLOCK_CHEST_CLOSE, 0.5f, 1.5f);

@@ -100,12 +100,9 @@ public class ItemFactory {
                 return item;
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
+
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, def.id);
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-
-            if (def.maxDurability > 0) {
-                item.setData(DataComponentTypes.MAX_DAMAGE, def.maxDurability);
-            }
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
                 // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
@@ -238,13 +235,6 @@ public class ItemFactory {
         if (def == null && ammoDef == null && attDef == null)
             return item;
 
-        // --- バニラ耐久値バーとの同期 ---
-        if (def != null && def.maxDurability > 0) {
-            int current = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-            int damage = Math.max(0, def.maxDurability - current);
-            item.setData(DataComponentTypes.DAMAGE, damage);
-        }
-
         List<String> lore = new ArrayList<>();
 
         // --- 1. 基本情報 (タイプとレアリティ) ---
@@ -325,6 +315,16 @@ public class ItemFactory {
 
         meta.setLore(lore);
         item.setItemMeta(meta);
+
+        // --- バニラ耐久値バーとの同期 ---
+        // item.setItemMeta(meta) の後に実行しないと、meta内の古い値で上書きされるため
+        if (def != null && def.maxDurability > 0) {
+            int current = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            int damage = Math.max(0, def.maxDurability - current);
+            item.setData(DataComponentTypes.DAMAGE, damage);
+            item.setData(DataComponentTypes.MAX_DAMAGE, def.maxDurability);
+        }
+
         return item;
     }
 

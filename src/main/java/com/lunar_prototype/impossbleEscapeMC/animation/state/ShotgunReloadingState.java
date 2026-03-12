@@ -311,6 +311,9 @@ public class ShotgunReloadingState implements WeaponState {
         item.setItemMeta(meta);
         ItemFactory.updateLore(item);
 
+        // 装填音を再生
+        ctx.getPlayer().playSound(ctx.getPlayer().getLocation(), "minecraft:reload.start.shotgun", 1.0f, 1.0f);
+
         ctx.sendActionBar("§aLoaded §f" + newAmmo + "§7/§f" + ctx.getStats().magSize);
         return true;
     }
