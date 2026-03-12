@@ -66,6 +66,11 @@ public class MedicalModule implements IModule, Listener {
         ItemDefinition def = ItemRegistry.get(itemId);
 
         if (def != null && "MED".equalsIgnoreCase(def.type) && def.medStats != null && def.medStats.continuous) {
+            // 体力が満タンなら使用しない
+            if (player.getHealth() >= player.getMaxHealth()) {
+                return;
+            }
+            
             event.setCancelled(true);
             startUsing(player, item, def);
         }
@@ -107,10 +112,23 @@ public class MedicalModule implements IModule, Listener {
         }
 
         // 回復
-        double newHealth = Math.min(player.getMaxHealth(), player.getHealth() + def.medStats.healPerUse);
+        double maxHealth = player.getMaxHealth();
+        double currentHealth = player.getHealth();
+        
+        if (currentHealth >= maxHealth) {
+            stopUsing(player);
+            return;
+        }
+
+        double newHealth = Math.min(maxHealth, currentHealth + def.medStats.healPerUse);
         player.setHealth(newHealth);
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.0f);
         player.spawnParticle(org.bukkit.Particle.HEART, player.getLocation().add(0, 1.5, 0), 3, 0.3, 0.3, 0.3, 0.1);
+
+        // 回復後に満タンになったら停止
+        if (newHealth >= maxHealth) {
+            stopUsing(player);
+        }
 
         // 耐久消費
         PersistentDataContainer pdc = meta.getPersistentDataContainer();

@@ -57,6 +57,7 @@ public class ItemFactory {
             meta.setLore(lore);
 
             item.setItemMeta(meta);
+            applyTooltipStyle(item, attDef.rarity);
             return item;
         }
 
@@ -73,6 +74,8 @@ public class ItemFactory {
             if (ammoDef.customModelData != 0) {
                 meta.setCustomModelData(ammoDef.customModelData);
             }
+            item.setItemMeta(meta);
+            applyTooltipStyle(item, ammoDef.rarity);
         } else {
             Material mat = Material.matchMaterial(def.material);
             if (mat == null)
@@ -99,6 +102,10 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, def.id);
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+
+            if (def.maxDurability > 0) {
+                item.setData(DataComponentTypes.MAX_DAMAGE, def.maxDurability);
+            }
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
                 // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
@@ -180,10 +187,12 @@ public class ItemFactory {
                 }
             }
 
-            // --- 名前の設定 (レアリティカラー適用) ---
             String rarityColor = getRarityColor(def.rarity);
             String finalName = rarityColor + ChatColor.translateAlternateColorCodes('&', def.displayName);
             meta.setDisplayName(finalName);
+
+            item.setItemMeta(meta);
+            applyTooltipStyle(item, def.rarity);
         }
 
         item.setItemMeta(meta);
@@ -228,6 +237,13 @@ public class ItemFactory {
         // どれにも該当しない場合は何もしない
         if (def == null && ammoDef == null && attDef == null)
             return item;
+
+        // --- バニラ耐久値バーとの同期 ---
+        if (def != null && def.maxDurability > 0) {
+            int current = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            int damage = Math.max(0, def.maxDurability - current);
+            item.setData(DataComponentTypes.DAMAGE, damage);
+        }
 
         List<String> lore = new ArrayList<>();
 
@@ -325,5 +341,16 @@ public class ItemFactory {
     private static String getRarityStars(int rarity) {
         String color = getRarityColor(rarity);
         return color + "★".repeat(Math.max(1, rarity)) + "§8" + "☆".repeat(Math.max(0, 5 - rarity));
+    }
+
+    private static void applyTooltipStyle(ItemStack item, int rarity) {
+        String styleId = switch (rarity) {
+            case 2 -> "green_frame.png";
+            case 3 -> "blue_frame.png";
+            case 4 -> "purple_frame.png";
+            case 5 -> "gold_frame.png";
+            default -> "white_frame.png";
+        };
+        item.setData(DataComponentTypes.TOOLTIP_STYLE, Key.key("minecraft", styleId));
     }
 }
