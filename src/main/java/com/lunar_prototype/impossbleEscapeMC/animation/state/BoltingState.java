@@ -12,10 +12,22 @@ import org.bukkit.persistence.PersistentDataContainer;
 
 public class BoltingState implements WeaponState {
 
+    private enum Phase {
+        AIM_OUT, BOLTING, DONE
+    }
+
+    private Phase phase = Phase.BOLTING;
     private int elapsed = 0;
     private int totalTicks = 0;
-    private GunStats.AnimationStats animStats = null;
-    private boolean isBoltingPossible = false;
+    private boolean isPossible = false;
+
+    // AIM_OUT specifics
+    private int aimOutTotalTicks = 0;
+    private double startAimProgress = 0.0;
+
+    // BOLTING specifics
+    private GunStats.AnimationStats boltingAnim = null;
+    private int boltingTotalTicks = 0;
 
     @Override
     public void onEnter(WeaponContext ctx) {
@@ -28,70 +40,98 @@ public class BoltingState implements WeaponState {
 
         // チャンバーが既に装填されているか、マガジンが空の場合はコッキング不要
         if (isChamberLoaded || currentAmmo <= 0) {
-            isBoltingPossible = false;
+            isPossible = false;
             return;
         }
 
-        isBoltingPossible = true;
-        animStats = stats.boltingAnimation;
+        isPossible = true;
+        boltingAnim = stats.boltingAnimation;
 
-        // Calculate Duration
-        if (animStats != null && animStats.fps > 0 && animStats.playbackSpeed > 0) {
-            double durationSeconds = (double) animStats.frameCount / (animStats.fps * animStats.playbackSpeed);
-            totalTicks = (int) Math.ceil(durationSeconds * 20);
+        // Calculate Bolting Duration
+        if (boltingAnim != null && boltingAnim.fps > 0 && boltingAnim.playbackSpeed > 0) {
+            double durationSeconds = (double) boltingAnim.frameCount / (boltingAnim.fps * boltingAnim.playbackSpeed);
+            boltingTotalTicks = (int) Math.ceil(durationSeconds * 20);
         } else {
-            totalTicks = Math.max(1, stats.boltingTime / 50);
+            boltingTotalTicks = Math.max(1, stats.boltingTime / 50);
         }
 
-        // Apply initial model
-        if (animStats != null) {
-            item.setData(DataComponentTypes.ITEM_MODEL, Key.key(animStats.model));
-            ctx.applyModel(animStats, 0);
+        // Check if we need to AIM_OUT first
+        startAimProgress = ctx.getAimProgress();
+        if (startAimProgress > 0) {
+            phase = Phase.AIM_OUT;
+            // aimTime (ms) 基準
+            aimOutTotalTicks = Math.max(1, (int) (startAimProgress * (stats.adsTime / 50.0)));
+            totalTicks = aimOutTotalTicks;
+            elapsed = 0;
+        } else {
+            startBoltingPhase(ctx);
+        }
+    }
+
+    private void startBoltingPhase(WeaponContext ctx) {
+        phase = Phase.BOLTING;
+        elapsed = 0;
+        totalTicks = boltingTotalTicks;
+
+        ctx.setAimProgress(0.0);
+        ctx.setSprintProgress(0.0);
+
+        if (boltingAnim != null) {
+            ctx.getItem().setData(DataComponentTypes.ITEM_MODEL, Key.key(boltingAnim.model));
+            ctx.applyModel(boltingAnim, 0);
         }
 
         // コッキング音
         ctx.playSound(Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.8f);
-
-        ctx.setAimProgress(0.0);
-        ctx.setSprintProgress(0.0);
     }
 
     @Override
     public void onUpdate(WeaponContext ctx) {
-        if (!isBoltingPossible) {
-            if (ctx.getStateMachine() != null) {
-                if (ctx.getPlayer().isSprinting()) {
-                    ctx.getStateMachine().transitionTo(new SprintingState());
-                } else {
-                    ctx.getStateMachine().transitionTo(new IdleState());
-                }
-            }
+        if (!isPossible) {
+            transitionOut(ctx);
             return;
         }
 
         elapsed++;
 
-        // Render Animation
-        if (animStats != null) {
-            int frameIndex = (int) ((elapsed / 20.0) * animStats.fps * animStats.playbackSpeed);
-            if (frameIndex >= animStats.frameCount) {
-                frameIndex = animStats.frameCount - 1;
-            }
-            ctx.applyModel(animStats, frameIndex);
-        }
+        switch (phase) {
+            case AIM_OUT -> {
+                double progress = 1.0 - ((double) elapsed / aimOutTotalTicks);
+                ctx.setAimProgress(Math.max(0.0, startAimProgress * progress));
 
-        // Completion
-        if (elapsed >= totalTicks) {
-            completeBolting(ctx);
-            isBoltingPossible = false; // Mark complete
-
-            // Auto transition immediately inside this tick
-            if (ctx.getStateMachine() != null) {
-                if (ctx.getPlayer().isSprinting()) {
-                    ctx.getStateMachine().transitionTo(new SprintingState());
-                } else {
-                    ctx.getStateMachine().transitionTo(new IdleState());
+                // エイムアニメーションを逆再生で表示
+                GunStats.AnimationStats aimAnim = ctx.getStats().aimAnimation;
+                if (aimAnim != null) {
+                    int frame = (int) (progress * (aimAnim.frameCount - 1));
+                    ctx.applyModel(aimAnim, Math.max(0, frame));
                 }
+
+                if (elapsed >= aimOutTotalTicks) {
+                    startBoltingPhase(ctx);
+                }
+            }
+            case BOLTING -> {
+                if (boltingAnim != null) {
+                    int frameIndex = (int) ((elapsed / 20.0) * boltingAnim.fps * boltingAnim.playbackSpeed);
+                    frameIndex = Math.min(frameIndex, boltingAnim.frameCount - 1);
+                    ctx.applyModel(boltingAnim, frameIndex);
+                }
+
+                if (elapsed >= boltingTotalTicks) {
+                    completeBolting(ctx);
+                    phase = Phase.DONE;
+                }
+            }
+            case DONE -> transitionOut(ctx);
+        }
+    }
+
+    private void transitionOut(WeaponContext ctx) {
+        if (ctx.getStateMachine() != null) {
+            if (ctx.getPlayer().isSprinting()) {
+                ctx.getStateMachine().transitionTo(new SprintingState());
+            } else {
+                ctx.getStateMachine().transitionTo(new IdleState());
             }
         }
     }
@@ -103,12 +143,10 @@ public class BoltingState implements WeaponState {
 
     @Override
     public WeaponState handleInput(WeaponContext ctx, InputType input) {
-        if (!isBoltingPossible) {
+        if (!isPossible || phase == Phase.DONE) {
             WeaponState next = new IdleState().handleInput(ctx, input);
             return next != null ? next : new IdleState();
         }
-
-        // Allow actions like sprinting or stopping sprint during bolting without cancelling
         return null;
     }
 

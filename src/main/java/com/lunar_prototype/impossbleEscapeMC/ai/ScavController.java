@@ -168,13 +168,13 @@ public class ScavController {
         if (tactics.getPeekPhase() > 0) {
             tactics.handlePeekManeuver(target, def.gunStats, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
-            brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
+            brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice);
             return;
         }
 
         // 7. AI思考 & 移動
         brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
-        int[] actions = brain.decide(canSeeTarget ? target : null, def.gunStats, suppression, tacticalAdvice);
+        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice);
         if (actions.length < 2) return;
 
         int moveAction = actions[0];
@@ -216,10 +216,20 @@ public class ScavController {
             if (canSeeTarget) {
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
-                    if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
-                        if (now - lastMobShotTime < interval + (50 + (long)(Math.random() * 150))) return;
+                    // セミオートやポンプアクションの場合は人間らしい「タップ遅延」や「次弾装填待ち」を追加
+                    if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode) || "PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                        long extraDelay = 50 + (long)(Math.random() * 150);
+                        if ("PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                            extraDelay += 300 + (long)(Math.random() * 400); // ポンプアクションはコッキング時間を考慮して大幅に遅延
+                        }
+                        if (now - lastMobShotTime < interval + extraDelay) return;
                     }
+
                     double inacc = 0.04 + (suppression * 0.1) + (scav.getVelocity().length() > 0.1 ? 0.04 : 0);
+                    if ("PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                        inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
+                    }
+                    
                     gunListener.executeMobShoot(scav, def.gunStats, 1, inacc);
                     lastMobShotTime = now;
                 }
