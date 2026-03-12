@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.components.EquippableComponent;
@@ -80,6 +81,8 @@ public class ItemFactory {
             item = new ItemStack(mat);
             meta = item.getItemMeta();
 
+            item.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+
             if (def.customModelData != 0) {
                 meta.setCustomModelData(def.customModelData);
             }
@@ -132,39 +135,40 @@ public class ItemFactory {
                 }
                 pdc.set(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, def.armorStats.armorClass);
 
-                // EquippableComponent check (for 1.20.6+)
-                try {
-                    EquippableComponent equippable = meta.getEquippable();
-                    if (def.armorStats.slot != null) {
+                // slot設定がある場合のみ、EquippableComponentを設定する
+                if (def.armorStats.slot != null) {
+                    try {
+                        EquippableComponent equippable = meta.getEquippable();
                         try {
                             equippable.setSlot(EquipmentSlot.valueOf(def.armorStats.slot.toUpperCase()));
                         } catch (IllegalArgumentException ignored) {
                         }
-                    }
-                    if (def.armorStats.equipSound != null) {
-                        try {
-                            equippable.setEquipSound(Sound.valueOf(def.armorStats.equipSound.toUpperCase()));
-                        } catch (IllegalArgumentException ignored) {
+
+                        if (def.armorStats.equipSound != null) {
+                            try {
+                                equippable.setEquipSound(Sound.valueOf(def.armorStats.equipSound.toUpperCase()));
+                            } catch (IllegalArgumentException ignored) {
+                            }
                         }
+                        if (def.armorStats.model != null && !def.armorStats.model.isEmpty()) {
+                            NamespacedKey key = NamespacedKey.fromString(def.armorStats.model);
+                            if (key != null)
+                                equippable.setModel(key);
+                        }
+                        if (def.armorStats.cameraOverlay != null && !def.armorStats.cameraOverlay.isEmpty()) {
+                            NamespacedKey key = NamespacedKey.fromString(def.armorStats.cameraOverlay);
+                            if (key != null)
+                                equippable.setCameraOverlay(key);
+                        }
+                        equippable.setDispensable(def.armorStats.dispensable);
+                        equippable.setSwappable(def.armorStats.swappable);
+                        equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
+
+                        // 明示的にコンポーネントをセットして反映させる
+                        meta.setEquippable(equippable);
+                    } catch (Throwable t) {
+                        // Method might not be available on older versions
                     }
-                    if (def.armorStats.model != null && !def.armorStats.model.isEmpty()) {
-                        NamespacedKey key = NamespacedKey.fromString(def.armorStats.model);
-                        if (key != null)
-                            equippable.setModel(key);
-                    }
-                    if (def.armorStats.cameraOverlay != null && !def.armorStats.cameraOverlay.isEmpty()) {
-                        NamespacedKey key = NamespacedKey.fromString(def.armorStats.cameraOverlay);
-                        if (key != null)
-                            equippable.setCameraOverlay(key);
-                    }
-                    equippable.setDispensable(def.armorStats.dispensable);
-                    equippable.setSwappable(def.armorStats.swappable);
-                    equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
-                    
-                    // 明示的にコンポーネントをセットして反映させる
-                    meta.setEquippable(equippable);
-                } catch (Throwable t) {
-                    // Method might not be available on older versions
                 }
             }
 

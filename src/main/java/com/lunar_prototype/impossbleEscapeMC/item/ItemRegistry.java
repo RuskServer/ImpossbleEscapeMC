@@ -168,7 +168,7 @@ public class ItemRegistry {
                         aStats.defense = armorSection.getInt("defense", 0);
                         aStats.armorClass = armorSection.getInt("armorClass", 1);
                         aStats.customModelData = armorSection.getInt("customModelData", 0);
-                        aStats.slot = armorSection.getString("slot", "HEAD");
+                        aStats.slot = armorSection.getString("slot", null);
                         aStats.equipSound = armorSection.getString("equipSound");
                         aStats.model = armorSection.getString("model");
                         // Support both camelCase and snake_case

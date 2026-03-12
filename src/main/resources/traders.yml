@@ -4,6 +4,7 @@
 
 prapor:
   displayName: "§6Prapor (Buy Only)"
+  npc_id: 10
   type: BUY
   items:
     - id: "gun_ak74"

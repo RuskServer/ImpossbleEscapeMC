@@ -7,70 +7,90 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class TraderGUI implements Listener {
+    private static final int[] SELL_INPUT_SLOTS = {10, 11, 12, 13, 14, 15, 16};
+    private static final int SELL_BUTTON_SLOT = 22;
+
     private final TraderModule traderModule;
     private final TraderDefinition trader;
     private final Player player;
-    private final Inventory inventory;
+    private Inventory inventory;
 
     public TraderGUI(TraderModule traderModule, TraderDefinition trader, Player player) {
         this.traderModule = traderModule;
         this.trader = trader;
         this.player = player;
-        this.inventory = Bukkit.createInventory(null, 54, Component.text(trader.displayName));
         
-        Bukkit.getPluginManager().registerEvents(this, Bukkit.getPluginManager().getPlugins()[0]); // Briefly register
+        // SELLの場合は固定27スロット、BUYの場合は一旦null（open時に動的生成）
+        if (trader.type == TraderType.SELL) {
+            this.inventory = Bukkit.createInventory(null, 27, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
+        }
+
+        Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
     }
 
     public void open() {
-        refresh();
+        if (trader.type == TraderType.BUY) {
+            setupBuyGUI();
+        } else {
+            setupSellGUI();
+        }
         player.openInventory(inventory);
     }
 
-    private void refresh() {
-        inventory.clear();
+    private void setupBuyGUI() {
         PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
         traderModule.checkAndResetDailyPurchases(data);
 
+        // アイテム数に基づいてサイズを計算 (最小9, 最大54)
+        int itemCount = trader.items.size();
+        int rows = (int) Math.ceil(itemCount / 9.0);
+        int size = Math.min(54, Math.max(9, rows * 9));
+        
+        this.inventory = Bukkit.createInventory(null, size, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
+        inventory.clear();
+
         int slot = 0;
         for (TraderItem ti : trader.items) {
-            ItemDefinition def = ItemRegistry.get(ti.itemId);
-            if (def == null) continue;
-
+            if (slot >= size) break;
             ItemStack icon = ItemFactory.create(ti.itemId);
+            if (icon == null) continue;
+
             ItemMeta meta = icon.getItemMeta();
             List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
             if (lore == null) lore = new ArrayList<>();
 
             lore.add(Component.empty());
-            if (trader.type == TraderType.BUY) {
-                lore.add(Component.text("価格: ", NamedTextColor.GRAY).append(Component.text(ti.price + "₽", NamedTextColor.GOLD)));
-                if (ti.dailyLimit > 0) {
-                    int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
-                    int remaining = Math.max(0, ti.dailyLimit - bought);
-                    lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).append(Component.text(remaining + "/" + ti.dailyLimit, NamedTextColor.YELLOW)));
-                }
-                lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW));
-            } else {
-                lore.add(Component.text("買取価格: ", NamedTextColor.GRAY).append(Component.text(ti.price + "₽", NamedTextColor.GOLD)));
-                lore.add(Component.text("インベントリ内のアイテムをクリックで売却", NamedTextColor.YELLOW));
+            lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text(ti.price + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+            if (ti.dailyLimit > 0) {
+                int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
+                int remaining = Math.max(0, ti.dailyLimit - bought);
+                lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                        .append(Component.text(remaining + "/" + ti.dailyLimit, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
             }
+            lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
 
             meta.lore(lore);
-            // メタデータに情報を埋め込む
             meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
             icon.setItemMeta(meta);
 
@@ -78,39 +98,136 @@ public class TraderGUI implements Listener {
         }
     }
 
+    private void setupSellGUI() {
+        ItemStack bg = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta bgMeta = bg.getItemMeta();
+        bgMeta.displayName(Component.empty());
+        bg.setItemMeta(bgMeta);
+
+        for (int i = 0; i < inventory.getSize(); i++) {
+            inventory.setItem(i, bg);
+        }
+
+        // 入力スロットを空にする
+        for (int slot : SELL_INPUT_SLOTS) {
+            inventory.setItem(slot, null);
+        }
+
+        updateSellButton();
+    }
+
+    private void updateSellButton() {
+        double total = calculateTotalSellValue();
+        ItemStack button = new ItemStack(total > 0 ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK);
+        ItemMeta meta = button.getItemMeta();
+        meta.displayName(Component.text("一括売却を実行", total > 0 ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.text("合計買取価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                .append(Component.text(total + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+        lore.add(Component.empty());
+        if (total > 0) {
+            lore.add(Component.text("クリックで売却を確定します", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("中央のスロットに売却したいアイテムを入れてください", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        }
+        meta.lore(lore);
+        button.setItemMeta(meta);
+        inventory.setItem(SELL_BUTTON_SLOT, button);
+    }
+
+    private double calculateTotalSellValue() {
+        double total = 0;
+        for (int slot : SELL_INPUT_SLOTS) {
+            ItemStack item = inventory.getItem(slot);
+            if (item == null || item.getType() == Material.AIR) continue;
+
+            String itemId = item.hasItemMeta() ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+            if (itemId == null) continue;
+
+            TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
+            if (ti != null) {
+                total += ti.price * item.getAmount();
+            }
+        }
+        return total;
+    }
+
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
-        event.setCancelled(true);
-
-        if (event.getWhoClicked() != player) return;
-        
-        ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType() == Material.AIR) return;
-
-        PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
-        traderModule.checkAndResetDailyPurchases(data);
 
         if (trader.type == TraderType.BUY) {
-            // 購入処理 (上のインベントリをクリックした場合)
+            event.setCancelled(true);
             if (event.getRawSlot() < inventory.getSize()) {
-                handleBuy(clicked, data);
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked != null && clicked.getType() != Material.AIR) {
+                    PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
+                    handleBuy(clicked, data);
+                }
             }
         } else {
-            // 売却処理 (下のインベントリをクリックした場合)
-            if (event.getRawSlot() >= inventory.getSize()) {
-                handleSell(clicked, data);
+            // 売却GUI
+            int slot = event.getRawSlot();
+            if (slot < inventory.getSize()) {
+                // 上段インベントリ内の操作制限
+                boolean isInputSlot = Arrays.stream(SELL_INPUT_SLOTS).anyMatch(s -> s == slot);
+                if (slot == SELL_BUTTON_SLOT) {
+                    event.setCancelled(true);
+                    handleBulkSell();
+                } else if (!isInputSlot) {
+                    event.setCancelled(true);
+                }
+            }
+            // クリック後に計算を更新
+            Bukkit.getScheduler().runTask(traderModule.getPlugin(), this::updateSellButton);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!event.getInventory().equals(inventory)) return;
+        if (trader.type == TraderType.SELL) {
+            for (int slot : event.getRawSlots()) {
+                if (slot < inventory.getSize()) {
+                    boolean isInputSlot = Arrays.stream(SELL_INPUT_SLOTS).anyMatch(s -> s == slot);
+                    if (!isInputSlot) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                }
+            }
+            Bukkit.getScheduler().runTask(traderModule.getPlugin(), this::updateSellButton);
+        } else {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!event.getInventory().equals(inventory)) return;
+        
+        // 投入エリアに残ったアイテムを返却
+        if (trader.type == TraderType.SELL) {
+            for (int slot : SELL_INPUT_SLOTS) {
+                ItemStack item = inventory.getItem(slot);
+                if (item != null && item.getType() != Material.AIR) {
+                    player.getInventory().addItem(item).values().forEach(remaining -> 
+                        player.getWorld().dropItemNaturally(player.getLocation(), remaining)
+                    );
+                    inventory.setItem(slot, null);
+                }
             }
         }
+        
+        HandlerList.unregisterAll(this); // リスナー解除
     }
 
     private void handleBuy(ItemStack clicked, PlayerData data) {
         String itemId = clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
-        
         if (ti == null) return;
 
-        // 制限チェック
+        traderModule.checkAndResetDailyPurchases(data);
         if (ti.dailyLimit > 0) {
             int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
             if (bought >= ti.dailyLimit) {
@@ -119,7 +236,6 @@ public class TraderGUI implements Listener {
             }
         }
 
-        // 所持金チェックと支払い
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), ti.price)) {
             ItemStack item = ItemFactory.create(ti.itemId);
             if (player.getInventory().addItem(item).isEmpty()) {
@@ -128,9 +244,8 @@ public class TraderGUI implements Listener {
                     traderModule.getDataModule().saveAsync(player.getUniqueId());
                 }
                 player.sendMessage(Component.text(ti.itemId + " を購入しました。", NamedTextColor.GREEN));
-                refresh();
+                setupBuyGUI();
             } else {
-                // インベントリがいっぱいなら返金
                 traderModule.getEconomyModule().deposit(player.getUniqueId(), ti.price);
                 player.sendMessage(Component.text("インベントリがいっぱいです。", NamedTextColor.RED));
             }
@@ -139,19 +254,27 @@ public class TraderGUI implements Listener {
         }
     }
 
-    private void handleSell(ItemStack clicked, PlayerData data) {
-        String itemId = clicked.hasItemMeta() ? clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-        if (itemId == null) return;
-
-        TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
-        if (ti == null) {
-            player.sendMessage(Component.text("このアイテムは買い取っていません。", NamedTextColor.RED));
+    private void handleBulkSell() {
+        double total = calculateTotalSellValue();
+        if (total <= 0) {
+            player.sendMessage(Component.text("売却可能なアイテムがありません。", NamedTextColor.RED));
             return;
         }
 
-        double totalReward = ti.price * clicked.getAmount();
-        traderModule.getEconomyModule().deposit(player.getUniqueId(), totalReward);
-        clicked.setAmount(0);
-        player.sendMessage(Component.text(itemId + " を売却し、" + totalReward + "₽ を受け取りました。", NamedTextColor.GREEN));
+        traderModule.getEconomyModule().deposit(player.getUniqueId(), total);
+        
+        // アイテムを消去
+        for (int slot : SELL_INPUT_SLOTS) {
+            ItemStack item = inventory.getItem(slot);
+            if (item == null || item.getType() == Material.AIR) continue;
+            
+            String itemId = item.hasItemMeta() ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+            if (itemId != null && trader.items.stream().anyMatch(i -> i.itemId.equals(itemId))) {
+                inventory.setItem(slot, null);
+            }
+        }
+
+        player.sendMessage(Component.text("アイテムを売却し、" + total + "₽ を受け取りました。", NamedTextColor.GREEN));
+        updateSellButton();
     }
 }

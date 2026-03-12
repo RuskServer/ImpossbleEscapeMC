@@ -53,6 +53,7 @@ public class TraderModule implements IModule {
 
             String displayName = section.getString("displayName", id);
             TraderType type = TraderType.valueOf(section.getString("type", "BUY").toUpperCase());
+            int npcId = section.getInt("npc_id", -1);
             
             List<TraderItem> items = new ArrayList<>();
             if (section.contains("items")) {
@@ -64,13 +65,21 @@ public class TraderModule implements IModule {
                 }
             }
             
-            traders.put(id, new TraderDefinition(id, displayName, type, items));
+            traders.put(id, new TraderDefinition(id, displayName, type, items, npcId));
         }
         plugin.getLogger().info("Loaded " + traders.size() + " traders.");
     }
 
     public TraderDefinition getTrader(String id) {
         return traders.get(id);
+    }
+
+    public TraderDefinition getTraderByNpcId(int npcId) {
+        if (npcId == -1) return null;
+        return traders.values().stream()
+                .filter(t -> t.npcId == npcId)
+                .findFirst()
+                .orElse(null);
     }
 
     public Collection<TraderDefinition> getAllTraders() {
@@ -100,5 +109,9 @@ public class TraderModule implements IModule {
 
     public EconomyModule getEconomyModule() {
         return economyModule;
+    }
+
+    public ImpossbleEscapeMC getPlugin() {
+        return plugin;
     }
 }
