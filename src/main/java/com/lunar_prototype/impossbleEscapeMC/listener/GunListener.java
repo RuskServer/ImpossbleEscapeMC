@@ -53,7 +53,7 @@ public class GunListener implements Listener {
     private final Map<UUID, Location> lastLocationMap = new HashMap<>();
 
     // Lag Compensation History
-    private final Map<UUID, NavigableMap<Long, BoundingBox>> entityHistory = new HashMap<>();
+    private static final Map<UUID, NavigableMap<Long, BoundingBox>> entityHistory = new HashMap<>();
     private static final long HISTORY_DURATION_MS = 1000;
 
     private static final int MODEL_ADD_SCOPE = 1000;
@@ -92,7 +92,11 @@ public class GunListener implements Listener {
         }.runTaskTimer(plugin, 0, 1);
     }
 
-    private BoundingBox getCompensatedBox(LivingEntity entity, long targetTime) {
+    /**
+     * ラグ補填された当たり判定ボックスを取得します。
+     * BulletTaskから呼び出されます。
+     */
+    public static BoundingBox getCompensatedBox(LivingEntity entity, long targetTime) {
         NavigableMap<Long, BoundingBox> history = entityHistory.get(entity.getUniqueId());
         if (history == null || history.isEmpty())
             return entity.getBoundingBox();
@@ -484,7 +488,7 @@ public class GunListener implements Listener {
             int ammoClass = ammoDef.ammoClass;
             int pellets = Math.max(1, stats.pelletCount);
             for (int i = 0; i < pellets; i++) {
-                new BulletTask(player, damage, ammoClass, inaccuracy).start();
+                new BulletTask(ImpossbleEscapeMC.getInstance(),player, damage, ammoClass, inaccuracy).start();
             }
         }
 
@@ -570,7 +574,7 @@ public class GunListener implements Listener {
         // 2. 弾丸の生成
         int pellets = Math.max(1, stats.pelletCount);
         for (int i = 0; i < pellets; i++) {
-            new BulletTask(shooter, stats.damage, ammoClass, inaccuracy).start();
+            new BulletTask(plugin, shooter, stats.damage, ammoClass, inaccuracy).start();
         }
 
         // 1秒後に薬莢の落ちる音を再生 (AI用)
@@ -671,249 +675,6 @@ public class GunListener implements Listener {
     private void cleanup(Player player) {
         stopShooting(player.getUniqueId());
         stopStateTask(player);
-    }
-
-    // 弾丸の挙動を管理するインナークラス
-    private class BulletTask extends BukkitRunnable {
-        private final LivingEntity shooter;
-        private final double damage;
-        private final Vector origin; // 射撃開始地点を保存
-        private Location currentLoc;
-        private Vector velocity;
-        private int ticksAlive = 0;
-        private final int shooterPing;
-        private boolean active = true;
-
-        // 設定値 (後でYAMLから読み込めるようにすると良い)
-        private final double GRAVITY = 0.015; // 1ティックあたりの落下量
-        private final double SPEED = 20.0; // 弾速を大幅に向上 (120m/s -> 400m/s)
-        private final int ammoClass;
-
-        public BulletTask(LivingEntity shooter, double damage, int ammoClass, double inaccuracy) {
-            this.shooter = shooter;
-            this.damage = damage;
-            this.currentLoc = shooter.getEyeLocation();
-            this.origin = this.currentLoc.toVector(); // 初期位置を保存
-            this.shooterPing = (shooter instanceof Player p) ? PacketEvents.getAPI().getPlayerManager().getPing(p) : 0;
-
-            Vector dir = shooter.getEyeLocation().getDirection();
-
-            // 拡散（インナキュラシー）の適用
-            if (inaccuracy > 0) {
-                dir.add(new Vector(
-                        (Math.random() - 0.5) * inaccuracy,
-                        (Math.random() - 0.5) * inaccuracy,
-                        (Math.random() - 0.5) * inaccuracy));
-                dir.normalize();
-            }
-
-            this.velocity = dir.multiply(SPEED);
-            this.ammoClass = ammoClass;
-        }
-
-        public void start() {
-            // 初回の判定を即座に実行 (0tick遅延)
-            this.run();
-            if (active) {
-                this.runTaskTimer(plugin, 1, 1);
-            }
-        }
-
-        @Override
-        public void cancel() {
-            if (!active)
-                return;
-            active = false;
-            try {
-                super.cancel();
-            } catch (IllegalStateException ignored) {
-            }
-        }
-
-        @Override
-        public void run() {
-            if (!active)
-                return;
-
-            ticksAlive++;
-            if (ticksAlive > 100) { // 5秒経ったら消滅
-                this.cancel();
-                return;
-            }
-
-            // 前回の地点を保存
-            Location prevLoc = currentLoc.clone();
-
-            // 重力の適用
-            velocity.add(new Vector(0, -GRAVITY, 0));
-            currentLoc.add(velocity);
-
-            // ヒートマップへの制圧記録 (プレイヤーが撃った場合のみ)
-            if (shooter instanceof Player) {
-                com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.recordLine(prevLoc,
-                        velocity.clone().normalize(), SPEED, 1.0f);
-            }
-
-            // ニアミス判定 (回避報酬)
-            // 弾丸の軌道近くにいるスカブに「避けた」報酬を与える
-            if (shooter instanceof Player) {
-                for (Entity nearby : currentLoc.getWorld().getNearbyEntities(currentLoc, 1.5, 1.5, 1.5)) {
-                    if (nearby instanceof Mob scav && !nearby.equals(shooter)) {
-                        ScavController controller = ScavSpawner.getController(scav.getUniqueId());
-                        if (controller != null) {
-                            // 弾が近くを通る = 回避成功
-                            controller.getBrain().reward(0.05f);
-                            controller.addSuppression(0.1f); // 制圧値加算
-                        }
-                    }
-                }
-            }
-
-            // 曳光弾のエフェクト (前回の地点から今回の地点まで線を引くようにパーティクルを出す)
-            spawnTracer(prevLoc, currentLoc);
-
-            // 当たり判定 (ラグ補填あり)
-            double distanceRemaining = SPEED;
-            Location rayStart = prevLoc.clone();
-            Vector rayDir = velocity.clone().normalize();
-            long targetTime = System.currentTimeMillis() - shooterPing;
-
-            while (distanceRemaining > 0.01) {
-                // 1. ブロックの当たり判定
-                var blockTrace = currentLoc.getWorld().rayTraceBlocks(rayStart, rayDir, distanceRemaining,
-                        FluidCollisionMode.NEVER, true);
-                double blockDist = (blockTrace != null) ? blockTrace.getHitPosition().distance(rayStart.toVector())
-                        : Double.MAX_VALUE;
-
-                // 2. エンティティの当たり判定 (ラグ補填)
-                Entity victim = null;
-                Vector hitPos = null;
-                double bestDist = blockDist;
-
-                // 近くのエンティティを検索
-                Collection<Entity> potentialVictims = currentLoc.getWorld().getNearbyEntities(rayStart,
-                        distanceRemaining + 2, distanceRemaining + 2, distanceRemaining + 2);
-                for (Entity e : potentialVictims) {
-                    if (!(e instanceof LivingEntity le) || e.equals(shooter))
-                        continue;
-
-                    BoundingBox box = getCompensatedBox(le, targetTime);
-                    org.bukkit.util.RayTraceResult entityTrace = box.rayTrace(rayStart.toVector(), rayDir,
-                            distanceRemaining);
-
-                    if (entityTrace != null) {
-                        double dist = entityTrace.getHitPosition().distance(rayStart.toVector());
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            victim = e;
-                            hitPos = entityTrace.getHitPosition();
-                        }
-                    }
-                }
-
-                if (victim != null) {
-                    Vector bulletDir = velocity.clone().normalize();
-                    handleDamage((LivingEntity) victim, shooter, damage, ammoClass,
-                            hitPos.toLocation(currentLoc.getWorld()));
-                    BloodEffect.spawn(hitPos.toLocation(currentLoc.getWorld()), bulletDir, damage);
-                    this.cancel();
-                    return;
-                } else if (blockTrace != null) {
-                    Block block = blockTrace.getHitBlock();
-                    Location hLoc = blockTrace.getHitPosition().toLocation(currentLoc.getWorld());
-                    org.bukkit.block.BlockFace face = blockTrace.getHitBlockFace();
-
-                    if (isPenetrable(block.getType()) && Math.random() < 0.9) {
-                        block.getWorld().playEffect(hLoc, Effect.STEP_SOUND, block.getType());
-                        double hitDist = blockTrace.getHitPosition().distance(rayStart.toVector());
-                        rayStart = hLoc.clone().add(rayDir.clone().multiply(0.01));
-                        distanceRemaining -= (hitDist + 0.01);
-                        continue;
-                    } else {
-                        spawnBulletHole(hLoc, face);
-                        this.cancel();
-                        return;
-                    }
-                } else {
-                    break;
-                }
-            }
-        }
-
-        private void spawnBulletHole(Location loc, org.bukkit.block.BlockFace face) {
-            if (face == null)
-                return;
-
-            // 壁から0.2ブロック離す
-            Vector offset = face.getDirection().multiply(0.2);
-            Location holeLoc = loc.clone().add(offset);
-
-            // より濃い色に変更 (RGB: 10, 10, 10)
-            org.bukkit.Color color = org.bukkit.Color.fromRGB(10, 10, 10);
-            // targetを現在地と同じにすることで移動させず、duration: 600 (30秒) 残留させる
-            Particle.Trail trailData = new Particle.Trail(holeLoc, color, 600);
-
-            loc.getWorld().spawnParticle(Particle.TRAIL, holeLoc, 1, 0, 0, 0, 0, trailData);
-
-            // 着弾時の火花
-            loc.getWorld().spawnParticle(Particle.DUST, holeLoc, 2, 0.02, 0.02, 0.02, 0.05,
-                    new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 150, 150), 0.4f));
-        }
-
-        private boolean isPenetrable(Material material) {
-            String name = material.name();
-            return name.contains("GLASS") ||
-                    name.contains("PANE") ||
-                    name.contains("BARS") ||
-                    name.contains("GRATE") ||
-                    name.contains("LEAVES") ||
-                    name.contains("CHAIN") ||
-                    name.contains("SCAFFOLDING");
-        }
-
-        private void spawnTracer(Location from, Location to) {
-            // スレッドセーフにするため、必要なデータは事前にコピー/計算して渡す
-            final World world = from.getWorld();
-            final Vector start = from.toVector();
-            final Vector end = to.toVector();
-            final Vector direction = end.clone().subtract(start);
-            final double distance = direction.length();
-
-            // 距離が近すぎる場合は描画しない (または正規化でエラーになるのを防ぐ)
-            if (distance < 0.05)
-                return;
-
-            direction.normalize();
-
-            // 非同期で描画
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    // 0.25ブロック刻みで補間
-                    double gap = 0.25;
-                    // 明るいオレンジ (RGB: 255, 180, 50), サイズ 0.6
-                    Particle.DustOptions dustOption = new Particle.DustOptions(org.bukkit.Color.fromRGB(255, 180, 50),
-                            0.2f);
-
-                    for (double d = 0; d < distance; d += gap) {
-                        Vector pos = start.clone().add(direction.clone().multiply(d));
-
-                        // 【追加】発射地点から3ブロック以内は描画しない (距離の2乗で比較)
-                        if (pos.distanceSquared(origin) < 9.0)
-                            continue;
-
-                        try {
-                            // count=1, offsets=0, extra=0
-                            world.spawnParticle(Particle.DUST, pos.getX(), pos.getY(), pos.getZ(),
-                                    1, 0, 0, 0, 0,
-                                    dustOption);
-                        } catch (Exception e) {
-                            // 非同期パーティクル呼び出しでの万が一の安全策
-                        }
-                    }
-                }
-            }.runTaskAsynchronously(plugin);
-        }
     }
 
     // アニメーション管理
@@ -1083,160 +844,13 @@ public class GunListener implements Listener {
         if (event.getEntity().hasMetadata("bypass_armor")) {
             event.getEntity().removeMetadata("bypass_armor", plugin);
 
-            // バニラ防具等の全てのダメージ修正を0にする
+            // バニラ防具等のダメージ修正を0にする
             for (EntityDamageEvent.DamageModifier modifier : EntityDamageEvent.DamageModifier.values()) {
                 if (event.isApplicable(modifier) && modifier != EntityDamageEvent.DamageModifier.BASE) {
                     event.setDamage(modifier, 0.0);
                 }
             }
         }
-    }
-
-    private void handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass,
-            Location hitLoc) {
-        double finalDamage = baseDamage;
-
-        // 身長による座標基準の計算
-        double footY = victim.getLocation().getY();
-        double headY = victim.getEyeLocation().getY();
-        double hitY = hitLoc.getY();
-        double height = headY - footY; // 目の高さまでの距離 (約1.62m for player)
-
-        // 部位判定
-        boolean isHeadshot = hitY >= (headY - 0.25);
-        boolean isLegShot = hitY <= (footY + (height * 0.45)); // 足元から45%の高さ以下なら足とみなす
-
-        int armorClass = 0;
-
-        if (isHeadshot) {
-            // ヘッドショット (1.2倍 + ヘルメット参照)
-            finalDamage *= 1.2;
-            armorClass = getArmorClassFromSlot(victim, EquipmentSlot.HEAD);
-        } else if (isLegShot) {
-            // レッグショット (ダメージ60% + アーマー無視)
-            // 「そのままダメージを与えられる」 = アーマー計算をスキップして確定貫通扱いとする
-            finalDamage *= 0.6;
-            // armorClass = 0 のまま (貫通確定)
-        } else {
-            // ボディ (アーマー参照)
-            armorClass = getArmorClassFromSlot(victim, EquipmentSlot.CHEST);
-        }
-
-        // アーマー貫通判定 (足はアーマー0なので必ず貫通する)
-        boolean isPenetrated = calculatePenetration(ammoClass, armorClass);
-        Player shooterPlayer = (shooter instanceof Player p) ? p : null;
-
-        if (!isPenetrated) {
-            // 貫通失敗: ダメージを大幅にカット (例: 10~20%程度しか通らない)
-            finalDamage *= 0.15;
-            playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
-            shooter.sendMessage("§7[!] 弾が装甲に弾かれました");
-        } else {
-            // 貫通成功
-            playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
-
-            // 更にヘッドショットだった場合は別音を追加で鳴らす（既存処理維持ならここでヘッドショットの音も鳴らす）
-            if (isHeadshot) {
-                // playConfiguredSound(shooterPlayer, hitLoc, "hit-sounds.headshot",
-                // "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
-            }
-        }
-
-        ScavController controller = ScavSpawner.getController(shooter.getUniqueId());
-        if (controller != null) {
-            float reward = 0.0f;
-
-            // 1. ダメージ量に応じた基本報酬
-            reward += (float) (finalDamage * 0.15);
-
-            // 2. ヘッドショットボーナス (強化)
-            if (isHeadshot) {
-                reward += 1.2f;
-                shooter.sendMessage("§a[AI] Nice Headshot! Learning...");
-            }
-
-            // 3. 移動射撃ボーナス (回避行動中に当てた場合)
-            int[] lastActions = controller.getBrain().getLastActions();
-            if (lastActions != null && lastActions[0] >= 3) {
-                reward += 0.5f;
-                shooter.sendMessage("§b[AI] Mobile Hit Bonus! Learning...");
-            }
-
-            // 4. 距離ボーナス (15m付近の適正距離での命中)
-            double dist = shooter.getLocation().distance(victim.getLocation());
-            if (dist >= 10 && dist <= 20) {
-                reward += 0.3f;
-            }
-
-            controller.getBrain().reward(reward); // AIに学習させる
-        }
-
-        // 独自イベント (BulletHitEvent) を呼び出す
-        String hitLocation = isHeadshot ? "head" : (isLegShot ? "legs" : (hitY > (footY + (height * 0.45)) && hitY < (headY - 0.25) ? "arms" : "body"));
-        com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent bulletEvent = new com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent(victim, shooter, finalDamage, hitLocation, isPenetrated, ammoClass);
-        org.bukkit.Bukkit.getPluginManager().callEvent(bulletEvent);
-
-        // 最終ダメージの適用 (ノックバックを一時的に無効化し、バニラ防具を無視、無敵時間無視)
-        victim.setMetadata("no_knockback", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-        victim.setMetadata("bypass_armor", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
-        victim.setNoDamageTicks(0);
-        victim.damage(finalDamage, shooter);
-    }
-
-    private void playConfiguredSound(Player player, Location loc, String configKey, String defaultSoundName,
-            float volume, float pitch) {
-        String soundName = plugin.getConfig().getString(configKey, defaultSoundName);
-        if (soundName == null || soundName.isEmpty())
-            return;
-
-        // プレイヤーが指定されている場合は、耳元（現在地）で鳴らすことで距離に関わらず聞こえるようにする
-        Location playAt = (player != null) ? player.getLocation() : loc;
-
-        try {
-            Sound sound = Sound.valueOf(soundName.toUpperCase());
-            if (player != null) {
-                player.playSound(playAt, sound, volume, pitch);
-            } else {
-                playAt.getWorld().playSound(playAt, sound, volume, pitch);
-            }
-        } catch (IllegalArgumentException e) {
-            // Not a built-in sound, play as a custom resource pack sound
-            if (player != null) {
-                player.playSound(playAt, soundName, volume, pitch);
-            } else {
-                playAt.getWorld().playSound(playAt, soundName, volume, pitch);
-            }
-        }
-    }
-
-    private boolean calculatePenetration(int ammo, int armor) {
-        if (armor <= 0)
-            return true; // 無装甲は100%貫通
-
-        double chance = 0.0;
-
-        if (ammo > armor) {
-            // 弾のクラスが高い: ほぼ貫通 (95%)
-            chance = 0.95;
-        } else if (ammo == armor) {
-            // クラスが同じ: 高確率で貫通 (70%)
-            chance = 0.70;
-        } else {
-            // 防具の方が強い: 低確率で貫通 (15%)
-            chance = 0.15;
-        }
-
-        return Math.random() < chance;
-    }
-
-    private int getArmorClassFromSlot(LivingEntity entity, EquipmentSlot slot) {
-        ItemStack item = entity.getEquipment().getItem(slot);
-        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) {
-            return 0;
-        }
-        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        // アーマークラス (int) を取得。PDCになければ0
-        return pdc.getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
     }
 
     private List<String> getAttachments(ItemStack item) {
