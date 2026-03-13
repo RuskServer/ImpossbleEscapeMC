@@ -260,7 +260,7 @@ public class GunListener implements Listener {
                 }
 
                 // その他の停止条件
-                if (!player.isOnline() || player.isDead() || !isHoldingSameGun(player, pdc)) {
+                if (!player.isOnline() || player.isDead() || player.isSprinting() || !isHoldingSameGun(player, pdc)) {
                     stopShooting(uuid);
                     return;
                 }
