@@ -91,18 +91,29 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleSpawn(Player player, String[] args) {
-        if (args.length < 3 || !args[1].equalsIgnoreCase("add")) {
-            player.sendMessage(Component.text("/raid spawn add <mapID>", NamedTextColor.RED));
+        if (args.length < 3) {
+            player.sendMessage(Component.text("使用法: /raid spawn <add/clear> <mapID>", NamedTextColor.RED));
             return;
         }
+        
+        String action = args[1].toLowerCase();
         RaidMap map = manager.getMap(args[2]);
         if (map == null) {
             player.sendMessage(Component.text("Map not found.", NamedTextColor.RED));
             return;
         }
-        map.addSpawnPoint(player.getLocation());
-        manager.saveMap(map);
-        player.sendMessage(Component.text("Spawn point added to " + args[2], NamedTextColor.GREEN));
+
+        if (action.equals("add")) {
+            map.addSpawnPoint(player.getLocation());
+            manager.saveMap(map);
+            player.sendMessage(Component.text("Spawn point added to " + args[2], NamedTextColor.GREEN));
+        } else if (action.equals("clear")) {
+            map.clearSpawnPoints();
+            manager.saveMap(map);
+            player.sendMessage(Component.text("Map '" + args[2] + "' の全スポーン地点を削除しました。", NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(Component.text("使用法: /raid spawn <add/clear> <mapID>", NamedTextColor.RED));
+        }
     }
 
     private void handleExtract(Player player, String[] args) {
