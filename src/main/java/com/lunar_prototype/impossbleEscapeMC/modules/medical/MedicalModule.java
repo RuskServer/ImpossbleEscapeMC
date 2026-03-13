@@ -29,11 +29,21 @@ public class MedicalModule implements IModule, Listener {
     private final Map<UUID, Long> lastInteract = new HashMap<>();
     private final Map<UUID, Integer> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> usingSlots = new HashMap<>();
+    private final Map<UUID, Integer> progressTicks = new HashMap<>();
+    private final com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule;
+    private StatusEffectManager statusEffectManager;
+
+    public MedicalModule(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule) {
+        this.dataModule = dataModule;
+    }
 
     @Override
     public void onEnable(ServiceContainer container) {
         this.plugin = ImpossbleEscapeMC.getInstance();
+        this.statusEffectManager = new StatusEffectManager(plugin, dataModule);
+        
         Bukkit.getPluginManager().registerEvents(this, plugin);
+        Bukkit.getPluginManager().registerEvents(statusEffectManager, plugin);
 
         // 監視タスク: 右クリックが離されたかチェック
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -44,6 +54,9 @@ public class MedicalModule implements IModule, Listener {
                 }
             }
         }, 1L, 1L);
+
+        // 状態異常更新タスク (1秒ごと)
+        Bukkit.getScheduler().runTaskTimer(plugin, statusEffectManager::tick, 20L, 20L);
     }
 
     @Override
@@ -54,6 +67,7 @@ public class MedicalModule implements IModule, Listener {
         activeTasks.clear();
         lastInteract.clear();
         usingSlots.clear();
+        progressTicks.clear();
     }
 
     @EventHandler
@@ -69,15 +83,74 @@ public class MedicalModule implements IModule, Listener {
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         ItemDefinition def = ItemRegistry.get(itemId);
 
-        if (def != null && "MED".equalsIgnoreCase(def.type) && def.medStats != null && def.medStats.continuous) {
-            // 体力が満タンなら使用しない
-            if (player.getHealth() >= player.getMaxHealth()) {
-                return;
+        if (def != null && "MED".equalsIgnoreCase(def.type) && def.medStats != null) {
+            if (def.medStats.continuous) {
+                // 継続回復キット (Medkit等)
+                if (player.getHealth() >= player.getMaxHealth()) return;
+                event.setCancelled(true);
+                startUsing(player, item, def);
+            } else if (def.medStats.oneTime) {
+                // 一括使用アイテム (CAT等)
+                event.setCancelled(true);
+                startOneTimeUsing(player, item, def);
             }
-            
-            event.setCancelled(true);
-            startUsing(player, item, def);
         }
+    }
+
+    private void startOneTimeUsing(Player player, ItemStack item, ItemDefinition def) {
+        UUID uuid = player.getUniqueId();
+        lastInteract.put(uuid, System.currentTimeMillis());
+        usingSlots.put(uuid, player.getInventory().getHeldItemSlot());
+
+        if (!activeTasks.containsKey(uuid)) {
+            progressTicks.put(uuid, 0);
+            int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                int current = progressTicks.getOrDefault(uuid, 0) + 1;
+                progressTicks.put(uuid, current);
+
+                // 進捗をアクションバーに表示
+                float progress = (float) current / def.medStats.durationTicks;
+                StringBuilder bar = new StringBuilder("§e[使用中] §7[");
+                int bars = 20;
+                int filled = (int) (progress * bars);
+                for (int i = 0; i < bars; i++) {
+                    if (i < filled) bar.append("§a■");
+                    else bar.append("§8■");
+                }
+                bar.append("§7]");
+                player.sendActionBar(net.kyori.adventure.text.Component.text(bar.toString()));
+
+                if (current >= def.medStats.durationTicks) {
+                    finishOneTimeUsing(player, def);
+                } else if (current % 10 == 0) {
+                    player.playSound(player.getLocation(), Sound.BLOCK_STONE_PLACE, 0.5f, 1.2f);
+                }
+            }, 1L, 1L).getTaskId();
+            activeTasks.put(uuid, taskId);
+        }
+    }
+
+    private void finishOneTimeUsing(Player player, ItemDefinition def) {
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        if (data != null) {
+            if (def.medStats.cureBleeding) data.setBleedingLevel(0);
+            if (def.medStats.cureLegFracture) data.setLegFracture(false);
+            if (def.medStats.cureArmFracture) data.setArmFracture(false);
+            
+            player.sendMessage(net.kyori.adventure.text.Component.text(def.displayName + " を使用して手当を行いました。", net.kyori.adventure.text.format.NamedTextColor.GREEN));
+            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        }
+
+        // アイテムを一個消費
+        Integer slot = usingSlots.get(player.getUniqueId());
+        if (slot != null) {
+            ItemStack item = player.getInventory().getItem(slot);
+            if (item != null) {
+                item.setAmount(item.getAmount() - 1);
+            }
+        }
+        
+        stopUsing(player);
     }
 
     @EventHandler
@@ -180,6 +253,7 @@ public class MedicalModule implements IModule, Listener {
         if (player == null) return;
         UUID uuid = player.getUniqueId();
         lastInteract.remove(uuid);
+        progressTicks.remove(uuid);
         
         Integer taskId = activeTasks.remove(uuid);
         if (taskId != null) {

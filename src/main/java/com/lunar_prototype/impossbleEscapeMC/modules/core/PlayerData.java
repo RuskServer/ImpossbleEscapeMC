@@ -19,6 +19,13 @@ public class PlayerData {
     // 非表示フラグ: メモリ上での変更があった場合にtrueにする
     private transient boolean dirty;
 
+    // 状態異常システム
+    private boolean legFracture;
+    private boolean armFracture;
+    private int bleedingLevel; // 0: なし, 1以上: 出血中
+    private long painkillerUntil; // 鎮痛効果終了時間 (ms)
+    private long lastPainkillerTrigger; // 最後の自動鎮痛発動時間 (ms)
+
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
         this.balance = 0.0;
@@ -27,6 +34,69 @@ public class PlayerData {
         this.dailyPurchases = new java.util.HashMap<>();
         this.lastResetTimestamp = System.currentTimeMillis();
         this.dirty = false;
+        
+        this.legFracture = false;
+        this.armFracture = false;
+        this.bleedingLevel = 0;
+        this.painkillerUntil = 0;
+        this.lastPainkillerTrigger = 0;
+    }
+
+    public boolean hasLegFracture() {
+        return legFracture;
+    }
+
+    public void setLegFracture(boolean legFracture) {
+        if (this.legFracture != legFracture) {
+            this.legFracture = legFracture;
+            this.dirty = true;
+        }
+    }
+
+    public boolean hasArmFracture() {
+        return armFracture;
+    }
+
+    public void setArmFracture(boolean armFracture) {
+        if (this.armFracture != armFracture) {
+            this.armFracture = armFracture;
+            this.dirty = true;
+        }
+    }
+
+    public int getBleedingLevel() {
+        return bleedingLevel;
+    }
+
+    public void setBleedingLevel(int bleedingLevel) {
+        if (this.bleedingLevel != bleedingLevel) {
+            this.bleedingLevel = bleedingLevel;
+            this.dirty = true;
+        }
+    }
+
+    public long getPainkillerUntil() {
+        return painkillerUntil;
+    }
+
+    public void setPainkillerUntil(long painkillerUntil) {
+        if (this.painkillerUntil != painkillerUntil) {
+            this.painkillerUntil = painkillerUntil;
+            this.dirty = true;
+        }
+    }
+
+    public boolean isPainkillerActive() {
+        return System.currentTimeMillis() < painkillerUntil;
+    }
+
+    public long getLastPainkillerTrigger() {
+        return lastPainkillerTrigger;
+    }
+
+    public void setLastPainkillerTrigger(long lastPainkillerTrigger) {
+        this.lastPainkillerTrigger = lastPainkillerTrigger;
+        this.dirty = true;
     }
 
     public java.util.Map<String, Integer> getDailyPurchases() {

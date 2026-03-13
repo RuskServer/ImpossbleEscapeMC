@@ -53,35 +53,39 @@ public class RaidInstance {
         }
     }
 
-    private Location findSafeSpawn(List<Location> spawns) {
+    private Location findSafeSpawn(List<Location> spawns, Set<Location> usedThisWave) {
         if (spawns.isEmpty()) return null;
 
         List<Location> safeSpawns = new ArrayList<>();
-        Location bestFallback = spawns.get(0);
+        Location bestFallback = null;
         double maxMinDist = -1.0;
 
         for (Location spawn : spawns) {
             double minDistToPlayer = Double.MAX_VALUE;
             boolean someoneNear = false;
 
+            // 既存のレイド内プレイヤーとの距離
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p == null || !p.getWorld().equals(spawn.getWorld())) continue;
 
                 double dist = p.getLocation().distance(spawn);
-                if (dist < 50.0) { // 50ブロック以内を「近く」と定義
-                    someoneNear = true;
-                }
-                if (dist < minDistToPlayer) {
-                    minDistToPlayer = dist;
-                }
+                if (dist < 50.0) someoneNear = true;
+                if (dist < minDistToPlayer) minDistToPlayer = dist;
             }
 
-            if (!someoneNear) {
+            // この出撃ウェーブですでに割り当てられた地点との距離
+            for (Location used : usedThisWave) {
+                if (!used.getWorld().equals(spawn.getWorld())) continue;
+                double dist = used.distance(spawn);
+                if (dist < 50.0) someoneNear = true;
+                if (dist < minDistToPlayer) minDistToPlayer = dist;
+            }
+
+            if (!someoneNear && !usedThisWave.contains(spawn)) {
                 safeSpawns.add(spawn);
             }
 
-            // もし安全な場所がなかった時のために、一番「マシ」な場所（最もプレイヤーから離れている場所）を記録
             if (minDistToPlayer > maxMinDist) {
                 maxMinDist = minDistToPlayer;
                 bestFallback = spawn;
@@ -91,7 +95,7 @@ public class RaidInstance {
         if (!safeSpawns.isEmpty()) {
             return safeSpawns.get(new Random().nextInt(safeSpawns.size()));
         }
-        return bestFallback;
+        return bestFallback != null ? bestFallback : spawns.get(0);
     }
 
     private void playStartEffect(Player p) {
@@ -371,19 +375,53 @@ public class RaidInstance {
     }
 
     public void joinPlayers(List<Player> participants) {
-        List<Location> spawns = map.getSpawnPoints();
-        Location groupSpawn = null;
-        if (!spawns.isEmpty()) {
-            groupSpawn = findSafeSpawn(spawns);
+        // グループ化 (PartyManagerを利用)
+        com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager = plugin.getPartyManager();
+        Map<com.lunar_prototype.impossbleEscapeMC.party.Party, List<Player>> groupMap = new HashMap<>();
+        List<Player> soloPlayers = new ArrayList<>();
+
+        for (Player p : participants) {
+            com.lunar_prototype.impossbleEscapeMC.party.Party party = partyManager.getParty(p.getUniqueId());
+            if (party != null) {
+                groupMap.computeIfAbsent(party, k -> new ArrayList<>()).add(p);
+            } else {
+                soloPlayers.add(p);
+            }
         }
 
-        for (Player player : participants) {
+        List<Location> spawns = map.getSpawnPoints();
+        Set<Location> usedThisWave = new HashSet<>();
+        Random random = new Random();
+
+        // パーティーごとに異なる地点へスポーン
+        for (List<Player> group : groupMap.values()) {
+            spawnGroup(group, spawns, usedThisWave, random);
+        }
+
+        // ソロプレイヤーごとに異なる地点へスポーン
+        for (Player solo : soloPlayers) {
+            spawnGroup(Collections.singletonList(solo), spawns, usedThisWave, random);
+        }
+    }
+
+    private void spawnGroup(List<Player> group, List<Location> spawns, Set<Location> usedThisWave, Random random) {
+        Location centerSpawn = findSafeSpawn(spawns, usedThisWave);
+        if (centerSpawn != null) {
+            usedThisWave.add(centerSpawn);
+        }
+
+        for (Player player : group) {
             players.add(player.getUniqueId());
             player.showBossBar(bossBar);
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
-            if (groupSpawn != null) {
-                player.teleport(groupSpawn);
+            if (centerSpawn != null) {
+                // パーティーメンバー同士が重ならないよう、わずかなオフセットを加える
+                double offsetX = (random.nextDouble() - 0.5) * 1.5;
+                double offsetZ = (random.nextDouble() - 0.5) * 1.5;
+                Location spawnLoc = centerSpawn.clone().add(offsetX, 0.1, offsetZ); // 足が埋まらないよう少し浮かせる
+                
+                player.teleport(spawnLoc);
                 applySpawnProtection(player);
             }
 

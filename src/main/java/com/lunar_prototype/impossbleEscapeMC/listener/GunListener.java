@@ -424,6 +424,19 @@ public class GunListener implements Listener {
             }
         }
 
+        // --- 状態異常による補正 ---
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule = 
+            plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+        if (dataModule != null) {
+            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+            if (data.hasArmFracture() && !data.isPainkillerActive()) {
+                inaccuracy += 0.08; // 腕骨折で精度低下
+                if (isAiming) {
+                    player.sendActionBar(net.kyori.adventure.text.Component.text("腕の骨折によりエイムが安定しません！", net.kyori.adventure.text.format.NamedTextColor.RED));
+                }
+            }
+        }
+
         double damage = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, stats.damage);
         double baseRecoil = pdc.getOrDefault(PDCKeys.affix("recoil"), PDCKeys.DOUBLE, stats.recoil);
 
@@ -1157,6 +1170,16 @@ public class GunListener implements Listener {
 
             controller.getBrain().reward(reward); // AIに学習させる
         }
+
+        // 部位情報をメタデータとして付与
+        String hitLocation = "body";
+        if (isHeadshot) hitLocation = "head";
+        else if (isLegShot) hitLocation = "legs";
+        else if (hitY > (footY + (height * 0.45)) && hitY < (headY - 0.25)) {
+            hitLocation = "arms";
+        }
+
+        victim.setMetadata("hit_location", new org.bukkit.metadata.FixedMetadataValue(plugin, hitLocation));
 
         // 最終ダメージの適用 (ノックバックを一時的に無効化し、バニラ防具を無視、無敵時間無視)
         victim.setMetadata("no_knockback", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
