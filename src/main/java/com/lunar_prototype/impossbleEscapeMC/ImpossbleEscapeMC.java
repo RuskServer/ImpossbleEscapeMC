@@ -130,9 +130,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule traderModule = new com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule(this);
         moduleBootstrap.registerModule(traderModule);
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.compatibility.CitizensCompatModule());
-        
-        PlayerDataModule pdm = (PlayerDataModule) serviceContainer.get(PlayerDataModule.class);
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.medical.MedicalModule(pdm));
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.medical.MedicalModule());
 
         // モジュールの有効化
         moduleBootstrap.enableModules();

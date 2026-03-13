@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.medical;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import net.kyori.adventure.text.Component;
@@ -76,10 +77,9 @@ public class StatusEffectManager implements Listener {
     /**
      * 被弾時の負傷判定と自動鎮痛
      */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onBulletHit(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player victim)) return;
-        if (!victim.hasMetadata("bypass_armor")) return;
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBulletHit(BulletHitEvent event) {
+        if (!(event.getVictim() instanceof Player victim)) return;
 
         PlayerData data = dataModule.getPlayerData(victim.getUniqueId());
         if (data == null) return;
@@ -95,17 +95,10 @@ public class StatusEffectManager implements Listener {
         }
 
         // 2. 負傷判定
-        applyInjuryChance(victim, data);
+        applyInjuryChance(victim, data, event.getHitLocation());
     }
 
-    private void applyInjuryChance(Player victim, PlayerData data) {
-        // メタデータから部位を取得
-        String hitLocation = "body";
-        if (victim.hasMetadata("hit_location")) {
-            hitLocation = victim.getMetadata("hit_location").get(0).asString();
-            victim.removeMetadata("hit_location", plugin);
-        }
-
+    private void applyInjuryChance(Player victim, PlayerData data, String hitLocation) {
         double roll = Math.random();
 
         // 1. 足の骨折 (足に当たった場合のみ)
