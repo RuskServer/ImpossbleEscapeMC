@@ -88,7 +88,7 @@ public class CombatHeatmapManager {
         void add(float amount) {
             decay();
             score += amount;
-            score = Math.max(-10.0f, Math.min(20.0f, score));
+            score = Math.max(-20.0f, Math.min(50.0f, score)); // 上限を50に引き上げ、下限も拡張
             lastUpdate = System.currentTimeMillis();
         }
 
@@ -96,7 +96,9 @@ public class CombatHeatmapManager {
             long now = System.currentTimeMillis();
             long elapsed = now - lastUpdate;
             if (elapsed > 1000) {
-                float decayFactor = (float) Math.pow(0.98, elapsed / 1000.0); // 減衰を少し緩やかに(0.9 -> 0.98)
+                // 減衰を大幅に緩やかに (0.98 -> 0.998)
+                // 0.998^300 (5分) ≒ 0.54 (半分残る)
+                float decayFactor = (float) Math.pow(0.998, elapsed / 1000.0);
                 score *= decayFactor;
                 lastUpdate = now;
             }
@@ -137,7 +139,7 @@ public class CombatHeatmapManager {
                 Math.abs(key.z - centerKey.z) <= gridRadius) {
                 
                 entry.getValue().decay();
-                if (Math.abs(entry.getValue().score) > 0.05f) {
+                if (Math.abs(entry.getValue().score) > 0.01f) { // 閾値をより小さく
                     Location loc = key.toLocation();
                     if (loc != null) results.put(loc, entry.getValue().score);
                 }
@@ -157,7 +159,7 @@ public class CombatHeatmapManager {
     public static void cleanup() {
         heatmap.entrySet().removeIf(entry -> {
             entry.getValue().decay();
-            return Math.abs(entry.getValue().score) < 0.05f;
+            return Math.abs(entry.getValue().score) < 0.01f; // 閾値を下げて維持しやすくする
         });
     }
 
