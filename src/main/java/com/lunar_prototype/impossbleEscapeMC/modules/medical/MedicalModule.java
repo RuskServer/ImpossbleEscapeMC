@@ -30,16 +30,16 @@ public class MedicalModule implements IModule, Listener {
     private final Map<UUID, Integer> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> usingSlots = new HashMap<>();
     private final Map<UUID, Integer> progressTicks = new HashMap<>();
-    private final com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule;
+    private com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule;
     private StatusEffectManager statusEffectManager;
 
-    public MedicalModule(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule) {
-        this.dataModule = dataModule;
+    public MedicalModule() {
     }
 
     @Override
     public void onEnable(ServiceContainer container) {
         this.plugin = ImpossbleEscapeMC.getInstance();
+        this.dataModule = container.get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
         this.statusEffectManager = new StatusEffectManager(plugin, dataModule);
         
         Bukkit.getPluginManager().registerEvents(this, plugin);

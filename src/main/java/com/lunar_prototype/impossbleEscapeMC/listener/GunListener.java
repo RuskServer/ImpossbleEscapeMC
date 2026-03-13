@@ -1171,15 +1171,10 @@ public class GunListener implements Listener {
             controller.getBrain().reward(reward); // AIに学習させる
         }
 
-        // 部位情報をメタデータとして付与
-        String hitLocation = "body";
-        if (isHeadshot) hitLocation = "head";
-        else if (isLegShot) hitLocation = "legs";
-        else if (hitY > (footY + (height * 0.45)) && hitY < (headY - 0.25)) {
-            hitLocation = "arms";
-        }
-
-        victim.setMetadata("hit_location", new org.bukkit.metadata.FixedMetadataValue(plugin, hitLocation));
+        // 独自イベント (BulletHitEvent) を呼び出す
+        String hitLocation = isHeadshot ? "head" : (isLegShot ? "legs" : (hitY > (footY + (height * 0.45)) && hitY < (headY - 0.25) ? "arms" : "body"));
+        com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent bulletEvent = new com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent(victim, shooter, finalDamage, hitLocation, isPenetrated, ammoClass);
+        org.bukkit.Bukkit.getPluginManager().callEvent(bulletEvent);
 
         // 最終ダメージの適用 (ノックバックを一時的に無効化し、バニラ防具を無視、無敵時間無視)
         victim.setMetadata("no_knockback", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
