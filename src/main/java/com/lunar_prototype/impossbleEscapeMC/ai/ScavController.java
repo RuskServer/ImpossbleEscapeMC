@@ -168,13 +168,13 @@ public class ScavController {
         if (tactics.getPeekPhase() > 0) {
             tactics.handlePeekManeuver(target, def.gunStats, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
-            brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice);
+            brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
             return;
         }
 
         // 7. AI思考 & 移動
         brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
-        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice);
+        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
         if (actions.length < 2) return;
 
         int moveAction = actions[0];

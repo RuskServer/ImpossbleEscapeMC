@@ -66,7 +66,7 @@ public class ScavBrain {
         this.tactical = 0.3f + random.nextFloat() * 0.2f;
     }
 
-    public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice) {
+    public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice, boolean isSprinting) {
         boolean canSeeNow = target != null;
 
         // --- 視認状態のデバウンス処理 ---
@@ -158,7 +158,7 @@ public class ScavBrain {
 
             // D. モードを具体的なアクションに変換
             int moveAction = determineMoveActionByMode(currentMode, suppression, canSee, tacticalAdvice, dist);
-            int shootAction = determineShootAction(canSee, suppression);
+            int shootAction = determineShootAction(canSee, suppression, isSprinting);
             
             // --- AI Analysis Logging ---
             // Format: [AI_LOG] UUID | Trigger | Mode | States(A,F,T) | Situational(Pr,Ad,Pres,Dist,SelfHP,TargetHP,Ammo) | Action(M,S)
@@ -338,7 +338,9 @@ public class ScavBrain {
         tactical = clamp(tactical * 0.95f - 0.01f);
     }
 
-    private int determineShootAction(boolean canSee, float suppression) {
+    private int determineShootAction(boolean canSee, float suppression, boolean isSprinting) {
+        if (isSprinting) return 1; // スプリント中は射撃不可
+
         if (canSee) {
             // Try to shoot if seeing target
             if (fear > 0.8f && suppression > 0.8f) {

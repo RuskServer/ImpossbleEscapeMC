@@ -161,6 +161,13 @@ public class ItemRegistry {
                         mStats.durabilityPerUse = medSection.getInt("durabilityPerUse", 0);
                         mStats.usingCustomModelData = medSection.getInt("usingCustomModelData", 0);
 
+                        // --- One-time/CAT settings ---
+                        mStats.oneTime = medSection.getBoolean("oneTime", false);
+                        mStats.cureBleeding = medSection.getBoolean("cureBleeding", false);
+                        mStats.cureLegFracture = medSection.getBoolean("cureLegFracture", false);
+                        mStats.cureArmFracture = medSection.getBoolean("cureArmFracture", false);
+                        mStats.durationTicks = medSection.getInt("durationTicks", 0);
+
                         def.medStats = mStats;
                     }
                 }
