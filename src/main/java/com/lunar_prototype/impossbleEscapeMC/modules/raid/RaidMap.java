@@ -48,6 +48,10 @@ public class RaidMap {
         spawnPoints.add(locationToCoords(loc));
     }
 
+    public void clearSpawnPoints() {
+        spawnPoints.clear();
+    }
+
     public List<Location> getSpawnPoints() {
         World world = Bukkit.getWorld(worldName);
         List<Location> locations = new ArrayList<>();
