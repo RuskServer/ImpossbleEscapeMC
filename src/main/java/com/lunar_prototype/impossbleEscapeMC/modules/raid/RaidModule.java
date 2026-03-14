@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
+import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -29,6 +30,7 @@ public class RaidModule implements IModule {
     public static final int CYCLE_DURATION = 600; // 10 minutes (600 seconds)
     private int globalTimeLeft; // seconds
     private BukkitRunnable globalTimerTask;
+    private BossBar queueBossBar;
 
     public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -41,6 +43,14 @@ public class RaidModule implements IModule {
 
     @Override
     public void onEnable(ServiceContainer container) {
+        // Initialize BossBar
+        queueBossBar = BossBar.bossBar(
+                Component.text("出撃準備中...", NamedTextColor.YELLOW),
+                1.0f,
+                BossBar.Color.YELLOW,
+                BossBar.Overlay.PROGRESS
+        );
+
         loadMaps();
         loadState(); // 状態の復元
         startGlobalTimer();
@@ -53,6 +63,14 @@ public class RaidModule implements IModule {
     public void onDisable() {
         saveState(); // 終了時に保存
         stopAllRaids();
+        
+        // Cleanup BossBar
+        if (queueBossBar != null) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.hideBossBar(queueBossBar);
+            }
+        }
+
         if (globalTimerTask != null) {
             globalTimerTask.cancel();
         }
@@ -115,7 +133,11 @@ public class RaidModule implements IModule {
     }
 
     private void startGlobalTimer() {
-        this.globalTimeLeft = CYCLE_DURATION;
+        // If state was not loaded (e.g. fresh start), ensure it's set
+        if (globalTimeLeft <= 0) {
+            this.globalTimeLeft = CYCLE_DURATION;
+        }
+
         globalTimerTask = new BukkitRunnable() {
             @Override
             public void run() {
@@ -127,10 +149,24 @@ public class RaidModule implements IModule {
                 // 待機中のプレイヤーに通知 (例: 1分前、10秒前)
                 notifyQueuedPlayers();
                 
+                // Update BossBar
+                updateBossBar();
+
                 globalTimeLeft--;
             }
         };
         globalTimerTask.runTaskTimer(plugin, 0, 20);
+    }
+
+    private void updateBossBar() {
+        if (queueBossBar == null) return;
+
+        float progress = (float) globalTimeLeft / (float) CYCLE_DURATION;
+        // Clamp progress
+        progress = Math.max(0.0f, Math.min(1.0f, progress));
+        
+        queueBossBar.progress(progress);
+        queueBossBar.name(Component.text("出撃まであと " + formatTime(globalTimeLeft), NamedTextColor.YELLOW));
     }
 
     private void notifyQueuedPlayers() {
@@ -161,6 +197,16 @@ public class RaidModule implements IModule {
         // 2. 物資リセット
         if (plugin.getLootManager() != null) {
             plugin.getLootManager().refillAllContainers();
+        }
+
+        // Hide BossBar for all currently queued players before transferring them
+        for (Set<UUID> queue : raidQueues.values()) {
+            for (UUID uuid : queue) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) {
+                    p.hideBossBar(queueBossBar);
+                }
+            }
         }
 
         // 3. 一斉スタート (キューの掃き出し)
@@ -207,6 +253,12 @@ public class RaidModule implements IModule {
 
         raidQueues.computeIfAbsent(mapId, k -> new HashSet<>()).add(player.getUniqueId());
         player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(globalTimeLeft), NamedTextColor.GREEN));
+        
+        // Show BossBar
+        if (queueBossBar != null) {
+            player.showBossBar(queueBossBar);
+        }
+        
         return true;
     }
 
@@ -215,7 +267,12 @@ public class RaidModule implements IModule {
      */
     public void leaveQueue(Player player) {
         for (Set<UUID> queue : raidQueues.values()) {
-            queue.remove(player.getUniqueId());
+            if (queue.remove(player.getUniqueId())) {
+                // Hide BossBar if they were in a queue
+                if (queueBossBar != null) {
+                    player.hideBossBar(queueBossBar);
+                }
+            }
         }
     }
 
@@ -244,6 +301,12 @@ public class RaidModule implements IModule {
 
     public int getGlobalTimeLeft() {
         return globalTimeLeft;
+    }
+
+    public void forceStartCycle() {
+        onCycleEnd();
+        this.globalTimeLeft = CYCLE_DURATION;
+        updateBossBar();
     }
 
     public RaidInstance getActiveRaid(String mapId) {

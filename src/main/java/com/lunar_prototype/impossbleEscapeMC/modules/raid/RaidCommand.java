@@ -42,6 +42,12 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
                 manager.leaveQueue(player);
                 player.sendMessage(Component.text("出撃待機列から離脱しました。", NamedTextColor.YELLOW));
                 break;
+            case "start":
+                if (player.isOp()) {
+                    manager.forceStartCycle();
+                    player.sendMessage(Component.text("レイドサイクルを強制終了し、出撃を開始しました。", NamedTextColor.GREEN));
+                }
+                break;
             case "map":
                 if (player.isOp()) handleMap(player, args);
                 break;
@@ -173,6 +179,7 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
         if (player.isOp()) {
             player.sendMessage(Component.text("--- Admin Commands ---", NamedTextColor.RED));
             player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid start - レイドを強制開始 (デバッグ用)", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid spawn add <mapID>", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid scavspawn add <mapID> [permanent]", NamedTextColor.WHITE));
@@ -184,7 +191,7 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             List<String> subs = new ArrayList<>(Arrays.asList("open", "join", "leave"));
             if (sender.isOp()) {
-                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn"));
+                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn", "start"));
             }
             return subs.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
