@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 
 import java.util.UUID;
 
@@ -71,6 +72,21 @@ public class StatusEffectManager implements Listener {
             data.setPainkillerUntil(0);
             player.sendMessage(Component.text("鎮痛効果が切れました。", NamedTextColor.YELLOW));
             player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.5f, 1.5f);
+        }
+    }
+
+    /**
+     * 死亡時に全ての状態異常をリセット
+     */
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        PlayerData data = dataModule.getPlayerData(event.getEntity().getUniqueId());
+        if (data != null) {
+            data.setLegFracture(false);
+            data.setArmFracture(false);
+            data.setBleedingLevel(0);
+            data.setPainkillerUntil(0);
+            data.setLastPainkillerTrigger(0);
         }
     }
 
