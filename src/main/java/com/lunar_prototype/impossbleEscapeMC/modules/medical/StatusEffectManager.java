@@ -8,6 +8,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
+import org.bukkit.GameMode;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -36,6 +37,8 @@ public class StatusEffectManager implements Listener {
      */
     public void tick() {
         for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) continue;
+
             PlayerData data = dataModule.getPlayerData(player.getUniqueId());
             if (data == null) continue;
 
@@ -48,7 +51,8 @@ public class StatusEffectManager implements Listener {
     private void handleBleeding(Player player, PlayerData data) {
         if (data.getBleedingLevel() <= 0) return;
 
-        double damage = data.getBleedingLevel() * 1.0;
+        // 1分間に2ダメージ = 1秒間に 2/60 (約0.033) ダメージ
+        double damage = data.getBleedingLevel() * (2.0 / 60.0);
         player.damage(damage);
         
         // 血のパーティクル
@@ -96,6 +100,7 @@ public class StatusEffectManager implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBulletHit(BulletHitEvent event) {
         if (!(event.getVictim() instanceof Player victim)) return;
+        if (victim.getGameMode() == GameMode.CREATIVE || victim.getGameMode() == GameMode.SPECTATOR) return;
 
         PlayerData data = dataModule.getPlayerData(victim.getUniqueId());
         if (data == null) return;
