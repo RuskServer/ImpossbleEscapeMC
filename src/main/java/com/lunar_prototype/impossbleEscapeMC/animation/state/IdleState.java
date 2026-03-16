@@ -39,7 +39,7 @@ public class IdleState implements WeaponState {
             GunStats.AnimationStats anim = stats.sprintAnimation;
             if (anim != null) {
                 int frame = ctx.getProgressFrameIndex(ctx.getSprintProgress(), anim);
-                ctx.applyModel(anim, frame);
+                ctx.applyLayeredModel(anim, frame, ctx.getIndependentFrameToRender());
                 return;
             }
         }
@@ -48,7 +48,7 @@ public class IdleState implements WeaponState {
             GunStats.AnimationStats anim = stats.aimAnimation;
             if (anim != null) {
                 int frame = ctx.getProgressFrameIndex(ctx.getAimProgress(), anim);
-                ctx.applyModel(anim, frame);
+                ctx.applyLayeredModel(anim, frame, ctx.getIndependentFrameToRender());
                 return;
             }
         }
@@ -58,7 +58,7 @@ public class IdleState implements WeaponState {
         GunStats.AnimationStats anim = stats.idleAnimation;
         if (anim != null) {
             int frame = ctx.getLoopFrameIndex(idleTick, anim);
-            ctx.applyModel(anim, frame);
+            ctx.applyLayeredModel(anim, frame, ctx.getIndependentFrameToRender());
         } else {
             // Check legacy render if no animation
             renderLegacy(ctx);

@@ -275,8 +275,9 @@ public class GunListener implements Listener {
                     shotsFiredThisTick++;
 
                     if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
-                        stopShooting(uuid);
-                        return;
+                        // セミオートの場合は、1回のクリック(正確なタイミング)につき1発まで。
+                        // 長押しし続けている間はタスク自体は残す（アニメーション進行などのため）が、ここから先の弾は撃たない
+                        break;
                     }
                 }
             }
@@ -501,6 +502,13 @@ public class GunListener implements Listener {
         // 相対パケットを送信
         sendRecoilPacket(player, recoilYaw, recoilPitch);
 
+        // --- 独立アニメーション（射撃/特定モーション）のトリガー ---
+        com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine sm = stateMachines
+                .get(player.getUniqueId());
+        if (sm != null && sm.getContext() != null) {
+            sm.getContext().startIndependentAnimation();
+        }
+
         // --- 視覚的・音響的メタデータの付与 (AI用) ---
         player.setMetadata("last_fired_tick",
                 new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
@@ -543,8 +551,6 @@ public class GunListener implements Listener {
         if (isBoltAction) {
             // ボルトアクションのオートコッキング
             stopShooting(player.getUniqueId()); // まず射撃ループを止める
-            com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine sm = stateMachines
-                    .get(player.getUniqueId());
             if (sm != null) {
                 // ボルトアクションステートに移行 (内部エンターで次弾があればコッキングアニメに入る)
                 new BukkitRunnable() {

@@ -18,6 +18,8 @@ public class GunStats {
     public AnimationStats tacticalReloadAnimation;
     public AnimationStats reloadLoopAnimation; // 1発装填ループ用（ショットガン専用）
     public AnimationStats boltingAnimation; // 【追加】ボルトアクション用アニメーション
+    public AnimationStats independentAnimation; // 【追加】射撃等の独立アニメーション
+    public java.util.List<String> validIndependentAnimStates = java.util.Arrays.asList("IDLE", "ADS", "SPRINT"); // 独立アニメの適応範囲
     public AnimationStats aimAnimation;
     public AnimationStats sprintAnimation;
     public AnimationStats idleAnimation;
