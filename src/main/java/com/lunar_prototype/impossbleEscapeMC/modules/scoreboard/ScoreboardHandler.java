@@ -24,12 +24,19 @@ public class ScoreboardHandler {
     private final Objective objective;
     private final List<Team> lines = new ArrayList<>();
 
+    private final Team nameTagTeam;
+
     public ScoreboardHandler(Player player) {
         this.player = player;
         this.scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
         this.objective = scoreboard.registerNewObjective("sidebar", Criteria.DUMMY, 
             Component.empty()); // タイトルを空にする
         this.objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+
+        // ネームプレート非表示用のチーム
+        this.nameTagTeam = scoreboard.registerNewTeam("hide_tags");
+        this.nameTagTeam.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+        this.nameTagTeam.setCanSeeFriendlyInvisibles(false);
 
         // 15行の空の行を初期化
         for (int i = 0; i < 15; i++) {
@@ -41,6 +48,24 @@ public class ScoreboardHandler {
         }
 
         player.setScoreboard(scoreboard);
+    }
+
+    /**
+     * ネームプレートの表示状態を更新
+     */
+    public void updateNameTags(boolean hideAll) {
+        if (hideAll) {
+            for (Player other : Bukkit.getOnlinePlayers()) {
+                if (other.equals(player)) continue;
+                if (!nameTagTeam.hasEntry(other.getName())) {
+                    nameTagTeam.addEntry(other.getName());
+                }
+            }
+        } else {
+            for (String entry : new ArrayList<>(nameTagTeam.getEntries())) {
+                nameTagTeam.removeEntry(entry);
+            }
+        }
     }
 
     /**
