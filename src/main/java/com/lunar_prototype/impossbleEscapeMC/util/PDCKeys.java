@@ -20,6 +20,7 @@ public class PDCKeys {
             "chamber_loaded");
     public static final NamespacedKey CHAMBER_AMMO_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(),
             "chamber_ammo_id");
+    public static final NamespacedKey JAMMED = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "jammed");
     public static final NamespacedKey ATTACHMENTS = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "attachments");
     public static final NamespacedKey ARMOR_CLASS = new NamespacedKey(ImpossbleEscapeMC.getInstance(),
             "armor_class_int");

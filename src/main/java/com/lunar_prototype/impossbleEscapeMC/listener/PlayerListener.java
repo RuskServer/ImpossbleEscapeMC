@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -15,6 +16,9 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.CrossbowMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -225,6 +229,14 @@ public class PlayerListener implements Listener {
         // これをやらないと、一瞬だけクライアント側にエンティティが残ることがあります
         if (event.getProjectile() != null) {
             event.getProjectile().remove();
+        }
+
+        ItemStack item = event.getBow();
+        ItemMeta meta = item.getItemMeta();
+        if (meta instanceof CrossbowMeta crossbowMeta) {
+            // 装填済みにしてモデルを維持
+            crossbowMeta.addChargedProjectile(new ItemStack(Material.ARROW));
+            item.setItemMeta(crossbowMeta);
         }
 
         // 3. 実行者がプレイヤーの場合、腕の振りを止めたり、アイテムの状態を同期させる

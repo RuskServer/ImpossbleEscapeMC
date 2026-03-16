@@ -47,6 +47,10 @@ public class GunListener implements Listener {
     private final Map<UUID, BukkitRunnable> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> consecutiveShots = new HashMap<>();
 
+    // 射撃継続判定のタイムアウト（ms）
+    // Minecraftの右クリックパケット間隔は約200msだが、タップ撃ち時の余韻を短くするために150msに設定
+    private static final long SHOOTING_KEEP_ALIVE_MS = 150;
+
     // State machine storage
     private final Map<UUID, com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine> stateMachines = new HashMap<>();
     private final Map<UUID, BukkitRunnable> stateTasks = new HashMap<>();
@@ -253,8 +257,8 @@ public class GunListener implements Listener {
                 long now = System.currentTimeMillis();
                 long lastClick = lastRightClickMap.getOrDefault(uuid, 0L);
 
-                // 300ms以上イベントが来なければ「指を離した」とみなす
-                if (now - lastClick > 300) {
+                // タイムアウト判定
+                if (now - lastClick > SHOOTING_KEEP_ALIVE_MS) {
                     stopShooting(uuid);
                     return;
                 }
@@ -349,6 +353,13 @@ public class GunListener implements Listener {
                 if (currentItem == null || currentItem.getType() == Material.AIR)
                     return;
 
+                // ジャムの解消
+                ItemMeta meta = currentItem.getItemMeta();
+                if (meta != null) {
+                    meta.getPersistentDataContainer().set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0);
+                    currentItem.setItemMeta(meta);
+                }
+
                 // ステートマシンのアイテム参照を最新に更新
                 updateWeaponModel(player, currentItem);
 
@@ -366,6 +377,15 @@ public class GunListener implements Listener {
 
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer itemPdc = meta.getPersistentDataContainer();
+
+        // 0. ジャム判定
+        boolean isJammed = itemPdc.getOrDefault(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0) == 1;
+        if (isJammed) {
+            stopShooting(player.getUniqueId());
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 0.5f);
+            player.sendActionBar(net.kyori.adventure.text.Component.text("§c§l>>> WEAPON JAMMED <<<", net.kyori.adventure.text.format.NamedTextColor.RED));
+            return;
+        }
 
         // 1. 実物のアイテムのチェンバーから弾を確認
         boolean isChamberLoaded = itemPdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
@@ -407,6 +427,32 @@ public class GunListener implements Listener {
         // 4. メタデータを実物のアイテムにセットし直す
         item.setItemMeta(meta);
 
+        // --- 耐久値減少とジャム判定 ---
+        String itemId = itemPdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(itemId);
+        double durabilityRatio = 1.0;
+        if (def != null && def.maxDurability > 0) {
+            int currentDur = itemPdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            currentDur = Math.max(0, currentDur - 1);
+            itemPdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, currentDur);
+            durabilityRatio = (double) currentDur / def.maxDurability;
+            
+            // ジャム判定 (50%以下から確率発生、0%で最大50%の確率)
+            if (durabilityRatio < 0.5) {
+                double jamProb = (0.5 - durabilityRatio) * 1.0; // (0.5 - 0.0) * 1.0 = 0.5 (50%)
+                if (Math.random() < jamProb) {
+                    itemPdc.set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 1);
+                    player.sendActionBar(net.kyori.adventure.text.Component.text("§c§l>>> WEAPON JAMMED <<<", net.kyori.adventure.text.format.NamedTextColor.RED));
+                    player.playSound(player.getLocation(), Sound.BLOCK_BAMBOO_WOOD_BREAK, 1.0f, 0.5f);
+                    player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 0.5f, 2.0f);
+                    stopShooting(player.getUniqueId());
+                }
+            }
+            
+            // ItemMetaを再度反映 (耐久値とジャムフラグを保存)
+            item.setItemMeta(meta);
+        }
+
         // --- 精度（拡散率）の計算 ---
         double inaccuracy = 0.0;
         boolean isAiming = isAiming(player.getUniqueId());
@@ -427,6 +473,12 @@ public class GunListener implements Listener {
                     inaccuracy *= 0.5; // 停止時は精度50%向上
                 }
             }
+        }
+
+        // --- 耐久度による精度の低下 (30%以下から拡散がひどくなる) ---
+        if (durabilityRatio < 0.3) {
+            double durabilityPenalty = (0.3 - durabilityRatio) * 1.5; // 0%時に+0.45の拡散
+            inaccuracy += durabilityPenalty;
         }
 
         // --- 状態異常による補正 ---
