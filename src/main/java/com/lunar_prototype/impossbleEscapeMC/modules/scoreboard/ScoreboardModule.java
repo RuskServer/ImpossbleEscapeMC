@@ -62,6 +62,7 @@ public class ScoreboardModule implements IModule, Listener {
 
             boolean isInRaid = raidModule != null && raidModule.isInRaid(player);
             entry.getValue().update(data, isInRaid);
+            entry.getValue().updateNameTags(isInRaid);
         }
     }
 
