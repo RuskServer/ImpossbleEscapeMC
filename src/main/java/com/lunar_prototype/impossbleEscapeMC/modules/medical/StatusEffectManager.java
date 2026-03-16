@@ -116,10 +116,10 @@ public class StatusEffectManager implements Listener {
         }
 
         // 2. 負傷判定
-        applyInjuryChance(victim, data, event.getHitLocation());
+        applyInjuryChance(victim, data, event.getHitLocation(), event.isPenetrated());
     }
 
-    private void applyInjuryChance(Player victim, PlayerData data, String hitLocation) {
+    private void applyInjuryChance(Player victim, PlayerData data, String hitLocation, boolean penetrated) {
         double roll = Math.random();
 
         // 1. 足の骨折 (足に当たった場合のみ)
@@ -139,8 +139,9 @@ public class StatusEffectManager implements Listener {
             }
         }
 
-        // 3. 出血 (どの部位でも発生するが、確率は低め)
-        if (roll < 0.20) {
+        // 3. 出血 (貫通した場合、またはアーマーのない部位ヒット時のみ)
+        boolean unarmoredHit = "legs".equals(hitLocation);
+        if ((penetrated || unarmoredHit) && roll < 0.10) {
             data.setBleedingLevel(data.getBleedingLevel() + 1);
             victim.sendMessage(Component.text("出血しています！", NamedTextColor.RED));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH, 1.0f, 1.0f);
