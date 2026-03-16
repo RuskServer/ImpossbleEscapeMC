@@ -267,13 +267,17 @@ public class ItemFactory {
 
             lore.add("§6§l<< GUN STATS >>");
             lore.add("§7Ammo: §e" + ammo + chamberSuffix + " §8/ §7" + def.gunStats.magSize);
-            lore.add("§7Damage: §f" + String.format("%.1f",
-                    pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage)));
+            String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
+            AmmoDefinition currentAmmo = ItemRegistry.getAmmo(ammoId);
+            
+            double gunMultiplier = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage);
+            double baseDamage = (currentAmmo != null) ? currentAmmo.damage : 0.0;
+            double totalDamage = baseDamage * gunMultiplier;
+
+            lore.add("§7Damage: §f" + String.format("%.1f", totalDamage) + " §8(x" + String.format("%.2f", gunMultiplier) + ")");
             lore.add("§7RPM: §f" + def.gunStats.rpm);
             lore.add("§7Mode: §f" + def.gunStats.fireMode);
             
-            String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
-            AmmoDefinition currentAmmo = ItemRegistry.getAmmo(ammoId);
             String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "None";
             lore.add("§7Chambered: §f" + ammoName);
             lore.add("");

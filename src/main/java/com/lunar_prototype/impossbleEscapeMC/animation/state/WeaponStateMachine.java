@@ -15,6 +15,12 @@ public class WeaponStateMachine {
     }
 
     public void update() {
+        // 第一に独立アニメーション（非同期/重畳レイヤー）の進行を管理
+        if (context != null) {
+            context.updateIndependentAnimation();
+        }
+        
+        // メインステートの更新処理
         if (currentState != null) {
             currentState.onUpdate(context);
         }
