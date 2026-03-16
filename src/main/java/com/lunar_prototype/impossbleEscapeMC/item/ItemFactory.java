@@ -345,11 +345,11 @@ public class ItemFactory {
 
     private static void applyTooltipStyle(ItemStack item, int rarity) {
         String styleId = switch (rarity) {
-            case 2 -> "green_frame.png";
-            case 3 -> "blue_frame.png";
-            case 4 -> "purple_frame.png";
-            case 5 -> "gold_frame.png";
-            default -> "white_frame.png";
+            case 2 -> "green_frame";
+            case 3 -> "blue_frame";
+            case 4 -> "purple_frame";
+            case 5 -> "gold_frame";
+            default -> "white_frame";
         };
         item.setData(DataComponentTypes.TOOLTIP_STYLE, Key.key("minecraft", styleId));
     }
