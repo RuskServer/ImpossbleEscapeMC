@@ -13,6 +13,10 @@ public class PlayerData {
     private long experience;
     private int extractions;
 
+    // Stash
+    private int stashLevel;
+    private java.util.Map<Integer, String> stashPages; // Page index (1-based) to Base64 serialized inventory
+
     // トレーダーの購入制限用: キーは "traderId_itemId"
     private java.util.Map<String, Integer> dailyPurchases;
     private long lastResetTimestamp;
@@ -32,6 +36,8 @@ public class PlayerData {
         this.balance = 0.0;
         this.level = 1;
         this.experience = 0;
+        this.stashLevel = 1;
+        this.stashPages = new java.util.HashMap<>();
         this.dailyPurchases = new java.util.HashMap<>();
         this.lastResetTimestamp = System.currentTimeMillis();
         this.dirty = false;
@@ -41,6 +47,27 @@ public class PlayerData {
         this.bleedingLevel = 0;
         this.painkillerUntil = 0;
         this.lastPainkillerTrigger = 0;
+    }
+
+    public int getStashLevel() {
+        return stashLevel;
+    }
+
+    public void setStashLevel(int stashLevel) {
+        if (this.stashLevel != stashLevel) {
+            this.stashLevel = stashLevel;
+            this.dirty = true;
+        }
+    }
+
+    public java.util.Map<Integer, String> getStashPages() {
+        if (stashPages == null) stashPages = new java.util.HashMap<>();
+        return stashPages;
+    }
+
+    public void setStashPage(int page, String data) {
+        getStashPages().put(page, data);
+        this.dirty = true;
     }
 
     public boolean hasLegFracture() {
