@@ -283,6 +283,13 @@ public class RaidModule implements IModule {
         return false;
     }
 
+    public boolean isInRaid(Player player) {
+        for (RaidInstance raid : activeRaids.values()) {
+            if (raid.isParticipant(player.getUniqueId())) return true;
+        }
+        return false;
+    }
+
     public String getQueuedMap(Player player) {
         for (Map.Entry<String, Set<UUID>> entry : raidQueues.entrySet()) {
             if (entry.getValue().contains(player.getUniqueId())) return entry.getKey();

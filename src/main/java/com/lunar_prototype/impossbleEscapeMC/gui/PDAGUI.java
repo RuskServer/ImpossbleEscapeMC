@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -96,14 +97,21 @@ public class PDAGUI implements Listener {
         inventory.setItem(13, stats);
 
         // Stashボタン
-        ItemStack stash = new ItemStack(Material.CHEST);
+        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+        boolean inRaid = raidModule.isInRaid(player);
+        
+        ItemStack stash = new ItemStack(inRaid ? Material.BARRIER : Material.CHEST);
         ItemMeta stashMeta = stash.getItemMeta();
-        stashMeta.displayName(Component.text("Stash (倉庫)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+        stashMeta.displayName(Component.text("Stash (倉庫)", inRaid ? NamedTextColor.RED : NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
         List<Component> stashLore = new ArrayList<>();
         stashLore.add(Component.text("アイテムを安全に保管します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         stashLore.add(Component.text("レベルに応じて容量が増加します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         stashLore.add(Component.empty());
-        stashLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        if (inRaid) {
+            stashLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else {
+            stashLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
         stashMeta.lore(stashLore);
         stash.setItemMeta(stashMeta);
         inventory.setItem(11, stash);
@@ -125,6 +133,12 @@ public class PDAGUI implements Listener {
         if (slot == 22) {
             player.closeInventory();
         } else if (slot == 11) {
+            com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule.class);
+            if (raidModule.isInRaid(player)) {
+                player.sendMessage(Component.text("§cレイド中はStashを開くことができません！", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
             player.closeInventory();
             com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule stashModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule.class);
             new com.lunar_prototype.impossbleEscapeMC.modules.stash.StashPageSelectorGUI(player, stashModule).open();

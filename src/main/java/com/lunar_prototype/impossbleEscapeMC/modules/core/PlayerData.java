@@ -50,7 +50,7 @@ public class PlayerData {
     }
 
     public int getStashLevel() {
-        return stashLevel;
+        return Math.max(1, stashLevel);
     }
 
     public void setStashLevel(int stashLevel) {
