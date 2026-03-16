@@ -437,9 +437,9 @@ public class GunListener implements Listener {
             itemPdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, currentDur);
             durabilityRatio = (double) currentDur / def.maxDurability;
             
-            // ジャム判定 (50%以下から確率発生、0%で最大50%の確率)
+            // ジャム判定 (50%以下から確率発生、0%で最大10%の確率)
             if (durabilityRatio < 0.5) {
-                double jamProb = (0.5 - durabilityRatio) * 1.0; // (0.5 - 0.0) * 1.0 = 0.5 (50%)
+                double jamProb = (0.5 - durabilityRatio) * 0.2; // (0.5 - 0.0) * 0.2 = 0.1 (10%)
                 if (Math.random() < jamProb) {
                     itemPdc.set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 1);
                     player.sendActionBar(net.kyori.adventure.text.Component.text("§c§l>>> WEAPON JAMMED <<<", net.kyori.adventure.text.format.NamedTextColor.RED));

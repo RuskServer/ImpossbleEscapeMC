@@ -66,7 +66,9 @@ public class TraderGUI implements Listener {
         int rows = (int) Math.ceil(itemCount / 9.0);
         int size = Math.min(54, Math.max(9, rows * 9));
         
-        this.inventory = Bukkit.createInventory(null, size, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
+        if (this.inventory == null) {
+            this.inventory = Bukkit.createInventory(null, size, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
+        }
         inventory.clear();
 
         int slot = 0;
