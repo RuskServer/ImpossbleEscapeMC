@@ -49,7 +49,7 @@ public class ReloadingState implements WeaponState {
             return;
         }
 
-        // 2. Select Best Ammo
+        // Select Best Ammo
         String bestAmmoId = null;
         int maxCount = -1;
         for (Map.Entry<String, List<ItemStack>> entry : ammoPool.entrySet()) {
@@ -70,18 +70,20 @@ public class ReloadingState implements WeaponState {
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         int currentAmmo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
         boolean isChamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
-
-        // チャンバーありの武器の場合、マガジン+チャンバー1発 が最大容量
-        int maxPossible = isClosedBolt ? stats.magSize + 1 : stats.magSize;
-        int currentTotal = currentAmmo + (isChamberLoaded ? 1 : 0);
-
         String currentAmmoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
         String chamberAmmoId = pdc.get(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING);
 
-        // マガジン満タン かつ (チャンバーが無いか、チャンバーも満タンで同じ弾種) の場合は不要
-        if (currentTotal >= maxPossible && finalAmmoData.id.equals(currentAmmoId)
-                && finalAmmoData.id.equals(chamberAmmoId)) {
-            isReloadPossible = false; // Already full
+        // リロードが必要な条件:
+        // 1. マガジンが満タンでない
+        // 2. マガジンの弾種がインベントリの最適弾種と異なる
+        // 3. (クローズドボルトの場合) チャンバーが空
+        // 4. (クローズドボルトの場合) チャンバーの弾種が異なる
+        boolean needsRefill = currentAmmo < stats.magSize;
+        boolean typeMismatch = !finalAmmoData.id.equals(currentAmmoId);
+        boolean chamberNeedsAttention = isClosedBolt && (!isChamberLoaded || !finalAmmoData.id.equals(chamberAmmoId));
+
+        if (!needsRefill && !typeMismatch && !chamberNeedsAttention) {
+            isReloadPossible = false; // Already full and correct type
             return;
         }
 
@@ -213,17 +215,42 @@ public class ReloadingState implements WeaponState {
 
         int currentAmmo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
         boolean isChamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
+        String currentAmmoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
+        String currentChamberId = pdc.get(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING);
 
-        // 1. Calculate how much we actually need from inventory
-        // Closed bolt: Max is magSize + 1 (if we keep the chambered round)
-        // BUT, since we are ejecting the magazine, we want to end up with a full
-        // magazine (magSize)
-        // and a loaded chamber (1). Total maxPossible.
+        // 1. Eject Magazine content
+        if (currentAmmo > 0 && currentAmmoId != null) {
+            ItemStack ejected = ItemFactory.create(currentAmmoId);
+            if (ejected != null) {
+                ejected.setAmount(currentAmmo);
+                ctx.getPlayer().getInventory().addItem(ejected).forEach(
+                        (i, drop) -> ctx.getPlayer().getWorld().dropItemNaturally(ctx.getPlayer().getLocation(), drop));
+            }
+            pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
+        }
+
+        // 2. Handle Chamber
+        // Keep chambered round only if it's closed bolt and ammo type matches
+        boolean keepChamber = isClosedBolt && isChamberLoaded && finalAmmoData.id.equals(currentChamberId);
+
+        if (isChamberLoaded && !keepChamber) {
+            if (currentChamberId != null) {
+                ItemStack ejected = ItemFactory.create(currentChamberId);
+                if (ejected != null) {
+                    ctx.getPlayer().getInventory().addItem(ejected).forEach(
+                            (i, drop) -> ctx.getPlayer().getWorld().dropItemNaturally(ctx.getPlayer().getLocation(), drop));
+                }
+            }
+            pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0);
+            isChamberLoaded = false;
+        }
+
+        // 3. Calculate needed
         int maxPossible = isClosedBolt ? stats.magSize + 1 : stats.magSize;
-        int currentTotal = currentAmmo + (isChamberLoaded ? 1 : 0);
-        int neededFromInventory = Math.max(0, maxPossible - currentTotal);
+        int currentInGun = isChamberLoaded ? 1 : 0;
+        int neededFromInventory = Math.max(0, maxPossible - currentInGun);
 
-        // 2. Consume from inventory
+        // 4. Consume from inventory
         int takenFromInventory = 0;
         for (ItemStack ammoStack : finalAmmoStacks) {
             if (neededFromInventory <= 0)
@@ -239,35 +266,19 @@ public class ReloadingState implements WeaponState {
             neededFromInventory -= take;
         }
 
-        // 3. Eject leftover from MAGAZINE only (Chamber stays if it was loaded)
-        int leftover = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-        String oldAmmoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
-
-        if (leftover > 0 && oldAmmoId != null) {
-            ItemStack ejected = ItemFactory.create(oldAmmoId);
-            if (ejected != null) {
-                ejected.setAmount(leftover);
-                ctx.getPlayer().getInventory().addItem(ejected).forEach(
-                        (i, drop) -> ctx.getPlayer().getWorld().dropItemNaturally(ctx.getPlayer().getLocation(), drop));
-            }
-        }
-
-        // 4. Update Gun State
-        // New total in gun = old total (including chamber) + what we took from
-        // inventory
-        int newTotal = currentTotal + takenFromInventory;
+        // 5. Update Gun State
+        int newTotal = (isChamberLoaded ? 1 : 0) + takenFromInventory;
 
         if (isClosedBolt) {
-            // Closed bolt weapons: Priority is filling the chamber if it's empty
-            if (!isChamberLoaded && newTotal > 0) {
+            if (newTotal > 0) {
                 pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 1);
                 pdc.set(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING, finalAmmoData.id);
                 newTotal--;
+            } else {
+                pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0);
             }
-            // The rest goes to the magazine
             pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, Math.min(newTotal, stats.magSize));
         } else {
-            // Open bolt: Everything in magazine
             pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, Math.min(newTotal, stats.magSize));
             pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0);
         }
