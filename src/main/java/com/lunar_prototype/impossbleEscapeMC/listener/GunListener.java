@@ -487,9 +487,10 @@ public class GunListener implements Listener {
 
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
+            double totalDamage = ammoDef.damage * damage;
             int pellets = Math.max(1, stats.pelletCount);
             for (int i = 0; i < pellets; i++) {
-                new BulletTask(ImpossbleEscapeMC.getInstance(),player, damage, ammoClass, inaccuracy).start();
+                new BulletTask(ImpossbleEscapeMC.getInstance(),player, totalDamage, ammoClass, inaccuracy).start();
             }
         }
 
@@ -578,9 +579,13 @@ public class GunListener implements Listener {
         shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 8.0f, shotPitch);
 
         // 2. 弾丸の生成
+        com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition ammoDef = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getWeakestAmmoForCaliber(stats.caliber);
+        double baseDamage = (ammoDef != null) ? ammoDef.damage : 5.0;
+        double totalDamage = baseDamage * stats.damage;
+
         int pellets = Math.max(1, stats.pelletCount);
         for (int i = 0; i < pellets; i++) {
-            new BulletTask(plugin, shooter, stats.damage, ammoClass, inaccuracy).start();
+            new BulletTask(plugin, shooter, totalDamage, ammoClass, inaccuracy).start();
         }
 
         // 1秒後に薬莢の落ちる音を再生 (AI用)
