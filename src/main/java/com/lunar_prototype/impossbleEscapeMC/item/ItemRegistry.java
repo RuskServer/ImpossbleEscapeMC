@@ -137,6 +137,12 @@ public class ItemRegistry {
                         gStats.tacticalReloadAnimation = parseAnimation(gunSection, "tacticalReloadAnimation");
                         gStats.reloadLoopAnimation = parseAnimation(gunSection, "reloadLoopAnimation"); // ショットガン用
                         gStats.boltingAnimation = parseAnimation(gunSection, "boltingAnimation"); // ボルトアニメーション
+                        gStats.independentAnimation = parseAnimation(gunSection, "independentAnimation"); // 独立アニメーション
+                        
+                        if (gunSection.contains("validIndependentAnimStates")) {
+                            gStats.validIndependentAnimStates = gunSection.getStringList("validIndependentAnimStates");
+                        }
+
                         gStats.aimAnimation = parseAnimation(gunSection, "aimAnimation");
                         gStats.sprintAnimation = parseAnimation(gunSection, "sprintAnimation");
                         gStats.idleAnimation = parseAnimation(gunSection, "idleAnimation");

@@ -275,8 +275,9 @@ public class GunListener implements Listener {
                     shotsFiredThisTick++;
 
                     if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
-                        stopShooting(uuid);
-                        return;
+                        // セミオートの場合は、1回のクリック(正確なタイミング)につき1発まで。
+                        // 長押しし続けている間はタスク自体は残す（アニメーション進行などのため）が、ここから先の弾は撃たない
+                        break;
                     }
                 }
             }
@@ -486,9 +487,10 @@ public class GunListener implements Listener {
 
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
+            double totalDamage = ammoDef.damage * damage;
             int pellets = Math.max(1, stats.pelletCount);
             for (int i = 0; i < pellets; i++) {
-                new BulletTask(ImpossbleEscapeMC.getInstance(),player, damage, ammoClass, inaccuracy).start();
+                new BulletTask(ImpossbleEscapeMC.getInstance(),player, totalDamage, ammoClass, inaccuracy).start();
             }
         }
 
@@ -500,6 +502,13 @@ public class GunListener implements Listener {
 
         // 相対パケットを送信
         sendRecoilPacket(player, recoilYaw, recoilPitch);
+
+        // --- 独立アニメーション（射撃/特定モーション）のトリガー ---
+        com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine sm = stateMachines
+                .get(player.getUniqueId());
+        if (sm != null && sm.getContext() != null) {
+            sm.getContext().startIndependentAnimation();
+        }
 
         // --- 視覚的・音響的メタデータの付与 (AI用) ---
         player.setMetadata("last_fired_tick",
@@ -543,8 +552,6 @@ public class GunListener implements Listener {
         if (isBoltAction) {
             // ボルトアクションのオートコッキング
             stopShooting(player.getUniqueId()); // まず射撃ループを止める
-            com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine sm = stateMachines
-                    .get(player.getUniqueId());
             if (sm != null) {
                 // ボルトアクションステートに移行 (内部エンターで次弾があればコッキングアニメに入る)
                 new BukkitRunnable() {
@@ -572,9 +579,13 @@ public class GunListener implements Listener {
         shooter.getWorld().playSound(shooter.getLocation(), stats.shotSound, 8.0f, shotPitch);
 
         // 2. 弾丸の生成
+        com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition ammoDef = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getWeakestAmmoForCaliber(stats.caliber);
+        double baseDamage = (ammoDef != null) ? ammoDef.damage : 5.0;
+        double totalDamage = baseDamage * stats.damage;
+
         int pellets = Math.max(1, stats.pelletCount);
         for (int i = 0; i < pellets; i++) {
-            new BulletTask(plugin, shooter, stats.damage, ammoClass, inaccuracy).start();
+            new BulletTask(plugin, shooter, totalDamage, ammoClass, inaccuracy).start();
         }
 
         // 1秒後に薬莢の落ちる音を再生 (AI用)

@@ -78,7 +78,7 @@ public class BoltingState implements WeaponState {
 
         if (boltingAnim != null) {
             ctx.getItem().setData(DataComponentTypes.ITEM_MODEL, Key.key(boltingAnim.model));
-            ctx.applyModel(boltingAnim, 0);
+            ctx.applyLayeredModel(boltingAnim, 0, ctx.getIndependentFrameToRender());
         }
 
         // コッキング音
@@ -103,7 +103,7 @@ public class BoltingState implements WeaponState {
                 GunStats.AnimationStats aimAnim = ctx.getStats().aimAnimation;
                 if (aimAnim != null) {
                     int frame = (int) (progress * (aimAnim.frameCount - 1));
-                    ctx.applyModel(aimAnim, Math.max(0, frame));
+                    ctx.applyLayeredModel(aimAnim, Math.max(0, frame), ctx.getIndependentFrameToRender());
                 }
 
                 if (elapsed >= aimOutTotalTicks) {
@@ -114,7 +114,7 @@ public class BoltingState implements WeaponState {
                 if (boltingAnim != null) {
                     int frameIndex = (int) ((elapsed / 20.0) * boltingAnim.fps * boltingAnim.playbackSpeed);
                     frameIndex = Math.min(frameIndex, boltingAnim.frameCount - 1);
-                    ctx.applyModel(boltingAnim, frameIndex);
+                    ctx.applyLayeredModel(boltingAnim, frameIndex, ctx.getIndependentFrameToRender());
                 }
 
                 if (elapsed >= boltingTotalTicks) {

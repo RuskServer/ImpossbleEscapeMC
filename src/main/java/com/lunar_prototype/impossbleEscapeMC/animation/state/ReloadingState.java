@@ -106,7 +106,7 @@ public class ReloadingState implements WeaponState {
         if (animStats != null) {
             item.setData(DataComponentTypes.ITEM_MODEL, Key.key(animStats.model));
             // Initial frame
-            ctx.applyModel(animStats, 0);
+            ctx.applyLayeredModel(animStats, 0, ctx.getIndependentFrameToRender());
         }
 
         ctx.playSound(Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.5f);
@@ -138,7 +138,7 @@ public class ReloadingState implements WeaponState {
             if (frameIndex >= animStats.frameCount) {
                 frameIndex = animStats.frameCount - 1;
             }
-            ctx.applyModel(animStats, frameIndex);
+            ctx.applyLayeredModel(animStats, frameIndex, ctx.getIndependentFrameToRender());
         }
 
         // Render Bar
