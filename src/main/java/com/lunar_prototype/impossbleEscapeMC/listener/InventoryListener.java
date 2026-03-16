@@ -8,6 +8,7 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientCl
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUI;
+import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -42,7 +43,7 @@ public class InventoryListener implements Listener {
             public void onPacketReceive(PacketReceiveEvent event) {
                 if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
                     WrapperPlayClientClickWindow packet = new WrapperPlayClientClickWindow(event);
-                    if (packet.getWindowId() == 0 && packet.getSlot() == 4) {
+                    if (packet.getWindowId() == 0 && (packet.getSlot() == 4 || packet.getSlot() == 1)) {
                         event.setCancelled(true); // パケット握り潰し
 
                         int stateId = packet.getStateId().orElse(0);
@@ -59,16 +60,22 @@ public class InventoryListener implements Listener {
                                 SpigotConversionUtil.fromBukkitItemStack(new org.bukkit.inventory.ItemStack(Material.AIR))
                         );
                         PacketEvents.getAPI().getPlayerManager().sendPacket(player, cursorClear);
+                        
+                        final int slot = packet.getSlot();
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            ItemStack mainHand = player.getInventory().getItemInMainHand();
-                            String itemId = mainHand.hasItemMeta() ?
-                                    mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-                            ItemDefinition def = ItemRegistry.get(itemId);
+                            if (slot == 4) {
+                                ItemStack mainHand = player.getInventory().getItemInMainHand();
+                                String itemId = mainHand.hasItemMeta() ?
+                                        mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+                                ItemDefinition def = ItemRegistry.get(itemId);
 
-                            if (def != null && "GUN".equals(def.type)) {
-                                new AttachmentGUI(player, mainHand).open();
-                            } else {
-                                player.sendMessage("§cメインハンドに有効な銃を持っていません");
+                                if (def != null && "GUN".equals(def.type)) {
+                                    new AttachmentGUI(player, mainHand).open();
+                                } else {
+                                    player.sendMessage("§cメインハンドに有効な銃を持っていません");
+                                }
+                            } else if (slot == 1) {
+                                new PDAGUI(player).open();
                             }
                         });
                     }
@@ -93,6 +100,22 @@ public class InventoryListener implements Listener {
         return item;
     }
 
+    private ItemStack getPdaButton() {
+        ItemStack item = new ItemStack(Material.RECOVERY_COMPASS);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§b[ PDA - 個人端末 ]");
+            List<String> lore = new ArrayList<>();
+            lore.add("§7自分のステータスや進捗を確認します");
+            lore.add("");
+            lore.add("§eクリックでPDAを開く");
+            meta.setLore(lore);
+            meta.getPersistentDataContainer().set(PDCKeys.GUI_TRIGGER, PDCKeys.INTEGER, 2);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
     private boolean isGuiTrigger(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
         return item.getItemMeta().getPersistentDataContainer().has(PDCKeys.GUI_TRIGGER, PDCKeys.INTEGER);
@@ -111,15 +134,22 @@ public class InventoryListener implements Listener {
                     boolean shouldHaveButton = (player.getGameMode() == org.bukkit.GameMode.SURVIVAL || 
                                                player.getGameMode() == org.bukkit.GameMode.ADVENTURE);
                     
-                    ItemStack current = view.getItem(4);
+                    ItemStack current4 = view.getItem(4);
+                    ItemStack current1 = view.getItem(1);
                     if (shouldHaveButton) {
-                        if (!isGuiTrigger(current)) {
+                        if (!isGuiTrigger(current4)) {
                             view.setItem(4, getGuiTriggerButton());
+                        }
+                        if (!isGuiTrigger(current1)) {
+                            view.setItem(1, getPdaButton());
                         }
                     } else {
                         // もし既にボタンがあれば消去する
-                        if (isGuiTrigger(current)) {
+                        if (isGuiTrigger(current4)) {
                             view.setItem(4, null);
+                        }
+                        if (isGuiTrigger(current1)) {
+                            view.setItem(1, null);
                         }
                     }
                 }
@@ -127,16 +157,24 @@ public class InventoryListener implements Listener {
         }, 0L, 5L).getTaskId();
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onInventoryClick(InventoryClickEvent event) {
-        // トリガーアイテムが不正な位置にあれば削除
+        // トリガーアイテムが不正な位置にあれば削除 (どんなクリックでも)
         if (isGuiTrigger(event.getCurrentItem())) {
-            if (!isPlayerCraftingGrid(event.getView()) || event.getRawSlot() != 4) {
+            if (!isPlayerCraftingGrid(event.getView()) || (event.getRawSlot() != 4 && event.getRawSlot() != 1)) {
                 event.setCurrentItem(null);
             }
         }
         if (isGuiTrigger(event.getCursor())) {
             event.setCursor(null);
+        }
+        // ホットキーによる入れ替え防止
+        if (event.getClick() == ClickType.NUMBER_KEY) {
+            ItemStack hotbarItem = event.getWhoClicked().getInventory().getItem(event.getHotbarButton());
+            if (isGuiTrigger(hotbarItem)) {
+                event.getWhoClicked().getInventory().setItem(event.getHotbarButton(), null);
+                event.setCancelled(true);
+            }
         }
 
         InventoryView view = event.getView();
@@ -146,7 +184,7 @@ public class InventoryListener implements Listener {
         if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
             player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
 
-        // スロット4（クラフトグリッド右下）への干渉は常に制限
+        // スロット4（クラフトグリッド右下）またはスロット1（左上）への干渉は常に制限
         if (event.getRawSlot() == 4) {
             event.setCancelled(true);
             
@@ -161,6 +199,9 @@ public class InventoryListener implements Listener {
             } else if (event.getCurrentItem() != null && isGuiTrigger(event.getCurrentItem())) {
                 player.sendMessage("§cメインハンドに有効な銃を持っていません");
             }
+        } else if (event.getRawSlot() == 1) {
+            event.setCancelled(true);
+            new PDAGUI(player).open();
         }
     }
 
@@ -183,7 +224,16 @@ public class InventoryListener implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (isPlayerCraftingGrid(event.getView())) {
             event.getView().setItem(4, null);
-            Player player = (Player) event.getPlayer();
+            event.getView().setItem(1, null);
+        }
+        
+        // 念のためプレイヤーのインベントリ全体をスキャンしてボタンが混じっていれば消去
+        Player player = (Player) event.getPlayer();
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (isGuiTrigger(item)) {
+                player.getInventory().setItem(i, null);
+            }
         }
     }
 
@@ -199,7 +249,7 @@ public class InventoryListener implements Listener {
 
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (event.getRawSlots().contains(4) && isPlayerCraftingGrid(event.getView())) {
+        if ((event.getRawSlots().contains(4) || event.getRawSlots().contains(1)) && isPlayerCraftingGrid(event.getView())) {
             event.setCancelled(true);
             Player player = (Player) event.getWhoClicked();
         }

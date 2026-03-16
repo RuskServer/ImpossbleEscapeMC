@@ -293,11 +293,18 @@ public class RaidInstance {
             p.sendMessage(Component.text("脱出に成功しました！", NamedTextColor.GREEN));
             p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
 
-            // 経験値追加 (脱出成功: 250 EXP)
+            // 経験値追加 (脱出成功: 250 EXP) と 脱出回数加算
             com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                     plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
+                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
             if (levelModule != null) {
                 levelModule.addExperience(p.getUniqueId(), 250);
+            }
+            if (dataModule != null) {
+                com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(p.getUniqueId());
+                data.setExtractions(data.getExtractions() + 1);
+                dataModule.saveAsync(p.getUniqueId());
             }
 
             players.remove(p.getUniqueId());

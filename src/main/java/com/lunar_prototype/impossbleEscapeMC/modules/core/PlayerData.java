@@ -11,6 +11,7 @@ public class PlayerData {
     private double balance;
     private int level;
     private long experience;
+    private int extractions;
 
     // トレーダーの購入制限用: キーは "traderId_itemId"
     private java.util.Map<String, Integer> dailyPurchases;
@@ -153,6 +154,15 @@ public class PlayerData {
 
     public void setExperience(long experience) {
         this.experience = experience;
+        this.dirty = true;
+    }
+
+    public int getExtractions() {
+        return extractions;
+    }
+
+    public void setExtractions(int extractions) {
+        this.extractions = extractions;
         this.dirty = true;
     }
 
