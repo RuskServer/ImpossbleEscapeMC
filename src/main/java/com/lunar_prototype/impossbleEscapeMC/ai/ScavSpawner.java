@@ -75,7 +75,33 @@ public class ScavSpawner implements Listener {
 
         // 2. ItemFactoryで銃を生成 (ここでPDCにAMMOやITEM_IDが書き込まれる)
         ItemStack gun = ItemFactory.create(randomGunId);
-        if (gun != null) {
+        if (gun != null && gun.hasItemMeta()) {
+            var meta = gun.getItemMeta();
+            var pdc = meta.getPersistentDataContainer();
+            var itemId = pdc.get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
+            var def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
+            
+            if (def != null && def.maxDurability > 0) {
+                java.util.Random rand = new java.util.Random();
+                double roll = rand.nextDouble();
+                double durabilityPercentage;
+
+                if (roll < 0.05) {
+                    // 5%の確率で 75% - 85% (約80%)
+                    durabilityPercentage = 0.75 + (rand.nextDouble() * 0.1);
+                } else {
+                    // 95%の確率で 30% - 50%
+                    durabilityPercentage = 0.3 + (rand.nextDouble() * 0.2);
+                }
+
+                int newDurability = (int) (def.maxDurability * durabilityPercentage);
+                pdc.set(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.DURABILITY, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, newDurability);
+                gun.setItemMeta(meta);
+                
+                // バー表示を同期させる
+                ItemFactory.updateLore(gun);
+            }
+
             scav.getEquipment().setItemInMainHand(gun);
             scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
         }
