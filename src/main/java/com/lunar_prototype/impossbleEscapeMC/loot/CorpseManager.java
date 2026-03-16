@@ -154,24 +154,10 @@ public class CorpseManager {
 
     // Serialization utilities
     public static String serializeInventory(Inventory inventory) throws IOException {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
-        dataOutput.writeInt(inventory.getSize());
-        for (int i = 0; i < inventory.getSize(); i++) {
-            dataOutput.writeObject(inventory.getItem(i));
-        }
-        dataOutput.close();
-        return Base64Coder.encodeLines(outputStream.toByteArray());
+        return com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.serializeInventory(inventory);
     }
 
     public static Inventory deserializeInventory(String data, Component title) throws IOException, ClassNotFoundException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(data));
-        BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
-        Inventory inventory = Bukkit.createInventory(null, dataInput.readInt(), title);
-        for (int i = 0; i < inventory.getSize(); i++) {
-            inventory.setItem(i, (ItemStack) dataInput.readObject());
-        }
-        dataInput.close();
-        return inventory;
+        return com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.deserializeInventory(data, title);
     }
 }
