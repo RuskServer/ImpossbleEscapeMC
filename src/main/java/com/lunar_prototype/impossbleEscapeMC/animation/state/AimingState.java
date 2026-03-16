@@ -52,7 +52,7 @@ public class AimingState implements WeaponState {
         GunStats.AnimationStats anim = stats.aimAnimation;
         if (anim != null) {
             int frame = ctx.getProgressFrameIndex(ctx.getAimProgress(), anim);
-            ctx.applyModel(anim, frame);
+            ctx.applyLayeredModel(anim, frame, ctx.getIndependentFrameToRender());
         }
     }
 

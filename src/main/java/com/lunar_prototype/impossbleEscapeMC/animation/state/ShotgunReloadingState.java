@@ -153,7 +153,7 @@ public class ShotgunReloadingState implements WeaponState {
         ctx.setSprintProgress(0.0);
 
         if (introAnim != null) {
-            ctx.applyModel(introAnim, 0);
+            ctx.applyLayeredModel(introAnim, 0, ctx.getIndependentFrameToRender());
         }
     }
 
@@ -216,7 +216,7 @@ public class ShotgunReloadingState implements WeaponState {
 
         if (introAnim != null) {
             int frame = calcFrame(phaseElapsed, introAnim);
-            ctx.applyModel(introAnim, frame);
+            ctx.applyLayeredModel(introAnim, frame, ctx.getIndependentFrameToRender());
         }
 
         displayReloadBar(ctx);
@@ -231,7 +231,7 @@ public class ShotgunReloadingState implements WeaponState {
             phase = Phase.LOOP;
             phaseElapsed = 0;
             if (loopAnim != null) {
-                ctx.applyModel(loopAnim, 0);
+                ctx.applyLayeredModel(loopAnim, 0, ctx.getIndependentFrameToRender());
             }
         }
     }
@@ -274,7 +274,7 @@ public class ShotgunReloadingState implements WeaponState {
 
         if (loopAnim != null) {
             int frame = calcFrame(phaseElapsed, loopAnim);
-            ctx.applyModel(loopAnim, frame);
+            ctx.applyLayeredModel(loopAnim, frame, ctx.getIndependentFrameToRender());
         }
 
         displayReloadBar(ctx);
@@ -292,7 +292,7 @@ public class ShotgunReloadingState implements WeaponState {
             } else {
                 // 次の1発へ（ループ継続）
                 if (loopAnim != null) {
-                    ctx.applyModel(loopAnim, 0);
+                    ctx.applyLayeredModel(loopAnim, 0, ctx.getIndependentFrameToRender());
                 }
             }
         }
@@ -311,7 +311,7 @@ public class ShotgunReloadingState implements WeaponState {
             double progress = (double) phaseElapsed / totalTicks;
             int frame = (int) ((1.0 - progress) * (outroAnim.frameCount - 1));
             frame = Math.max(0, frame);
-            ctx.applyModel(outroAnim, frame);
+            ctx.applyLayeredModel(outroAnim, frame, ctx.getIndependentFrameToRender());
         }
 
         if (phaseElapsed >= totalTicks) {

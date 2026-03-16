@@ -30,7 +30,7 @@ public class SprintingState implements WeaponState {
         GunStats.AnimationStats anim = stats.sprintAnimation;
         if (anim != null) {
             int frame = ctx.getProgressFrameIndex(ctx.getSprintProgress(), anim);
-            ctx.applyModel(anim, frame);
+            ctx.applyLayeredModel(anim, frame, ctx.getIndependentFrameToRender());
         }
     }
 
