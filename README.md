@@ -3,7 +3,7 @@
 ![Version](https://img.shields.io/badge/version-2026.03.08-blue.svg)
 ![Java](https://img.shields.io/badge/Java-21-orange.svg)
 ![Platform](https://img.shields.io/badge/Platform-Paper%201.21-green.svg)
-![License](https://img.shields.io/badge/License-GPL-yellow.svg)
+![License](https://img.shields.io/badge/License-AGPL-yellow.svg)
 
 **ImpossbleEscapeMC** は、Minecraft 1.21 (Paper) 向けの高機能タクティカル・サバイバル拡張プラグインです。
 高度な AI を搭載した SCAV、アニメーション同期型の銃器システム、そしてリアルな戦闘体験を提供します。
@@ -70,4 +70,4 @@ mvn clean package
 
 ## 📄 ライセンス
 
-このプロジェクトは [GNU GPLv3](LICENSE) の下で公開されています。
+このプロジェクトは [AGPLv3](LICENSE) の下で公開されています。
