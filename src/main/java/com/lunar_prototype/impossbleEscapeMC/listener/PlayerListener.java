@@ -2,6 +2,9 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightStage;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -26,12 +29,14 @@ import java.util.UUID;
 
 public class PlayerListener implements Listener {
     private final com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin;
+    private final PlayerDataModule dataModule;
     private final Map<UUID, Double> walkDistanceMap = new HashMap<>();
     private final Map<UUID, Integer> continuousNoiseTicks = new HashMap<>();
     private final java.util.Random random = new java.util.Random();
 
     public PlayerListener(com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
+        this.dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
     }
 
     @EventHandler
@@ -64,6 +69,8 @@ public class PlayerListener implements Listener {
         if (entity.getLocation().subtract(0, 0.1, 0).getBlock().getType().isAir())
             return;
 
+        PlayerData data = (entity instanceof Player p) ? dataModule.getPlayerData(p.getUniqueId()) : null;
+
         // 音を出す移動か？
         boolean isMakingNoise = !isSneaking;
         if (isMakingNoise) {
@@ -72,7 +79,7 @@ public class PlayerListener implements Listener {
 
             // 2秒(40ticks)以上音を出している場合
             if (ticks >= 40) {
-                alertNearbyScavsOfFootsteps(entity);
+                alertNearbyScavsOfFootsteps(entity, data);
             }
         } else {
             continuousNoiseTicks.put(entity.getUniqueId(), 0);
@@ -95,10 +102,15 @@ public class PlayerListener implements Listener {
         double totalWalked = walkDistanceMap.getOrDefault(uuid, 0.0) + (distance * multiplier);
 
         if (totalWalked > 3.0) {
+            float volume = 0.8f;
+            if (data != null) {
+                volume *= data.getWeightStage().getFootstepVolumeMultiplier(data.getCurrentWeight());
+            }
+
             entity.getWorld().playSound(
                     entity.getLocation(),
                     Sound.BLOCK_STONE_STEP,
-                    0.8f,
+                    volume,
                     1.0f
             );
             totalWalked = 0;
@@ -107,9 +119,16 @@ public class PlayerListener implements Listener {
         walkDistanceMap.put(uuid, totalWalked);
     }
 
-    private void alertNearbyScavsOfFootsteps(LivingEntity source) {
-        // 周囲32ブロック以内のSCAVに通知
-        for (org.bukkit.entity.Entity entity : source.getNearbyEntities(32, 16, 32)) {
+    private void alertNearbyScavsOfFootsteps(LivingEntity source, PlayerData data) {
+        double baseRadius = 32.0;
+        double radius = baseRadius;
+        
+        if (data != null) {
+            radius *= data.getWeightStage().getFootstepAlertDistanceMultiplier(data.getCurrentWeight());
+        }
+
+        // 周囲32ブロック(補正後)以内のSCAVに通知
+        for (org.bukkit.entity.Entity entity : source.getNearbyEntities(radius, radius / 2, radius)) {
             if (entity instanceof Mob mob) {
                 ScavController controller = ScavSpawner.getController(mob.getUniqueId());
                 if (controller != null && !mob.equals(source)) {

@@ -8,5 +8,6 @@ public class AmmoDefinition {
     public String displayName; // 表示名
     public String material;
     public int rarity;
+    public int weight; // weight in grams
     public int customModelData;
 }
