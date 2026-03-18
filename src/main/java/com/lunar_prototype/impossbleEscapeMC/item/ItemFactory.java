@@ -42,6 +42,7 @@ public class ItemFactory {
             meta = item.getItemMeta();
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, attDef.id);
+            pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, attDef.weight);
 
             String rarityColor = getRarityColor(attDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', attDef.displayName));
@@ -68,6 +69,7 @@ public class ItemFactory {
             meta = item.getItemMeta();
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, ammoDef.id);
+            pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, ammoDef.weight);
 
             String rarityColor = getRarityColor(ammoDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', ammoDef.displayName));
@@ -102,6 +104,7 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
 
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, def.id);
+            pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, def.weight);
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
@@ -237,16 +240,24 @@ public class ItemFactory {
 
         List<String> lore = new ArrayList<>();
 
+        int weightGrams = pdc.getOrDefault(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, 0);
+        String weightText = weightGrams >= 1000 
+            ? String.format("%.2fkg", weightGrams / 1000.0) 
+            : weightGrams + "g";
+
         // --- 1. 基本情報 (タイプとレアリティ) ---
         if (def != null) {
             lore.add("§7Type: §f" + def.type);
             lore.add("§7Rarity: " + getRarityStars(def.rarity));
+            lore.add("§7Weight: §f" + weightText);
         } else if (ammoDef != null) {
             lore.add("§7Type: §fAMMO");
             lore.add("§7Rarity: " + getRarityStars(ammoDef.rarity));
+            lore.add("§7Weight: §f" + weightText);
         } else if (attDef != null) {
             lore.add("§7Type: §fATTACHMENT");
             lore.add("§7Rarity: " + getRarityStars(attDef.rarity));
+            lore.add("§7Weight: §f" + weightText);
         }
         lore.add("");
 

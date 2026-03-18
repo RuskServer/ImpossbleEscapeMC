@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.core;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightStage;
 import java.util.UUID;
 
 /**
@@ -12,6 +13,10 @@ public class PlayerData {
     private int level;
     private long experience;
     private int extractions;
+
+    // 重量システム
+    private int currentWeight; // グラム単位
+    private WeightStage weightStage;
 
     // Stash
     private int stashLevel;
@@ -36,6 +41,8 @@ public class PlayerData {
         this.balance = 0.0;
         this.level = 1;
         this.experience = 0;
+        this.currentWeight = 0;
+        this.weightStage = WeightStage.LIGHT;
         this.stashLevel = 1;
         this.stashPages = new java.util.HashMap<>();
         this.dailyPurchases = new java.util.HashMap<>();
@@ -47,6 +54,33 @@ public class PlayerData {
         this.bleedingLevel = 0;
         this.painkillerUntil = 0;
         this.lastPainkillerTrigger = 0;
+    }
+
+    public int getCurrentWeight() {
+        return currentWeight;
+    }
+
+    public void setCurrentWeight(int currentWeight) {
+        if (this.currentWeight != currentWeight) {
+            this.currentWeight = currentWeight;
+            this.dirty = true;
+            // ステージも合わせて更新
+            this.weightStage = WeightStage.getFromWeight(currentWeight);
+        }
+    }
+
+    public WeightStage getWeightStage() {
+        if (weightStage == null) {
+            weightStage = WeightStage.getFromWeight(currentWeight);
+        }
+        return weightStage;
+    }
+
+    public void setWeightStage(WeightStage weightStage) {
+        if (this.weightStage != weightStage) {
+            this.weightStage = weightStage;
+            this.dirty = true;
+        }
     }
 
     public int getStashLevel() {

@@ -10,6 +10,7 @@ public class ItemDefinition {
     public int rarity; // 1-5
     public int customModelData;
     public int maxDurability;
+    public int weight; // weight in grams
     public List<Affix> affixes;
     public GunStats gunStats;
     public MedStats medStats;

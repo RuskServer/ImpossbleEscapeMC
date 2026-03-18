@@ -38,12 +38,11 @@ public class ScoreboardHandler {
         this.nameTagTeam.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
         this.nameTagTeam.setCanSeeFriendlyInvisibles(false);
 
-        // 15行の空の行を初期化
+        // 15行の空の行を初期化（チームとエントリーの登録のみ）
         for (int i = 0; i < 15; i++) {
             String entry = "§" + Integer.toHexString(i) + "§r";
             Team team = scoreboard.registerNewTeam("line_" + i);
             team.addEntry(entry);
-            objective.getScore(entry).setScore(15 - i);
             lines.add(team);
         }
 
@@ -81,6 +80,12 @@ public class ScoreboardHandler {
             content.add(Component.empty());
         }
 
+        // 重量表示
+        double weightKg = data.getCurrentWeight() / 1000.0;
+        content.add(Component.text("Weight: ", NamedTextColor.GRAY)
+            .append(Component.text(String.format("%.1f", weightKg) + "kg", data.getWeightStage().getColor())));
+        content.add(Component.empty());
+
         content.add(Component.text("STATUS:", NamedTextColor.YELLOW, TextDecoration.BOLD));
 
         boolean hasStatus = false;
@@ -110,11 +115,16 @@ public class ScoreboardHandler {
 
         // 実際にTeamのPrefixを更新して画面に反映
         for (int i = 0; i < 15; i++) {
+            String entry = "§" + Integer.toHexString(i) + "§r";
             Team team = lines.get(i);
+            
             if (i < content.size()) {
                 team.prefix(content.get(i));
+                // スコアを設定することで行を表示させる
+                objective.getScore(entry).setScore(content.size() - i);
             } else {
-                team.prefix(Component.empty());
+                // スコアをリセットすることで行を非表示にする
+                scoreboard.resetScores(entry);
             }
         }
     }
