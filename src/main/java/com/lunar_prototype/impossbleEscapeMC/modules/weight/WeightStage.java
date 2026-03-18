@@ -48,6 +48,32 @@ public enum WeightStage {
         return 1.0 + ((double) weightGrams / 15000.0);
     }
 
+    public double getStaminaCostMultiplier(int weightGrams) {
+        return switch (this) {
+            case LIGHT -> 0.8;
+            case NORMAL -> 1.0;
+            case HEAVY -> {
+                // 15,001〜35,000g: 1.2 → 1.8 (linear)
+                double ratio = (double) (weightGrams - 15000) / (35000 - 15000);
+                yield 1.2 + (ratio * 0.6); // 1.8 - 1.2 = 0.6
+            }
+            case CRITICAL -> 2.0;
+        };
+    }
+
+    public long getStaminaRecoveryDelayPenalty(int weightGrams) {
+        return switch (this) {
+            case LIGHT -> -300L; // -0.3 seconds
+            case NORMAL -> 0L;
+            case HEAVY -> {
+                // 15,001〜35,000g: +500ms → +2000ms (linear)
+                double ratio = (double) (weightGrams - 15000) / (35000 - 15000);
+                yield (long) (500 + (ratio * 1500)); // 2000 - 500 = 1500
+            }
+            case CRITICAL -> 3000L; // +3 seconds
+        };
+    }
+
     public static WeightStage getFromWeight(int weightGrams) {
         if (weightGrams <= LIGHT.upperLimit) return LIGHT;
         if (weightGrams <= NORMAL.upperLimit) return NORMAL;

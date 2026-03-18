@@ -18,6 +18,11 @@ public class PlayerData {
     private int currentWeight; // グラム単位
     private WeightStage weightStage;
 
+    // スタミナシステム
+    private float stamina;
+    private long lastStaminaActionTime;
+    private boolean isExhausted;
+
     // Stash
     private int stashLevel;
     private java.util.Map<Integer, String> stashPages; // Page index (1-based) to Base64 serialized inventory
@@ -43,6 +48,9 @@ public class PlayerData {
         this.experience = 0;
         this.currentWeight = 0;
         this.weightStage = WeightStage.LIGHT;
+        this.stamina = 100.0f;
+        this.lastStaminaActionTime = 0L;
+        this.isExhausted = false;
         this.stashLevel = 1;
         this.stashPages = new java.util.HashMap<>();
         this.dailyPurchases = new java.util.HashMap<>();
@@ -79,6 +87,40 @@ public class PlayerData {
     public void setWeightStage(WeightStage weightStage) {
         if (this.weightStage != weightStage) {
             this.weightStage = weightStage;
+            this.dirty = true;
+        }
+    }
+
+    public float getStamina() {
+        return stamina;
+    }
+
+    public void setStamina(float stamina) {
+        float clampedStamina = Math.max(0, Math.min(100, stamina));
+        if (this.stamina != clampedStamina) {
+            this.stamina = clampedStamina;
+            this.dirty = true;
+        }
+    }
+
+    public long getLastStaminaActionTime() {
+        return lastStaminaActionTime;
+    }
+
+    public void setLastStaminaActionTime(long lastStaminaActionTime) {
+        if (this.lastStaminaActionTime != lastStaminaActionTime) {
+            this.lastStaminaActionTime = lastStaminaActionTime;
+            this.dirty = true;
+        }
+    }
+
+    public boolean isExhausted() {
+        return isExhausted;
+    }
+
+    public void setExhausted(boolean exhausted) {
+        if (this.isExhausted != exhausted) {
+            this.isExhausted = exhausted;
             this.dirty = true;
         }
     }
