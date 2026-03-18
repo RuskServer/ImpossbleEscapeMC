@@ -32,6 +32,7 @@ public class WeightModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
     private PlayerDataModule dataModule;
     private static final NamespacedKey SPEED_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_speed_penalty");
+    private static final NamespacedKey GRAVITY_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_gravity_penalty");
     private final Map<UUID, WeightStage> lastStages = new HashMap<>();
 
     @Override
@@ -148,6 +149,9 @@ public class WeightModule implements IModule, Listener {
                 player.setSprinting(false);
             }
         }
+        
+        // 3. ジャンプ力(重力)の補正
+        updateGravityModifier(player, weight);
     }
 
     private void updateSpeedModifier(Player player, int weight) {
@@ -171,22 +175,36 @@ public class WeightModule implements IModule, Listener {
         }
     }
 
+    private void updateGravityModifier(Player player, int weight) {
+        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
+        if (gravity == null) return;
+
+        gravity.removeModifier(GRAVITY_MODIFIER_KEY);
+
+        // 15kg (Normalの上限) から重力ペナルティを開始
+        if (weight > 15000) {
+            // 15,001g -> 50,000g (ハード上限) の範囲で線形に増加
+            // 増加量は 0 (ペナルティなし) から 0.2 (ジャンプほぼ不可) まで
+            double ratio = Math.min(1.0, (double) (weight - 15000) / (50000 - 15000));
+            double penalty = ratio * 0.2; // Max penalty of +0.2 makes gravity very strong
+
+            gravity.addModifier(new AttributeModifier(GRAVITY_MODIFIER_KEY, penalty, AttributeModifier.Operation.ADD_NUMBER));
+        }
+    }
+
     private void resetAttributes(Player player) {
         AttributeInstance moveSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (moveSpeed != null) {
             moveSpeed.removeModifier(SPEED_MODIFIER_KEY);
         }
+        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
+        if (gravity != null) {
+            gravity.removeModifier(GRAVITY_MODIFIER_KEY);
+        }
     }
 
     @EventHandler
     public void onJump(PlayerJumpEvent event) {
-        Player player = event.getPlayer();
-        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
-        if (data == null) return;
-
-        // Critical 45kg: ジャンプ不可
-        if (data.getCurrentWeight() >= 45000) {
-            event.setCancelled(true);
-        }
+        // ジャンプ力の制御はAttributeで行うため、イベントキャンセルは不要
     }
 }

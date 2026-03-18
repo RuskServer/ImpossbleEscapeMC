@@ -27,12 +27,13 @@ public class StaminaModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
     private PlayerDataModule dataModule;
     private static final NamespacedKey EXHAUSTION_SPEED_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "exhaustion_speed_penalty");
+    private static final NamespacedKey EXHAUSTION_GRAVITY_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "exhaustion_gravity_penalty");
 
     // --- Constants ---
     private static final float MAX_STAMINA = 100.0f;
     // Consumption (per tick)
     private static final float SPRINT_COST_PER_TICK = 8.0f / 20.0f;
-    private static final float JUMP_COST = 12.0f;
+    private static final float JUMP_COST = 8.0f;
     // Recovery
     private static final float RECOVERY_PER_TICK = 12.0f / 20.0f;
     private static final long BASE_RECOVERY_DELAY_MS = 1500;
@@ -140,16 +141,28 @@ public class StaminaModule implements IModule, Listener {
 
     private void applyExhaustionEffect(Player player, PlayerData data) {
         data.setExhausted(true);
+        // Apply speed reduction
         AttributeInstance moveSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (moveSpeed != null) {
             moveSpeed.addModifier(new AttributeModifier(EXHAUSTION_SPEED_MODIFIER_KEY, -0.2, AttributeModifier.Operation.ADD_SCALAR));
         }
+        // Apply gravity penalty (halve jump height)
+        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
+        if (gravity != null) {
+            gravity.addModifier(new AttributeModifier(EXHAUSTION_GRAVITY_MODIFIER_KEY, 0.08, AttributeModifier.Operation.ADD_NUMBER));
+        }
     }
 
     private void removeExhaustionEffect(Player player) {
+        // Remove speed reduction
         AttributeInstance moveSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (moveSpeed != null) {
             moveSpeed.removeModifier(EXHAUSTION_SPEED_MODIFIER_KEY);
+        }
+        // Remove gravity penalty
+        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
+        if (gravity != null) {
+            gravity.removeModifier(EXHAUSTION_GRAVITY_MODIFIER_KEY);
         }
     }
 }
