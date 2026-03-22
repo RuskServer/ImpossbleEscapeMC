@@ -1,6 +1,6 @@
 # Contributing to ImpossbleEscapeMC
 
-ImpossbleEscapeMC へのコントリビュートありがとうございます。  
+ImpossbleEscapeMCへの貢献を検討していただきありがとうございます。
 このドキュメントは「何を守って、どう実装して、どうPRを出すか」を短くまとめたガイドです。
 
 ## Quick Start
