@@ -23,16 +23,20 @@ public class BloodEffect {
         World world = loc.getWorld();
         if (world == null) return;
 
-        int particleCount = (int) (intensity); // 2倍からさらに半分（1倍）に減少
+        // 発生位置を下げて、首から胸のあたりから出るように調整（視界確保）
+        loc.add(0, -0.2, 0);
+
+        // パーティクル量を抑え、上限を設ける
+        int particleCount = Math.min(10, (int) (intensity * 0.5 + 1)); 
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
         // 1. メインの飛沫
         for (int i = 0; i < particleCount; i++) {
-            Vector v = (direction != null) ? direction.clone().multiply(0.2) : new Vector(0, 0, 0);
+            Vector v = (direction != null) ? direction.clone().multiply(0.12) : new Vector(0, 0, 0);
             v.add(new Vector(
-                    random.nextDouble(-0.15, 0.15),
-                    random.nextDouble(-0.1, 0.2),
-                    random.nextDouble(-0.15, 0.15)
+                    random.nextDouble(-0.1, 0.1),
+                    random.nextDouble(-0.25, 0.05), // ほぼ下向き〜水平に飛ぶように
+                    random.nextDouble(-0.1, 0.1)
             ));
 
             world.spawnParticle(
@@ -40,21 +44,19 @@ public class BloodEffect {
                     loc,
                     0, 
                     v.getX(), v.getY(), v.getZ(),
-                    0.8, // スピードも少し抑える
+                    0.5, // スピードをさらに抑制
                     BLOOD_DATA
             );
         }
 
-        // 2. 血霧（量をさらに減らす）
+        // 2. 血霧（非常に薄く）
         world.spawnParticle(
                 Particle.DUST,
                 loc,
-                (int) (intensity / 4 + 1),
-                0.1, 0.1, 0.1,
-                0.05,
-                new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 0, 0), 0.8f)
+                Math.min(3, (int) (intensity / 8 + 1)),
+                0.05, 0.05, 0.05,
+                0.01,
+                new Particle.DustOptions(org.bukkit.Color.fromRGB(100, 0, 0), 0.5f)
         );
-
-        // 3. 滴り（残留エフェクト）は削除
     }
 }
