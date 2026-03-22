@@ -1,6 +1,5 @@
 # ImpossbleEscapeMC
 
-[![Version](https://img.shields.io/badge/version-2026.03.08-2f81f7)](https://github.com/RuskServer/ImpossbleEscapeMC/releases)
 ![Java](https://img.shields.io/badge/Java-21-ff7a18)
 ![Platform](https://img.shields.io/badge/Paper-1.21.x-2ea043)
 [![License](https://img.shields.io/badge/License-AGPLv3-f2cc60)](LICENSE)
