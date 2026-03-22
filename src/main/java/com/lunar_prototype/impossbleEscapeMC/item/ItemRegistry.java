@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
+import com.lunar_prototype.impossbleEscapeMC.item.parser.AmmoDefinitionParser;
+import com.lunar_prototype.impossbleEscapeMC.item.parser.AttachmentDefinitionParser;
+import com.lunar_prototype.impossbleEscapeMC.item.parser.ItemDefinitionParser;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -24,38 +27,27 @@ public class ItemRegistry {
         File folder = new File(plugin.getDataFolder(), "items");
         if (!folder.exists()) {
             folder.mkdirs();
-            // 初回起動時に空のフォルダを作成
-            return;
         }
 
         ITEM_MAP.clear();
         AMMO_MAP.clear();
         ATTACHMENT_MAP.clear();
+
+        // --- Ammo 読み込み ---
         File ammofolder = new File(plugin.getDataFolder(), "ammo");
         if (!ammofolder.exists()) {
             ammofolder.mkdirs();
-            // 初回起動時に空のフォルダを作成
-            return;
-        }
-        File[] ammoFiles = ammofolder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (ammoFiles == null)
-            return;
-
-        for (File file : ammoFiles) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            for (String key : config.getKeys(false)) {
-                ConfigurationSection section = config.getConfigurationSection(key);
-                AmmoDefinition ammo = new AmmoDefinition();
-                ammo.id = key;
-                ammo.caliber = section.getString("caliber");
-                ammo.damage = section.getDouble("damage");
-                ammo.ammoClass = section.getInt("ammoClass");
-                ammo.displayName = section.getString("displayName", key);
-                ammo.material = section.getString("material", "IRON_NUGGET");
-                ammo.rarity = section.getInt("rarity", 1);
-                ammo.weight = getWeight(section);
-                ammo.customModelData = section.getInt("customModelData", 0);
-                AMMO_MAP.put(key, ammo);
+        } else {
+            File[] ammoFiles = ammofolder.listFiles((dir, name) -> name.endsWith(".yml"));
+            if (ammoFiles != null) {
+                for (File file : ammoFiles) {
+                    YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+                    for (String key : config.getKeys(false)) {
+                        ConfigurationSection section = config.getConfigurationSection(key);
+                        AmmoDefinition ammo = AmmoDefinitionParser.parse(key, section);
+                        if (ammo != null) AMMO_MAP.put(key, ammo);
+                    }
+                }
             }
         }
 
@@ -63,155 +55,36 @@ public class ItemRegistry {
         File attachmentFolder = new File(plugin.getDataFolder(), "attachments");
         if (!attachmentFolder.exists()) {
             attachmentFolder.mkdirs();
+        } else {
+            File[] attachmentFiles = attachmentFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+            if (attachmentFiles != null) {
+                for (File file : attachmentFiles) {
+                    YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+                    for (String key : config.getKeys(false)) {
+                        ConfigurationSection section = config.getConfigurationSection(key);
+                        AttachmentDefinition att = AttachmentDefinitionParser.parse(key, section);
+                        if (att != null) ATTACHMENT_MAP.put(key, att);
+                    }
+                }
+            }
         }
-        File[] attachmentFiles = attachmentFolder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (attachmentFiles != null) {
-            for (File file : attachmentFiles) {
+
+        // --- Item 読み込み ---
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files != null) {
+            for (File file : files) {
                 YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
                 for (String key : config.getKeys(false)) {
                     ConfigurationSection section = config.getConfigurationSection(key);
-                    if (section == null)
-                        continue;
-                    AttachmentDefinition att = new AttachmentDefinition();
-                    att.id = key;
-                    att.displayName = section.getString("displayName", key);
-                    att.material = section.getString("material", "IRON_NUGGET");
-                    att.slot = AttachmentSlot.fromName(section.getString("slot", "SIGHT"));
-                    att.modelId = section.getString("modelId", key);
-                    att.customModelData = section.getInt("customModelData", 0);
-                    att.rarity = section.getInt("rarity", 1);
-                    att.weight = getWeight(section);
-                    ATTACHMENT_MAP.put(key, att);
+                    ItemDefinition def = ItemDefinitionParser.parse(key, section);
+                    if (def != null) ITEM_MAP.put(key, def);
                 }
             }
         }
 
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null)
-            return;
-
-        for (File file : files) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            for (String key : config.getKeys(false)) {
-                ConfigurationSection section = config.getConfigurationSection(key);
-                if (section == null)
-                    continue;
-
-                ItemDefinition def = new ItemDefinition();
-                def.id = key;
-                def.type = section.getString("type");
-                def.material = section.getString("material");
-                def.rarity = section.getInt("rarity");
-                def.customModelData = section.getInt("customModelData", 0);
-                def.maxDurability = section.getInt("maxDurability");
-                def.weight = getWeight(section);
-                def.displayName = section.getString("displayName", key);
-
-                // Affixの読み込み
-                if (section.contains("affixes")) {
-                    List<Affix> affixes = new ArrayList<>();
-                    for (Map<?, ?> map : section.getMapList("affixes")) {
-                        Affix affix = new Affix();
-                        affix.stat = (String) map.get("stat");
-                        affix.min = ((Number) map.get("min")).doubleValue();
-                        affix.max = ((Number) map.get("max")).doubleValue();
-                        affixes.add(affix);
-                    }
-                    def.affixes = affixes;
-                }
-
-                // --- GunStats の読み込み処理を追加 ---
-                if (section.contains("gunStats")) {
-                    ConfigurationSection gunSection = section.getConfigurationSection("gunStats");
-                    if (gunSection != null) {
-                        GunStats gStats = new GunStats();
-                        gStats.damage = gunSection.getDouble("damage");
-                        gStats.recoil = gunSection.getDouble("recoil");
-                        gStats.rpm = gunSection.getInt("rpm");
-                        gStats.magSize = gunSection.getInt("magSize");
-                        gStats.fireMode = gunSection.getString("fireMode", "SEMI");
-                        gStats.customModelData = gunSection.getInt("customModelData", 0);
-                        gStats.adsTime = gunSection.getInt("adsTime", 200);
-                        gStats.boltingTime = gunSection.getInt("boltingTime", 1000); // デフォルト1000ms
-                        gStats.caliber = gunSection.getString("caliber");
-                        gStats.shotSound = gunSection.getString("shotSound", "ENTITY_GENERIC_EXPLODE"); // デフォルト値
-                        gStats.boltType = gunSection.getString("boltType", "CLOSED");
-                        gStats.defaultAttachments = gunSection.getStringList("attachments"); // 【追加】デフォルトアタッチメント読み込み
-
-                        gStats.reloadAnimation = parseAnimation(gunSection, "reloadAnimation");
-                        gStats.tacticalReloadAnimation = parseAnimation(gunSection, "tacticalReloadAnimation");
-                        gStats.reloadLoopAnimation = parseAnimation(gunSection, "reloadLoopAnimation"); // ショットガン用
-                        gStats.boltingAnimation = parseAnimation(gunSection, "boltingAnimation"); // ボルトアニメーション
-                        gStats.independentAnimation = parseAnimation(gunSection, "independentAnimation"); // 独立アニメーション
-                        
-                        if (gunSection.contains("validIndependentAnimStates")) {
-                            gStats.validIndependentAnimStates = gunSection.getStringList("validIndependentAnimStates");
-                        }
-
-                        gStats.aimAnimation = parseAnimation(gunSection, "aimAnimation");
-                        gStats.sprintAnimation = parseAnimation(gunSection, "sprintAnimation");
-                        gStats.idleAnimation = parseAnimation(gunSection, "idleAnimation");
-                        gStats.scope = parseScope(gunSection, "scope"); // 【追加】スコープ設定
-                        gStats.pelletCount = gunSection.getInt("pelletCount", 1); // ショットガン用（デフォルト1）
-
-                        def.gunStats = gStats;
-                    }
-                }
-
-                if (section.contains("medStats")) {
-                    ConfigurationSection medSection = section.getConfigurationSection("medStats");
-                    if (medSection != null) {
-                        MedStats mStats = new MedStats();
-                        mStats.heal = medSection.getDouble("heal");
-                        mStats.useTime = medSection.getInt("useTime");
-                        mStats.bleedStop = medSection.getBoolean("bleedStop");
-                        
-                        // --- Continuous medical settings ---
-                        mStats.continuous = medSection.getBoolean("continuous", false);
-                        mStats.healPerUse = medSection.getDouble("healPerUse", 0.0);
-                        mStats.durabilityPerUse = medSection.getInt("durabilityPerUse", 0);
-                        mStats.usingCustomModelData = medSection.getInt("usingCustomModelData", 0);
-
-                        // --- One-time/CAT settings ---
-                        mStats.oneTime = medSection.getBoolean("oneTime", false);
-                        mStats.cureBleeding = medSection.getBoolean("cureBleeding", false);
-                        mStats.cureLegFracture = medSection.getBoolean("cureLegFracture", false);
-                        mStats.cureArmFracture = medSection.getBoolean("cureArmFracture", false);
-                        mStats.durationTicks = medSection.getInt("durationTicks", 0);
-
-                        def.medStats = mStats;
-                    }
-                }
-
-                // --- ArmorStats の読み込み ---
-                if (section.contains("armorStats")) {
-                    ConfigurationSection armorSection = section.getConfigurationSection("armorStats");
-                    if (armorSection != null) {
-                        ArmorStats aStats = new ArmorStats();
-                        aStats.defense = armorSection.getInt("defense", 0);
-                        aStats.armorClass = armorSection.getInt("armorClass", 1);
-                        aStats.customModelData = armorSection.getInt("customModelData", 0);
-                        aStats.slot = armorSection.getString("slot", null);
-                        aStats.equipSound = armorSection.getString("equipSound");
-                        aStats.model = armorSection.getString("model");
-                        // Support both camelCase and snake_case
-                        aStats.cameraOverlay = armorSection.contains("camera_overlay")
-                                ? armorSection.getString("camera_overlay")
-                                : armorSection.getString("cameraOverlay");
-
-                        aStats.dispensable = armorSection.getBoolean("dispensable", true);
-                        aStats.swappable = armorSection.getBoolean("swappable", true);
-                        aStats.damageOnHurt = armorSection.getBoolean("damageOnHurt", true);
-
-                        def.armorStats = aStats;
-                    }
-                }
-
-                ITEM_MAP.put(key, def);
-            }
-        }
         plugin.getLogger().info(ITEM_MAP.size() + " items loaded from /items folder.");
         plugin.getLogger().info(AMMO_MAP.size() + " items loaded from /ammo folder.");
+        plugin.getLogger().info(ATTACHMENT_MAP.size() + " attachments loaded from /attachments folder.");
     }
 
     public static ItemDefinition get(String id) {
@@ -271,43 +144,5 @@ public class ItemRegistry {
             }
         }
         return weakest;
-    }
-
-    private static GunStats.AnimationStats parseAnimation(ConfigurationSection section, String key) {
-        if (!section.contains(key))
-            return null;
-        ConfigurationSection animSection = section.getConfigurationSection(key);
-        if (animSection == null)
-            return null;
-
-        GunStats.AnimationStats stats = new GunStats.AnimationStats();
-        stats.model = animSection.getString("model");
-        stats.frameCount = animSection.getInt("frameCount");
-        stats.fps = animSection.getInt("fps");
-        stats.playbackSpeed = animSection.getDouble("playbackSpeed", 1.0);
-        return stats;
-    }
-
-    private static GunStats.ScopeStats parseScope(ConfigurationSection section, String key) {
-        if (!section.contains(key))
-            return null;
-        ConfigurationSection scopeSection = section.getConfigurationSection(key);
-        if (scopeSection == null)
-            return null;
-
-        GunStats.ScopeStats stats = new GunStats.ScopeStats();
-        stats.zoom = scopeSection.getDouble("zoom", 1.0);
-        return stats;
-    }
-
-    private static int getWeight(ConfigurationSection section) {
-        if (section == null) {
-            return 0;
-        }
-        if (section.contains("weight")) {
-            return section.getInt("weight", 0);
-        }
-        // backward/alt key support
-        return section.getInt("weightGrams", 0);
     }
 }
