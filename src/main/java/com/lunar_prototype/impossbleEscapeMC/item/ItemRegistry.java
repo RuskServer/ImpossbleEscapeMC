@@ -53,6 +53,7 @@ public class ItemRegistry {
                 ammo.displayName = section.getString("displayName", key);
                 ammo.material = section.getString("material", "IRON_NUGGET");
                 ammo.rarity = section.getInt("rarity", 1);
+                ammo.weight = getWeight(section);
                 ammo.customModelData = section.getInt("customModelData", 0);
                 AMMO_MAP.put(key, ammo);
             }
@@ -79,6 +80,7 @@ public class ItemRegistry {
                     att.modelId = section.getString("modelId", key);
                     att.customModelData = section.getInt("customModelData", 0);
                     att.rarity = section.getInt("rarity", 1);
+                    att.weight = getWeight(section);
                     ATTACHMENT_MAP.put(key, att);
                 }
             }
@@ -102,6 +104,7 @@ public class ItemRegistry {
                 def.rarity = section.getInt("rarity");
                 def.customModelData = section.getInt("customModelData", 0);
                 def.maxDurability = section.getInt("maxDurability");
+                def.weight = getWeight(section);
                 def.displayName = section.getString("displayName", key);
 
                 // Affixの読み込み
@@ -295,5 +298,16 @@ public class ItemRegistry {
         GunStats.ScopeStats stats = new GunStats.ScopeStats();
         stats.zoom = scopeSection.getDouble("zoom", 1.0);
         return stats;
+    }
+
+    private static int getWeight(ConfigurationSection section) {
+        if (section == null) {
+            return 0;
+        }
+        if (section.contains("weight")) {
+            return section.getInt("weight", 0);
+        }
+        // backward/alt key support
+        return section.getInt("weightGrams", 0);
     }
 }
