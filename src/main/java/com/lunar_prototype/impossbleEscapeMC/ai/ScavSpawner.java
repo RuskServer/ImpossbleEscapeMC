@@ -1,28 +1,43 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 public class ScavSpawner implements Listener {
+    private static final Random RANDOM = new Random();
+    private static final double ARMOR_BOTH_EQUIP_CHANCE = 0.60;
+    private static final double ARMOR_SINGLE_EQUIP_CHANCE = 0.35;
+    // 完全未装備は低確率
+    private static final double ARMOR_NONE_EQUIP_CHANCE = 0.05;
+    private static final double ARMOR_CLASS_2_CHANCE = 0.45;
+    private static final double ARMOR_CLASS_3_CHANCE = 0.45;
+    // class4 はレア
+    private static final double ARMOR_CLASS_4_CHANCE = 0.10;
 
     private final ImpossbleEscapeMC plugin;
     private final GunListener gunListener;
@@ -111,20 +126,124 @@ public class ScavSpawner implements Listener {
     }
 
     private void setupRandomArmor(Mob scav) {
-        java.util.Random rand = new java.util.Random();
-        var inv = scav.getEquipment();
+        EntityEquipment inv = scav.getEquipment();
+        if (inv == null) {
+            return;
+        }
 
-        // アーマークラスを考慮して、バニラ素材を割り当て
-        // GunListener.getArmorClass() がこれを見て貫通判定を行う
-        Material[] helmets = { Material.IRON_HELMET, Material.CHAINMAIL_HELMET };
-        Material[] chests = { Material.IRON_CHESTPLATE, Material.DIAMOND_CHESTPLATE, Material.LEATHER_CHESTPLATE };
+        // まずは全個体を空にして、未装備個体も自然に混ざるようにする
+        inv.setHelmet(null);
+        inv.setChestplate(null);
 
-        inv.setHelmet(new ItemStack(helmets[rand.nextInt(helmets.length)]));
-        inv.setChestplate(new ItemStack(chests[rand.nextInt(chests.length)]));
+        double equipRoll = RANDOM.nextDouble();
+        boolean equipBoth = equipRoll < ARMOR_BOTH_EQUIP_CHANCE;
+        boolean equipSingle = !equipBoth && equipRoll < (ARMOR_BOTH_EQUIP_CHANCE + ARMOR_SINGLE_EQUIP_CHANCE);
+        boolean equipNone = !equipBoth && !equipSingle;
 
-        // 防具のドロップ率も低めに設定
-        inv.setHelmetDropChance(0.05f);
-        inv.setChestplateDropChance(0.05f);
+        if (equipNone || !hasValidArmorEquipRateConfig()) {
+            inv.setHelmetDropChance(0.0f);
+            inv.setChestplateDropChance(0.0f);
+            return;
+        }
+
+        int armorClass = rollArmorClass();
+        List<ItemDefinition> classArmors = ItemRegistry.getArmorItemsByClass(armorClass);
+        Map<Integer, List<ItemDefinition>> armorsByClass = ItemRegistry.getArmorItemsGroupedByClass();
+
+        String helmetId = pickArmorIdBySlot(classArmors, true);
+        String chestId = pickArmorIdBySlot(classArmors, false);
+
+        // 指定クラスに該当スロットが無い場合のフォールバック
+        if (helmetId == null) {
+            helmetId = pickArmorIdBySlot(armorsByClass.getOrDefault(2, Collections.emptyList()), true);
+        }
+        if (helmetId == null) {
+            helmetId = pickArmorIdBySlot(armorsByClass.getOrDefault(3, Collections.emptyList()), true);
+        }
+        if (chestId == null) {
+            chestId = pickArmorIdBySlot(armorsByClass.getOrDefault(2, Collections.emptyList()), false);
+        }
+        if (chestId == null) {
+            chestId = pickArmorIdBySlot(armorsByClass.getOrDefault(3, Collections.emptyList()), false);
+        }
+
+        boolean equipHelmetOnly = equipSingle && RANDOM.nextBoolean();
+        boolean equipChestOnly = equipSingle && !equipHelmetOnly;
+
+        if (helmetId != null && (equipBoth || equipHelmetOnly)) {
+            ItemStack helmet = ItemFactory.create(helmetId);
+            if (helmet != null) {
+                inv.setHelmet(helmet);
+            }
+        }
+        if (chestId != null && (equipBoth || equipChestOnly)) {
+            ItemStack chest = ItemFactory.create(chestId);
+            if (chest != null) {
+                inv.setChestplate(chest);
+            }
+        }
+
+        // 防具のドロップ率は低め
+        inv.setHelmetDropChance(inv.getHelmet() != null ? 0.05f : 0.0f);
+        inv.setChestplateDropChance(inv.getChestplate() != null ? 0.05f : 0.0f);
+    }
+
+    private int rollArmorClass() {
+        double roll = RANDOM.nextDouble();
+        if (roll < ARMOR_CLASS_2_CHANCE) {
+            return 2;
+        }
+        if (roll < ARMOR_CLASS_2_CHANCE + ARMOR_CLASS_3_CHANCE) {
+            return 3;
+        }
+        if (roll < ARMOR_CLASS_2_CHANCE + ARMOR_CLASS_3_CHANCE + ARMOR_CLASS_4_CHANCE) {
+            return 4;
+        }
+        return 3;
+    }
+
+    private String pickArmorIdBySlot(List<ItemDefinition> armors, boolean helmet) {
+        if (armors == null || armors.isEmpty()) {
+            return null;
+        }
+
+        List<String> candidates = new ArrayList<>();
+        for (ItemDefinition def : armors) {
+            if (def == null || def.id == null || def.armorStats == null) {
+                continue;
+            }
+            if (matchesSlot(def, helmet)) {
+                candidates.add(def.id);
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.get(RANDOM.nextInt(candidates.size()));
+    }
+
+    private boolean matchesSlot(ItemDefinition def, boolean helmet) {
+        String slot = def.armorStats.slot != null ? def.armorStats.slot.toUpperCase() : "";
+        if (helmet) {
+            if ("HEAD".equals(slot) || "HELMET".equals(slot)) {
+                return true;
+            }
+            return containsIgnoreCase(def.id, "helmet") || containsIgnoreCase(def.material, "HELMET");
+        }
+        if ("CHEST".equals(slot) || "CHESTPLATE".equals(slot)) {
+            return true;
+        }
+        return containsIgnoreCase(def.id, "chestplate") || containsIgnoreCase(def.material, "CHESTPLATE");
+    }
+
+    private boolean containsIgnoreCase(String value, String token) {
+        return value != null && value.toLowerCase().contains(token.toLowerCase());
+    }
+
+    private boolean hasValidArmorEquipRateConfig() {
+        double total = ARMOR_BOTH_EQUIP_CHANCE + ARMOR_SINGLE_EQUIP_CHANCE + ARMOR_NONE_EQUIP_CHANCE;
+        return Math.abs(total - 1.0) < 0.000001;
     }
 
     /**

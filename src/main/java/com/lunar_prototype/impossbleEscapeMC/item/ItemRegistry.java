@@ -6,8 +6,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Comparator;
 import java.util.Map;
 
 public class ItemRegistry {
@@ -227,6 +229,33 @@ public class ItemRegistry {
 
     public static AttachmentDefinition getAttachment(String id) {
         return ATTACHMENT_MAP.get(id);
+    }
+
+    public static List<ItemDefinition> getArmorItemsByClass(int armorClass) {
+        List<ItemDefinition> armors = new ArrayList<>();
+        for (ItemDefinition def : ITEM_MAP.values()) {
+            if (def.armorStats != null && def.armorStats.armorClass == armorClass) {
+                armors.add(def);
+            }
+        }
+        armors.sort(Comparator.comparing(def -> def.id));
+        return armors;
+    }
+
+    public static Map<Integer, List<ItemDefinition>> getArmorItemsGroupedByClass() {
+        Map<Integer, List<ItemDefinition>> armorByClass = new HashMap<>();
+        for (ItemDefinition def : ITEM_MAP.values()) {
+            if (def.armorStats == null) {
+                continue;
+            }
+            armorByClass.computeIfAbsent(def.armorStats.armorClass, key -> new ArrayList<>()).add(def);
+        }
+
+        for (List<ItemDefinition> armors : armorByClass.values()) {
+            armors.sort(Comparator.comparing(def -> def.id));
+        }
+
+        return Collections.unmodifiableMap(armorByClass);
     }
 
     public static AmmoDefinition getWeakestAmmoForCaliber(String caliber) {
