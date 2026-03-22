@@ -1,52 +1,149 @@
 # Contributing to ImpossbleEscapeMC
 
-このプロジェクトは、タルコフ風のハードコア・サバイバル体験を提供するMinecraftサーバー「ImpossbleEscapeMC」のコアプラグインです。
+ImpossbleEscapeMC へのコントリビュートありがとうございます。  
+このドキュメントは「何を守って、どう実装して、どうPRを出すか」を短くまとめたガイドです。
 
-## アーキテクチャの指針
+## Quick Start
 
-本プロジェクトは **Modular Monolith** アーキテクチャを採用しています。機能は独立した「モジュール」として実装され、中央のサービスコンテナを通じて疎結合に管理されます。
+### 1) ブランチを切る
 
-### 1. 依存性の注入 (DI) と ServiceContainer
-直接的なシングルトンパターンの使用は避け、`ServiceContainer` を使用して依存関係を解決してください。
+```bash
+git checkout -b feature/your-topic
+# or
+git checkout -b fix/your-topic
+```
 
-- **モジュール間の連携:** `onEnable(ServiceContainer container)` 内で `container.get(ModuleClass.class)` を使用して他のモジュールを取得します。
-- **プラグインインスタンス:** 必要な場合は `ImpossbleEscapeMC.getInstance()` を使用できますが、可能な限りコンストラクタ注入または `ServiceContainer` を優先してください。
+### 2) ビルドして確認する
 
-### 2. モジュールの実装 (`IModule`)
-新しい機能を追加する場合は、`com.lunar_prototype.impossbleEscapeMC.core.IModule` を実装する新しいクラスを作成してください。
+```bash
+mvn clean package
+```
 
-- **初期化:** 全ての初期化ロジックは `IModule#onEnable` に記述します。`JavaPlugin#onEnable` に直接ロジックを書き込まないでください。
-- **クリーンアップ:** リソースの解放、タスクの停止、データの保存などは `onDisable` で確実に行なってください。
-- **登録:** 作成したモジュールは `ImpossbleEscapeMC#onEnable` 内で `moduleBootstrap.registerModule()` を使用して登録する必要があります。
+### 3) 変更をコミットする
 
-### 3. 非同期処理とI/O
-- **ファイル/DBアクセス:** データのロード・保存は必ず非同期 (`CompletableFuture`, `BukkitScheduler#runTaskAsynchronously`) で行い、メインスレッドをブロックしないようにしてください。
-- **スレッド安全性:** 複数のスレッドからアクセスされるデータ（キャッシュなど）には `ConcurrentHashMap` や `Atomic` クラスを使用してください。
+```bash
+git add .
+git commit -m "feat: add scav armor selection by item class"
+```
 
-## コーディング規格
+### 4) PR を作る
 
-### 1. メッセージとテキスト
-- **Adventure API:** `org.bukkit.ChatColor` やセクション記号 (`§`) は非推奨です。必ず Paper の **Adventure Component API** (`Component`, `NamedTextColor` など) を使用してください。
+PR本文には最低限、以下を記載してください。
 
-### 2. 命名規則
-- クラス名: `UpperCamelCase` (例: `GunListener`, `PlayerDataModule`)
-- 変数・メソッド名: `lowerCamelCase` (例: `getPlayerData()`, `isDirty`)
-- 定数: `UPPER_SNAKE_CASE` (例: `MAX_STAMINA`)
+- 目的（なぜ必要か）
+- 変更点（何を変えたか）
+- 影響範囲（どこに影響するか）
+- 確認手順（どう動作確認したか）
 
-### 3. コメント
-- 複雑なロジックやアルゴリズム（特にAI関連）には、その意図を説明するJavaDocまたはインラインコメントを残してください。
-- 日本語でのコメントを許容します。
+## Architecture Rules
 
-## 開発フロー
+このプロジェクトは **Modular Monolith** です。  
+新規機能は「モジュール」として追加し、疎結合を維持してください。
 
-1. **ブランチ作成:** 機能追加やバグ修正は `feature/xxx` や `fix/xxx` ブランチで行なってください。
-2. **テスト:** 変更を加えた後は、必ずビルドが通ること (`mvn clean package`) を確認し、ローカル環境で動作検証を行なってください。
-3. **プルリクエスト (PR):** 変更内容を簡潔にまとめたPRを作成してください。
+### ServiceContainer を優先する
 
-## 依存関係
-- **Paper API:** サーバーのベースAPI。
-- **PacketEvents:** パケットレベルの処理用。
-- **LibsDisguises / Citizens:** NPCおよびエンティティの変装・制御用。
+```java
+@Override
+public void onEnable(ServiceContainer container) {
+    RaidModule raidModule = container.get(RaidModule.class);
+}
+```
 
----
-ご協力ありがとうございます！
+- モジュール間連携は `ServiceContainer` 経由で行う
+- 直接シングルトン参照を増やさない
+- `ImpossbleEscapeMC.getInstance()` は必要時のみ使用
+
+### 新規機能は IModule で実装する
+
+```java
+public final class ExampleModule implements IModule {
+    @Override
+    public void onEnable(ServiceContainer container) {
+        // init
+    }
+
+    @Override
+    public void onDisable() {
+        // cleanup
+    }
+}
+```
+
+- 初期化ロジックは `IModule#onEnable` に置く
+- リソース解放は `onDisable` で必ず行う
+- `ImpossbleEscapeMC#onEnable` で `moduleBootstrap.registerModule(...)` する
+
+## Threading & I/O
+
+メインスレッドをブロックしないことを最優先にしてください。
+
+```java
+CompletableFuture.runAsync(() -> {
+    // file/db/network heavy task
+});
+```
+
+- ファイル/DBアクセスは非同期で実行
+- 共有データは `ConcurrentHashMap` / `Atomic*` などで保護
+
+## Code Style
+
+### Text API
+
+`ChatColor` や `§` は新規コードで使わず、Adventure API を使ってください。
+
+```java
+player.sendMessage(Component.text("Raid started.", NamedTextColor.GREEN));
+```
+
+### Naming
+
+```text
+Class: UpperCamelCase
+method/field: lowerCamelCase
+constant: UPPER_SNAKE_CASE
+```
+
+### Comments
+
+- 複雑な処理（特にAI/状態遷移）は意図を書く
+- 日本語コメントは可
+- 自明なコメントは避ける
+
+## Command / Config Changes
+
+コマンド追加・変更時は以下をセットで更新してください。
+
+```text
+1. src/main/resources/plugin.yml
+2. Command 実装クラス
+3. README.md の Commands セクション
+```
+
+設定キー追加時は以下も更新してください。
+
+```text
+1. default config (config.yml 等)
+2. 読み込みコード
+3. README.md / 必要なら運用ドキュメント
+```
+
+## PR Checklist
+
+PR前にこのチェックを通してください。
+
+```text
+[ ] ビルドが通る (mvn clean package)
+[ ] 追加/変更したコマンドや設定のドキュメントを更新した
+[ ] メインスレッドで重い処理をしていない
+[ ] onDisable で後始末が必要な処理を回収した
+[ ] 変更理由と検証手順をPR本文に書いた
+```
+
+## Dependencies
+
+- Paper API
+- PacketEvents
+- LibsDisguises / Citizens
+
+Thanks for contributing.

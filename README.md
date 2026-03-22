@@ -1,73 +1,76 @@
-# 🌆 ImpossbleEscapeMC
+# ImpossbleEscapeMC
 
-![Version](https://img.shields.io/badge/version-2026.03.08-blue.svg)
-![Java](https://img.shields.io/badge/Java-21-orange.svg)
-![Platform](https://img.shields.io/badge/Platform-Paper%201.21-green.svg)
-![License](https://img.shields.io/badge/License-AGPL-yellow.svg)
+[![Version](https://img.shields.io/badge/version-2026.03.08-2f81f7)](https://github.com/RuskServer/ImpossbleEscapeMC/releases)
+![Java](https://img.shields.io/badge/Java-21-ff7a18)
+![Platform](https://img.shields.io/badge/Paper-1.21.x-2ea043)
+[![License](https://img.shields.io/badge/License-AGPLv3-f2cc60)](LICENSE)
 
-**ImpossbleEscapeMC** は、Minecraft 1.21 (Paper) 向けの高機能タクティカル・サバイバル拡張プラグインです。
-高度な AI を搭載した SCAV、アニメーション同期型の銃器システム、そしてリアルな戦闘体験を提供します。
+> Tactical survival expansion for Minecraft Paper 1.21.x  
+> 高度なSCAV AI、アニメーション同期銃器、リアル寄り戦闘ループを統合したサーバープラグイン。
 
----
+## Overview
 
-## 🚀 主な機能
+ImpossbleEscapeMC は、Minecraft の PvE/PvP 体験を「ルート」「交戦」「脱出」中心に再設計するためのプラグインです。  
+銃器・防具・医療・AI・ミニゲーム管理を同一基盤で扱えるようにし、運用面では YAML ベースで調整できる構成を採用しています。
 
-- **🔫 リアルな銃器システム**:
-  - アニメーション側の秒数に同期したリロード・ボルト操作。
-  - タルコフ風の反動（リコイル）制御と弾道計算（ラグ補填対応）。
-  - 各種アタッチメント（サイト、サプレッサー等）の着脱が可能な GUI システム。
-- **🤖 高度な AI SCAV**:
-  - 視覚・聴覚に基づく索敵、遮蔽物の利用、分隊での連携行動。
-  - ボイスラインシステム搭載（状況に応じた `scav1`〜`4` の音声再生）。
-  - ダメージや制圧射撃に対する心理状態の変化。
-- **🎮 ミニゲーム管理**:
-  - マップ管理、チーム分け、リスポーン制御を含む統合ミニゲームエンジン。
-- **📦 リソースパック同期**:
-  - サーバー専用リソースパックの自動配布とハッシュ値による更新検知。
+## Feature Set
 
----
+| Module | What it gives you |
+| :-- | :-- |
+| Weapon System | リロード/ボルト操作のアニメーション同期、リコイル、弾薬クラス、アタッチメントGUI |
+| SCAV AI | 視覚/聴覚索敵、遮蔽利用、状況反応、ボイスライン |
+| Item Pipeline | `items`/`ammo`/`attachments` YAML ロード、PDC ベース状態管理、ItemFactory 生成 |
+| Minigame Core | チーム管理、リスポーン、ラウンド制御、ロードアウト処理 |
+| Resource Pack Sync | サーバー配布、更新検知（ハッシュ） |
 
-## 📥 ダウンロード
+## Quick Start
 
-本プロジェクトは **CalVer (Calendar Versioning)** を採用しています。
+### 1. Requirements
 
-- **開発版 (Releases)**: 
-  [GitHub Releases](https://github.com/RuskServer/ImpossbleEscapeMC/releases) から最新のタグ（例: `2026.03.08`）をダウンロードしてください。
+- Java 21+
+- Paper 1.21.x
 
----
-
-## 📜 コマンド
-
-| コマンド | 説明 | 権限 |
-| :--- | :--- | :--- |
-| `/getitem <ID>` | 特殊アイテム（銃・弾薬・医療品）を取得 | `impossbleescapemc.getitem` |
-| `/scavspawn` | 現在位置に AI 搭載 SCAV を召喚 | `op` |
-| `/attachment` | 手持ちの銃のアタッチメント GUI を開く | なし |
-| `/itemreload` | アイテム定義（YAML）と Config を再読み込み | `op` |
-| `/mg <start\|stop\|join>` | ミニゲームの管理・参加 | `op` (管理のみ) |
-
----
-
-## 🛠 必要要件
-
-- **Java**: 21 以上
-- **Server**: Paper 1.21.x
-- **Dependency**: 
-  - [PacketEvents](https://github.com/retrooper/packetevents) (ビルド時に含まれます)
-
----
-
-## 🏗 開発とビルド
+### 2. Build
 
 ```bash
 git clone https://github.com/RuskDev/ImpossbleEscapeMC.git
 cd ImpossbleEscapeMC
 mvn clean package
 ```
-ビルドされた JAR は `target/` ディレクトリに生成されます。
 
----
+生成物は `target/` に出力されます。
 
-## 📄 ライセンス
+### 3. Install
 
-このプロジェクトは [AGPLv3](LICENSE) の下で公開されています。
+1. `target/*.jar` をサーバーの `plugins/` へ配置
+2. サーバー起動後、生成される設定を確認
+3. 必要に応じて `items` / `ammo` / `attachments` の YAML を編集
+
+## Commands
+
+| Command | Description | Permission |
+| :-- | :-- | :-- |
+| `/getitem <itemId> [amount]` | 特殊アイテムを取得 | `impossbleescapemc.getitem` |
+| `/scavspawn [x y z]` | SCAV を召喚（`/scavspawn heatmap` でヒートマップ表示切替） | `op` |
+| `/attachment` | 手持ち銃のアタッチメント GUI を開く | none |
+| `/itemreload` | アイテム定義と設定を再読み込み | `op` |
+| `/mg <create\|setspawn\|split\|start\|stop\|loadout> ...` | ミニゲーム管理コマンド | `op` |
+| `/raid <open\|join\|leave\|map\|start\|spawn\|extract\|scavspawn> ...` | レイド管理・出撃コマンド | `op` |
+| `/party <create\|invite\|accept\|leave\|kick\|disband\|info\|chat> ...` | パーティー操作コマンド | none |
+| `/loot <container\|egg\|refill\|reload> ...` | ルートコンテナ管理・再補充 | `op` |
+| `/trader <open\|reload> [traderId]` | トレーダーUIを開く/設定再読み込み | `op` (`reload` は `impossbleescapemc.trader.reload` も使用) |
+
+## Release & Versioning
+
+本プロジェクトは **CalVer**（Calendar Versioning）を採用しています。  
+リリースは [GitHub Releases](https://github.com/RuskServer/ImpossbleEscapeMC/releases) から取得してください。
+
+## Development Notes
+
+- 依存ライブラリは Maven で解決されます（例: PacketEvents）
+- 設定・定義は運用時の変更を想定した YAML 中心設計です
+- アイテム仕様の追加は `ItemRegistry` と `ItemFactory` の拡張が基本導線です
+
+## License
+
+This project is licensed under [AGPLv3](LICENSE).
