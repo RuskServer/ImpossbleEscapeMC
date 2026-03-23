@@ -150,6 +150,11 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(searchGUI, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
 
+        // PacketEvents リスナーの登録
+        com.github.retrooper.packetevents.PacketEvents.getAPI().getEventManager().registerListener(
+                new com.lunar_prototype.impossbleEscapeMC.listener.LobbyVisibilityListener(this)
+        );
+
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
 
