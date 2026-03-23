@@ -141,10 +141,8 @@ public class BulletTask extends BukkitRunnable {
             for (Entity e : potentialVictims) {
                 if (!(e instanceof LivingEntity le) || e.equals(shooter)) continue;
 
-                // ラグ補填 (GunListenerから移植されたロジックが必要だが、一旦シンプルに判定)
-                BoundingBox box = le.getBoundingBox(); 
-                // 本来は GunListener.getCompensatedBox を使うべきだが、BulletTaskに履歴管理を移すか、
-                // あるいは履歴をStaticにアクセス可能にする必要がある。
+                // ラグ補填 (GunListener の履歴から線形補間されたボックスを取得)
+                BoundingBox box = GunListener.getCompensatedBox(le, targetTime);
                 
                 var entityTrace = box.rayTrace(rayStart.toVector(), rayDir, distanceRemaining);
                 if (entityTrace != null) {
