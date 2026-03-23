@@ -80,7 +80,13 @@ public class SearchGUI implements Listener {
     }
 
     private Inventory getInventoryFromSource(Object source) {
-        if (source instanceof Container c) return c.getInventory();
+        if (source instanceof Container c) {
+            // 常に最新の状態をブロックから取得
+            if (c.getBlock().getState() instanceof Container fresh) {
+                return fresh.getInventory();
+            }
+            return c.getInventory();
+        }
         if (source instanceof Mannequin m) {
             String data = m.getPersistentDataContainer().get(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING);
             if (data != null) {
@@ -97,7 +103,12 @@ public class SearchGUI implements Listener {
     }
 
     private PersistentDataContainer getPDCFromSource(Object source) {
-        if (source instanceof Container c) return c.getPersistentDataContainer();
+        if (source instanceof Container c) {
+            if (c.getBlock().getState() instanceof Container fresh) {
+                return fresh.getPersistentDataContainer();
+            }
+            return c.getPersistentDataContainer();
+        }
         if (source instanceof Entity e) return e.getPersistentDataContainer();
         return null;
     }
@@ -160,7 +171,11 @@ public class SearchGUI implements Listener {
 
     private void removeFromSourceInventory(Object source, int slot) {
         if (source instanceof Container c) {
-            c.getInventory().setItem(slot, null);
+            // 最新の状態を取得して変更を適用し、即座に世界へ反映(update)
+            if (c.getBlock().getState() instanceof Container fresh) {
+                fresh.getInventory().setItem(slot, null);
+                fresh.update();
+            }
         } else if (source instanceof Mannequin m) {
             Inventory inv = getInventoryFromSource(source);
             inv.setItem(slot, null);
@@ -217,18 +232,30 @@ public class SearchGUI implements Listener {
     }
 
     private void markAsSearched(Object source, int slot) {
-        PersistentDataContainer pdc = getPDCFromSource(source);
-        if (pdc == null) return;
-
-        Set<Integer> slots = getSearchedSlots(pdc);
-        slots.add(slot);
-        StringBuilder sb = new StringBuilder();
-        for (int s : slots) {
-            if (sb.length() > 0) sb.append(",");
-            sb.append(s);
+        if (source instanceof Container c) {
+            if (c.getBlock().getState() instanceof Container fresh) {
+                PersistentDataContainer pdc = fresh.getPersistentDataContainer();
+                Set<Integer> slots = getSearchedSlots(pdc);
+                slots.add(slot);
+                StringBuilder sb = new StringBuilder();
+                for (int s : slots) {
+                    if (sb.length() > 0) sb.append(",");
+                    sb.append(s);
+                }
+                pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
+                fresh.update();
+            }
+        } else {
+            PersistentDataContainer pdc = getPDCFromSource(source);
+            if (pdc == null) return;
+            Set<Integer> slots = getSearchedSlots(pdc);
+            slots.add(slot);
+            StringBuilder sb = new StringBuilder();
+            for (int s : slots) {
+                if (sb.length() > 0) sb.append(",");
+                sb.append(s);
+            }
+            pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
         }
-        pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
-
-        if (source instanceof Container c) c.update();
     }
 }
