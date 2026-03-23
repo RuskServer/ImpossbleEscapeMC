@@ -49,6 +49,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI searchGUI;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener lootEggListener;
     private com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager corpseManager;
+    private com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager raidMapManager;
 
     private ServiceContainer serviceContainer;
     private ModuleBootstrap moduleBootstrap;
@@ -85,6 +86,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         return corpseManager;
     }
 
+    public com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager getRaidMapManager() {
+        return raidMapManager;
+    }
+
     @Override
     public void onEnable() {
         // Plugin startup logic
@@ -110,6 +115,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
         lootEggListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener(this);
         corpseManager = new com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager(this);
+        raidMapManager = new com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager(this);
 
         // 既存マネージャーをコンテナに登録
         serviceContainer.register(ScavSpawner.class, scavSpawner);
@@ -120,6 +126,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class, searchGUI);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener.class, lootEggListener);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager.class, corpseManager);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager.class, raidMapManager);
 
         // モジュールの登録
         moduleBootstrap.registerModule(new PlayerDataModule(this));
@@ -149,6 +156,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI(raidModule), this);
         getServer().getPluginManager().registerEvents(searchGUI, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.map.MapSlotListener(this, raidMapManager), this);
 
         // PacketEvents リスナーの登録
         com.github.retrooper.packetevents.PacketEvents.getAPI().getEventManager().registerListener(
