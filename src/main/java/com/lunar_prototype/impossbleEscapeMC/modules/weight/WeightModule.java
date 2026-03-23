@@ -6,6 +6,7 @@ import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.attribute.Attribute;
@@ -31,6 +32,7 @@ import org.bukkit.NamespacedKey;
 public class WeightModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
     private PlayerDataModule dataModule;
+    private BackpackModule backpackModule;
     private static final NamespacedKey SPEED_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_speed_penalty");
     private static final NamespacedKey GRAVITY_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_gravity_penalty");
     private final Map<UUID, WeightStage> lastStages = new HashMap<>();
@@ -39,6 +41,7 @@ public class WeightModule implements IModule, Listener {
     public void onEnable(ServiceContainer container) {
         this.plugin = ImpossbleEscapeMC.getInstance();
         this.dataModule = container.get(PlayerDataModule.class);
+        this.backpackModule = container.get(BackpackModule.class);
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
 
@@ -126,6 +129,11 @@ public class WeightModule implements IModule, Listener {
         // メインインベントリ（ホットバー含む）
         for (ItemStack item : player.getInventory().getContents()) {
             total += getItemWeight(item);
+        }
+
+        if (backpackModule != null) {
+            ItemStack offhand = player.getInventory().getItemInOffHand();
+            total += backpackModule.calculateEffectiveContentsWeight(offhand);
         }
         return total;
     }

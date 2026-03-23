@@ -15,4 +15,5 @@ public class ItemDefinition {
     public GunStats gunStats;
     public MedStats medStats;
     public ArmorStats armorStats;
+    public BackpackStats backpackStats;
 }

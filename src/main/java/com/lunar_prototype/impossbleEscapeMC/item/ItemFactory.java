@@ -310,6 +310,13 @@ public class ItemFactory {
             lore.add("");
         }
 
+        if (def != null && def.backpackStats != null) {
+            lore.add("§2§l<< BACKPACK STATS >>");
+            lore.add("§7Slots: §f" + def.backpackStats.size);
+            lore.add("§7Reduction: §f" + String.format("%.0f%%", def.backpackStats.reduction * 100));
+            lore.add("");
+        }
+
         // --- 5. アタッチメントステータス ---
         if (attDef != null) {
             lore.add("§e§l<< ATTACHMENT >>");
