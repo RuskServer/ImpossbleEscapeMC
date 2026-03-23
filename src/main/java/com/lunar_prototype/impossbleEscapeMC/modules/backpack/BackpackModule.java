@@ -58,7 +58,13 @@ public class BackpackModule implements IModule {
         String uid = ensureBackpackUid(backpackItem);
         int size = getBackpackSize(backpackItem);
 
-        Inventory inv = loadInventory(backpackItem, size);
+        LoadInventoryResult loadResult = loadInventory(backpackItem, size);
+        if (loadResult.hasOverflowItems) {
+            player.sendMessage("§cこのバックパックは容量縮小により溢れたアイテムがあります。設定を戻すか中身を整理してください。");
+            return;
+        }
+
+        Inventory inv = loadResult.inventory;
         InventoryHolder holder = new BackpackInventoryHolder(player.getUniqueId(), uid);
         Inventory finalInv = Bukkit.createInventory(holder, size, Component.text("Backpack"));
         if (holder instanceof BackpackInventoryHolder backpackHolder) {
@@ -115,7 +121,8 @@ public class BackpackModule implements IModule {
         if (!isBackpackItem(backpackItem)) return 0;
 
         int size = getBackpackSize(backpackItem);
-        Inventory inventory = loadInventory(backpackItem, size);
+        LoadInventoryResult loadResult = loadInventory(backpackItem, size);
+        Inventory inventory = loadResult.inventory;
 
         int raw = 0;
         for (ItemStack item : inventory.getContents()) {
@@ -157,29 +164,41 @@ public class BackpackModule implements IModule {
         }
     }
 
-    private Inventory loadInventory(ItemStack backpackItem, int size) {
+    private LoadInventoryResult loadInventory(ItemStack backpackItem, int size) {
         ItemMeta meta = backpackItem.getItemMeta();
-        if (meta == null) return Bukkit.createInventory(null, size);
+        if (meta == null) return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
 
         String data = meta.getPersistentDataContainer().get(PDCKeys.BACKPACK_DATA, PDCKeys.STRING);
         if (data == null || data.isEmpty()) {
-            return Bukkit.createInventory(null, size);
+            return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
         }
 
         try {
             Inventory loaded = SerializationUtil.deserializeInventory(data, Component.text("Backpack"));
             if (loaded.getSize() == size) {
-                return loaded;
+                return new LoadInventoryResult(loaded, false);
             }
 
             Inventory resized = Bukkit.createInventory(null, size);
             for (int i = 0; i < Math.min(size, loaded.getSize()); i++) {
                 resized.setItem(i, loaded.getItem(i));
             }
-            return resized;
+
+            boolean hasOverflowItems = false;
+            if (loaded.getSize() > size) {
+                for (int i = size; i < loaded.getSize(); i++) {
+                    ItemStack overflow = loaded.getItem(i);
+                    if (overflow != null && !overflow.getType().isAir()) {
+                        hasOverflowItems = true;
+                        break;
+                    }
+                }
+            }
+
+            return new LoadInventoryResult(resized, hasOverflowItems);
         } catch (Exception e) {
             ImpossbleEscapeMC.getInstance().getLogger().warning("Failed to load backpack inventory: " + e.getMessage());
-            return Bukkit.createInventory(null, size);
+            return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
         }
     }
 
@@ -210,6 +229,16 @@ public class BackpackModule implements IModule {
 
         private BackpackSession(String backpackUid) {
             this.backpackUid = backpackUid;
+        }
+    }
+
+    private static class LoadInventoryResult {
+        private final Inventory inventory;
+        private final boolean hasOverflowItems;
+
+        private LoadInventoryResult(Inventory inventory, boolean hasOverflowItems) {
+            this.inventory = inventory;
+            this.hasOverflowItems = hasOverflowItems;
         }
     }
 
