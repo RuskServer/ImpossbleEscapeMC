@@ -24,6 +24,10 @@ public class RaidMapRenderer extends MapRenderer {
 
     @Override
     public void render(@NotNull MapView map, @NotNull MapCanvas canvas, @NotNull Player player) {
+        // 地図の中心をプレイヤーに合わせる（リアルタイム更新）
+        map.setCenterX(player.getLocation().getBlockX());
+        map.setCenterZ(player.getLocation().getBlockZ());
+
         MapCursorCollection cursors = canvas.getCursors();
 
         RaidInstance raid = plugin.getRaidModule().getActiveRaids().stream()
@@ -32,28 +36,18 @@ public class RaidMapRenderer extends MapRenderer {
 
         if (raid == null) return;
 
-        // すでにアイコンが追加されているかチェック (描画のたびに増えないようにする)
-        // または、MapRenderer 内で毎回クリアするか。
-        // バニラの風景を残したままアイコンを制御するには、描画ごとにクリアして良い（Cursorsはオーバーレイなので）
+        // 描画ごとにクリアして、アイコンを再構築（Cursorsはオーバーレイなので）
         while (cursors.size() > 0) {
             cursors.removeCursor(cursors.getCursor(0));
         }
 
         // 1. 自分の位置を描画 (Green pointer)
-        addPlayerCursor(cursors, map, player);
+        // 中心座標に合わせているので (0, 0)
+        byte direction = (byte) (Math.round(player.getLocation().getYaw() * 16 / 360) & 0xF);
+        cursors.addCursor(new MapCursor((byte) 0, (byte) 0, direction, MapCursor.Type.PLAYER, true));
 
         // 2. 脱出地点を描画 (Red flags / Portals)
         drawExtractions(cursors, map, player, raid);
-    }
-
-    private void addPlayerCursor(MapCursorCollection cursors, MapView map, Player player) {
-        int x = clampCoordinate(calculateMapX(map, player.getLocation().getX()));
-        int z = clampCoordinate(calculateMapZ(map, player.getLocation().getZ()));
-        
-        // Direction (0-15)
-        byte direction = (byte) (Math.round(player.getLocation().getYaw() * 16 / 360) & 0xF);
-        
-        cursors.addCursor(new MapCursor((byte) x, (byte) z, direction, MapCursor.Type.PLAYER, true));
     }
 
     private void drawExtractions(MapCursorCollection cursors, MapView map, Player player, RaidInstance raid) {
