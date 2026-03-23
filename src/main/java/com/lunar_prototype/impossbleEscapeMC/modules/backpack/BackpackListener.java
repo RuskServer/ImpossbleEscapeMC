@@ -159,7 +159,7 @@ public class BackpackListener implements Listener {
     public void onSwap(PlayerSwapHandItemsEvent event) {
         Player player = event.getPlayer();
         if (player.getOpenInventory().getTopInventory().getHolder() instanceof BackpackModule.BackpackInventoryHolder) {
-            Bukkit.getScheduler().runTask(plugin, player::closeInventory);
+            Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
         }
     }
 
