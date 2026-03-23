@@ -24,9 +24,11 @@ import java.util.UUID;
 
 public class BackpackModule implements IModule {
     private final Map<UUID, BackpackSession> sessions = new HashMap<>();
+    private BackpackDisplayManager displayManager;
 
     @Override
     public void onEnable(ServiceContainer container) {
+        displayManager = new BackpackDisplayManager(ImpossbleEscapeMC.getInstance());
         Bukkit.getPluginManager().registerEvents(new BackpackListener(this), ImpossbleEscapeMC.getInstance());
     }
 
@@ -40,6 +42,13 @@ public class BackpackModule implements IModule {
             }
         }
         sessions.clear();
+        if (displayManager != null) {
+            displayManager.shutdown();
+        }
+    }
+
+    public BackpackDisplayManager getDisplayManager() {
+        return displayManager;
     }
 
     public boolean openBackpackFromOffhand(Player player) {
