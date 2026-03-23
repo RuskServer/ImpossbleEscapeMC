@@ -113,6 +113,19 @@ public class BackpackListener implements Listener {
                 }
             }
 
+            // F-key offhand swap move into backpack
+            if (event.getClickedInventory().equals(event.getView().getTopInventory())
+                    && event.getClick() == ClickType.SWAP_OFFHAND) {
+                ItemStack offhandItem = event.getWhoClicked().getInventory().getItemInOffHand();
+                if (backpackModule.isBackpackItem(offhandItem)) {
+                    event.setCancelled(true);
+                    if (event.getWhoClicked() instanceof Player player) {
+                        player.sendMessage("§cバックパックの中にバックパックは入れられません。");
+                    }
+                    return;
+                }
+            }
+
         }
     }
 

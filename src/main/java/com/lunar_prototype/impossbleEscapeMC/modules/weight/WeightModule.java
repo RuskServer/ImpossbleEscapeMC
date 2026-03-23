@@ -129,11 +129,9 @@ public class WeightModule implements IModule, Listener {
         // メインインベントリ（ホットバー含む）
         for (ItemStack item : player.getInventory().getContents()) {
             total += getItemWeight(item);
-        }
-
-        if (backpackModule != null) {
-            ItemStack offhand = player.getInventory().getItemInOffHand();
-            total += backpackModule.calculateEffectiveContentsWeight(offhand);
+            if (backpackModule != null && backpackModule.isBackpackItem(item)) {
+                total += backpackModule.calculateEffectiveContentsWeight(item);
+            }
         }
         return total;
     }
