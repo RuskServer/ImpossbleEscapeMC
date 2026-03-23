@@ -25,9 +25,6 @@ public class RaidMapRenderer extends MapRenderer {
     @Override
     public void render(@NotNull MapView map, @NotNull MapCanvas canvas, @NotNull Player player) {
         MapCursorCollection cursors = canvas.getCursors();
-        while (cursors.size() > 0) {
-            cursors.removeCursor(cursors.getCursor(0));
-        }
 
         RaidInstance raid = plugin.getRaidModule().getActiveRaids().stream()
                 .filter(r -> r.isParticipant(player.getUniqueId()))
@@ -35,9 +32,14 @@ public class RaidMapRenderer extends MapRenderer {
 
         if (raid == null) return;
 
+        // すでにアイコンが追加されているかチェック (描画のたびに増えないようにする)
+        // または、MapRenderer 内で毎回クリアするか。
+        // バニラの風景を残したままアイコンを制御するには、描画ごとにクリアして良い（Cursorsはオーバーレイなので）
+        while (cursors.size() > 0) {
+            cursors.removeCursor(cursors.getCursor(0));
+        }
+
         // 1. 自分の位置を描画 (Green pointer)
-        // バニラの MapView が tracking している場合、自動で追加されることもあるが、
-        // ここでは明示的に追加して制御する
         addPlayerCursor(cursors, map, player);
 
         // 2. 脱出地点を描画 (Red flags / Portals)
