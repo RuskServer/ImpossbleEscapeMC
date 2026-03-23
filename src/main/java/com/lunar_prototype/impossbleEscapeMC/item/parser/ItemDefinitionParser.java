@@ -2,6 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.item.parser;
 
 import com.lunar_prototype.impossbleEscapeMC.item.Affix;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.parser.BackpackStatsParser;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
@@ -46,6 +47,10 @@ public class ItemDefinitionParser {
 
         if (section.contains("armorStats")) {
             def.armorStats = ArmorStatsParser.parse(section.getConfigurationSection("armorStats"));
+        }
+
+        if (section.contains("backpackStats")) {
+            def.backpackStats = BackpackStatsParser.parse(section.getConfigurationSection("backpackStats"));
         }
 
         return def;
