@@ -85,7 +85,9 @@ public class SearchGUI implements Listener {
             String data = m.getPersistentDataContainer().get(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING);
             if (data != null) {
                 try {
-                    return CorpseManager.deserializeInventory(data, Component.text("死体漁り"));
+                    Component title = m.customName();
+                    if (title == null) title = Component.text("死体漁り");
+                    return CorpseManager.deserializeInventory(data, title);
                 } catch (Exception e) {
                     plugin.getLogger().warning("Failed to deserialize corpse inventory!");
                 }
