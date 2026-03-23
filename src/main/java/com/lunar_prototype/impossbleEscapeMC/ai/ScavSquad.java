@@ -32,7 +32,7 @@ public class ScavSquad {
 
     public void updateNearbyAllies() {
         nearbyAllies.clear();
-        for (Entity e : scav.getNearbyEntities(20, 10, 20)) {
+        for (Entity e : scav.getNearbyEntities(15, 8, 15)) {
             if (e instanceof Mob mob && !e.equals(scav)) {
                 ScavController controller = ScavSpawner.getController(e.getUniqueId());
                 if (controller != null) nearbyAllies.add(controller);
@@ -74,19 +74,39 @@ public class ScavSquad {
         }
     }
 
-    public void shareTargetWithAllies(Location loc, String voiceLine) {
+    public void shareTargetWithAllies(Location loc) {
         if (nearbyAllies.isEmpty()) return;
         
-        scav.getWorld().playSound(scav.getLocation(), voiceLine, 1.0f, 1.0f);
         double distToTarget = scav.getLocation().distance(loc);
         for (ScavController ally : nearbyAllies) {
+            double distToAlly = scav.getLocation().distance(ally.getScav().getLocation());
+            
+            // 1. 物理的距離制限 (15m以上は叫び声が届かない)
+            if (distToAlly > 15.0) continue;
+
+            // 2. 遮蔽物の考慮 (視線が通っていない場合、6m以上離れていると声が届かない)
+            boolean hasLosToAlly = scav.hasLineOfSight(ally.getScav());
+            if (!hasLosToAlly && distToAlly > 6.0) continue;
+
+            // 既に自力でターゲットを視認している味方は情報を上書きしない
             if (ally.getScav().getTarget() != null && ally.getScav().hasLineOfSight(ally.getScav().getTarget())) continue;
-            double errorRange = Math.min(8.0, distToTarget * 0.15);
+
+            // 3. 情報の不確実性の向上 (伝言ゲームによる誤差)
+            double baseError = Math.min(8.0, distToTarget * 0.15);
+            double multiplier = 1.0;
+            if (!hasLosToAlly) multiplier *= 2.0; // 壁越しなら聞き取りにくい
+            if (distToAlly > 10.0) multiplier *= 1.5; // 距離があるなら不正確
+            
+            double errorRange = baseError * multiplier;
             double offsetX = (Math.random() - 0.5) * 2.0 * errorRange;
             double offsetZ = (Math.random() - 0.5) * 2.0 * errorRange;
+            
             ally.setLastKnownLocation(loc.clone().add(offsetX, 0, offsetZ));
             ally.setAlerted(true);
-            if (ally.getSearchTicks() > 200) ally.setSearchTicks(200); 
+            
+            // 不確実な情報（壁越しや遠距離）の場合は索敵をあきらめるのも早くする
+            int searchThreshold = (multiplier > 1.0) ? 100 : 200;
+            if (ally.getSearchTicks() > searchThreshold) ally.setSearchTicks(searchThreshold); 
         }
     }
 
