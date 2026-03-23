@@ -14,6 +14,7 @@ import org.bukkit.map.MapView;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 
 public class RaidMapManager {
 
@@ -76,12 +77,10 @@ public class RaidMapManager {
         MapMeta meta = (MapMeta) item.getItemMeta();
 
         MapView view = Bukkit.createMap(player.getWorld());
-        view.setTrackingPosition(false); // バニラのトラッキング（他プレイヤー含む）を無効化
+        view.setTrackingPosition(false);
         view.setUnlimitedTracking(false);
-        view.setScale(MapView.Scale.CLOSEST); // 最も詳細 (1:1)
+        view.setScale(MapView.Scale.CLOSEST); // バニラ側の最小スケール
         
-        // 既存のレンダラーは風景描画のために残す（trackingPosition=false により他プレイヤーは非表示）
-        // ただし、もし同じレンダラーが既に登録されている場合は重複しないようにする
         boolean hasRenderer = false;
         for (org.bukkit.map.MapRenderer r : view.getRenderers()) {
             if (r instanceof RaidMapRenderer) {
@@ -96,8 +95,65 @@ public class RaidMapManager {
 
         meta.setMapView(view);
         meta.displayName(Component.text("タクティカルマップ", NamedTextColor.GOLD));
+        
+        // デフォルトは 1:1 (インデックス1)
+        meta.getPersistentDataContainer().set(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1);
+        meta.lore(createMapLore(1));
+        
         item.setItemMeta(meta);
         return item;
+    }
+
+    public void toggleZoom(Player player, ItemStack item) {
+        if (item.getType() != Material.FILLED_MAP) return;
+        MapMeta meta = (MapMeta) item.getItemMeta();
+        MapView view = meta.getMapView();
+        if (view == null) return;
+
+        int currentZoom = meta.getPersistentDataContainer().getOrDefault(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1);
+        int nextZoom = (currentZoom + 1) % 6;
+        
+        meta.getPersistentDataContainer().set(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, nextZoom);
+        
+        // バニラのスケールも同期させる (SUPER_ZOOM の時は CLOSEST にしておく)
+        MapView.Scale vanillaScale = getVanillaScale(nextZoom);
+        view.setScale(vanillaScale);
+        
+        meta.lore(createMapLore(nextZoom));
+        item.setItemMeta(meta);
+        
+        player.sendMessage(Component.text("マップ倍率を " + getScaleName(nextZoom) + " に変更しました。", NamedTextColor.GREEN));
+    }
+
+    private MapView.Scale getVanillaScale(int zoomIndex) {
+        return switch (zoomIndex) {
+            case 0, 1 -> MapView.Scale.CLOSEST;
+            case 2 -> MapView.Scale.CLOSE;
+            case 3 -> MapView.Scale.NORMAL;
+            case 4 -> MapView.Scale.FAR;
+            case 5 -> MapView.Scale.FARTHEST;
+            default -> MapView.Scale.CLOSEST;
+        };
+    }
+
+    private List<Component> createMapLore(int zoomIndex) {
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.text("現在の詳細度: ", NamedTextColor.GRAY)
+                .append(Component.text(getScaleName(zoomIndex), NamedTextColor.AQUA)));
+        lore.add(Component.text("右クリックでズーム倍率を変更", NamedTextColor.DARK_GRAY));
+        return lore;
+    }
+
+    private String getScaleName(int zoomIndex) {
+        return switch (zoomIndex) {
+            case 0 -> "2:1 (最大拡大)";
+            case 1 -> "1:1 (詳細)";
+            case 2 -> "1:2";
+            case 3 -> "1:4";
+            case 4 -> "1:8";
+            case 5 -> "1:16 (広域)";
+            default -> "不明";
+        };
     }
 
     public boolean isMapSlotItem(ItemStack item) {
