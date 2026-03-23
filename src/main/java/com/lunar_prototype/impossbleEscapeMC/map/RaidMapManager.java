@@ -27,7 +27,6 @@ public class RaidMapManager {
 
     public void updateMapSlot(Player player) {
         if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
-            // クリエ等の場合はスロット8を保護しない（空にするわけではないが、管理対象外とする）
             return;
         }
 
@@ -35,11 +34,27 @@ public class RaidMapManager {
                 .filter(r -> r.isParticipant(player.getUniqueId()))
                 .findFirst().orElse(null);
 
+        ItemStack current = player.getInventory().getItem(8);
+
         if (raid != null) {
+            // すでにタクティカルマップを持っているなら更新しない
+            if (current != null && current.getType() == Material.FILLED_MAP) {
+                if (current.hasItemMeta() && current.getItemMeta().displayName() != null) {
+                    String name = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(current.getItemMeta().displayName());
+                    if (name.contains("タクティカルマップ")) return;
+                }
+            }
             // レイド中: 機能するマップを渡す
             ItemStack map = createRaidMap(player);
             player.getInventory().setItem(8, map);
         } else {
+            // すでにロビー用アイテムを持っているなら更新しない
+            if (current != null && current.getType() == Material.MAP) {
+                if (current.hasItemMeta() && current.getItemMeta().displayName() != null) {
+                    String name = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(current.getItemMeta().displayName());
+                    if (name.contains("地図データ受信中")) return;
+                }
+            }
             // ロビー: 待機中アイテムを渡す
             player.getInventory().setItem(8, createLobbyItem());
         }
@@ -63,7 +78,7 @@ public class RaidMapManager {
         MapView view = Bukkit.createMap(player.getWorld());
         view.setTrackingPosition(false); // バニラのトラッキング（他プレイヤー含む）を無効化
         view.setUnlimitedTracking(false);
-        view.setScale(MapView.Scale.CLOSE); // より詳細 (1:2)
+        view.setScale(MapView.Scale.CLOSEST); // 最も詳細 (1:1)
         
         // 既存のレンダラーは風景描画のために残す（trackingPosition=false により他プレイヤーは非表示）
         // ただし、もし同じレンダラーが既に登録されている場合は重複しないようにする
