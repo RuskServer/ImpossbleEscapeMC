@@ -63,14 +63,21 @@ public class RaidMapManager {
         MapView view = Bukkit.createMap(player.getWorld());
         view.setTrackingPosition(false); // バニラのトラッキング（他プレイヤー含む）を無効化
         view.setUnlimitedTracking(false);
-        view.setScale(MapView.Scale.NORMAL);
+        view.setScale(MapView.Scale.CLOSE); // より詳細 (1:2)
         
-        // 既存のレンダラーを削除
+        // 既存のレンダラーは風景描画のために残す（trackingPosition=false により他プレイヤーは非表示）
+        // ただし、もし同じレンダラーが既に登録されている場合は重複しないようにする
+        boolean hasRenderer = false;
         for (org.bukkit.map.MapRenderer r : view.getRenderers()) {
-            view.removeRenderer(r);
+            if (r instanceof RaidMapRenderer) {
+                hasRenderer = true;
+                break;
+            }
         }
-        // 自作レンダラーを追加
-        view.addRenderer(renderer);
+        
+        if (!hasRenderer) {
+            view.addRenderer(renderer);
+        }
 
         meta.setMapView(view);
         meta.displayName(Component.text("タクティカルマップ", NamedTextColor.GOLD));
