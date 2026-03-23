@@ -108,13 +108,27 @@ public class GunListener implements Listener {
         Map.Entry<Long, BoundingBox> floor = history.floorEntry(targetTime);
         Map.Entry<Long, BoundingBox> ceil = history.ceilingEntry(targetTime);
 
-        if (floor == null)
-            return ceil.getValue();
-        if (ceil == null)
-            return floor.getValue();
+        if (floor == null) return (ceil != null) ? ceil.getValue() : entity.getBoundingBox();
+        if (ceil == null) return floor.getValue();
+        if (floor.getKey().equals(ceil.getKey())) return floor.getValue();
 
-        // 近い方のデータを採用
-        return (targetTime - floor.getKey() < ceil.getKey() - targetTime) ? floor.getValue() : ceil.getValue();
+        // 線形補間 (Lerp) でより正確な位置を算出
+        double t = (double) (targetTime - floor.getKey()) / (ceil.getKey() - floor.getKey());
+        BoundingBox b1 = floor.getValue();
+        BoundingBox b2 = ceil.getValue();
+
+        return new BoundingBox(
+            lerp(b1.getMinX(), b2.getMinX(), t),
+            lerp(b1.getMinY(), b2.getMinY(), t),
+            lerp(b1.getMinZ(), b2.getMinZ(), t),
+            lerp(b1.getMaxX(), b2.getMaxX(), t),
+            lerp(b1.getMaxY(), b2.getMaxY(), t),
+            lerp(b1.getMaxZ(), b2.getMaxZ(), t)
+        );
+    }
+
+    private static double lerp(double start, double end, double t) {
+        return start + (end - start) * t;
     }
 
     @EventHandler

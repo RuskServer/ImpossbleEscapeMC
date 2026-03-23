@@ -33,10 +33,10 @@ public class StaminaModule implements IModule, Listener {
     private static final float MAX_STAMINA = 100.0f;
     // Consumption (per tick)
     private static final float SPRINT_COST_PER_TICK = 4.0f / 20.0f;
-    private static final float JUMP_COST = 4.0f;
+    private static final float JUMP_COST = 2.0f;
     // Recovery
     private static final float RECOVERY_PER_TICK = 12.0f / 20.0f;
-    private static final long BASE_RECOVERY_DELAY_MS = 1500;
+    private static final long BASE_RECOVERY_DELAY_MS = 1000;
     private static final long EXHAUSTION_PENALTY_MS = 2000;
 
     @Override
