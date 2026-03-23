@@ -30,6 +30,7 @@ public class PDCKeys {
     public static final NamespacedKey ITEM_WEIGHT = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "item_weight");
     public static final NamespacedKey BACKPACK_DATA = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "backpack_data");
     public static final NamespacedKey BACKPACK_UID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "backpack_uid");
+    public static final NamespacedKey MAP_ZOOM = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "map_zoom");
 
     public static NamespacedKey affix(String stat) {
         return new NamespacedKey(ImpossbleEscapeMC.getInstance(), "affix_" + stat);

@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.map;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -10,11 +11,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.player.PlayerGameModeChangeEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.*;
+import org.bukkit.inventory.ItemStack;
 
 public class MapSlotListener implements Listener {
 
@@ -33,6 +32,19 @@ public class MapSlotListener implements Listener {
                 }
             }
         }, 20L, 20L);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        
+        ItemStack item = event.getItem();
+        if (item == null || item.getType() != Material.FILLED_MAP) return;
+        
+        if (mapManager.isMapSlotItem(item)) {
+            mapManager.toggleZoom(event.getPlayer(), item);
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
