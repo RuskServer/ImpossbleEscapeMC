@@ -11,7 +11,10 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.*;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
@@ -73,6 +76,11 @@ public class BackpackListener implements Listener {
             event.setCancelled(true);
             backpackModule.openBackpackFromOffhand(player);
             return;
+        }
+
+        // オフハンドスロット(40)の変更後にビジュアル表示を更新
+        if (event.getWhoClicked() instanceof Player player && event.getSlot() == 40) {
+            Bukkit.getScheduler().runTask(plugin, () -> updateDisplay(player));
         }
 
         // Backpack in backpack prohibition
@@ -174,6 +182,8 @@ public class BackpackListener implements Listener {
         if (player.getOpenInventory().getTopInventory().getHolder() instanceof BackpackModule.BackpackInventoryHolder) {
             Bukkit.getScheduler().runTask(plugin, () -> player.closeInventory());
         }
+        // swap後のオフハンドアイテムで表示を更新（1tick後に実際のインベントリ状態で判定）
+        Bukkit.getScheduler().runTask(plugin, () -> updateDisplay(player));
     }
 
     @EventHandler
@@ -248,5 +258,64 @@ public class BackpackListener implements Listener {
 
     private boolean isPlayableMode(Player player) {
         return player.getGameMode() == GameMode.SURVIVAL || player.getGameMode() == GameMode.ADVENTURE;
+    }
+
+    // ---------------------------------------------------------------
+    // ビジュアル表示制御
+    // ---------------------------------------------------------------
+
+    /**
+     * プレイヤーのオフハンドを確認し、バックパックがあれば表示、なければ非表示にする。
+     */
+    private void updateDisplay(Player player) {
+        BackpackDisplayManager dm = backpackModule.getDisplayManager();
+        if (dm == null) return;
+        ItemStack offhand = player.getInventory().getItemInOffHand();
+        if (backpackModule.isBackpackItem(offhand)) {
+            dm.equip(player, offhand);
+        } else {
+            dm.unequip(player);
+        }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player joined = event.getPlayer();
+        BackpackDisplayManager dm = backpackModule.getDisplayManager();
+        if (dm == null) return;
+
+        // 参加した直後に自分のオフハンドを確認して表示
+        Bukkit.getScheduler().runTask(plugin, () -> updateDisplay(joined));
+
+        // 既存のバックパック装備者の表示を新参加者に送信
+        for (Player other : joined.getWorld().getPlayers()) {
+            if (other.equals(joined)) continue;
+            dm.showToPlayer(other, joined);
+        }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        BackpackDisplayManager dm = backpackModule.getDisplayManager();
+        if (dm != null) dm.unequip(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        BackpackDisplayManager dm = backpackModule.getDisplayManager();
+        if (dm == null) return;
+
+        // ワールド移動後に新しいワールドで再度表示を更新
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            updateDisplay(player);
+            // 新ワールドの他プレイヤーに自分の表示を送信
+            if (dm.hasDisplay(player)) {
+                for (Player other : player.getWorld().getPlayers()) {
+                    if (other.equals(player)) continue;
+                    dm.showToPlayer(player, other);
+                }
+            }
+        });
     }
 }
