@@ -201,6 +201,7 @@ public class RaidInstance {
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 p.hideBossBar(bossBar);
                 plugin.getRaidModule().applyFailureEffect(p);
+                plugin.getRaidMapManager().updateMapSlot(p);
             }
         }
         players.clear();
@@ -313,6 +314,7 @@ public class RaidInstance {
 
             // メインワールド（オーバーワールド）の初期スポーン地点へテレポート
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            plugin.getRaidMapManager().updateMapSlot(p);
 
             if (players.isEmpty()) {
                 endRaid();
@@ -357,6 +359,7 @@ public class RaidInstance {
 
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
+        plugin.getRaidMapManager().updateMapSlot(player);
 
         if (players.isEmpty()) {
             endRaid();
@@ -434,6 +437,7 @@ public class RaidInstance {
 
             playStartEffect(player);
             showExtractions(player);
+            plugin.getRaidMapManager().updateMapSlot(player);
         }
     }
 
