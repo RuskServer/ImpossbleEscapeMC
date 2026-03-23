@@ -100,7 +100,8 @@ public class ScavController {
             target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
-                squad.shareTargetWithAllies(target.getLocation(), "minecraft:scav1");
+                playScavVoice("minecraft:scav1", 1.0f, 1.0f);
+                squad.shareTargetWithAllies(target.getLocation());
             }
         }
 
@@ -114,7 +115,8 @@ public class ScavController {
                 updateHumanAim(target);
 
                 if (Bukkit.getCurrentTick() % 10 == 0) {
-                    squad.shareTargetWithAllies(lastKnownLocation, "minecraft:scav2");
+                    if (Math.random() < 0.2) playScavVoice("minecraft:scav2", 1.0f, 1.0f);
+                    squad.shareTargetWithAllies(lastKnownLocation);
                 }
             } else {
                 handleSearching();
@@ -295,25 +297,38 @@ public class ScavController {
             isAlerted = true;
             lastKnownLocation = source.clone();
             scav.setRotation(scav.getLocation().setDirection(source.toVector().subtract(scav.getEyeLocation().toVector()).normalize()).getYaw(), 0);
+            playScavVoice("minecraft:scav1", 1.0f, 1.0f); // 索敵ボイスに変更
         }
     }
 
+    public void playScavVoice(String sound, float volume, float pitch) {
+        if (voiceLineCooldown > 0) return;
+        
+        // 周囲の味方が最近喋ったかチェック
+        for (ScavController ally : squad.getNearbyAllies()) {
+            if (ally.voiceLineCooldown > VOICE_LINE_COOLDOWN_TICKS - 40) return; // 誰かが2秒以内に喋り出していたらキャンセル
+        }
+
+        scav.getWorld().playSound(scav.getLocation(), sound, volume, pitch);
+        voiceLineCooldown = VOICE_LINE_COOLDOWN_TICKS + (int)(Math.random() * 40); // 5〜7秒のクールダウン
+    }
+
     public void onKill(LivingEntity victim) {
-        scav.getWorld().playSound(scav.getLocation(), "minecraft:scav4", 1.0f, 1.0f);
+        playScavVoice("minecraft:scav4", 1.0f, 1.0f);
     }
 
     public void onDamage(Entity attacker) {
         suppression = Math.min(1.0f, suppression + 0.3f);
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
         if (scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() < 0.5) {
-            scav.getWorld().playSound(scav.getLocation(), "minecraft:scav3", 1.0f, 1.0f);
+            playScavVoice("minecraft:scav3", 1.0f, 1.0f);
         }
         if (attacker instanceof LivingEntity living) {
             scav.teleport(scav.getLocation().setDirection(living.getLocation().toVector().subtract(scav.getLocation().toVector()).normalize()));
             if (scav.getTarget() == null) {
                 scav.setTarget(living);
                 lastKnownLocation = living.getLocation();
-                squad.shareTargetWithAllies(lastKnownLocation, "minecraft:scav2");
+                squad.shareTargetWithAllies(lastKnownLocation);
             }
         }
     }
