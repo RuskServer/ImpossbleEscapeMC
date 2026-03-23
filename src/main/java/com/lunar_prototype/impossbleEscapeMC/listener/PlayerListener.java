@@ -155,6 +155,13 @@ public class PlayerListener implements Listener {
                 1.0f,
                 1.0f);
 
+        if (plugin.getRaidModule().isInRaid(player)) {
+            // レイド中の死亡なら死体を生成
+            plugin.getCorpseManager().spawnCorpse(player);
+            // バニラのドロップを消去
+            event.getDrops().clear();
+        }
+
         plugin.getRaidModule().onPlayerDeath(player);
         plugin.getMinigameManager().onPlayerDeath(player);
         clearMovementState(player.getUniqueId());
