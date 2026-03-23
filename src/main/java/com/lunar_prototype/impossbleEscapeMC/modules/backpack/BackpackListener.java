@@ -1,7 +1,14 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketReceiveEvent;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -33,19 +40,47 @@ public class BackpackListener implements Listener {
         this.backpackModule = backpackModule;
         this.plugin = ImpossbleEscapeMC.getInstance();
         startButtonTask();
+
+        PacketEvents.getAPI().getEventManager().registerListener(new PacketListenerAbstract() {
+            @Override
+            public void onPacketReceive(PacketReceiveEvent event) {
+                if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
+                    WrapperPlayClientClickWindow packet = new WrapperPlayClientClickWindow(event);
+                    // ウィンドウID 0 (インベントリ) かつ スロット 2 (バックパックボタン)
+                    if (packet.getWindowId() == 0 && packet.getSlot() == BACKPACK_BUTTON_SLOT) {
+                        event.setCancelled(true); // パケットを握り潰す
+
+                        Player player = (Player) event.getPlayer();
+                        if (!isPlayableMode(player)) return;
+
+                        // クライアントのカーソルをサーバー側でAIRに強制同期（ゴースト防止）
+                        int stateId = packet.getStateId().orElse(0);
+                        WrapperPlayServerSetSlot cursorClear = new WrapperPlayServerSetSlot(
+                                -1,
+                                stateId,
+                                -1,
+                                SpigotConversionUtil.fromBukkitItemStack(new org.bukkit.inventory.ItemStack(Material.AIR))
+                        );
+                        PacketEvents.getAPI().getPlayerManager().sendPacket(player, cursorClear);
+
+                        // メインロジックは同期スレッドで実行
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            backpackModule.openBackpackFromOffhand(player);
+                        });
+                    }
+                }
+            }
+        });
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         InventoryView view = event.getView();
 
-        // Crafting grid trigger button behavior
+        // クラフトグリッドのボタンクリック検知は PacketEvents で処理済みのため、
+        // ここではボタンそのものへのクリックをキャンセルする最低限の処理のみ行う
         if (isPlayerCraftingGrid(view) && event.getRawSlot() == BACKPACK_BUTTON_SLOT) {
             event.setCancelled(true);
-            if (event.getWhoClicked() instanceof Player player) {
-                if (!isPlayableMode(player)) return;
-                backpackModule.openBackpackFromOffhand(player);
-            }
             return;
         }
 
@@ -55,6 +90,14 @@ public class BackpackListener implements Listener {
         }
         if (isBackpackTrigger(event.getCursor())) {
             event.setCursor(null);
+        }
+        // NUMBER_KEY でホットバーのトリガーと入れ替えようとした場合も消去
+        if (event.getClick() == ClickType.NUMBER_KEY) {
+            ItemStack hotbarItem = event.getWhoClicked().getInventory().getItem(event.getHotbarButton());
+            if (isBackpackTrigger(hotbarItem)) {
+                event.getWhoClicked().getInventory().setItem(event.getHotbarButton(), null);
+                event.setCancelled(true);
+            }
         }
 
         // Right-click to open backpack from player's inventory
