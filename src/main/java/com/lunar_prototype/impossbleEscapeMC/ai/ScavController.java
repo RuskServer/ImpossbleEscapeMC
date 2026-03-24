@@ -18,10 +18,7 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class ScavController {
     private final ImpossbleEscapeMC plugin;
@@ -69,6 +66,8 @@ public class ScavController {
         int recognizedHeadArmorClass = -1;
         int recognizedChestArmorClass = -1;
     }
+    private UUID lastLoggedTargetId = null;
+    private boolean initializedTargetState = false;
 
     public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
         this(plugin, scav, listener, ScavBrain.BrainLevel.MID);
@@ -99,6 +98,7 @@ public class ScavController {
     public void onTick() {
         updateChunkTicket();
         cleanupTargetMemories();
+        String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
 
@@ -157,12 +157,17 @@ public class ScavController {
             handleSearching();
         }
 
+        logTargetTransitionIfNeeded(raidSessionId, target);
+
         // 装備チェック
         ItemStack item = scav.getEquipment().getItemInMainHand();
         String itemId = (item != null && item.hasItemMeta()) ? 
             item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
         ItemDefinition def = ItemRegistry.get(itemId);
-        if (def == null || def.gunStats == null) return;
+        if (def == null || def.gunStats == null) {
+            logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, 0.0f, new int[] {8, 1});
+            return;
+        }
 
         int currentAmmo = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
         boolean needsReload = currentAmmo <= 0;
@@ -212,14 +217,18 @@ public class ScavController {
         if (tactics.getPeekPhase() > 0) {
             tactics.handlePeekManeuver(target, def.gunStats, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
-            brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
+            int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
+            logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, peekActions);
             return;
         }
 
         // 7. AI思考 & 移動
         brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
         int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
-        if (actions.length < 2) return;
+        if (actions.length < 2) {
+            logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
+            return;
+        }
 
         int moveAction = actions[0];
         // 特殊移動判定
@@ -287,6 +296,8 @@ public class ScavController {
                 tactics.handleJumpShot(target);
             }
         }
+
+        logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
     }
 
     private void handleSearching() {
@@ -465,5 +476,76 @@ public class ScavController {
                 it.remove();
             }
         }
+    }
+
+    private void logTargetTransitionIfNeeded(String raidSessionId, LivingEntity target) {
+        if (raidSessionId == null || plugin.getAiRaidLogger() == null || !plugin.getAiRaidLogger().isEnabled()) return;
+        UUID currentTargetId = target != null ? target.getUniqueId() : null;
+
+        if (!initializedTargetState) {
+            initializedTargetState = true;
+            lastLoggedTargetId = currentTargetId;
+            if (currentTargetId != null) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("targetId", currentTargetId.toString());
+                payload.put("reason", "INITIAL");
+                plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "TARGET_ACQUIRED", payload);
+            }
+            return;
+        }
+
+        if (Objects.equals(lastLoggedTargetId, currentTargetId)) return;
+        if (lastLoggedTargetId == null && currentTargetId != null) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("targetId", currentTargetId.toString());
+            payload.put("reason", "ACQUIRE");
+            plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "TARGET_ACQUIRED", payload);
+        } else if (lastLoggedTargetId != null && currentTargetId == null) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("previousTargetId", lastLoggedTargetId.toString());
+            payload.put("reason", "LOST");
+            plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "TARGET_LOST", payload);
+        } else {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("fromTargetId", lastLoggedTargetId.toString());
+            payload.put("toTargetId", currentTargetId.toString());
+            payload.put("reason", "SWITCH");
+            plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "TARGET_SWITCH", payload);
+        }
+        lastLoggedTargetId = currentTargetId;
+    }
+
+    private void logSnapshotIfNeeded(String raidSessionId, LivingEntity target, boolean canSeeTarget, float tacticalAdvice, int[] actions) {
+        if (raidSessionId == null || plugin.getAiRaidLogger() == null || !plugin.getAiRaidLogger().isEnabled()) return;
+        int interval = plugin.getAiRaidLogger().getSampleIntervalTicks();
+        if (interval <= 0 || Bukkit.getCurrentTick() % interval != 0) return;
+
+        int move = actions != null && actions.length > 0 ? actions[0] : 8;
+        int shoot = actions != null && actions.length > 1 ? actions[1] : 1;
+        float[] neurons = brain.getNeuronStates();
+        float aggression = neurons.length > 0 ? neurons[0] : 0.0f;
+        float fear = neurons.length > 1 ? neurons[1] : 0.0f;
+        float tactical = neurons.length > 2 ? neurons[2] : 0.0f;
+
+        plugin.getAiRaidLogger().logSnapshot(
+                raidSessionId,
+                scav.getUniqueId(),
+                brainLevel.name(),
+                scav.getLocation(),
+                target != null ? target.getUniqueId() : null,
+                canSeeTarget,
+                lastKnownLocation,
+                suppression,
+                searchTicks,
+                isSprinting,
+                isHoldingAngle,
+                brain.getCurrentModeName(),
+                move,
+                shoot,
+                aggression,
+                fear,
+                tactical,
+                tacticalAdvice
+        );
     }
 }

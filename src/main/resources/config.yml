@@ -8,3 +8,9 @@ hit-sounds:
   headshot: "custom_hit"
   penetration-success: "ENTITY_ZOMBIE_ATTACK_IRON_DOOR"
   penetration-failed: "ITEM_ARMOR_EQUIP_IRON"
+
+ai_log:
+  enabled: true
+  sample_interval_ticks: 5
+  max_raid_logs: 50
+  async_write: true

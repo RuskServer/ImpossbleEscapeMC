@@ -654,6 +654,18 @@ public class GunListener implements Listener {
             new BulletTask(plugin, shooter, totalDamage, ammoClass, inaccuracy).start();
         }
 
+        String raidSessionId = ScavSpawner.getRaidSessionId(shooter.getUniqueId());
+        if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("ammoClass", ammoClass);
+            payload.put("inaccuracy", inaccuracy);
+            payload.put("pellets", pellets);
+            payload.put("baseDamage", baseDamage);
+            payload.put("totalDamage", totalDamage);
+            payload.put("weaponCaliber", stats.caliber);
+            plugin.getAiRaidLogger().logEvent(raidSessionId, shooter.getUniqueId(), "SHOT_FIRED", payload);
+        }
+
         // 1秒後に薬莢の落ちる音を再生 (AI用)
         new BukkitRunnable() {
             @Override

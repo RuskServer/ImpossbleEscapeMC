@@ -45,6 +45,8 @@ public class ScavSpawner implements Listener {
     private final GunListener gunListener;
     // UUIDごとにAIコントローラーを保持
     private static final Map<UUID, ScavController> controllers = new HashMap<>();
+    private static final Map<UUID, String> scavRaidSessions = new HashMap<>();
+    private static final Map<UUID, String> scavRaidMaps = new HashMap<>();
 
     public ScavSpawner(ImpossbleEscapeMC plugin, GunListener gunListener) {
         this.plugin = plugin;
@@ -59,6 +61,10 @@ public class ScavSpawner implements Listener {
      * @return スポーンしたエンティティのUUID
      */
     public UUID spawnScav(Location loc) {
+        return spawnScav(loc, null, null);
+    }
+
+    public UUID spawnScav(Location loc, String raidSessionId, String mapId) {
         Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.SKELETON);
 
         // 体力を40 (バニラの2倍) に固定
@@ -81,6 +87,12 @@ public class ScavSpawner implements Listener {
         ScavBrain.BrainLevel brainLevel = rollBrainLevel();
         ScavController controller = new ScavController(plugin, scav, gunListener, brainLevel);
         controllers.put(scav.getUniqueId(), controller);
+        if (raidSessionId != null && !raidSessionId.isEmpty()) {
+            scavRaidSessions.put(scav.getUniqueId(), raidSessionId);
+        }
+        if (mapId != null && !mapId.isEmpty()) {
+            scavRaidMaps.put(scav.getUniqueId(), mapId);
+        }
 
         Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId() + " level=" + brainLevel);
         return scav.getUniqueId();
@@ -266,6 +278,8 @@ public class ScavSpawner implements Listener {
      */
     public void removeScav(UUID uuid) {
         ScavController controller = controllers.remove(uuid);
+        scavRaidSessions.remove(uuid);
+        scavRaidMaps.remove(uuid);
         if (controller != null) {
             if (controller.getScav() != null && !controller.getScav().isDead()) {
                 controller.getScav().remove();
@@ -301,6 +315,14 @@ public class ScavSpawner implements Listener {
         return controllers.get(uuid);
     }
 
+    public static String getRaidSessionId(UUID uuid) {
+        return scavRaidSessions.get(uuid);
+    }
+
+    public static String getRaidMapId(UUID uuid) {
+        return scavRaidMaps.get(uuid);
+    }
+
     @EventHandler
     public void onScavDeath(EntityDeathEvent event) {
         LivingEntity victim = event.getEntity();
@@ -328,10 +350,20 @@ public class ScavSpawner implements Listener {
             }
 
             ScavController controller = controllers.remove(uuid);
+            String raidSessionId = scavRaidSessions.remove(uuid);
+            scavRaidMaps.remove(uuid);
             if (controller != null) {
                 controller.terminate();
                 Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
             }
+
+            if (raidSessionId != null && plugin.getAiRaidLogger() != null) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("killerId", killer != null ? killer.getUniqueId().toString() : null);
+                payload.put("cause", "ENTITY_DEATH");
+                plugin.getAiRaidLogger().logEvent(raidSessionId, uuid, "DIED", payload);
+            }
+
             plugin.getRaidModule().onScavDeath(uuid);
 
             // Spawn Corpse and cancel vanilla drops
@@ -345,5 +377,7 @@ public class ScavSpawner implements Listener {
             controller.terminate();
         }
         controllers.clear();
+        scavRaidSessions.clear();
+        scavRaidMaps.clear();
     }
 }

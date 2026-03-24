@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.BrainManager;
+import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.command.AttachmentCommand;
 import com.lunar_prototype.impossbleEscapeMC.command.GetItemCommand;
@@ -50,6 +51,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener lootEggListener;
     private com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager corpseManager;
     private com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager raidMapManager;
+    private AiRaidLogger aiRaidLogger;
 
     private ServiceContainer serviceContainer;
     private ModuleBootstrap moduleBootstrap;
@@ -90,6 +92,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         return raidMapManager;
     }
 
+    public AiRaidLogger getAiRaidLogger() {
+        return aiRaidLogger;
+    }
+
     @Override
     public void onEnable() {
         // Plugin startup logic
@@ -104,6 +110,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.load(new java.io.File(getDataFolder(), "heatmap.yml"));
 
         BrainManager.init(this); // 追加
+        aiRaidLogger = new AiRaidLogger(this);
         ItemRegistry.loadAllItems(this);
         gunListener = new GunListener(this);
         scavSpawner = new ScavSpawner(this, gunListener);
@@ -127,6 +134,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener.class, lootEggListener);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager.class, corpseManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager.class, raidMapManager);
+        serviceContainer.register(AiRaidLogger.class, aiRaidLogger);
 
         // モジュールの登録
         moduleBootstrap.registerModule(new PlayerDataModule(this));
@@ -245,6 +253,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         }
         if (corpseManager != null) {
             corpseManager.cleanup();
+        }
+        if (aiRaidLogger != null) {
+            aiRaidLogger.forceFlushAll("plugin_disable");
         }
     }
 }
