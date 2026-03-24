@@ -135,22 +135,30 @@ public class ItemFactory {
                 }
             }
 
-            // --- Armor Configuration ---
+            // --- Armor / Rig Configuration ---
             if (def.armorStats != null) {
                 if (def.armorStats.customModelData != 0) {
                     meta.setCustomModelData(def.armorStats.customModelData);
                 }
                 pdc.set(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, def.armorStats.armorClass);
+            }
 
-                // slot設定がある場合のみ、EquippableComponentを設定する
-                if (def.armorStats.slot != null) {
+            String equippableSlot = null;
+            if (def.armorStats != null && def.armorStats.slot != null) {
+                equippableSlot = def.armorStats.slot;
+            } else if (def.rigStats != null) {
+                equippableSlot = "LEGS";
+            }
+
+            if (equippableSlot != null) {
+                try {
+                    EquippableComponent equippable = meta.getEquippable();
                     try {
-                        EquippableComponent equippable = meta.getEquippable();
-                        try {
-                            equippable.setSlot(EquipmentSlot.valueOf(def.armorStats.slot.toUpperCase()));
-                        } catch (IllegalArgumentException ignored) {
-                        }
+                        equippable.setSlot(EquipmentSlot.valueOf(equippableSlot.toUpperCase()));
+                    } catch (IllegalArgumentException ignored) {
+                    }
 
+                    if (def.armorStats != null) {
                         if (def.armorStats.equipSound != null) {
                             try {
                                 equippable.setEquipSound(Sound.valueOf(def.armorStats.equipSound.toUpperCase()));
@@ -170,12 +178,11 @@ public class ItemFactory {
                         equippable.setDispensable(def.armorStats.dispensable);
                         equippable.setSwappable(def.armorStats.swappable);
                         equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
-
-                        // 明示的にコンポーネントをセットして反映させる
-                        meta.setEquippable(equippable);
-                    } catch (Throwable t) {
-                        // Method might not be available on older versions
                     }
+
+                    meta.setEquippable(equippable);
+                } catch (Throwable t) {
+                    // Method might not be available on older versions
                 }
             }
 
@@ -314,6 +321,13 @@ public class ItemFactory {
             lore.add("§2§l<< BACKPACK STATS >>");
             lore.add("§7Slots: §f" + def.backpackStats.size);
             lore.add("§7Reduction: §f" + String.format("%.0f%%", def.backpackStats.reduction * 100));
+            lore.add("");
+        }
+
+        if (def != null && def.rigStats != null) {
+            lore.add("§c§l<< RIG STATS >>");
+            lore.add("§7Unlocked Slots: §f" + def.rigStats.size);
+            lore.add("§7Reduction: §f" + String.format("%.0f%%", def.rigStats.reduction * 100));
             lore.add("");
         }
 

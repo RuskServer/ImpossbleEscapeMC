@@ -7,8 +7,10 @@ import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -33,6 +35,7 @@ public class WeightModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
     private PlayerDataModule dataModule;
     private BackpackModule backpackModule;
+    private RigModule rigModule;
     private static final NamespacedKey SPEED_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_speed_penalty");
     private static final NamespacedKey GRAVITY_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_gravity_penalty");
     private final Map<UUID, WeightStage> lastStages = new HashMap<>();
@@ -42,6 +45,7 @@ public class WeightModule implements IModule, Listener {
         this.plugin = ImpossbleEscapeMC.getInstance();
         this.dataModule = container.get(PlayerDataModule.class);
         this.backpackModule = container.get(BackpackModule.class);
+        this.rigModule = container.get(RigModule.class);
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
 
@@ -126,13 +130,51 @@ public class WeightModule implements IModule, Listener {
 
     private int calculateTotalWeight(Player player) {
         int total = 0;
-        // メインインベントリ（ホットバー含む）
-        for (ItemStack item : player.getInventory().getContents()) {
+
+        for (int slot = 0; slot <= 8; slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
             total += getItemWeight(item);
             if (backpackModule != null && backpackModule.isBackpackItem(item)) {
                 total += backpackModule.calculateEffectiveContentsWeight(item);
             }
         }
+
+        int unlockedEnd = -1;
+        if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
+            unlockedEnd = 35;
+        } else if (rigModule != null) {
+            unlockedEnd = rigModule.getUnlockedMainInventoryEndSlot(player);
+        }
+
+        for (int slot = 9; slot <= 35; slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
+            if (item == null || item.getType().isAir()) continue;
+
+            if (slot <= unlockedEnd && rigModule != null && rigModule.isRestrictedMode(player)) {
+                if (backpackModule != null && backpackModule.isBackpackItem(item)) {
+                    total += backpackModule.calculateEffectiveContentsWeight(item);
+                }
+                continue;
+            }
+
+            total += getItemWeight(item);
+            if (backpackModule != null && backpackModule.isBackpackItem(item)) {
+                total += backpackModule.calculateEffectiveContentsWeight(item);
+            }
+        }
+
+        if (rigModule != null && rigModule.isRestrictedMode(player)) {
+            total += rigModule.calculateEffectiveUnlockedInventoryWeight(player);
+        }
+
+        for (int slot = 36; slot < player.getInventory().getSize(); slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
+            total += getItemWeight(item);
+            if (backpackModule != null && backpackModule.isBackpackItem(item)) {
+                total += backpackModule.calculateEffectiveContentsWeight(item);
+            }
+        }
+
         return total;
     }
 
