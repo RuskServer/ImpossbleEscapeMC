@@ -82,6 +82,9 @@ public class ScavController {
     private BehaviorState behaviorState = BehaviorState.RELAXED;
     private float alertness;
     private boolean returningHome = false;
+    private UUID intelOriginScavId;
+    private int intelRelayDepth = 0;
+    private boolean intelFromShared = false;
 
     public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
         this(plugin, scav, listener, ScavBrain.BrainLevel.MID);
@@ -94,11 +97,12 @@ public class ScavController {
         this.brain = new ScavBrain(scav, brainLevel);
         this.gunListener = listener;
         this.vision = new ScavVision(scav);
-        this.squad = new ScavSquad(scav);
+        this.squad = new ScavSquad(this);
         this.tactics = new ScavTactics(scav, listener, brain);
         this.currentAimVector = scav.getEyeLocation().getDirection();
         this.homeLocation = scav.getLocation().clone();
         this.alertness = (brainLevel == ScavBrain.BrainLevel.LOW) ? 0.15f : 0.25f;
+        this.intelOriginScavId = scav.getUniqueId();
         updateChunkTicket();
     }
 
@@ -144,6 +148,9 @@ public class ScavController {
             target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
+                if (!intelFromShared) {
+                    markDirectIntelSource();
+                }
                 playScavVoice("minecraft:scav1", 1.0f, 1.0f);
                 squad.shareTargetWithAllies(target.getLocation());
             }
@@ -341,10 +348,15 @@ public class ScavController {
                 tactics.resetSlicing();
                 cornerCheckTicks = 0;
                 isAlerted = false;
+                clearSharedIntel();
             }
         }
         searchTicks++;
-        if (searchTicks > 600) { lastKnownLocation = null; isAlerted = false; }
+        if (searchTicks > 600) {
+            lastKnownLocation = null;
+            isAlerted = false;
+            clearSharedIntel();
+        }
     }
 
     private void updateHumanAim(LivingEntity target) {
@@ -426,9 +438,48 @@ public class ScavController {
             if (scav.getTarget() == null) {
                 scav.setTarget(living);
                 lastKnownLocation = living.getLocation();
+                markDirectIntelSource();
                 squad.shareTargetWithAllies(lastKnownLocation);
             }
         }
+    }
+
+    public UUID getIntelOriginScavId() {
+        return intelOriginScavId != null ? intelOriginScavId : scav.getUniqueId();
+    }
+
+    public int getIntelRelayDepth() {
+        return intelRelayDepth;
+    }
+
+    public void receiveSharedTarget(Location loc, UUID originScavId, int relayDepth) {
+        if (loc == null) return;
+
+        if (intelFromShared && Objects.equals(this.intelOriginScavId, originScavId) && this.intelRelayDepth <= relayDepth) {
+            if (lastKnownLocation == null) {
+                lastKnownLocation = loc.clone();
+            }
+            isAlerted = true;
+            return;
+        }
+
+        lastKnownLocation = loc.clone();
+        isAlerted = true;
+        intelFromShared = true;
+        intelOriginScavId = (originScavId != null) ? originScavId : scav.getUniqueId();
+        intelRelayDepth = Math.max(0, relayDepth);
+    }
+
+    private void markDirectIntelSource() {
+        intelOriginScavId = scav.getUniqueId();
+        intelRelayDepth = 0;
+        intelFromShared = false;
+    }
+
+    private void clearSharedIntel() {
+        intelOriginScavId = scav.getUniqueId();
+        intelRelayDepth = 0;
+        intelFromShared = false;
     }
 
     public void addSuppression(float amount) { this.suppression = Math.min(1.0f, this.suppression + amount); }

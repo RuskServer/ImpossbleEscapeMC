@@ -6,16 +6,22 @@ import org.bukkit.entity.Mob;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class ScavSquad {
+    private static final double MAX_INFO_SHARE_RANGE_FROM_ORIGIN = 28.0;
+    private static final int MAX_INFO_SHARE_HOPS = 2;
+
+    private final ScavController owner;
     private final Mob scav;
     private final List<ScavController> nearbyAllies = new ArrayList<>();
     
     public enum SquadRole { NONE, POINTMAN, COVERMAN }
     private SquadRole myRole = SquadRole.NONE;
 
-    public ScavSquad(Mob scav) {
-        this.scav = scav;
+    public ScavSquad(ScavController owner) {
+        this.owner = owner;
+        this.scav = owner.getScav();
     }
 
     public List<ScavController> getNearbyAllies() {
@@ -76,10 +82,22 @@ public class ScavSquad {
 
     public void shareTargetWithAllies(Location loc) {
         if (nearbyAllies.isEmpty()) return;
+
+        UUID originScavId = owner.getIntelOriginScavId();
+        ScavController originController = ScavSpawner.getController(originScavId);
+        Location originLocation = (originController != null) ? originController.getScav().getLocation() : scav.getLocation();
+        int nextRelayDepth = owner.getIntelRelayDepth() + 1;
+
+        if (nextRelayDepth > MAX_INFO_SHARE_HOPS) return;
         
         double distToTarget = scav.getLocation().distance(loc);
         for (ScavController ally : nearbyAllies) {
             double distToAlly = scav.getLocation().distance(ally.getScav().getLocation());
+
+            if (ally.getScav().getUniqueId().equals(originScavId)) continue;
+
+            double distFromOrigin = originLocation.distance(ally.getScav().getLocation());
+            if (distFromOrigin > MAX_INFO_SHARE_RANGE_FROM_ORIGIN) continue;
             
             // 1. 物理的距離制限 (15m以上は叫び声が届かない)
             if (distToAlly > 15.0) continue;
@@ -101,8 +119,7 @@ public class ScavSquad {
             double offsetX = (Math.random() - 0.5) * 2.0 * errorRange;
             double offsetZ = (Math.random() - 0.5) * 2.0 * errorRange;
             
-            ally.setLastKnownLocation(loc.clone().add(offsetX, 0, offsetZ));
-            ally.setAlerted(true);
+            ally.receiveSharedTarget(loc.clone().add(offsetX, 0, offsetZ), originScavId, nextRelayDepth);
             
             // 不確実な情報（壁越しや遠距離）の場合は索敵をあきらめるのも早くする
             int searchThreshold = (multiplier > 1.0) ? 100 : 200;
