@@ -77,6 +77,10 @@ public class RaidMap {
         scavSpawnPoints.add(new ScavSpawnPoint(locationToCoords(loc), permanent));
     }
 
+    public void clearScavSpawnPoints() {
+        scavSpawnPoints.clear();
+    }
+
     public List<ScavSpawnPoint> getScavSpawnPoints() {
         return scavSpawnPoints;
     }
