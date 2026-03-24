@@ -20,14 +20,27 @@ public class RaidInstance {
     private final List<VirtualScav> virtualScavs = new ArrayList<>();
 
     private final long startTime;
+    private final String raidSessionId;
     private BukkitRunnable task;
     private BossBar bossBar;
     private int respawnTicks = 0;
+    private String endReason = "raid_end";
 
     public RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants) {
         this.plugin = plugin;
         this.map = map;
         this.startTime = System.currentTimeMillis();
+        this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
+
+        if (plugin.getAiRaidLogger() != null) {
+            plugin.getAiRaidLogger().startRaidSession(
+                    raidSessionId,
+                    map.getMapId(),
+                    map.getWorldName(),
+                    Bukkit.getCurrentTick(),
+                    startTime
+            );
+        }
 
         for (RaidMap.ScavSpawnPoint sp : map.getScavSpawnPoints()) {
             virtualScavs.add(new VirtualScav(sp.getLocation(map.getWorldName()), sp.isPermanent()));
@@ -192,6 +205,7 @@ public class RaidInstance {
     }
 
     public void handleMIA() {
+        endReason = "mia_cycle_end";
         for (UUID uuid : new HashSet<>(players)) {
             extractionTimer.remove(uuid);
             Player p = Bukkit.getPlayer(uuid);
@@ -234,7 +248,7 @@ public class RaidInstance {
             }
 
             if (playerNearby && !vs.isSpawned() && !vs.isDead()) {
-                UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc);
+                UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc, raidSessionId, map.getMapId());
                 vs.setEntityId(uuid);
                 vs.setSpawned(true);
             } else if (!playerNearby && vs.isSpawned() && !vs.isPermanent()) {
@@ -343,6 +357,9 @@ public class RaidInstance {
         }
         players.clear();
         plugin.getRaidModule().removeRaid(map.getMapId());
+        if (plugin.getAiRaidLogger() != null) {
+            plugin.getAiRaidLogger().endRaidSession(raidSessionId, endReason);
+        }
     }
 
     public void onPlayerDeath(Player player) {
@@ -362,6 +379,7 @@ public class RaidInstance {
         plugin.getRaidMapManager().updateMapSlot(player);
 
         if (players.isEmpty()) {
+            endReason = "all_dead_or_extracted";
             endRaid();
         }
     }
@@ -372,6 +390,7 @@ public class RaidInstance {
         extractionTimer.remove(player.getUniqueId());
         players.remove(player.getUniqueId());
         if (players.isEmpty()) {
+            endReason = "all_left";
             endRaid();
         }
     }

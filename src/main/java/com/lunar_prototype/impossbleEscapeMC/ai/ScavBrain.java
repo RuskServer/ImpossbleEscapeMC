@@ -424,6 +424,10 @@ public class ScavBrain {
         return currentActions != null ? currentActions : new int[] { 0, 1 };
     }
 
+    public String getCurrentModeName() {
+        return currentMode != null ? currentMode.name() : TacticalMode.HOLD.name();
+    }
+
     public BrainLevel getBrainLevel() {
         return brainLevel;
     }

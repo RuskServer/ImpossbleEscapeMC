@@ -239,6 +239,16 @@ public class PlayerListener implements Listener {
             // 被弾ダメージを負の報酬として与える
             float penalty = (float) event.getFinalDamage();
             controller.getBrain().reward(-penalty * 0.5f);
+
+            String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
+            if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+                java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                payload.put("finalDamage", event.getFinalDamage());
+                if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent nabe) {
+                    payload.put("attackerId", nabe.getDamager().getUniqueId().toString());
+                }
+                plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "TOOK_DAMAGE", payload);
+            }
             
             // 攻撃者の方を向く
             if (event instanceof org.bukkit.event.entity.EntityDamageByEntityEvent nabe) {
@@ -260,6 +270,17 @@ public class PlayerListener implements Listener {
                 event.isPenetrated(),
                 event.getHitLocation()
         );
+
+        String raidSessionId = ScavSpawner.getRaidSessionId(shooterMob.getUniqueId());
+        if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("victimId", event.getVictim().getUniqueId().toString());
+            payload.put("damage", event.getDamage());
+            payload.put("hitLocation", event.getHitLocation());
+            payload.put("penetrated", event.isPenetrated());
+            payload.put("ammoClass", event.getAmmoClass());
+            plugin.getAiRaidLogger().logEvent(raidSessionId, shooterMob.getUniqueId(), "SHOT_HIT", payload);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
