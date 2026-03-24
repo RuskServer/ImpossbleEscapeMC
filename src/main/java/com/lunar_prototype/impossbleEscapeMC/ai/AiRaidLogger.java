@@ -131,6 +131,10 @@ public class AiRaidLogger {
             int searchTicks,
             boolean isSprinting,
             boolean isHoldingAngle,
+            float alertness,
+            float complacency,
+            String behaviorState,
+            double homeDistance,
             String mode,
             int moveAction,
             int shootAction,
@@ -161,6 +165,10 @@ public class AiRaidLogger {
         state.put("searchTicks", searchTicks);
         state.put("isSprinting", isSprinting);
         state.put("isHoldingAngle", isHoldingAngle);
+        state.put("alertness", alertness);
+        state.put("complacency", complacency);
+        state.put("behaviorState", behaviorState);
+        state.put("homeDistance", homeDistance);
         rec.put("state", state);
 
         Map<String, Object> brain = new LinkedHashMap<>();

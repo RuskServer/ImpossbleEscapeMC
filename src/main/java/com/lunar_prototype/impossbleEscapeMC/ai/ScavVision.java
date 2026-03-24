@@ -20,6 +20,7 @@ public class ScavVision {
     private static final double MAX_VISION_DISTANCE = 96.0;
     private static final double FOV_ANGLE = 120.0;
     private LosSnapshot lastLosSnapshot = null;
+    private float alertness = 0.25f;
 
     public static class LosRay {
         public String band;
@@ -53,6 +54,10 @@ public class ScavVision {
         return lastLosSnapshot;
     }
 
+    public void setAlertness(float alertness) {
+        this.alertness = Math.max(0.0f, Math.min(1.0f, alertness));
+    }
+
     public LivingEntity scanForTargets() {
         for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 64, MAX_VISION_DISTANCE)) {
             if (e instanceof org.bukkit.entity.Player p) {
@@ -66,7 +71,9 @@ public class ScavVision {
         Location eye = scav.getEyeLocation();
         Location targetLoc = target.getEyeLocation();
         double dist = eye.distance(targetLoc);
-        if (dist > MAX_VISION_DISTANCE) return false;
+        double distanceScale = 0.85 + (0.35 * alertness);
+        double effectiveMaxVisionDistance = MAX_VISION_DISTANCE * distanceScale;
+        if (dist > effectiveMaxVisionDistance) return false;
 
         boolean isFiring = false;
         if (target.hasMetadata("last_fired_tick")) {
@@ -79,7 +86,8 @@ public class ScavVision {
         Vector toTarget = targetLoc.toVector().subtract(eye.toVector()).normalize();
         Vector direction = eye.getDirection();
         double angle = direction.angle(toTarget) * 180 / Math.PI;
-        double currentFov = isFiring ? 200.0 : FOV_ANGLE;
+        double relaxedFovScale = 0.8 + (0.25 * alertness);
+        double currentFov = isFiring ? 200.0 : (FOV_ANGLE * relaxedFovScale);
         if (angle > currentFov / 2.0) return false;
 
         double visibility = 1.0;
@@ -92,7 +100,7 @@ public class ScavVision {
         if (target.getVelocity().lengthSquared() > 0.05) visibility *= 1.2;
         if (isFiring) visibility = 5.0; 
 
-        double effectiveRange = MAX_VISION_DISTANCE * visibility;
+        double effectiveRange = effectiveMaxVisionDistance * visibility;
         if (dist > effectiveRange) return false;
 
         return hasAdvancedLoS(target);
