@@ -14,14 +14,21 @@ import org.bukkit.block.data.Openable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.UUID;
 
 public class ScavController {
     private final ImpossbleEscapeMC plugin;
     private final Mob scav;
     private final ScavBrain brain;
     private final GunListener gunListener;
+    private final ScavBrain.BrainLevel brainLevel;
 
     // Components
     private final ScavVision vision;
@@ -51,11 +58,27 @@ public class ScavController {
 
     private int voiceLineCooldown = 0;
     private static final int VOICE_LINE_COOLDOWN_TICKS = 100;
+    private static final double LOW_EFFECTIVE_DAMAGE_THRESHOLD = 4.0;
+    private static final int TARGET_MEMORY_EXPIRE_TICKS = 20 * 60;
+    private final Map<UUID, TargetCombatMemory> targetMemories = new HashMap<>();
+
+    private static class TargetCombatMemory {
+        int hits;
+        int lowEffectiveHits;
+        long lastUpdateTick;
+        int recognizedHeadArmorClass = -1;
+        int recognizedChestArmorClass = -1;
+    }
 
     public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
+        this(plugin, scav, listener, ScavBrain.BrainLevel.MID);
+    }
+
+    public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener, ScavBrain.BrainLevel brainLevel) {
         this.plugin = plugin;
         this.scav = scav;
-        this.brain = new ScavBrain(scav);
+        this.brainLevel = brainLevel;
+        this.brain = new ScavBrain(scav, brainLevel);
         this.gunListener = listener;
         this.vision = new ScavVision(scav);
         this.squad = new ScavSquad(scav);
@@ -67,6 +90,7 @@ public class ScavController {
     public Mob getScav() { return scav; }
     public ScavSquad getSquad() { return squad; }
     public ScavBrain getBrain() { return brain; }
+    public ScavBrain.BrainLevel getBrainLevel() { return brainLevel; }
     public void setLastKnownLocation(Location loc) { this.lastKnownLocation = loc; }
     public void setAlerted(boolean alerted) { this.isAlerted = alerted; }
     public int getSearchTicks() { return searchTicks; }
@@ -74,6 +98,7 @@ public class ScavController {
 
     public void onTick() {
         updateChunkTicket();
+        cleanupTargetMemories();
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
 
@@ -165,6 +190,23 @@ public class ScavController {
         boolean hasLos = target != null && scav.hasLineOfSight(target);
         if (!hasLos && lastKnownLocation != null) tacticalAdvice = 0.8f;
         else if (suppression > 0.5f) tacticalAdvice = 0.5f;
+
+        if (target != null) {
+            float lowEffectRatio = getLowEffectiveRatio(target.getUniqueId());
+            if (brainLevel == ScavBrain.BrainLevel.MID && lowEffectRatio >= 0.55f) {
+                tacticalAdvice = Math.max(tacticalAdvice, 0.85f);
+                // 通りにくい相手を見続けないよう、MIDだけ周期的にターゲット再評価
+                if (Bukkit.getCurrentTick() % 20 == 0) {
+                    LivingEntity alt = vision.scanForTargets();
+                    if (alt != null && !alt.getUniqueId().equals(target.getUniqueId())) {
+                        scav.setTarget(alt);
+                        target = alt;
+                        canSeeTarget = vision.checkVision(target);
+                        lastKnownLocation = target.getLocation();
+                    }
+                }
+            }
+        }
 
         // 6. Peek Maneuver
         if (tactics.getPeekPhase() > 0) {
@@ -372,5 +414,56 @@ public class ScavController {
             return true;
         }
         return false;
+    }
+
+    public void onBulletHitDealt(LivingEntity victim, double finalDamage, boolean penetrated, String hitLocation) {
+        if (victim == null) return;
+        TargetCombatMemory memory = targetMemories.computeIfAbsent(victim.getUniqueId(), id -> new TargetCombatMemory());
+        memory.hits++;
+        memory.lastUpdateTick = Bukkit.getCurrentTick();
+
+        boolean lowEffective = !penetrated || finalDamage < LOW_EFFECTIVE_DAMAGE_THRESHOLD;
+        if (lowEffective) {
+            memory.lowEffectiveHits++;
+        } else if (memory.lowEffectiveHits > 0 && Math.random() < 0.35) {
+            // 有効打が続く時は過去の低有効打印象を少しずつ減衰
+            memory.lowEffectiveHits--;
+        }
+
+        if (memory.hits > 16) {
+            memory.hits = 8;
+            memory.lowEffectiveHits = Math.max(0, memory.lowEffectiveHits / 2);
+        }
+
+        if (brainLevel == ScavBrain.BrainLevel.HIGH) {
+            if ("head".equalsIgnoreCase(hitLocation)) {
+                memory.recognizedHeadArmorClass = getArmorClassFromSlot(victim, EquipmentSlot.HEAD);
+            } else {
+                memory.recognizedChestArmorClass = getArmorClassFromSlot(victim, EquipmentSlot.CHEST);
+            }
+        }
+    }
+
+    private int getArmorClassFromSlot(LivingEntity entity, EquipmentSlot slot) {
+        ItemStack item = entity.getEquipment().getItem(slot);
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return 0;
+        return item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
+    }
+
+    private float getLowEffectiveRatio(UUID targetId) {
+        TargetCombatMemory memory = targetMemories.get(targetId);
+        if (memory == null || memory.hits <= 0) return 0.0f;
+        return (float) memory.lowEffectiveHits / (float) memory.hits;
+    }
+
+    private void cleanupTargetMemories() {
+        long now = Bukkit.getCurrentTick();
+        Iterator<Map.Entry<UUID, TargetCombatMemory>> it = targetMemories.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, TargetCombatMemory> e = it.next();
+            if (now - e.getValue().lastUpdateTick > TARGET_MEMORY_EXPIRE_TICKS) {
+                it.remove();
+            }
+        }
     }
 }

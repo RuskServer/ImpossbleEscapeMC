@@ -7,6 +7,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
@@ -14,7 +15,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
@@ -28,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class SearchGUI implements Listener {
@@ -41,8 +46,16 @@ public class SearchGUI implements Listener {
 
     public static class SearchHolder implements InventoryHolder {
         private final Object source; // Container or Entity
-        public SearchHolder(Object source) { this.source = source; }
+        private final Inventory liveInventory;
+        private final Set<Integer> sessionSearchedSlots = new HashSet<>();
+        public SearchHolder(Object source, Inventory liveInventory) {
+            this.source = source;
+            this.liveInventory = liveInventory;
+        }
         public Object getSource() { return source; }
+        public Inventory getLiveInventory() { return liveInventory; }
+        public Set<Integer> getSessionSearchedSlots() { return sessionSearchedSlots; }
+        public void markSessionSearched(int slot) { sessionSearchedSlots.add(slot); }
         @Override public @NotNull Inventory getInventory() { return null; }
     }
 
@@ -74,18 +87,30 @@ public class SearchGUI implements Listener {
         Inventory realInv = getInventoryFromSource(source);
         if (realInv == null) return;
 
-        Inventory guiInv = Bukkit.createInventory(new SearchHolder(source), realInv.getSize(), Component.text("Searching..."));
+        SearchHolder holder = new SearchHolder(source, realInv);
+        PersistentDataContainer pdc = getPDCFromSource(source);
+        if (pdc != null) {
+            holder.getSessionSearchedSlots().addAll(getSearchedSlots(pdc));
+        }
+
+        Inventory guiInv = Bukkit.createInventory(holder, realInv.getSize(), Component.text("Searching..."));
         updateInventory(guiInv, source);
         player.openInventory(guiInv);
     }
 
+    private Container getLiveContainer(Object source) {
+        if (!(source instanceof Container container)) return null;
+        Block block = container.getBlock();
+        if (block.getState() instanceof Container liveContainer) {
+            return liveContainer;
+        }
+        return container;
+    }
+
     private Inventory getInventoryFromSource(Object source) {
-        if (source instanceof Container c) {
-            // 常に最新の状態をブロックから取得
-            if (c.getBlock().getState() instanceof Container fresh) {
-                return fresh.getInventory();
-            }
-            return c.getInventory();
+        if (source instanceof Container) {
+            Container live = getLiveContainer(source);
+            return live != null ? live.getInventory() : null;
         }
         if (source instanceof Mannequin m) {
             String data = m.getPersistentDataContainer().get(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING);
@@ -103,22 +128,27 @@ public class SearchGUI implements Listener {
     }
 
     private PersistentDataContainer getPDCFromSource(Object source) {
-        if (source instanceof Container c) {
-            if (c.getBlock().getState() instanceof Container fresh) {
-                return fresh.getPersistentDataContainer();
-            }
-            return c.getPersistentDataContainer();
+        if (source instanceof Container) {
+            Container live = getLiveContainer(source);
+            return live != null ? live.getPersistentDataContainer() : null;
         }
         if (source instanceof Entity e) return e.getPersistentDataContainer();
         return null;
     }
 
     private void updateInventory(Inventory guiInv, Object source) {
-        Inventory realInv = getInventoryFromSource(source);
+        SearchHolder holder = (guiInv.getHolder() instanceof SearchHolder h) ? h : null;
+        Inventory realInv = holder != null ? holder.getLiveInventory() : getInventoryFromSource(source);
         PersistentDataContainer pdc = getPDCFromSource(source);
-        if (realInv == null || pdc == null) return;
+        if (realInv == null) return;
 
-        Set<Integer> searchedSlots = getSearchedSlots(pdc);
+        Set<Integer> searchedSlots = new HashSet<>();
+        if (holder != null) {
+            searchedSlots.addAll(holder.getSessionSearchedSlots());
+        }
+        if (pdc != null) {
+            searchedSlots.addAll(getSearchedSlots(pdc));
+        }
 
         for (int i = 0; i < realInv.getSize(); i++) {
             ItemStack realItem = realInv.getItem(i);
@@ -145,52 +175,100 @@ public class SearchGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof SearchHolder holder)) return;
-        if (event.getRawSlot() >= event.getInventory().getSize()) return;
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof SearchHolder holder)) return;
+
+        int topSize = top.getSize();
+        int rawSlot = event.getRawSlot();
+
+        if (rawSlot < 0 || rawSlot >= topSize) {
+            InventoryAction action = event.getAction();
+            ClickType click = event.getClick();
+            if (action == InventoryAction.MOVE_TO_OTHER_INVENTORY
+                    || action == InventoryAction.COLLECT_TO_CURSOR
+                    || click == ClickType.NUMBER_KEY
+                    || click == ClickType.SWAP_OFFHAND) {
+                event.setCancelled(true);
+            }
+            return;
+        }
 
         event.setCancelled(true);
         Player player = (Player) event.getWhoClicked();
-        int slot = event.getRawSlot();
+        int slot = rawSlot;
         Object source = holder.getSource();
         PersistentDataContainer pdc = getPDCFromSource(source);
+        if (pdc == null) return;
 
-        Set<Integer> searchedSlots = getSearchedSlots(pdc);
+        Set<Integer> searchedSlots = new HashSet<>(holder.getSessionSearchedSlots());
+        searchedSlots.addAll(getSearchedSlots(pdc));
 
         if (searchedSlots.contains(slot)) {
-            ItemStack item = getInventoryFromSource(source).getItem(slot);
-            if (item != null && item.getType() != Material.AIR) {
-                if (player.getInventory().addItem(item).isEmpty()) {
-                    removeFromSourceInventory(source, slot);
+            Inventory srcInv = holder.getLiveInventory();
+            if (srcInv == null) return;
+            ItemStack sourceItem = srcInv.getItem(slot);
+            if (sourceItem == null || sourceItem.getType() == Material.AIR) return;
+
+            ItemStack toMove = sourceItem.clone();
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(toMove);
+            int leftoverAmount = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
+            int movedAmount = sourceItem.getAmount() - leftoverAmount;
+            if (movedAmount <= 0) return;
+
+            int remain = sourceItem.getAmount() - movedAmount;
+            if (remain <= 0) {
+                srcInv.setItem(slot, null);
+            } else {
+                ItemStack updated = sourceItem.clone();
+                updated.setAmount(remain);
+                srcInv.setItem(slot, updated);
+            }
+
+            if (source instanceof Container) {
+                Container live = getLiveContainer(source);
+                if (live != null) {
+                    live.update(true, false);
                 }
-                updateInventory(event.getInventory(), source);
+            } else if (source instanceof Mannequin m) {
+                try {
+                    m.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING, CorpseManager.serializeInventory(srcInv));
+                    CorpseManager.updateMannequinAppearance(m, srcInv);
+                } catch (IOException e) {
+                    plugin.getLogger().warning("Failed to save updated corpse inventory!");
+                }
             }
+
+            updateInventory(top, source);
         } else {
-            startSearching(player, event.getInventory(), source, slot);
+            startSearching(player, top, holder, source, slot);
         }
     }
 
-    private void removeFromSourceInventory(Object source, int slot) {
-        if (source instanceof Container c) {
-            // 最新の状態を取得して変更を適用し、即座に世界へ反映(update)
-            if (c.getBlock().getState() instanceof Container fresh) {
-                fresh.getInventory().setItem(slot, null);
-                fresh.update();
-            }
-        } else if (source instanceof Mannequin m) {
-            Inventory inv = getInventoryFromSource(source);
-            inv.setItem(slot, null);
-            try {
-                m.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING, CorpseManager.serializeInventory(inv));
-                CorpseManager.updateMannequinAppearance(m, inv);
-            } catch (IOException e) {
-                plugin.getLogger().warning("Failed to save updated corpse inventory!");
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof SearchHolder)) return;
+
+        int topSize = top.getSize();
+        for (int rawSlot : event.getRawSlots()) {
+            if (rawSlot < topSize) {
+                event.setCancelled(true);
+                return;
             }
         }
     }
 
-    private void startSearching(Player player, Inventory guiInv, Object source, int slot) {
-        Inventory realInv = getInventoryFromSource(source);
-        if (realInv == null || realInv.getItem(slot) == null) return;
+    private void startSearching(Player player, Inventory guiInv, SearchHolder holder, Object source, int slot) {
+        Inventory realInv = holder.getLiveInventory();
+        if (realInv == null) return;
+
+        ItemStack current = realInv.getItem(slot);
+        if (current == null || current.getType() == Material.AIR) {
+            // 実体が空なら未確認表示を残さず即時確定する
+            markAsSearched(holder, source, slot);
+            updateInventory(guiInv, source);
+            return;
+        }
 
         new BukkitRunnable() {
             int progress = 0;
@@ -211,7 +289,7 @@ public class SearchGUI implements Listener {
                     guiInv.setItem(slot, progressItem);
                     progress += 4;
                 } else {
-                    markAsSearched(source, slot);
+                    markAsSearched(holder, source, slot);
                     updateInventory(guiInv, source);
                     player.playSound(player.getLocation(), "ui.cartography_table.draw_map", 1.0f, 1.2f);
                     this.cancel();
@@ -231,31 +309,26 @@ public class SearchGUI implements Listener {
         return slots;
     }
 
-    private void markAsSearched(Object source, int slot) {
-        if (source instanceof Container c) {
-            if (c.getBlock().getState() instanceof Container fresh) {
-                PersistentDataContainer pdc = fresh.getPersistentDataContainer();
-                Set<Integer> slots = getSearchedSlots(pdc);
-                slots.add(slot);
-                StringBuilder sb = new StringBuilder();
-                for (int s : slots) {
-                    if (sb.length() > 0) sb.append(",");
-                    sb.append(s);
-                }
-                pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
-                fresh.update();
+    private void markAsSearched(SearchHolder holder, Object source, int slot) {
+        holder.markSessionSearched(slot);
+
+        PersistentDataContainer pdc = getPDCFromSource(source);
+        if (pdc == null) return;
+
+        Set<Integer> slots = getSearchedSlots(pdc);
+        slots.add(slot);
+        StringBuilder sb = new StringBuilder();
+        for (int s : slots) {
+            if (sb.length() > 0) sb.append(",");
+            sb.append(s);
+        }
+        pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
+
+        if (source instanceof Container) {
+            Container live = getLiveContainer(source);
+            if (live != null) {
+                live.update(true, false);
             }
-        } else {
-            PersistentDataContainer pdc = getPDCFromSource(source);
-            if (pdc == null) return;
-            Set<Integer> slots = getSearchedSlots(pdc);
-            slots.add(slot);
-            StringBuilder sb = new StringBuilder();
-            for (int s : slots) {
-                if (sb.length() > 0) sb.append(",");
-                sb.append(s);
-            }
-            pdc.set(SEARCHED_SLOTS_KEY, PersistentDataType.STRING, sb.toString());
         }
     }
 }

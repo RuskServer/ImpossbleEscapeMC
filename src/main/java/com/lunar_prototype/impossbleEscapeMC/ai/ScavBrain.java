@@ -12,8 +12,15 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Random;
 
 public class ScavBrain {
+    public enum BrainLevel {
+        LOW,
+        MID,
+        HIGH
+    }
+
     private final Mob entity;
     private final Random random;
+    private final BrainLevel brainLevel;
 
     // Internal States for AI simulation (0.0 to 1.0)
     private float aggression;
@@ -55,8 +62,13 @@ public class ScavBrain {
     private boolean lastCanSee = false;
 
     public ScavBrain(Mob entity) {
+        this(entity, BrainLevel.MID);
+    }
+
+    public ScavBrain(Mob entity, BrainLevel brainLevel) {
         this.entity = entity;
         this.random = new Random();
+        this.brainLevel = brainLevel;
         this.currentActions = new int[] { 8, 1 }; 
 
         java.util.Arrays.fill(moveHistory, 8);
@@ -64,6 +76,14 @@ public class ScavBrain {
         this.aggression = 0.2f + random.nextFloat() * 0.3f;
         this.fear = 0.1f;
         this.tactical = 0.3f + random.nextFloat() * 0.2f;
+
+        if (brainLevel == BrainLevel.LOW) {
+            this.aggression = 0.5f + random.nextFloat() * 0.3f;
+            this.tactical = 0.15f + random.nextFloat() * 0.15f;
+        } else if (brainLevel == BrainLevel.HIGH) {
+            this.aggression = 0.2f + random.nextFloat() * 0.2f;
+            this.tactical = 0.5f + random.nextFloat() * 0.25f;
+        }
     }
 
     public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice, boolean isSprinting) {
@@ -137,6 +157,17 @@ public class ScavBrain {
             float peekScore = (presence * 0.6f) + (tactical * 0.4f) + (suppression < 0.2f ? 0.3f : 0.0f);
             float flankScore = (tactical * 0.7f) + ((1.0f - pressure) * 0.4f) + (canSee ? 0.2f : 0.0f);
             float holdScore = (tactical * 0.5f) + ((1.0f - aggression) * 0.3f) + (presence > 0.8f ? 0.4f : 0.0f);
+
+            if (brainLevel == BrainLevel.LOW) {
+                pushScore += 0.35f;
+                holdScore -= 0.25f;
+                flankScore -= 0.15f;
+                peekScore -= 0.1f;
+            } else if (brainLevel == BrainLevel.HIGH) {
+                holdScore += 0.15f;
+                flankScore += 0.12f;
+                pushScore -= 0.15f;
+            }
 
             // C. 最高スコアのモードを選択
             TacticalMode bestMode = TacticalMode.HOLD;
@@ -391,6 +422,10 @@ public class ScavBrain {
 
     public int[] getLastActions() {
         return currentActions != null ? currentActions : new int[] { 0, 1 };
+    }
+
+    public BrainLevel getBrainLevel() {
+        return brainLevel;
     }
 
     // Removed ML feedback loops
