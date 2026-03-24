@@ -76,7 +76,7 @@ public class ScoreboardHandler {
 
         if (!isInRaid) {
             content.add(Component.text("Level: ", NamedTextColor.GRAY).append(Component.text(data.getLevel(), NamedTextColor.WHITE)));
-            content.add(Component.text("Balance: ", NamedTextColor.GRAY).append(Component.text("$" + (int) data.getBalance(), NamedTextColor.GOLD)));
+            content.add(Component.text("Balance: ", NamedTextColor.GRAY).append(Component.text((int) data.getBalance() + "₽", NamedTextColor.GOLD)));
             content.add(Component.empty());
         }
 

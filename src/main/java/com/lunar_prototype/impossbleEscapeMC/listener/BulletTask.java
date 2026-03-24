@@ -167,8 +167,10 @@ public class BulletTask extends BukkitRunnable {
                 if (isPenetrable(block.getType()) && Math.random() < 0.9) {
                     block.getWorld().playEffect(hLoc, Effect.STEP_SOUND, block.getType());
                     double hitDist = blockTrace.getHitPosition().distance(rayStart.toVector());
-                    rayStart = hLoc.clone().add(rayDir.clone().multiply(0.01));
-                    distanceRemaining -= (hitDist + 0.01);
+                    Location exitLoc = advancePastBlock(hLoc, rayDir, block);
+                    double advanceDist = exitLoc.toVector().distance(hLoc.toVector());
+                    rayStart = exitLoc;
+                    distanceRemaining -= (hitDist + advanceDist);
                     continue;
                 } else {
                     spawnBulletHole(hLoc, blockTrace.getHitBlockFace());
@@ -259,6 +261,20 @@ public class BulletTask extends BukkitRunnable {
     private boolean isPenetrable(Material m) {
         String n = m.name();
         return n.contains("GLASS") || n.contains("PANE") || n.contains("BARS") || n.contains("LEAVES");
+    }
+
+    private Location advancePastBlock(Location hitLoc, Vector rayDir, Block hitBlock) {
+        Location probe = hitLoc.clone();
+        Vector step = rayDir.clone().normalize().multiply(0.12);
+
+        for (int i = 0; i < 16; i++) {
+            probe.add(step);
+            if (!probe.getBlock().equals(hitBlock)) {
+                return probe;
+            }
+        }
+
+        return hitLoc.clone().add(rayDir.clone().normalize().multiply(0.2));
     }
 
     private void spawnBulletHole(Location loc, org.bukkit.block.BlockFace face) {

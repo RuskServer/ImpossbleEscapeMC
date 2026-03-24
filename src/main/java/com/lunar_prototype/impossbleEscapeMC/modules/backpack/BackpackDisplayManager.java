@@ -9,6 +9,7 @@ import com.github.retrooper.packetevents.protocol.player.EquipmentSlot;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.*;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import org.bukkit.Bukkit;
@@ -39,19 +40,22 @@ public class BackpackDisplayManager {
         final com.github.retrooper.packetevents.protocol.item.ItemStack backpackHelmetItem;
         final com.github.retrooper.packetevents.protocol.item.ItemStack rigHelmetItem;
         final UUID worldUuid;
+        boolean visibleToOwner;
 
         DisplaySession(int baseEntityId,
                        Integer rigEntityId,
                        int taskId,
                        com.github.retrooper.packetevents.protocol.item.ItemStack backpackHelmetItem,
                        com.github.retrooper.packetevents.protocol.item.ItemStack rigHelmetItem,
-                       UUID worldUuid) {
+                       UUID worldUuid,
+                       boolean visibleToOwner) {
             this.baseEntityId = baseEntityId;
             this.rigEntityId = rigEntityId;
             this.taskId = taskId;
             this.backpackHelmetItem = backpackHelmetItem;
             this.rigHelmetItem = rigHelmetItem;
             this.worldUuid = worldUuid;
+            this.visibleToOwner = visibleToOwner;
         }
     }
 
@@ -108,7 +112,18 @@ public class BackpackDisplayManager {
                 clearDisplay(player);
                 return;
             }
-            if (!activeSessions.containsKey(player.getUniqueId())) return;
+            DisplaySession activeSession = activeSessions.get(player.getUniqueId());
+            if (activeSession == null) return;
+
+            boolean shouldShowToOwner = shouldShowToReceiver(player, player);
+            if (activeSession.visibleToOwner != shouldShowToOwner) {
+                if (shouldShowToOwner) {
+                    sendSpawnPackets(player, activeSession, player);
+                } else {
+                    sendDestroyPackets(activeSession, Collections.singleton(player));
+                }
+                activeSession.visibleToOwner = shouldShowToOwner;
+            }
 
             float bodyYaw = player.getBodyYaw();
             WrapperPlayServerEntityHeadLook headLook =
@@ -124,6 +139,7 @@ public class BackpackDisplayManager {
             }
 
             for (Player p : player.getWorld().getPlayers()) {
+                if (!shouldShowToReceiver(player, p)) continue;
                 PacketEvents.getAPI().getPlayerManager().sendPacket(p, headLook);
                 PacketEvents.getAPI().getPlayerManager().sendPacket(p, rotation);
                 if (rigHeadLook != null && rigRotation != null) {
@@ -139,12 +155,14 @@ public class BackpackDisplayManager {
                 task.getTaskId(),
                 backpackPeItem,
                 rigPeItem,
-                player.getWorld().getUID()
+                player.getWorld().getUID(),
+                shouldShowToReceiver(player, player)
         );
         activeSessions.put(player.getUniqueId(), session);
 
         // ワールド内の全プレイヤー（自分含む）へスポーンパケットを送信
         for (Player p : player.getWorld().getPlayers()) {
+            if (!shouldShowToReceiver(player, p)) continue;
             sendSpawnPackets(player, session, p);
         }
     }
@@ -160,24 +178,15 @@ public class BackpackDisplayManager {
 
         Bukkit.getScheduler().cancelTask(session.taskId);
 
-        WrapperPlayServerDestroyEntities destroy =
-                session.rigEntityId != null
-                        ? new WrapperPlayServerDestroyEntities(new int[]{session.baseEntityId, session.rigEntityId})
-                        : new WrapperPlayServerDestroyEntities(new int[]{session.baseEntityId});
-
         // セッションが作成されたワールドの全プレイヤーにパケットを送信
         org.bukkit.World world = Bukkit.getWorld(session.worldUuid);
         if (world != null) {
-            for (Player p : world.getPlayers()) {
-                PacketEvents.getAPI().getPlayerManager().sendPacket(p, destroy);
-            }
+            sendDestroyPackets(session, world.getPlayers());
         }
         
         // もし現在のワールドが異なるなら、現在のワールドのプレイヤーにも送信しておく（念のため）
         if (player.isOnline() && !player.getWorld().getUID().equals(session.worldUuid)) {
-            for (Player p : player.getWorld().getPlayers()) {
-                PacketEvents.getAPI().getPlayerManager().sendPacket(p, destroy);
-            }
+            sendDestroyPackets(session, player.getWorld().getPlayers());
         }
     }
 
@@ -196,6 +205,7 @@ public class BackpackDisplayManager {
         DisplaySession session = activeSessions.get(owner.getUniqueId());
         if (session == null) return;
         if (!owner.getWorld().equals(receiver.getWorld())) return;
+        if (!shouldShowToReceiver(owner, receiver)) return;
         sendSpawnPackets(owner, session, receiver);
     }
 
@@ -223,6 +233,23 @@ public class BackpackDisplayManager {
     // ---------------------------------------------------------------
     // private helpers
     // ---------------------------------------------------------------
+
+    private boolean shouldShowToReceiver(Player owner, Player receiver) {
+        if (!owner.equals(receiver)) return true;
+        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+        return raidModule == null || !raidModule.isInRaid(owner);
+    }
+
+    private void sendDestroyPackets(DisplaySession session, Collection<? extends Player> receivers) {
+        WrapperPlayServerDestroyEntities destroy =
+                session.rigEntityId != null
+                        ? new WrapperPlayServerDestroyEntities(new int[]{session.baseEntityId, session.rigEntityId})
+                        : new WrapperPlayServerDestroyEntities(new int[]{session.baseEntityId});
+
+        for (Player receiver : receivers) {
+            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, destroy);
+        }
+    }
 
     private void sendSpawnPackets(Player owner, DisplaySession session, Player receiver) {
         Location loc = owner.getLocation();

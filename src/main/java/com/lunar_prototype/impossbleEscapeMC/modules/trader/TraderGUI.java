@@ -95,6 +95,7 @@ public class TraderGUI implements Listener {
             }
             if (unlocked) {
                 lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("Shift+クリックで個数を指定", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             } else {
                 lore.add(Component.text("未解放: Lv." + requiredLevel + " で購入可能", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
             }
