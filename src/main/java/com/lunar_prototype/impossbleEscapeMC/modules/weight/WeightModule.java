@@ -156,8 +156,11 @@ public class WeightModule implements IModule, Listener {
             }
         }
         
-        // 3. ジャンプ力(重力)の補正
-        updateGravityModifier(player, weight);
+        // 3. 重力補正の解除（以前の仕様からのクリーンアップ）
+        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
+        if (gravity != null) {
+            gravity.removeModifier(GRAVITY_MODIFIER_KEY);
+        }
     }
 
     private void updateSpeedModifier(Player player, int weight) {
@@ -178,23 +181,6 @@ public class WeightModule implements IModule, Listener {
 
         if (penalty != 0.0) {
             moveSpeed.addModifier(new AttributeModifier(SPEED_MODIFIER_KEY, penalty, AttributeModifier.Operation.ADD_SCALAR));
-        }
-    }
-
-    private void updateGravityModifier(Player player, int weight) {
-        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
-        if (gravity == null) return;
-
-        gravity.removeModifier(GRAVITY_MODIFIER_KEY);
-
-        // 15kg (Normalの上限) から重力ペナルティを開始
-        if (weight > 15000) {
-            // 15,001g -> 50,000g (ハード上限) の範囲で線形に増加
-            // 以前は最大 0.2 だったものを半分 (0.1) に緩和
-            double ratio = Math.min(1.0, (double) (weight - 15000) / (50000 - 15000));
-            double penalty = ratio * 0.1; // Max penalty of +0.1 makes jumping still possible even at high weight
-
-            gravity.addModifier(new AttributeModifier(GRAVITY_MODIFIER_KEY, penalty, AttributeModifier.Operation.ADD_NUMBER));
         }
     }
 
