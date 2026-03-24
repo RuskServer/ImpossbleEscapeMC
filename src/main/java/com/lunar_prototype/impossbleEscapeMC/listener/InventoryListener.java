@@ -47,22 +47,13 @@ public class InventoryListener implements Listener {
                         event.setCancelled(true); // パケット握り潰し
 
                         int stateId = packet.getStateId().orElse(0);
-
-                        // GUI処理だけ自前で実行
                         Player player = (Player) event.getPlayer();
                         if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
                             player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
 
-                        WrapperPlayServerSetSlot cursorClear = new WrapperPlayServerSetSlot(
-                                -1,
-                                stateId,
-                                -1,
-                                SpigotConversionUtil.fromBukkitItemStack(new org.bukkit.inventory.ItemStack(Material.AIR))
-                        );
-                        PacketEvents.getAPI().getPlayerManager().sendPacket(player, cursorClear);
-                        
                         final int slot = packet.getSlot();
                         Bukkit.getScheduler().runTask(plugin, () -> {
+                            syncClientTriggerState(player, stateId, slot);
                             if (slot == 4) {
                                 ItemStack mainHand = player.getInventory().getItemInMainHand();
                                 String itemId = mainHand.hasItemMeta() ?
@@ -82,6 +73,24 @@ public class InventoryListener implements Listener {
                 }
             }
         });
+    }
+
+    private void syncClientTriggerState(Player player, int stateId, int clickedSlot) {
+        InventoryView view = player.getOpenInventory();
+        if (!isPlayerCraftingGrid(view)) return;
+
+        sendSlotUpdate(player, stateId, clickedSlot, view.getItem(clickedSlot));
+        sendSlotUpdate(player, stateId, 0, view.getItem(0));
+        sendSlotUpdate(player, stateId, -1, player.getItemOnCursor());
+    }
+
+    private void sendSlotUpdate(Player player, int stateId, int slot, ItemStack item) {
+        PacketEvents.getAPI().getPlayerManager().sendPacket(player, new WrapperPlayServerSetSlot(
+                slot == -1 ? -1 : 0,
+                stateId,
+                slot,
+                SpigotConversionUtil.fromBukkitItemStack(item == null ? new ItemStack(Material.AIR) : item)
+        ));
     }
 
     private ItemStack getGuiTriggerButton() {
@@ -184,24 +193,10 @@ public class InventoryListener implements Listener {
         if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
             player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
 
-        // スロット4（クラフトグリッド右下）またはスロット1（左上）への干渉は常に制限
-        if (event.getRawSlot() == 4) {
+        // クラフトグリッドのトリガーボタン押下自体は PacketEvents 側で処理する。
+        if (event.getRawSlot() == 4 || event.getRawSlot() == 1) {
             event.setCancelled(true);
-            
-            ItemStack mainHand = player.getInventory().getItemInMainHand();
-            
-            // 銃を持っている場合のみGUIを開く
-            String itemId = (mainHand.hasItemMeta()) ? mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-            ItemDefinition def = ItemRegistry.get(itemId);
-
-            if (def != null && "GUN".equals(def.type)) {
-                new AttachmentGUI(player, mainHand).open();
-            } else if (event.getCurrentItem() != null && isGuiTrigger(event.getCurrentItem())) {
-                player.sendMessage("§cメインハンドに有効な銃を持っていません");
-            }
-        } else if (event.getRawSlot() == 1) {
-            event.setCancelled(true);
-            new PDAGUI(player).open();
+            return;
         }
     }
 
