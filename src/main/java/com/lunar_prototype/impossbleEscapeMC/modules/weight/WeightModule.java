@@ -168,12 +168,12 @@ public class WeightModule implements IModule, Listener {
         moveSpeed.removeModifier(SPEED_MODIFIER_KEY);
 
         double penalty = 0.0;
-        if (weight >= 50000) {
-            // 移動不可 (強制停止)
-            penalty = -1.0;
-        } else if (weight >= 40000) {
-            // Critical 40kg: 移動速度 -20%
-            penalty = -0.20;
+        // 15kg (Normalの上限) から速度ペナルティを開始
+        if (weight > 15000) {
+            // 以前は40kgで-20%, 50kgで停止(-100%)だったが、これを半分に緩和
+            // 15kg〜50kgの間で線形に増加し、50kgで最大-50%にする
+            double ratio = Math.min(1.0, (double) (weight - 15000) / (50000 - 15000));
+            penalty = -ratio * 0.5; // 最大で移動速度 -50% (以前は最大-100%)
         }
 
         if (penalty != 0.0) {
@@ -190,9 +190,9 @@ public class WeightModule implements IModule, Listener {
         // 15kg (Normalの上限) から重力ペナルティを開始
         if (weight > 15000) {
             // 15,001g -> 50,000g (ハード上限) の範囲で線形に増加
-            // 増加量は 0 (ペナルティなし) から 0.2 (ジャンプほぼ不可) まで
+            // 以前は最大 0.2 だったものを半分 (0.1) に緩和
             double ratio = Math.min(1.0, (double) (weight - 15000) / (50000 - 15000));
-            double penalty = ratio * 0.2; // Max penalty of +0.2 makes gravity very strong
+            double penalty = ratio * 0.1; // Max penalty of +0.1 makes jumping still possible even at high weight
 
             gravity.addModifier(new AttributeModifier(GRAVITY_MODIFIER_KEY, penalty, AttributeModifier.Operation.ADD_NUMBER));
         }

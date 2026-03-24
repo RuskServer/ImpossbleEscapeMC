@@ -164,7 +164,16 @@ public class TraderGUI implements Listener {
                 ItemStack clicked = event.getCurrentItem();
                 if (clicked != null && clicked.getType() != Material.AIR) {
                     PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
-                    handleBuy(clicked, data);
+                    
+                    if (event.isShiftClick()) {
+                        String itemId = clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+                        TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
+                        if (ti != null) {
+                            new TraderQuantityGUI(traderModule, trader, ti, player, this).open();
+                        }
+                    } else {
+                        handleBuy(clicked, data, 1);
+                    }
                 }
             }
         } else {
@@ -224,32 +233,58 @@ public class TraderGUI implements Listener {
         HandlerList.unregisterAll(this); // リスナー解除
     }
 
-    private void handleBuy(ItemStack clicked, PlayerData data) {
+    public void handleBuy(ItemStack clicked, PlayerData data, int quantity) {
         String itemId = clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
         if (ti == null) return;
+        if (quantity <= 0) return;
 
         traderModule.checkAndResetDailyPurchases(data);
         if (ti.dailyLimit > 0) {
             int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
-            if (bought >= ti.dailyLimit) {
-                player.sendMessage(Component.text("本日の購入制限に達しています。", NamedTextColor.RED));
+            if (bought + quantity > ti.dailyLimit) {
+                int allowed = Math.max(0, ti.dailyLimit - bought);
+                player.sendMessage(Component.text("本日の購入制限に達しています（残り " + allowed + " 個）。", NamedTextColor.RED));
                 return;
             }
         }
 
-        if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), ti.price)) {
-            ItemStack item = ItemFactory.create(ti.itemId);
-            if (player.getInventory().addItem(item).isEmpty()) {
+        double totalPrice = ti.price * quantity;
+        if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), totalPrice)) {
+            // アイテムをスタック数に合わせて配布
+            int maxStack = Material.valueOf(ItemRegistry.get(ti.itemId).material.toUpperCase()).getMaxStackSize();
+            int remainingToGive = quantity;
+            boolean inventoryFull = false;
+
+            while (remainingToGive > 0) {
+                int amount = Math.min(remainingToGive, maxStack);
+                ItemStack item = ItemFactory.create(ti.itemId);
+                if (item != null) {
+                    item.setAmount(amount);
+                    if (!player.getInventory().addItem(item).isEmpty()) {
+                        inventoryFull = true;
+                        break;
+                    }
+                }
+                remainingToGive -= amount;
+            }
+
+            int actualGiven = quantity - remainingToGive;
+            if (actualGiven > 0) {
                 if (ti.dailyLimit > 0) {
-                    data.incrementPurchase(trader.id + "_" + ti.itemId);
+                    for (int i = 0; i < actualGiven; i++) {
+                        data.incrementPurchase(trader.id + "_" + ti.itemId);
+                    }
                     traderModule.getDataModule().saveAsync(player.getUniqueId());
                 }
-                player.sendMessage(Component.text(ti.itemId + " を購入しました。", NamedTextColor.GREEN));
+                player.sendMessage(Component.text(ti.itemId + " を " + actualGiven + " 個購入しました。", NamedTextColor.GREEN));
                 setupBuyGUI();
-            } else {
-                traderModule.getEconomyModule().deposit(player.getUniqueId(), ti.price);
-                player.sendMessage(Component.text("インベントリがいっぱいです。", NamedTextColor.RED));
+            }
+
+            // 余った分を返金
+            if (remainingToGive > 0) {
+                traderModule.getEconomyModule().deposit(player.getUniqueId(), remainingToGive * ti.price);
+                player.sendMessage(Component.text("インベントリがいっぱいだったため、" + remainingToGive + " 個分の代金を返金しました。", NamedTextColor.RED));
             }
         } else {
             player.sendMessage(Component.text("所持金が足りません。", NamedTextColor.RED));
