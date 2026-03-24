@@ -19,14 +19,17 @@ public class IdleState implements WeaponState {
 
         // 【修正】チャンバーが空でマガジンに弾がある場合、自動的にボルトアクションへ
         if ("BOLT_ACTION".equalsIgnoreCase(stats.boltType) || "PUMP_ACTION".equalsIgnoreCase(stats.boltType)) {
-            org.bukkit.persistence.PersistentDataContainer pdc = ctx.getItem().getItemMeta().getPersistentDataContainer();
-            int currentAmmo = pdc.getOrDefault(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.AMMO, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, 0);
-            boolean isChamberLoaded = pdc.getOrDefault(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.CHAMBER_LOADED, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.BOOLEAN, (byte) 0) == 1;
+            org.bukkit.inventory.ItemStack item = ctx.getItem();
+            if (item != null && item.getType() != org.bukkit.Material.AIR && item.hasItemMeta()) {
+                org.bukkit.persistence.PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+                int currentAmmo = pdc.getOrDefault(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.AMMO, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, 0);
+                boolean isChamberLoaded = pdc.getOrDefault(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.CHAMBER_LOADED, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.BOOLEAN, (byte) 0) == 1;
 
-            if (!isChamberLoaded && currentAmmo > 0) {
-                if (ctx.getStateMachine() != null) {
-                    ctx.getStateMachine().transitionTo(new BoltingState());
-                    return;
+                if (!isChamberLoaded && currentAmmo > 0) {
+                    if (ctx.getStateMachine() != null) {
+                        ctx.getStateMachine().transitionTo(new BoltingState());
+                        return;
+                    }
                 }
             }
         }

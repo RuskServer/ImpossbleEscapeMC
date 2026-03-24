@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ScavSpawner implements Listener {
     private static final Random RANDOM = new Random();
@@ -44,9 +45,9 @@ public class ScavSpawner implements Listener {
     private final ImpossbleEscapeMC plugin;
     private final GunListener gunListener;
     // UUIDごとにAIコントローラーを保持
-    private static final Map<UUID, ScavController> controllers = new HashMap<>();
-    private static final Map<UUID, String> scavRaidSessions = new HashMap<>();
-    private static final Map<UUID, String> scavRaidMaps = new HashMap<>();
+    private static final Map<UUID, ScavController> controllers = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> scavRaidSessions = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> scavRaidMaps = new ConcurrentHashMap<>();
 
     public ScavSpawner(ImpossbleEscapeMC plugin, GunListener gunListener) {
         this.plugin = plugin;
