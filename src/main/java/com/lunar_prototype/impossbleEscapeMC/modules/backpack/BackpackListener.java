@@ -54,24 +54,35 @@ public class BackpackListener implements Listener {
                         Player player = (Player) event.getPlayer();
                         if (!isPlayableMode(player)) return;
 
-                        // クライアントのカーソルをサーバー側でAIRに強制同期（ゴースト防止）
                         int stateId = packet.getStateId().orElse(0);
-                        WrapperPlayServerSetSlot cursorClear = new WrapperPlayServerSetSlot(
-                                -1,
-                                stateId,
-                                -1,
-                                SpigotConversionUtil.fromBukkitItemStack(new org.bukkit.inventory.ItemStack(Material.AIR))
-                        );
-                        PacketEvents.getAPI().getPlayerManager().sendPacket(player, cursorClear);
 
                         // メインロジックは同期スレッドで実行
                         Bukkit.getScheduler().runTask(plugin, () -> {
+                            syncClientTriggerState(player, stateId, BACKPACK_BUTTON_SLOT);
                             backpackModule.openBackpackFromOffhand(player);
                         });
                     }
                 }
             }
         });
+    }
+
+    private void syncClientTriggerState(Player player, int stateId, int clickedSlot) {
+        InventoryView view = player.getOpenInventory();
+        if (!isPlayerCraftingGrid(view)) return;
+
+        sendSlotUpdate(player, stateId, clickedSlot, view.getItem(clickedSlot));
+        sendSlotUpdate(player, stateId, 0, view.getItem(0));
+        sendSlotUpdate(player, stateId, -1, player.getItemOnCursor());
+    }
+
+    private void sendSlotUpdate(Player player, int stateId, int slot, ItemStack item) {
+        PacketEvents.getAPI().getPlayerManager().sendPacket(player, new WrapperPlayServerSetSlot(
+                slot == -1 ? -1 : 0,
+                stateId,
+                slot,
+                SpigotConversionUtil.fromBukkitItemStack(item == null ? new ItemStack(Material.AIR) : item)
+        ));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
