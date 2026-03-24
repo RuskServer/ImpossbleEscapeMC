@@ -324,6 +324,22 @@ public class ScavSpawner implements Listener {
         return scavRaidMaps.get(uuid);
     }
 
+    /**
+     * SCAVが死亡したときに関連するゲーム内処理（キル通知、経験値付与、AI終了、レイド記録、遺体生成、バニラドロップ抑制）を行う。
+     *
+     * <p>動作概要:
+     * <ul>
+     *   <li>被害者を殺したエンティティが別のSCAVであれば、そのSCAVのコントローラにonKillを通知する。</li>
+     *   <li>死亡したエンティティが登録済みのSCAVであれば、そのSCAVのコントローラとレイド関連メタデータを削除する。</li>
+     *   <li>キラーがプレイヤーの場合は50 EXPを付与する。SCAVがレイドに紐づきかつキラーがレイド参加中であればレイドモジュール側で処理し（付与はレイド終了時扱い）、そうでなければLevelModuleに直接経験値を追加する。</li>
+     *   <li>該当コントローラを終了させログ出力を行う。</li>
+     *   <li>レイドセッションが存在すればAiRaidLoggerに「DIED」イベントを送信する。</li>
+     *   <li>プラグインのレイドモジュールにSCAV死亡を通知する。</li>
+     *   <li>バニラのドロップを消去し、コープスマネージャで遺体を生成する。</li>
+     * </ul>
+     *
+     * @param event 死亡したエンティティに関するイベント
+     */
     @EventHandler
     public void onScavDeath(EntityDeathEvent event) {
         LivingEntity victim = event.getEntity();

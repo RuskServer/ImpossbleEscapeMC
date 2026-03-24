@@ -38,6 +38,11 @@ public class RaidInstance {
 
         private final String displayName;
 
+        /**
+         * 列挙定数に表示用の名前を設定するコンストラクタ。
+         *
+         * @param displayName ユーザー向けに表示する名前（例: 日本語の表示名）
+         */
         RaidOutcome(String displayName) {
             this.displayName = displayName;
         }
@@ -50,6 +55,15 @@ public class RaidInstance {
         private boolean extractionCountIncremented = false;
     }
 
+    /**
+     * 新しいレイドセッションを初期化し、仮想スカブの作成、抽出ポイントの選定、定期更新タスクの開始、および参加プレイヤーの参加処理を行う。
+     *
+     * 起動時にAIレイドロガーが利用可能であればレイドセッションを開始し、マップ定義に基づいて仮想スカブを登録します。指定された参加者リストが空でない場合はその参加者をレイドへ参加させます。
+     *
+     * @param plugin      プラグインのエントリポイント（モジュールやサービス取得に使用）
+     * @param map         このインスタンスが管理するレイド用マップ定義
+     * @param participants 初期参加者のリスト（空の場合は参加処理を行わない）
+     */
     public RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants) {
         this.plugin = plugin;
         this.map = map;
@@ -168,6 +182,12 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * レイドのUI（ボスバー）を初期化し、1秒間隔で実行されるレイドの定期更新タスクを開始する。
+     *
+     * 定期タスクはボスバーの更新、参加者のゲームモード強制、抽出判定、仮想スカブのスポーン管理、プレイヤースナップショットのログ記録を行い、
+     * 定期的に死んだスカブの復活チェックを実行します（内部での周期管理あり）。
+     */
     private void startTask() {
         bossBar = BossBar.bossBar(
                 Component.text("残りレイド時間: 計算中..."),
@@ -202,6 +222,11 @@ public class RaidInstance {
         task.runTaskTimer(plugin, 0, 20);
     }
 
+    /**
+     * 現在このインスタンスに参加しているオンラインプレイヤーのゲームモードをすべてAdventureに設定する。
+     *
+     * オフラインのUUIDは無視される。
+     */
     private void enforceRaidGamemode() {
         for (UUID uuid : players) {
             Player player = Bukkit.getPlayer(uuid);
@@ -211,6 +236,12 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * 現在のレイド参加者について、利用可能なAIレイドロガーへプレイヤーのスナップショットを記録する。
+     *
+     * AIレイドロガーが存在し有効な場合にのみ、現在の参加者集合を走査してオンラインの各プレイヤーに対し
+     * `plugin.getAiRaidLogger().logPlayerSnapshot(raidSessionId, p)` を呼び出す。
+     */
     private void logPlayerSnapshots() {
         if (plugin.getAiRaidLogger() == null || !plugin.getAiRaidLogger().isEnabled()) return;
         for (UUID uuid : players) {
@@ -249,6 +280,14 @@ public class RaidInstance {
         bossBar.progress((float) timeLeft / (float) RaidModule.CYCLE_DURATION);
     }
 
+    /**
+     * サイクル終了時に現在参加中の全プレイヤーを「MIA」として処理し、関連状態を更新する。
+     *
+     * 詳細: endReason を "mia_cycle_end" に設定し、各参加者について抽出タイマーを削除して
+     * RaidResult を `MIA` に設定する。オンラインのプレイヤーには失敗メッセージを送信し、
+     * ゲームモードを Adventure に変更してメインワールドのスポーンへテレポートし、ボスバーを非表示にし、
+     * 失敗エフェクトを適用してマップスロットを更新する。最後に参加者集合をクリアする。
+     */
     public void handleMIA() {
         endReason = "mia_cycle_end";
         for (UUID uuid : new HashSet<>(players)) {
@@ -306,6 +345,11 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * 与えられたエンティティIDに対応する仮想SCAVを死亡状態にして、スポーン状態とエンティティ参照をクリアする。
+     *
+     * @param entityId 死亡したエンティティのUUID。該当する仮想SCAVが存在しない場合は何もしない。
+     */
     public void onScavDeath(UUID entityId) {
         for (VirtualScav vs : virtualScavs) {
             if (entityId.equals(vs.getEntityId())) {
@@ -317,6 +361,15 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * プレイヤーによるSCAVの撃破をこのレイドの集計に反映する。
+     *
+     * 指定したKillerがこのレイドの参加者（raidMembers）であり、指定したSCAV実体IDがこのレイドに属する場合に、
+     * そのプレイヤーの `RaidResult.scavKills` を1増やし `RaidResult.experienceToGrant` に50を加算する。
+     *
+     * @param scavEntityId 撃破されたSCAVのエンティティUUID
+     * @param killerUuid   撃破を行ったプレイヤーのUUID
+     */
     public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid) {
         if (!raidMembers.contains(killerUuid)) return;
 
@@ -334,6 +387,12 @@ public class RaidInstance {
         result.experienceToGrant += 50L;
     }
 
+    /**
+     * 現在参加中の各プレイヤーを確認し、アクティブな抽出ポイントにいる場合は抽出処理を開始し、
+     * どの抽出ゾーンにもいない場合はそのプレイヤーの抽出進捗をクリアする。
+     *
+     * <p>オンラインでないプレイヤーは無視される。各プレイヤーは最初に見つかった抽出ポイントのみで処理される。</p>
+     */
     private void checkExtractions() {
         for (UUID uuid : new HashSet<>(players)) {
             Player p = Bukkit.getPlayer(uuid);
@@ -357,6 +416,17 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * プレイヤーの抽出進行を更新し、進行中は残り時間表示と効果音を送信、完了時に脱出成功処理を行う。
+     *
+     * カウントをインクリメントして残り時間がある間はアクションバー表示とクリック音を再生する。カウントが完了した場合は
+     * 当該プレイヤーのリザルトを `SURVIVED` に設定して経験値を蓄積し（経験値はレイド終了時に付与される）、永続的な
+     * 脱出回数を一度だけインクリメントする。その後プレイヤーをアクティブ参加者から除外し、ボスバーを非表示にして
+     * アドベンチャーモードへ戻し、メインワールドのスポーンへテレポートしてマップスロットを更新する。参加者が0人になればレイドを終了する。
+     *
+     * @param p 進行を更新するプレイヤー
+     * @param ep 対象の抽出ポイント（表示名と半径を含む）
+     */
     private void handleExtraction(Player p, RaidMap.ExtractionPoint ep) {
         int count = extractionTimer.getOrDefault(p.getUniqueId(), 0);
         count++;
@@ -401,6 +471,14 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * レイドを最終的に終了し、関連するリソースと状態をクリーンアップする。
+     *
+     * 具体的には：二重終了を防ぎ、スケジュールタスクを停止し、出現中のSCAVを削除し、
+     * まだ `ACTIVE` な参加者の結果を `MIA` に設定してボスバーを非表示にし通知を送り、
+     * 参加者リストをクリアして蓄積された報酬を付与・結果表示し、レイドをモジュールから削除し、
+     * 必要ならAIレイドロガーのセッションを終了する。
+     */
     private void endRaid() {
         if (ended) return;
         ended = true;
@@ -435,6 +513,15 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * 参加者の死亡を処理し、対応するレイド結果を記録・更新する。
+     *
+     * プレイヤーがこのレイドの参加者である場合、抽出タイマーを削除し、該当プレイヤーの結果を
+     * `DEAD` に設定して経験値を加算し、参加者リストから除外する。最後の参加者が失われた場合は
+     * レイドを終了する。
+     *
+     * @param player 死亡したプレイヤー
+     */
     public void onPlayerDeath(Player player) {
         if (!players.contains(player.getUniqueId())) return;
         extractionTimer.remove(player.getUniqueId());
@@ -455,6 +542,15 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * プレイヤーがサーバーを離脱したときに、そのプレイヤーを現在のレイド参加者から除外し、状態を記録する。
+     *
+     * プレイヤーがこのレイドの参加者でない場合は何もしない。参加者であれば抽出タイマーを削除し、
+     * そのプレイヤーの `RaidResult` がまだ `ACTIVE` であれば `LEFT` に設定してから参加者集合を除去する。
+     * 参加者がこれによって空になった場合は `endRaid()` を呼び出してレイドを終了する。
+     *
+     * @param player サーバーを離れたプレイヤー
+     */
     public void onPlayerQuit(Player player) {
         if (!players.contains(player.getUniqueId())) return;
 
@@ -508,6 +604,16 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * 指定したプレイヤー群を安全なスポーン中心の付近に配置し、レイド参加状態と表示を初期化する。
+     *
+     * 各プレイヤーをこのインスタンスの参加者（およびraidMembers）として登録し、ボスバー表示とアドベンチャーモードを適用する。中心スポーンが決定されている場合は各プレイヤーを中心の近傍にランダムな小オフセットでテレポートし、スポーン保護や開始演出、抽出ポイント表示、マップスロット更新を行う。また各プレイヤー用のRaidResultを確実に作成する。
+     *
+     * @param group        一緒にスポーンさせるプレイヤーのリスト（パーティー単位など）
+     * @param spawns       利用可能なスポーン候補の位置リスト
+     * @param usedThisWave そのウェーブ内で既に使用されたスポーン位置を記録する集合（選ばれた中心スポーンはここに追加される）
+     * @param random       オフセット等の乱数生成に使う Random インスタンス
+     */
     private void spawnGroup(List<Player> group, List<Location> spawns, Set<Location> usedThisWave, Random random) {
         Location centerSpawn = findSafeSpawn(spawns, usedThisWave);
         if (centerSpawn != null) {
@@ -549,6 +655,15 @@ public class RaidInstance {
         return players.contains(uuid);
     }
 
+    /**
+     * 指定したプレイヤー UUID の集合をこのレイドの参加者として復帰させる。
+     *
+     * <p>内部の参加者トラッキング（現在参加中の set と raidMembers）に追加し、
+     * 各 UUID について結果用のエントリを作成する。サーバ上でオンラインのプレイヤーには
+     * ゲームモードを Adventure に設定し、ボスバーを表示して再参加メッセージを送信する。</p>
+     *
+     * @param uuids 復帰させるプレイヤーの UUID 集合
+     */
     public void restoreParticipants(Set<UUID> uuids) {
         this.players.addAll(uuids);
         this.raidMembers.addAll(uuids);
@@ -565,14 +680,31 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * 現在このレイドインスタンスに参加しているプレイヤーの UUID 集合を取得する。
+     *
+     * @return `players` に含まれる参加者の UUID を保持する変更不可の Set。返された Set への変更は実際の参加者リストに影響しない。
+     */
     public Set<UUID> getParticipantUuids() {
         return Collections.unmodifiableSet(players);
     }
 
+    /**
+     * 指定した UUID に対応する既存の RaidResult を返す。存在しない場合は新しく作成して格納した上で返す。
+     *
+     * @param uuid 対象プレイヤー（または参加者）の UUID
+     * @return 指定 UUID に対応する既存または新規作成された RaidResult
+     */
     private RaidResult getOrCreateRaidResult(UUID uuid) {
         return raidResults.computeIfAbsent(uuid, ignored -> new RaidResult());
     }
 
+    /**
+     * レイド参加者に蓄積された報酬を付与し、各参加者にレイド結果を表示する。
+     *
+     * <p>まだ `ACTIVE` のままの参加者は `MIA` として扱われ、各参加者に対して蓄積された経験値を付与し、
+     * SCAVキル数・獲得EXP・最終結果をチャットに送信する。レベル管理モジュールが利用できない場合は何もしない。</p>
+     */
     private void applyRaidRewardsAndShowResults() {
         com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                 plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
