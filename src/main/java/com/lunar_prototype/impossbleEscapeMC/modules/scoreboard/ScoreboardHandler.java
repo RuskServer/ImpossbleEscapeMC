@@ -85,17 +85,6 @@ public class ScoreboardHandler {
         content.add(Component.text("Weight: ", NamedTextColor.GRAY)
             .append(Component.text(String.format("%.1f", weightKg) + "kg", data.getWeightStage().getColor())));
         
-        // スタミナ表示
-        int staminaInt = (int) data.getStamina();
-        NamedTextColor staminaColor = data.isExhausted() ? NamedTextColor.RED : NamedTextColor.GREEN;
-        int barCount = 10;
-        int filledBars = (int) ((data.getStamina() / 100.0) * barCount);
-        content.add(Component.text("Stamina: ", NamedTextColor.GRAY)
-            .append(Component.text("["))
-            .append(Component.text("|".repeat(filledBars), staminaColor))
-            .append(Component.text("-".repeat(barCount - filledBars), NamedTextColor.DARK_GRAY))
-            .append(Component.text("]"))
-        );
         content.add(Component.empty());
 
         content.add(Component.text("STATUS:", NamedTextColor.YELLOW, TextDecoration.BOLD));
