@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -118,6 +119,22 @@ public class PDAGUI implements Listener {
         stash.setItemMeta(stashMeta);
         inventory.setItem(11, stash);
 
+        // Raidボタン
+        ItemStack raid = new ItemStack(inRaid ? Material.BARRIER : Material.FILLED_MAP);
+        ItemMeta raidMeta = raid.getItemMeta();
+        raidMeta.displayName(Component.text("Raid (出撃)", inRaid ? NamedTextColor.RED : NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        List<Component> raidLore = new ArrayList<>();
+        raidLore.add(Component.text("出撃先を選択してレイド待機列に参加します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        raidLore.add(Component.empty());
+        if (inRaid) {
+            raidLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else {
+            raidLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
+        raidMeta.lore(raidLore);
+        raid.setItemMeta(raidMeta);
+        inventory.setItem(14, raid);
+
         // Tradersボタン
         ItemStack traders = new ItemStack(inRaid ? Material.BARRIER : Material.EMERALD);
         ItemMeta tradersMeta = traders.getItemMeta();
@@ -160,6 +177,15 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule stashModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule.class);
             new com.lunar_prototype.impossbleEscapeMC.modules.stash.StashPageSelectorGUI(player, stashModule).open();
+        } else if (slot == 14) {
+            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+            if (raidModule.isInRaid(player)) {
+                player.sendMessage(Component.text("§cレイド中は出撃画面を開くことができません！", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
+            player.closeInventory();
+            new RaidSelectionGUI(raidModule).open(player);
         } else if (slot == 15) {
             RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
             if (raidModule.isInRaid(player)) {
