@@ -165,6 +165,7 @@ public class RaidInstance {
                 updateBossBar();
                 checkExtractions();
                 updateScavs();
+                logPlayerSnapshots();
 
                 respawnTicks++;
                 if (respawnTicks >= 3600) { // 180 seconds = 3 mins
@@ -174,6 +175,16 @@ public class RaidInstance {
             }
         };
         task.runTaskTimer(plugin, 0, 20);
+    }
+
+    private void logPlayerSnapshots() {
+        if (plugin.getAiRaidLogger() == null || !plugin.getAiRaidLogger().isEnabled()) return;
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                plugin.getAiRaidLogger().logPlayerSnapshot(raidSessionId, p);
+            }
+        }
     }
 
     private void respawnDeadScavs() {
