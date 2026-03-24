@@ -30,6 +30,8 @@ import java.util.UUID;
 
 public class ScavSpawner implements Listener {
     private static final Random RANDOM = new Random();
+    private static final double BRAIN_LOW_CHANCE = 0.60;
+    private static final double BRAIN_MID_CHANCE = 0.40;
     private static final double ARMOR_BOTH_EQUIP_CHANCE = 0.60;
     private static final double ARMOR_SINGLE_EQUIP_CHANCE = 0.35;
     // 完全未装備は低確率
@@ -76,11 +78,24 @@ public class ScavSpawner implements Listener {
         DisguiseAPI.disguiseToAll(scav, disguise);
 
         // コントローラーを生成して登録
-        ScavController controller = new ScavController(plugin, scav, gunListener);
+        ScavBrain.BrainLevel brainLevel = rollBrainLevel();
+        ScavController controller = new ScavController(plugin, scav, gunListener, brainLevel);
         controllers.put(scav.getUniqueId(), controller);
 
-        Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId());
+        Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId() + " level=" + brainLevel);
         return scav.getUniqueId();
+    }
+
+    private ScavBrain.BrainLevel rollBrainLevel() {
+        double roll = RANDOM.nextDouble();
+        if (roll < BRAIN_LOW_CHANCE) {
+            return ScavBrain.BrainLevel.LOW;
+        }
+        if (roll < BRAIN_LOW_CHANCE + BRAIN_MID_CHANCE) {
+            return ScavBrain.BrainLevel.MID;
+        }
+        // 通常スポーンでHIGHは出さない（明示要件）
+        return ScavBrain.BrainLevel.MID;
     }
 
     private void setupScavEquipment(Mob scav) {

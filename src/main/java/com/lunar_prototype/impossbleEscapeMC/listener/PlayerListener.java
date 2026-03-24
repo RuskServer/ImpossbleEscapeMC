@@ -2,6 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightStage;
@@ -244,6 +245,21 @@ public class PlayerListener implements Listener {
                 controller.onDamage(nabe.getDamager());
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBulletHit(BulletHitEvent event) {
+        if (!(event.getShooter() instanceof Mob shooterMob)) return;
+
+        ScavController shooterController = ScavSpawner.getController(shooterMob.getUniqueId());
+        if (shooterController == null) return;
+
+        shooterController.onBulletHitDealt(
+                event.getVictim(),
+                event.getDamage(),
+                event.isPenetrated(),
+                event.getHitLocation()
+        );
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
