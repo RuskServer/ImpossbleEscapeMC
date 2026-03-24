@@ -32,45 +32,45 @@ public enum WeightStage {
 
     public float getFootstepVolumeMultiplier(int weightGrams) {
         return switch (this) {
-            case LIGHT -> 0.8f; // -20%
+            case LIGHT -> 0.9f; // -10% (以前は -20%)
             case NORMAL -> 1.0f;
             case HEAVY -> {
-                // 15,001〜35,000g: +0% → +50% (linear)
+                // 15,001〜35,000g: +0% → +25% (以前は +50%)
                 float ratio = (float) (weightGrams - 15000) / (35000 - 15000);
-                yield 1.0f + (ratio * 0.5f);
+                yield 1.0f + (ratio * 0.25f);
             }
-            case CRITICAL -> 1.5f;
+            case CRITICAL -> 1.25f; // (以前は 1.5)
         };
     }
 
     public double getFootstepAlertDistanceMultiplier(int weightGrams) {
-        // base × (1 + weightRatio) where weightRatio is weight / 15,000 (normal limit)
-        return 1.0 + ((double) weightGrams / 15000.0);
+        // base × (1 + weightRatio) where weightRatio is weight / 30,000 (以前は 15,000)
+        return 1.0 + ((double) weightGrams / 30000.0);
     }
 
     public double getStaminaCostMultiplier(int weightGrams) {
         return switch (this) {
-            case LIGHT -> 0.8;
+            case LIGHT -> 0.9; // (以前は 0.8)
             case NORMAL -> 1.0;
             case HEAVY -> {
-                // 15,001〜35,000g: 1.2 → 1.8 (linear)
+                // 15,001〜35,000g: 1.1 → 1.4 (linear) (以前は 1.2 → 1.8)
                 double ratio = (double) (weightGrams - 15000) / (35000 - 15000);
-                yield 1.2 + (ratio * 0.6); // 1.8 - 1.2 = 0.6
+                yield 1.1 + (ratio * 0.3); // 1.4 - 1.1 = 0.3
             }
-            case CRITICAL -> 2.0;
+            case CRITICAL -> 1.5; // (以前は 2.0)
         };
     }
 
     public long getStaminaRecoveryDelayPenalty(int weightGrams) {
         return switch (this) {
-            case LIGHT -> -300L; // -0.3 seconds
+            case LIGHT -> -150L; // -0.15 seconds (以前は -0.3)
             case NORMAL -> 0L;
             case HEAVY -> {
-                // 15,001〜35,000g: +500ms → +2000ms (linear)
+                // 15,001〜35,000g: +250ms → +1000ms (linear) (以前は +500 → +2000)
                 double ratio = (double) (weightGrams - 15000) / (35000 - 15000);
-                yield (long) (500 + (ratio * 1500)); // 2000 - 500 = 1500
+                yield (long) (250 + (ratio * 750)); 
             }
-            case CRITICAL -> 3000L; // +3 seconds
+            case CRITICAL -> 1500L; // +1.5 seconds (以前は +3.0)
         };
     }
 
