@@ -858,7 +858,9 @@ public class GunListener implements Listener {
                 }
 
                 if (stateMachines.containsKey(uuid)) {
-                    stateMachines.get(uuid).update();
+                    var sm = stateMachines.get(uuid);
+                    sm.getContext().setItem(current); // Sync current item
+                    sm.update();
                 }
 
                 // ティックの終わりに現在地を記録
