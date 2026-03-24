@@ -340,19 +340,27 @@ public class ScavSpawner implements Listener {
         // --- 2. 死んだのがSCAV自身かチェック ---
         UUID uuid = victim.getUniqueId();
         if (controllers.containsKey(uuid)) {
-            // キラーがプレイヤーなら経験値付与 (50 EXP)
-            if (killer instanceof org.bukkit.entity.Player) {
-                com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule = 
-                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
-                if (levelModule != null) {
-                    levelModule.addExperience(killer.getUniqueId(), 50);
-                    killer.sendMessage(Component.text("§a+50 EXP (SCAV Kill)"));
-                }
-            }
-
             ScavController controller = controllers.remove(uuid);
             String raidSessionId = scavRaidSessions.remove(uuid);
-            scavRaidMaps.remove(uuid);
+            String raidMapId = scavRaidMaps.remove(uuid);
+
+            // キラーがプレイヤーなら経験値付与 (50 EXP)
+            if (killer instanceof org.bukkit.entity.Player killerPlayer) {
+                boolean isRaidScav = raidSessionId != null && raidMapId != null;
+                boolean killerInRaid = plugin.getRaidModule() != null && plugin.getRaidModule().isInRaid(killerPlayer);
+
+                if (isRaidScav && killerInRaid) {
+                    plugin.getRaidModule().onScavKilledByPlayer(raidMapId, uuid, killerPlayer.getUniqueId());
+                    killerPlayer.sendMessage(Component.text("§a+50 EXP (SCAV Kill) ※レイド終了時に付与"));
+                } else {
+                    com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
+                            plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+                    if (levelModule != null) {
+                        levelModule.addExperience(killerPlayer.getUniqueId(), 50);
+                        killerPlayer.sendMessage(Component.text("§a+50 EXP (SCAV Kill)"));
+                    }
+                }
+            }
             if (controller != null) {
                 controller.terminate();
                 Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
