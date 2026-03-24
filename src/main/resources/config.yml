@@ -12,5 +12,6 @@ hit-sounds:
 ai_log:
   enabled: true
   sample_interval_ticks: 5
+  capture_raycast: false
   max_raid_logs: 50
   async_write: true

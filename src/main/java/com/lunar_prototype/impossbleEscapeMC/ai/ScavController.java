@@ -545,7 +545,109 @@ public class ScavController {
                 aggression,
                 fear,
                 tactical,
-                tacticalAdvice
+                tacticalAdvice,
+                plugin.getAiRaidLogger().isCaptureRaycastEnabled() ? buildRaycastSurfaceSample(target) : null
         );
+    }
+
+    private List<Map<String, Object>> buildRaycastSurfaceSample(LivingEntity target) {
+        ScavVision.LosSnapshot los = vision.getLastLosSnapshot();
+        if (los == null || los.rays == null || los.rays.isEmpty()) return null;
+
+        List<Map<String, Object>> out = new ArrayList<>();
+
+        Map<String, Object> primary = new HashMap<>();
+        primary.put("kind", "los_primary");
+        primary.put("targetId", los.targetId != null ? los.targetId.toString() : null);
+        primary.put("visible", los.visible);
+        if (los.primaryRay != null) {
+            primary.put("band", los.primaryRay.band);
+            primary.put("lateral", los.primaryRay.lateral);
+            primary.put("distance", los.primaryRay.distance);
+            primary.put("blockType", los.primaryRay.blockType);
+            primary.put("face", los.primaryRay.face);
+            primary.put("x", los.primaryRay.hitX);
+            primary.put("y", los.primaryRay.hitY);
+            primary.put("z", los.primaryRay.hitZ);
+        }
+        out.add(primary);
+
+        // 面圧縮: バンド(upper/middle/lower)ごとに可視率/距離を集約
+        Map<String, BandAgg> bands = new HashMap<>();
+        Map<String, SurfaceAgg> surfaces = new HashMap<>();
+
+        for (ScavVision.LosRay ray : los.rays) {
+            String bandKey = ray.band != null ? ray.band : "unknown";
+            BandAgg b = bands.computeIfAbsent(bandKey, k -> new BandAgg());
+            b.count++;
+            if (ray.clear) b.clearCount++;
+            b.minDistance = Math.min(b.minDistance, ray.distance);
+            b.distanceSum += ray.distance;
+
+            if (!ray.clear && ray.blockType != null) {
+                String face = ray.face != null ? ray.face : "UNKNOWN";
+                String surfaceKey = bandKey + "|" + ray.blockType + "|" + face;
+                SurfaceAgg s = surfaces.computeIfAbsent(surfaceKey, k -> new SurfaceAgg(bandKey, ray.blockType, face));
+                s.count++;
+                s.minDistance = Math.min(s.minDistance, ray.distance);
+                s.distanceSum += ray.distance;
+            }
+        }
+
+        List<Map<String, Object>> bandList = new ArrayList<>();
+        for (Map.Entry<String, BandAgg> e : bands.entrySet()) {
+            BandAgg b = e.getValue();
+            Map<String, Object> rec = new HashMap<>();
+            rec.put("band", e.getKey());
+            rec.put("count", b.count);
+            rec.put("clearCount", b.clearCount);
+            rec.put("visibilityRatio", b.count > 0 ? (double) b.clearCount / (double) b.count : 0.0);
+            rec.put("minDistance", b.minDistance == Double.POSITIVE_INFINITY ? null : b.minDistance);
+            rec.put("avgDistance", b.count > 0 ? b.distanceSum / (double) b.count : null);
+            bandList.add(rec);
+        }
+
+        List<Map<String, Object>> surfaceList = new ArrayList<>();
+        for (SurfaceAgg s : surfaces.values()) {
+            Map<String, Object> rec = new HashMap<>();
+            rec.put("band", s.band);
+            rec.put("blockType", s.blockType);
+            rec.put("face", s.face);
+            rec.put("count", s.count);
+            rec.put("minDistance", s.minDistance == Double.POSITIVE_INFINITY ? null : s.minDistance);
+            rec.put("avgDistance", s.count > 0 ? s.distanceSum / (double) s.count : null);
+            surfaceList.add(rec);
+        }
+
+        Map<String, Object> surfaceSummary = new HashMap<>();
+        surfaceSummary.put("kind", "depth_bins");
+        surfaceSummary.put("bands", bandList);
+        surfaceSummary.put("surfaces", surfaceList);
+        surfaceSummary.put("rayCount", los.rays.size());
+        out.add(surfaceSummary);
+
+        return out;
+    }
+
+    private static class BandAgg {
+        int count = 0;
+        int clearCount = 0;
+        double minDistance = Double.POSITIVE_INFINITY;
+        double distanceSum = 0.0;
+    }
+
+    private static class SurfaceAgg {
+        final String band;
+        final String blockType;
+        final String face;
+        int count = 0;
+        double minDistance = Double.POSITIVE_INFINITY;
+        double distanceSum = 0.0;
+
+        SurfaceAgg(String band, String blockType, String face) {
+            this.band = band;
+            this.blockType = blockType;
+            this.face = face;
+        }
     }
 }

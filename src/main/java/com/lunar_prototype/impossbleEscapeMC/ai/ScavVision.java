@@ -1,23 +1,56 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import org.bukkit.Bukkit;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 public class ScavVision {
     private final Mob scav;
     private static final double MAX_VISION_DISTANCE = 96.0;
     private static final double FOV_ANGLE = 120.0;
+    private LosSnapshot lastLosSnapshot = null;
+
+    public static class LosRay {
+        public String band;
+        public String lateral;
+        public double yawOffset;
+        public double pitchOffset;
+        public double maxDistance;
+        public boolean hit;
+        public boolean clear;
+        public double distance;
+        public String blockType;
+        public String face;
+        public double hitX;
+        public double hitY;
+        public double hitZ;
+    }
+
+    public static class LosSnapshot {
+        public UUID targetId;
+        public long tick;
+        public boolean visible;
+        public LosRay primaryRay;
+        public List<LosRay> rays = Collections.emptyList();
+    }
 
     public ScavVision(Mob scav) {
         this.scav = scav;
+    }
+
+    public LosSnapshot getLastLosSnapshot() {
+        return lastLosSnapshot;
     }
 
     public LivingEntity scanForTargets() {
@@ -77,23 +110,85 @@ public class ScavVision {
         Vector rightVec = leftVec.clone().multiply(-1);
 
         List<Location> checkPoints = new ArrayList<>();
+        List<String> bands = new ArrayList<>();
+        List<String> laterals = new ArrayList<>();
         Location base = target.getLocation();
         double[] heights = { h * 0.9, h * 0.5, h * 0.1 };
+        String[] bandNames = { "upper", "middle", "lower" };
 
-        for (double y : heights) {
+        for (int i = 0; i < heights.length; i++) {
+            double y = heights[i];
             Location center = base.clone().add(0, y, 0);
             checkPoints.add(center);
+            bands.add(bandNames[i]);
+            laterals.add("center");
             checkPoints.add(center.clone().add(leftVec));
+            bands.add(bandNames[i]);
+            laterals.add("left");
             checkPoints.add(center.clone().add(rightVec));
+            bands.add(bandNames[i]);
+            laterals.add("right");
         }
 
-        for (Location targetPoint : checkPoints) {
+        LosSnapshot snapshot = new LosSnapshot();
+        snapshot.targetId = target.getUniqueId();
+        snapshot.tick = Bukkit.getCurrentTick();
+        List<LosRay> rays = new ArrayList<>();
+        Vector eyeDir = eye.getDirection().normalize();
+
+        for (int i = 0; i < checkPoints.size(); i++) {
+            Location targetPoint = checkPoints.get(i);
             Vector direction = targetPoint.toVector().subtract(eye.toVector());
             double maxDist = direction.length();
-            var result = world.rayTraceBlocks(eye, direction.normalize(), maxDist, 
-                org.bukkit.FluidCollisionMode.NEVER, true);
-            if (result == null || result.getHitBlock() == null) return true;
+            Vector norm = direction.clone().normalize();
+            RayTraceResult result = world.rayTraceBlocks(eye, norm, maxDist, FluidCollisionMode.NEVER, true);
+
+            LosRay ray = new LosRay();
+            ray.band = bands.get(i);
+            ray.lateral = laterals.get(i);
+            ray.maxDistance = maxDist;
+            ray.clear = result == null || result.getHitBlock() == null;
+            ray.hit = result != null && result.getHitPosition() != null;
+            ray.distance = ray.hit ? result.getHitPosition().distance(eye.toVector()) : maxDist;
+            ray.yawOffset = normalizeAngle(vectorToYaw(norm) - eye.getYaw());
+            ray.pitchOffset = vectorToPitch(norm) - eye.getPitch();
+            if (result != null && result.getHitPosition() != null) {
+                ray.hitX = result.getHitPosition().getX();
+                ray.hitY = result.getHitPosition().getY();
+                ray.hitZ = result.getHitPosition().getZ();
+            }
+            if (result != null && result.getHitBlock() != null) {
+                ray.blockType = result.getHitBlock().getType().name();
+            }
+            if (result != null && result.getHitBlockFace() != null) {
+                ray.face = result.getHitBlockFace().name();
+            }
+
+            rays.add(ray);
+
+            if (ray.clear && snapshot.primaryRay == null) {
+                snapshot.primaryRay = ray;
+            }
         }
-        return false;
+
+        snapshot.rays = rays;
+        snapshot.visible = snapshot.primaryRay != null;
+        lastLosSnapshot = snapshot;
+        return snapshot.visible;
+    }
+
+    private float vectorToYaw(Vector v) {
+        return (float) Math.toDegrees(Math.atan2(-v.getX(), v.getZ()));
+    }
+
+    private float vectorToPitch(Vector v) {
+        return (float) Math.toDegrees(-Math.asin(v.getY()));
+    }
+
+    private float normalizeAngle(float angle) {
+        float out = angle;
+        while (out <= -180f) out += 360f;
+        while (out > 180f) out -= 360f;
+        return out;
     }
 }

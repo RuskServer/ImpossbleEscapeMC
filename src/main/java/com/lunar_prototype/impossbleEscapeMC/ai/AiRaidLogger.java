@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.entity.Player;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -23,6 +24,7 @@ public class AiRaidLogger {
     private final int sampleIntervalTicks;
     private final int maxRaidLogs;
     private final boolean asyncWrite;
+    private final boolean captureRaycast;
 
     private static class RaidLogSession {
         String raidId;
@@ -37,6 +39,7 @@ public class AiRaidLogger {
         final List<Map<String, Object>> timeline = new ArrayList<>();
         final List<Map<String, Object>> events = new ArrayList<>();
         final Map<UUID, ScavStats> statsByScav = new HashMap<>();
+        final Map<UUID, PlayerMotionState> playerMotion = new HashMap<>();
     }
 
     private static class ScavStats {
@@ -51,6 +54,11 @@ public class AiRaidLogger {
         String brainLevel = "MID";
     }
 
+    private static class PlayerMotionState {
+        Location lastLoc;
+        long lastTick;
+    }
+
     public AiRaidLogger(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.rootDir = new File(plugin.getDataFolder(), "ai-logs");
@@ -61,6 +69,7 @@ public class AiRaidLogger {
         this.sampleIntervalTicks = Math.max(1, plugin.getConfig().getInt("ai_log.sample_interval_ticks", 5));
         this.maxRaidLogs = Math.max(1, plugin.getConfig().getInt("ai_log.max_raid_logs", 50));
         this.asyncWrite = plugin.getConfig().getBoolean("ai_log.async_write", true);
+        this.captureRaycast = plugin.getConfig().getBoolean("ai_log.capture_raycast", false);
     }
 
     public boolean isEnabled() {
@@ -69,6 +78,10 @@ public class AiRaidLogger {
 
     public int getSampleIntervalTicks() {
         return sampleIntervalTicks;
+    }
+
+    public boolean isCaptureRaycastEnabled() {
+        return captureRaycast;
     }
 
     public synchronized void startRaidSession(String raidId, String mapId, String worldName, long startTick, long startTimeMs) {
@@ -124,7 +137,8 @@ public class AiRaidLogger {
             float aggression,
             float fear,
             float tactical,
-            float tacticalAdvice
+            float tacticalAdvice,
+            List<Map<String, Object>> raycasts
     ) {
         if (!enabled) return;
         RaidLogSession session = sessions.get(raidId);
@@ -155,6 +169,9 @@ public class AiRaidLogger {
         brain.put("neurons", Map.of("aggression", aggression, "fear", fear, "tactical", tactical));
         brain.put("tacticalAdvice", tacticalAdvice);
         rec.put("brain", brain);
+        if (raycasts != null && !raycasts.isEmpty()) {
+            rec.put("raycasts", raycasts);
+        }
 
         session.timeline.add(rec);
 
@@ -162,6 +179,49 @@ public class AiRaidLogger {
         stats.brainLevel = brainLevel;
         if (stats.firstSeenTick == 0) stats.firstSeenTick = Bukkit.getCurrentTick();
         stats.lastSeenTick = Bukkit.getCurrentTick();
+    }
+
+    public synchronized void logPlayerSnapshot(String raidId, Player player) {
+        if (!enabled || player == null) return;
+        RaidLogSession session = sessions.get(raidId);
+        if (session == null) return;
+
+        long nowTick = Bukkit.getCurrentTick();
+        long nowMs = System.currentTimeMillis();
+        UUID playerId = player.getUniqueId();
+        Location loc = player.getLocation();
+
+        PlayerMotionState motion = session.playerMotion.computeIfAbsent(playerId, id -> new PlayerMotionState());
+        double delta = 0.0;
+        double speedPerSec = 0.0;
+        if (motion.lastLoc != null && motion.lastLoc.getWorld() != null && motion.lastLoc.getWorld().equals(loc.getWorld())) {
+            delta = loc.distance(motion.lastLoc);
+            long dtTicks = Math.max(1, nowTick - motion.lastTick);
+            speedPerSec = delta / (dtTicks / 20.0);
+        }
+
+        Map<String, Object> rec = new LinkedHashMap<>();
+        rec.put("type", "player_snapshot");
+        rec.put("raidId", raidId);
+        rec.put("tick", nowTick);
+        rec.put("timeMs", nowMs);
+        rec.put("playerId", playerId.toString());
+        rec.put("playerName", player.getName());
+        rec.put("pos", posMap(loc));
+
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("isSprinting", player.isSprinting());
+        state.put("isSneaking", player.isSneaking());
+        state.put("isOnGround", player.isOnGround());
+        state.put("health", player.getHealth());
+        state.put("gameMode", player.getGameMode().name());
+        state.put("deltaDistance", delta);
+        state.put("speedPerSec", speedPerSec);
+        rec.put("state", state);
+
+        session.timeline.add(rec);
+        motion.lastLoc = loc.clone();
+        motion.lastTick = nowTick;
     }
 
     public synchronized void logEvent(String raidId, UUID scavId, String eventName, Map<String, Object> payload) {
@@ -242,6 +302,7 @@ public class AiRaidLogger {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("sampleIntervalTicks", sampleIntervalTicks);
         config.put("asyncWrite", asyncWrite);
+        config.put("captureRaycast", captureRaycast);
         meta.put("configSnapshot", config);
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(session.dir, "meta.json")))) {
