@@ -42,6 +42,11 @@ public class TraderQuantityGUI implements Listener {
     }
 
     public void open() {
+        PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
+        if (!traderModule.isUnlocked(data, traderItem)) {
+            player.sendMessage(Component.text("この取引は Lv." + traderModule.getRequiredLevel(traderItem) + " で解放されます。", NamedTextColor.RED));
+            return;
+        }
         setupGUI();
         player.openInventory(inventory);
     }
@@ -74,6 +79,8 @@ public class TraderQuantityGUI implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(traderItem.itemId, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
+        lore.add(Component.text("解放レベル: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                .append(Component.text("Lv." + traderModule.getRequiredLevel(traderItem), NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false)));
         lore.add(Component.text("現在の選択個数: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                 .append(Component.text(quantity + " 個", NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false)));
         lore.add(Component.text("合計価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
