@@ -363,6 +363,12 @@ public class RaidModule implements IModule {
         }
     }
 
+    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid) {
+        RaidInstance raid = activeRaids.get(mapId);
+        if (raid == null) return;
+        raid.onScavKilledByPlayer(scavUuid, killerUuid);
+    }
+
     public void createMap(String mapId) {
         if (maps.containsKey(mapId)) return;
         RaidMap map = new RaidMap(mapId);

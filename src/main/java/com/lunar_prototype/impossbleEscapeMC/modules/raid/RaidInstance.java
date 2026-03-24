@@ -15,9 +15,11 @@ public class RaidInstance {
     private final ImpossbleEscapeMC plugin;
     private final RaidMap map;
     private final Set<UUID> players = new HashSet<>();
+    private final Set<UUID> raidMembers = new HashSet<>();
     private final List<RaidMap.ExtractionPoint> activeExtractions = new ArrayList<>();
     private final Map<UUID, Integer> extractionTimer = new HashMap<>();
     private final List<VirtualScav> virtualScavs = new ArrayList<>();
+    private final Map<UUID, RaidResult> raidResults = new HashMap<>();
 
     private final long startTime;
     private final String raidSessionId;
@@ -25,6 +27,28 @@ public class RaidInstance {
     private BossBar bossBar;
     private int respawnTicks = 0;
     private String endReason = "raid_end";
+    private boolean ended = false;
+
+    private enum RaidOutcome {
+        SURVIVED("生還"),
+        DEAD("死亡"),
+        MIA("MIA"),
+        LEFT("離脱"),
+        ACTIVE("進行中");
+
+        private final String displayName;
+
+        RaidOutcome(String displayName) {
+            this.displayName = displayName;
+        }
+    }
+
+    private static class RaidResult {
+        private RaidOutcome outcome = RaidOutcome.ACTIVE;
+        private long experienceToGrant = 0L;
+        private int scavKills = 0;
+        private boolean extractionCountIncremented = false;
+    }
 
     public RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants) {
         this.plugin = plugin;
@@ -163,6 +187,7 @@ public class RaidInstance {
             @Override
             public void run() {
                 updateBossBar();
+                enforceRaidGamemode();
                 checkExtractions();
                 updateScavs();
                 logPlayerSnapshots();
@@ -175,6 +200,15 @@ public class RaidInstance {
             }
         };
         task.runTaskTimer(plugin, 0, 20);
+    }
+
+    private void enforceRaidGamemode() {
+        for (UUID uuid : players) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.getGameMode() != org.bukkit.GameMode.ADVENTURE) {
+                player.setGameMode(org.bukkit.GameMode.ADVENTURE);
+            }
+        }
     }
 
     private void logPlayerSnapshots() {
@@ -219,6 +253,8 @@ public class RaidInstance {
         endReason = "mia_cycle_end";
         for (UUID uuid : new HashSet<>(players)) {
             extractionTimer.remove(uuid);
+            RaidResult result = getOrCreateRaidResult(uuid);
+            result.outcome = RaidOutcome.MIA;
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 p.sendMessage(Component.text("脱出に失敗しました (MIA)。", NamedTextColor.RED));
@@ -281,6 +317,23 @@ public class RaidInstance {
         }
     }
 
+    public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid) {
+        if (!raidMembers.contains(killerUuid)) return;
+
+        boolean scavBelongsToThisRaid = false;
+        for (VirtualScav vs : virtualScavs) {
+            if (scavEntityId.equals(vs.getEntityId())) {
+                scavBelongsToThisRaid = true;
+                break;
+            }
+        }
+        if (!scavBelongsToThisRaid) return;
+
+        RaidResult result = getOrCreateRaidResult(killerUuid);
+        result.scavKills += 1;
+        result.experienceToGrant += 50L;
+    }
+
     private void checkExtractions() {
         for (UUID uuid : new HashSet<>(players)) {
             Player p = Bukkit.getPlayer(uuid);
@@ -319,18 +372,19 @@ public class RaidInstance {
             p.sendMessage(Component.text("脱出に成功しました！", NamedTextColor.GREEN));
             p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
 
-            // 経験値追加 (脱出成功: 250 EXP) と 脱出回数加算
-            com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+            // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
+            RaidResult result = getOrCreateRaidResult(p.getUniqueId());
+            result.outcome = RaidOutcome.SURVIVED;
+            result.experienceToGrant += 250L;
+
+            // 脱出回数加算
             com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
                     plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
-            if (levelModule != null) {
-                levelModule.addExperience(p.getUniqueId(), 250);
-            }
-            if (dataModule != null) {
+            if (dataModule != null && !result.extractionCountIncremented) {
                 com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(p.getUniqueId());
                 data.setExtractions(data.getExtractions() + 1);
                 dataModule.saveAsync(p.getUniqueId());
+                result.extractionCountIncremented = true;
             }
 
             players.remove(p.getUniqueId());
@@ -348,6 +402,9 @@ public class RaidInstance {
     }
 
     private void endRaid() {
+        if (ended) return;
+        ended = true;
+
         if (task != null) task.cancel();
 
         // Cleanup all spawned SCAVs
@@ -362,11 +419,16 @@ public class RaidInstance {
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
+                RaidResult result = getOrCreateRaidResult(uuid);
+                if (result.outcome == RaidOutcome.ACTIVE) {
+                    result.outcome = RaidOutcome.MIA;
+                }
                 p.hideBossBar(bossBar);
                 p.sendMessage(Component.text("レイドが終了しました。", NamedTextColor.RED));
             }
         }
         players.clear();
+        applyRaidRewardsAndShowResults();
         plugin.getRaidModule().removeRaid(map.getMapId());
         if (plugin.getAiRaidLogger() != null) {
             plugin.getAiRaidLogger().endRaidSession(raidSessionId, endReason);
@@ -378,12 +440,10 @@ public class RaidInstance {
         extractionTimer.remove(player.getUniqueId());
         player.sendMessage(Component.text("死亡しました。レイド失敗です。", NamedTextColor.RED));
 
-        // 経験値追加 (死亡救済: 150 EXP)
-        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
-        if (levelModule != null) {
-            levelModule.addExperience(player.getUniqueId(), 150);
-        }
+        // 死亡救済のリザルトを記録 (経験値はレイド終了時に付与)
+        RaidResult result = getOrCreateRaidResult(player.getUniqueId());
+        result.outcome = RaidOutcome.DEAD;
+        result.experienceToGrant += 150L;
 
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
@@ -399,6 +459,10 @@ public class RaidInstance {
         if (!players.contains(player.getUniqueId())) return;
 
         extractionTimer.remove(player.getUniqueId());
+        RaidResult result = getOrCreateRaidResult(player.getUniqueId());
+        if (result.outcome == RaidOutcome.ACTIVE) {
+            result.outcome = RaidOutcome.LEFT;
+        }
         players.remove(player.getUniqueId());
         if (players.isEmpty()) {
             endReason = "all_left";
@@ -452,6 +516,8 @@ public class RaidInstance {
 
         for (Player player : group) {
             players.add(player.getUniqueId());
+            raidMembers.add(player.getUniqueId());
+            getOrCreateRaidResult(player.getUniqueId());
             player.showBossBar(bossBar);
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
@@ -485,9 +551,14 @@ public class RaidInstance {
 
     public void restoreParticipants(Set<UUID> uuids) {
         this.players.addAll(uuids);
+        this.raidMembers.addAll(uuids);
+        for (UUID uuid : uuids) {
+            getOrCreateRaidResult(uuid);
+        }
         for (UUID uuid : uuids) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
+                p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.showBossBar(bossBar);
                 p.sendMessage(Component.text("レイドへ再復帰しました。", NamedTextColor.GREEN));
             }
@@ -496,5 +567,35 @@ public class RaidInstance {
 
     public Set<UUID> getParticipantUuids() {
         return Collections.unmodifiableSet(players);
+    }
+
+    private RaidResult getOrCreateRaidResult(UUID uuid) {
+        return raidResults.computeIfAbsent(uuid, ignored -> new RaidResult());
+    }
+
+    private void applyRaidRewardsAndShowResults() {
+        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        if (levelModule == null) return;
+
+        for (UUID uuid : raidMembers) {
+            RaidResult result = getOrCreateRaidResult(uuid);
+            if (result.outcome == RaidOutcome.ACTIVE) {
+                result.outcome = RaidOutcome.MIA;
+            }
+
+            if (result.experienceToGrant > 0) {
+                levelModule.addExperience(uuid, result.experienceToGrant);
+            }
+
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && player.isOnline()) {
+                player.sendMessage(Component.text("===== RAID RESULT =====", NamedTextColor.GOLD));
+                player.sendMessage(Component.text("結果: " + result.outcome.displayName, NamedTextColor.YELLOW));
+                player.sendMessage(Component.text("SCAVキル: " + result.scavKills, NamedTextColor.WHITE));
+                player.sendMessage(Component.text("獲得EXP: +" + result.experienceToGrant, NamedTextColor.GREEN));
+                player.sendMessage(Component.text("=======================", NamedTextColor.GOLD));
+            }
+        }
     }
 }
