@@ -81,7 +81,16 @@ public class StaminaModule implements IModule, Listener {
                 removeExhaustionEffect(player);
                 data.setExhausted(false);
             }
+
+            // --- Experience Bar Display ---
+            updateExperienceBar(player, data);
         }
+    }
+
+    private void updateExperienceBar(Player player, PlayerData data) {
+        float ratio = data.getStamina() / MAX_STAMINA;
+        player.setExp(Math.max(0.0f, Math.min(0.999f, ratio)));
+        player.setLevel(0);
     }
 
     private void handleStaminaConsumption(PlayerData data, float amount) {
