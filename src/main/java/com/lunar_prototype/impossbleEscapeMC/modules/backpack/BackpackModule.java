@@ -165,8 +165,10 @@ public class BackpackModule implements IModule {
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         try {
-            String data = SerializationUtil.serializeInventory(inventory);
-            pdc.set(PDCKeys.BACKPACK_DATA, PDCKeys.STRING, data);
+            byte[] bytes = SerializationUtil.serializeInventoryToBytes(inventory);
+            pdc.set(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY, bytes);
+            // 移行：古い形式のキーがStringとして存在する場合は削除（または新しいキーを優先）
+            // 注意: 同じ NamespacedKey を共有している場合、型が異なれば共存はしないはずですが、明示的に。
             offhand.setItemMeta(meta);
         } catch (IOException e) {
             ImpossbleEscapeMC.getInstance().getLogger().warning("Failed to save backpack inventory: " + e.getMessage());
@@ -177,13 +179,29 @@ public class BackpackModule implements IModule {
         ItemMeta meta = backpackItem.getItemMeta();
         if (meta == null) return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
 
-        String data = meta.getPersistentDataContainer().get(PDCKeys.BACKPACK_DATA, PDCKeys.STRING);
-        if (data == null || data.isEmpty()) {
-            return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
-        }
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        Inventory loaded = null;
 
         try {
-            Inventory loaded = SerializationUtil.deserializeInventory(data, Component.text("Backpack"));
+            // 新形式 (BYTE_ARRAY)
+            if (pdc.has(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY)) {
+                byte[] bytes = pdc.get(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY);
+                if (bytes != null) {
+                    loaded = SerializationUtil.deserializeInventoryFromBytes(bytes, Component.text("Backpack"));
+                }
+            } 
+            // 旧形式 (STRING)
+            else if (pdc.has(PDCKeys.BACKPACK_DATA, PDCKeys.STRING)) {
+                String data = pdc.get(PDCKeys.BACKPACK_DATA, PDCKeys.STRING);
+                if (data != null && !data.isEmpty()) {
+                    loaded = SerializationUtil.deserializeInventory(data, Component.text("Backpack"));
+                }
+            }
+
+            if (loaded == null) {
+                return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
+            }
+
             if (loaded.getSize() == size) {
                 return new LoadInventoryResult(loaded, false);
             }
