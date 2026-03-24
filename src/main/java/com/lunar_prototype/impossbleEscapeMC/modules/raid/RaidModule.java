@@ -357,12 +357,39 @@ public class RaidModule implements IModule {
         }
     }
 
+    /**
+     * 全てのアクティブなレイドインスタンスに対して、指定したスカブ（NPC）の死亡を通知する。
+     *
+     * @param uuid 通知対象のスカブの UUID
+     */
     public void onScavDeath(UUID uuid) {
         for (RaidInstance raid : activeRaids.values()) {
             raid.onScavDeath(uuid);
         }
     }
 
+    /**
+     * 指定したマップのアクティブなレイドに対して、プレイヤーによるスカブの撃破を通知する。
+     *
+     * 指定した `mapId` に対応するアクティブなレイドが存在する場合、そのレイドの
+     * `onScavKilledByPlayer` を呼び出して撃破イベントを委譲する。該当するレイドがなければ何もしない。
+     *
+     * @param mapId     対象のマップ識別子
+     * @param scavUuid  撃破されたスカブの UUID
+     * @param killerUuid 撃破を行ったプレイヤーの UUID
+     */
+    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid) {
+        RaidInstance raid = activeRaids.get(mapId);
+        if (raid == null) return;
+        raid.onScavKilledByPlayer(scavUuid, killerUuid);
+    }
+
+    /**
+     * 指定した識別子で新しいレイドマップを作成して永続化する。
+     * 既に同じ識別子のマップが存在する場合は何もしない。
+     *
+     * @param mapId 作成するマップの一意の識別子（マップファイル名およびマップ集合のキーとして用いる）
+     */
     public void createMap(String mapId) {
         if (maps.containsKey(mapId)) return;
         RaidMap map = new RaidMap(mapId);
