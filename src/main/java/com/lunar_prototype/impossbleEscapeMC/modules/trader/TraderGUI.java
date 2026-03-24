@@ -252,19 +252,24 @@ public class TraderGUI implements Listener {
         double totalPrice = ti.price * quantity;
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), totalPrice)) {
             // アイテムをスタック数に合わせて配布
-            int maxStack = Material.valueOf(ItemRegistry.get(ti.itemId).material.toUpperCase()).getMaxStackSize();
+            ItemStack sample = ItemFactory.create(ti.itemId);
+            if (sample == null) {
+                // 万が一アイテムが見つからない場合は返金
+                traderModule.getEconomyModule().deposit(player.getUniqueId(), totalPrice);
+                return;
+            }
+            
+            int maxStack = sample.getType().getMaxStackSize();
             int remainingToGive = quantity;
             boolean inventoryFull = false;
 
             while (remainingToGive > 0) {
                 int amount = Math.min(remainingToGive, maxStack);
-                ItemStack item = ItemFactory.create(ti.itemId);
-                if (item != null) {
-                    item.setAmount(amount);
-                    if (!player.getInventory().addItem(item).isEmpty()) {
-                        inventoryFull = true;
-                        break;
-                    }
+                ItemStack item = sample.clone(); // 使い回す
+                item.setAmount(amount);
+                if (!player.getInventory().addItem(item).isEmpty()) {
+                    inventoryFull = true;
+                    break;
                 }
                 remainingToGive -= amount;
             }

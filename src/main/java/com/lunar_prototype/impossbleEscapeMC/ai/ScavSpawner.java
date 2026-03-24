@@ -66,7 +66,7 @@ public class ScavSpawner implements Listener {
     }
 
     public UUID spawnScav(Location loc, String raidSessionId, String mapId) {
-        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.SKELETON);
+        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
 
         // 体力を40 (バニラの2倍) に固定
         var healthAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);

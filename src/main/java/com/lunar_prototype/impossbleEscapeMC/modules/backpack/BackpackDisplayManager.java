@@ -35,11 +35,13 @@ public class BackpackDisplayManager {
         final int taskId;
         /** PacketEventsのItemStack（ヘルメット再送信に使用） */
         final com.github.retrooper.packetevents.protocol.item.ItemStack helmetItem;
+        final UUID worldUuid;
 
-        DisplaySession(int entityId, int taskId, com.github.retrooper.packetevents.protocol.item.ItemStack helmetItem) {
+        DisplaySession(int entityId, int taskId, com.github.retrooper.packetevents.protocol.item.ItemStack helmetItem, UUID worldUuid) {
             this.entityId = entityId;
             this.taskId = taskId;
             this.helmetItem = helmetItem;
+            this.worldUuid = worldUuid;
         }
     }
 
@@ -83,7 +85,7 @@ public class BackpackDisplayManager {
             }
         }, 0L, 1L);
 
-        DisplaySession session = new DisplaySession(entityId, task.getTaskId(), peItem);
+        DisplaySession session = new DisplaySession(entityId, task.getTaskId(), peItem, player.getWorld().getUID());
         activeSessions.put(player.getUniqueId(), session);
 
         // ワールド内の全プレイヤー（自分含む）へスポーンパケットを送信
@@ -106,8 +108,19 @@ public class BackpackDisplayManager {
         WrapperPlayServerDestroyEntities destroy =
                 new WrapperPlayServerDestroyEntities(new int[]{session.entityId});
 
-        for (Player p : player.getWorld().getPlayers()) {
-            PacketEvents.getAPI().getPlayerManager().sendPacket(p, destroy);
+        // セッションが作成されたワールドの全プレイヤーにパケットを送信
+        org.bukkit.World world = Bukkit.getWorld(session.worldUuid);
+        if (world != null) {
+            for (Player p : world.getPlayers()) {
+                PacketEvents.getAPI().getPlayerManager().sendPacket(p, destroy);
+            }
+        }
+        
+        // もし現在のワールドが異なるなら、現在のワールドのプレイヤーにも送信しておく（念のため）
+        if (player.isOnline() && !player.getWorld().getUID().equals(session.worldUuid)) {
+            for (Player p : player.getWorld().getPlayers()) {
+                PacketEvents.getAPI().getPlayerManager().sendPacket(p, destroy);
+            }
         }
     }
 

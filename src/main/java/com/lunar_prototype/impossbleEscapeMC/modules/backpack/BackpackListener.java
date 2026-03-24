@@ -361,4 +361,22 @@ public class BackpackListener implements Listener {
             }
         });
     }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onTeleport(org.bukkit.event.player.PlayerTeleportEvent event) {
+        Player player = event.getPlayer();
+        BackpackDisplayManager dm = backpackModule.getDisplayManager();
+        if (dm == null) return;
+
+        // テレポート後に表示を再描画（マウントの同期や位置の修正のため）
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            updateDisplay(player);
+            if (dm.hasDisplay(player)) {
+                for (Player other : player.getWorld().getPlayers()) {
+                    if (other.equals(player)) continue;
+                    dm.showToPlayer(player, other);
+                }
+            }
+        });
+    }
 }
