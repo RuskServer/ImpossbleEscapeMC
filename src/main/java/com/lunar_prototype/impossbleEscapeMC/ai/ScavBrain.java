@@ -86,7 +86,7 @@ public class ScavBrain {
         }
     }
 
-    public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice, boolean isSprinting) {
+    public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice, boolean isSprinting, float alertness) {
         boolean canSeeNow = target != null;
 
         // --- 視認状態のデバウンス処理 ---
@@ -157,6 +157,11 @@ public class ScavBrain {
             float peekScore = (presence * 0.6f) + (tactical * 0.4f) + (suppression < 0.2f ? 0.3f : 0.0f);
             float flankScore = (tactical * 0.7f) + ((1.0f - pressure) * 0.4f) + (canSee ? 0.2f : 0.0f);
             float holdScore = (tactical * 0.5f) + ((1.0f - aggression) * 0.3f) + (presence > 0.8f ? 0.4f : 0.0f);
+
+            // 警戒度が低い時は押し込みを抑え、様子見に寄せる
+            pushScore *= (0.7f + (0.6f * alertness));
+            peekScore *= (0.8f + (0.4f * alertness));
+            holdScore += (1.0f - alertness) * 0.25f;
 
             if (brainLevel == BrainLevel.LOW) {
                 pushScore += 0.35f;

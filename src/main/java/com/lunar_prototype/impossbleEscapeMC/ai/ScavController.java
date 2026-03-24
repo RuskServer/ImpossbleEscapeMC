@@ -21,6 +21,12 @@ import org.bukkit.util.Vector;
 import java.util.*;
 
 public class ScavController {
+    private enum BehaviorState {
+        RELAXED,
+        SUSPICIOUS,
+        COMBAT_READY
+    }
+
     private final ImpossbleEscapeMC plugin;
     private final Mob scav;
     private final ScavBrain brain;
@@ -57,6 +63,8 @@ public class ScavController {
     private static final int VOICE_LINE_COOLDOWN_TICKS = 100;
     private static final double LOW_EFFECTIVE_DAMAGE_THRESHOLD = 4.0;
     private static final int TARGET_MEMORY_EXPIRE_TICKS = 20 * 60;
+    private static final float ALERTNESS_RELAXED_THRESHOLD = 0.30f;
+    private static final float ALERTNESS_COMBAT_THRESHOLD = 0.65f;
     private final Map<UUID, TargetCombatMemory> targetMemories = new HashMap<>();
 
     private static class TargetCombatMemory {
@@ -68,6 +76,12 @@ public class ScavController {
     }
     private UUID lastLoggedTargetId = null;
     private boolean initializedTargetState = false;
+    private final Location homeLocation;
+    private Location lastHeardSoundLocation = null;
+    private int investigateTicks = 0;
+    private BehaviorState behaviorState = BehaviorState.RELAXED;
+    private float alertness;
+    private boolean returningHome = false;
 
     public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
         this(plugin, scav, listener, ScavBrain.BrainLevel.MID);
@@ -83,6 +97,8 @@ public class ScavController {
         this.squad = new ScavSquad(scav);
         this.tactics = new ScavTactics(scav, listener, brain);
         this.currentAimVector = scav.getEyeLocation().getDirection();
+        this.homeLocation = scav.getLocation().clone();
+        this.alertness = (brainLevel == ScavBrain.BrainLevel.LOW) ? 0.15f : 0.25f;
         updateChunkTicket();
     }
 
@@ -101,6 +117,9 @@ public class ScavController {
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         LivingEntity target = scav.getTarget();
         boolean canSeeTarget = false;
+
+        decayAlertness();
+        vision.setAlertness(alertness);
 
         // ヒートマップ記録
         if (tactics.getTacticalCoverLoc() != null && suppression < 0.2f && scav.getLocation().distance(tactics.getTacticalCoverLoc()) < 1.5) {
@@ -133,6 +152,7 @@ public class ScavController {
         if (target != null) {
             canSeeTarget = vision.checkVision(target);
             if (canSeeTarget) {
+                addAlertness(0.08f, "VISUAL_CONTACT", raidSessionId);
                 lastKnownLocation = target.getLocation();
                 searchTicks = 0;
                 isAlerted = true;
@@ -155,6 +175,11 @@ public class ScavController {
         } else {
             isPreAiming = false;
             handleSearching();
+        }
+
+        updateBehaviorState();
+        if (target == null && lastKnownLocation == null) {
+            handleIdleOrReturnHome(raidSessionId);
         }
 
         logTargetTransitionIfNeeded(raidSessionId, target);
@@ -217,14 +242,14 @@ public class ScavController {
         if (tactics.getPeekPhase() > 0) {
             tactics.handlePeekManeuver(target, def.gunStats, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
-            int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
+            int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting, alertness);
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, peekActions);
             return;
         }
 
         // 7. AI思考 & 移動
         brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
-        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting);
+        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting, alertness);
         if (actions.length < 2) {
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
             return;
@@ -347,10 +372,28 @@ public class ScavController {
 
     public void onSoundHeard(Location source) {
         if (scav.getTarget() == null || !scav.hasLineOfSight(scav.getTarget())) {
+            String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
+            double dist = scav.getLocation().distance(source);
+            float hearingBoost = (float) Math.max(0.10, 0.30 - (dist / 160.0));
+            addAlertness(hearingBoost, "SOUND_HEARD", raidSessionId);
+
             isAlerted = true;
-            lastKnownLocation = source.clone();
+            lastHeardSoundLocation = source.clone();
+            investigateTicks = (behaviorState == BehaviorState.RELAXED) ? 40 : 100;
+            if (behaviorState != BehaviorState.RELAXED) {
+                lastKnownLocation = source.clone();
+            }
             scav.setRotation(scav.getLocation().setDirection(source.toVector().subtract(scav.getEyeLocation().toVector()).normalize()).getYaw(), 0);
             playScavVoice("minecraft:scav1", 1.0f, 1.0f); // 索敵ボイスに変更
+
+            if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("x", source.getX());
+                payload.put("y", source.getY());
+                payload.put("z", source.getZ());
+                payload.put("state", behaviorState.name());
+                plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "SOUND_INVESTIGATE_START", payload);
+            }
         }
     }
 
@@ -371,6 +414,8 @@ public class ScavController {
     }
 
     public void onDamage(Entity attacker) {
+        String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
+        addAlertness(0.35f, "TOOK_DAMAGE", raidSessionId);
         suppression = Math.min(1.0f, suppression + 0.3f);
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
         if (scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() < 0.5) {
@@ -539,6 +584,10 @@ public class ScavController {
                 searchTicks,
                 isSprinting,
                 isHoldingAngle,
+                alertness,
+                1.0f - alertness,
+                behaviorState.name(),
+                scav.getLocation().distance(homeLocation),
                 brain.getCurrentModeName(),
                 move,
                 shoot,
@@ -548,6 +597,88 @@ public class ScavController {
                 tacticalAdvice,
                 plugin.getAiRaidLogger().isCaptureRaycastEnabled() ? buildRaycastSurfaceSample(target) : null
         );
+    }
+
+    private void updateBehaviorState() {
+        if (alertness >= ALERTNESS_COMBAT_THRESHOLD) {
+            behaviorState = BehaviorState.COMBAT_READY;
+        } else if (alertness >= ALERTNESS_RELAXED_THRESHOLD) {
+            behaviorState = BehaviorState.SUSPICIOUS;
+        } else {
+            behaviorState = BehaviorState.RELAXED;
+        }
+    }
+
+    private void handleIdleOrReturnHome(String raidSessionId) {
+        boolean moved = false;
+
+        if (investigateTicks > 0 && lastHeardSoundLocation != null) {
+            investigateTicks--;
+            double distToSound = scav.getLocation().distance(lastHeardSoundLocation);
+            if (distToSound > 1.5) {
+                scav.getPathfinder().moveTo(lastHeardSoundLocation, 0.9);
+                moved = true;
+            }
+            if (distToSound < 2.0 || investigateTicks <= 0) {
+                lastHeardSoundLocation = null;
+                investigateTicks = 0;
+            }
+        }
+
+        if (!moved && behaviorState == BehaviorState.RELAXED) {
+            double homeDist = scav.getLocation().distance(homeLocation);
+            if (homeDist > 3.0) {
+                scav.getPathfinder().moveTo(homeLocation, 0.75);
+                if (!returningHome && raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("homeDistance", homeDist);
+                    plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "RETURN_HOME_START", payload);
+                }
+                returningHome = true;
+            } else if (homeDist <= 1.5) {
+                scav.getPathfinder().stopPathfinding();
+                if (returningHome && raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("homeDistance", homeDist);
+                    plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "RETURN_HOME_DONE", payload);
+                }
+                returningHome = false;
+            }
+        } else {
+            returningHome = false;
+        }
+    }
+
+    private void decayAlertness() {
+        float decay;
+        if (brainLevel == ScavBrain.BrainLevel.LOW) {
+            decay = 0.0025f;
+        } else {
+            decay = 0.0015f;
+        }
+        if (lastKnownLocation != null) {
+            decay *= 0.5f;
+        }
+        alertness = clamp01(alertness - decay);
+    }
+
+    private void addAlertness(float amount, String reason, String raidSessionId) {
+        float before = alertness;
+        alertness = clamp01(alertness + amount);
+        if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+            if (Math.abs(alertness - before) > 0.0001f) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("reason", reason);
+                payload.put("before", before);
+                payload.put("after", alertness);
+                payload.put("delta", alertness - before);
+                plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "ALERTNESS_CHANGE", payload);
+            }
+        }
+    }
+
+    private float clamp01(float v) {
+        return Math.max(0.0f, Math.min(1.0f, v));
     }
 
     private List<Map<String, Object>> buildRaycastSurfaceSample(LivingEntity target) {
