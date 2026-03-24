@@ -21,6 +21,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -96,10 +97,11 @@ public class PDAGUI implements Listener {
         stats.setItemMeta(statsMeta);
         inventory.setItem(13, stats);
 
-        // Stashボタン
+        // モジュール
         RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
         boolean inRaid = raidModule.isInRaid(player);
-        
+
+        // Stashボタン
         ItemStack stash = new ItemStack(inRaid ? Material.BARRIER : Material.CHEST);
         ItemMeta stashMeta = stash.getItemMeta();
         stashMeta.displayName(Component.text("Stash (倉庫)", inRaid ? NamedTextColor.RED : NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
@@ -115,6 +117,22 @@ public class PDAGUI implements Listener {
         stashMeta.lore(stashLore);
         stash.setItemMeta(stashMeta);
         inventory.setItem(11, stash);
+
+        // Tradersボタン
+        ItemStack traders = new ItemStack(inRaid ? Material.BARRIER : Material.EMERALD);
+        ItemMeta tradersMeta = traders.getItemMeta();
+        tradersMeta.displayName(Component.text("Traders (商人)", inRaid ? NamedTextColor.RED : NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        List<Component> tradersLore = new ArrayList<>();
+        tradersLore.add(Component.text("商人からアイテムを購入・売却します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        tradersLore.add(Component.empty());
+        if (inRaid) {
+            tradersLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else {
+            tradersLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
+        tradersMeta.lore(tradersLore);
+        traders.setItemMeta(tradersMeta);
+        inventory.setItem(15, traders);
         
         // 閉じるボタン
         ItemStack close = new ItemStack(Material.BARRIER);
@@ -133,7 +151,7 @@ public class PDAGUI implements Listener {
         if (slot == 22) {
             player.closeInventory();
         } else if (slot == 11) {
-            com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule.class);
+            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
             if (raidModule.isInRaid(player)) {
                 player.sendMessage(Component.text("§cレイド中はStashを開くことができません！", NamedTextColor.RED));
                 player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
@@ -142,6 +160,16 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule stashModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule.class);
             new com.lunar_prototype.impossbleEscapeMC.modules.stash.StashPageSelectorGUI(player, stashModule).open();
+        } else if (slot == 15) {
+            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+            if (raidModule.isInRaid(player)) {
+                player.sendMessage(Component.text("§cレイド中は商人と取引することができません！", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
+            player.closeInventory();
+            TraderModule traderModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
+            new TraderSelectionGUI(player, traderModule).open();
         }
     }
 
