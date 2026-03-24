@@ -152,22 +152,32 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleScavSpawn(Player player, String[] args) {
-        if (args.length < 3 || !args[1].equalsIgnoreCase("add")) {
-            player.sendMessage(Component.text("/raid scavspawn add <mapID> [permanent]", NamedTextColor.RED));
+        if (args.length < 3) {
+            player.sendMessage(Component.text("使用法: /raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.RED));
             return;
         }
+        String action = args[1].toLowerCase();
         RaidMap map = manager.getMap(args[2]);
         if (map == null) {
             player.sendMessage(Component.text("Map not found.", NamedTextColor.RED));
             return;
         }
-        boolean permanent = false;
-        if (args.length >= 4) {
-            permanent = Boolean.parseBoolean(args[3]);
+
+        if (action.equals("add")) {
+            boolean permanent = false;
+            if (args.length >= 4) {
+                permanent = Boolean.parseBoolean(args[3]);
+            }
+            map.addScavSpawnPoint(player.getLocation(), permanent);
+            manager.saveMap(map);
+            player.sendMessage(Component.text("SCAV spawn point added to " + args[2] + (permanent ? " (Permanent)" : ""), NamedTextColor.GREEN));
+        } else if (action.equals("clear")) {
+            map.clearScavSpawnPoints();
+            manager.saveMap(map);
+            player.sendMessage(Component.text("Map '" + args[2] + "' のSCAVスポーン地点を全て削除しました。", NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(Component.text("使用法: /raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.RED));
         }
-        map.addScavSpawnPoint(player.getLocation(), permanent);
-        manager.saveMap(map);
-        player.sendMessage(Component.text("SCAV spawn point added to " + args[2] + (permanent ? " (Permanent)" : ""), NamedTextColor.GREEN));
     }
 
     private void sendHelp(Player player) {
@@ -182,7 +192,7 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text("/raid start - レイドを強制開始 (デバッグ用)", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid spawn add <mapID>", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid scavspawn add <mapID> [permanent]", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.WHITE));
         }
     }
 
@@ -205,7 +215,8 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
                     .collect(Collectors.toList());
             if (sender.isOp()) {
                 if (sub.equals("map")) return Arrays.asList("create", "delete");
-                if (sub.equals("spawn") || sub.equals("extract") || sub.equals("scavspawn")) return Arrays.asList("add");
+                if (sub.equals("spawn") || sub.equals("extract")) return Arrays.asList("add");
+                if (sub.equals("scavspawn")) return Arrays.asList("add", "clear");
             }
         }
 
@@ -216,7 +227,7 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 4) {
-            if (args[0].equalsIgnoreCase("scavspawn")) {
+            if (args[0].equalsIgnoreCase("scavspawn") && args[1].equalsIgnoreCase("add")) {
                 return Arrays.asList("true", "false");
             }
         }
