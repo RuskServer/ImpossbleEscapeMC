@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.rig;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -8,6 +9,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -33,7 +35,7 @@ public class RigListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        scheduleEnforce(player);
+        scheduleSync(player);
         if (!rigModule.isRestrictedMode(player)) return;
 
         Inventory clicked = event.getClickedInventory();
@@ -64,7 +66,7 @@ public class RigListener implements Listener {
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        scheduleEnforce(player);
+        scheduleSync(player);
         if (!rigModule.isRestrictedMode(player)) return;
 
         InventoryView view = event.getView();
@@ -96,7 +98,7 @@ public class RigListener implements Listener {
             entityItem.setItemStack(picked);
         }
 
-        scheduleEnforce(player);
+        scheduleSync(player);
     }
 
     @EventHandler
@@ -104,22 +106,29 @@ public class RigListener implements Listener {
         ItemStack item = event.getItem();
         if (item == null) return;
         if (!rigModule.isRigItem(item)) return;
-        scheduleEnforce(event.getPlayer());
+        scheduleSync(event.getPlayer());
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        scheduleEnforce(event.getPlayer());
+        scheduleSync(event.getPlayer());
     }
 
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
-        scheduleEnforce(event.getPlayer());
+        scheduleSync(event.getPlayer());
     }
 
     @EventHandler
     public void onGameModeChange(PlayerGameModeChangeEvent event) {
-        scheduleEnforce(event.getPlayer());
+        scheduleSync(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onDeath(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        rigModule.clearLockedSlotPlaceholders(player);
+        event.getDrops().removeIf(rigModule::isLockedSlotPlaceholder);
     }
 
     private void handleMoveIntoPlayerInventory(InventoryClickEvent event, Player player) {
@@ -142,10 +151,17 @@ public class RigListener implements Listener {
         }
 
         player.updateInventory();
-        scheduleEnforce(player);
+        scheduleSync(player);
     }
 
-    private void scheduleEnforce(Player player) {
-        Bukkit.getScheduler().runTask(plugin, () -> rigModule.enforceLockedSlots(player));
+    private void scheduleSync(Player player) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            rigModule.enforceLockedSlots(player);
+            rigModule.syncLockedSlotPlaceholders(player);
+            BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+            if (backpackModule != null && backpackModule.getDisplayManager() != null) {
+                backpackModule.getDisplayManager().sync(player);
+            }
+        });
     }
 }

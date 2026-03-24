@@ -9,10 +9,15 @@ import com.lunar_prototype.impossbleEscapeMC.item.RigStats;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class RigModule implements IModule {
     private static final int MAIN_INVENTORY_START = 9;
@@ -27,6 +32,7 @@ public class RigModule implements IModule {
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 enforceLockedSlots(player);
+                syncLockedSlotPlaceholders(player);
             }
         }, 1L, 5L);
     }
@@ -92,6 +98,10 @@ public class RigModule implements IModule {
 
         for (int slot : getAllowedStorageSlots(player)) {
             ItemStack existing = inventory.getItem(slot);
+            if (isLockedSlotPlaceholder(existing)) {
+                inventory.setItem(slot, null);
+                existing = null;
+            }
             if (existing == null || existing.getType().isAir()) continue;
             if (!existing.isSimilar(stack)) continue;
 
@@ -107,6 +117,10 @@ public class RigModule implements IModule {
 
         for (int slot : getAllowedStorageSlots(player)) {
             ItemStack existing = inventory.getItem(slot);
+            if (isLockedSlotPlaceholder(existing)) {
+                inventory.setItem(slot, null);
+                existing = null;
+            }
             if (existing != null && !existing.getType().isAir()) continue;
 
             ItemStack placed = stack.clone();
@@ -128,11 +142,52 @@ public class RigModule implements IModule {
 
             ItemStack item = inventory.getItem(slot);
             if (item == null || item.getType().isAir()) continue;
+            if (isLockedSlotPlaceholder(item)) continue;
 
             inventory.setItem(slot, null);
             Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), item);
             dropped.setOwner(player.getUniqueId());
         }
+    }
+
+    public void syncLockedSlotPlaceholders(Player player) {
+        PlayerInventory inventory = player.getInventory();
+
+        for (int slot = MAIN_INVENTORY_START; slot <= MAIN_INVENTORY_END; slot++) {
+            ItemStack item = inventory.getItem(slot);
+            boolean locked = isPlayerInventorySlotLocked(player, slot);
+
+            if (!locked) {
+                if (isLockedSlotPlaceholder(item)) {
+                    inventory.setItem(slot, null);
+                }
+                continue;
+            }
+
+            if (item == null || item.getType().isAir()) {
+                inventory.setItem(slot, createLockedSlotPlaceholder());
+                continue;
+            }
+
+            if (isLockedSlotPlaceholder(item)) {
+                continue;
+            }
+        }
+    }
+
+    public void clearLockedSlotPlaceholders(Player player) {
+        PlayerInventory inventory = player.getInventory();
+        for (int slot = MAIN_INVENTORY_START; slot <= MAIN_INVENTORY_END; slot++) {
+            if (isLockedSlotPlaceholder(inventory.getItem(slot))) {
+                inventory.setItem(slot, null);
+            }
+        }
+    }
+
+    public boolean isLockedSlotPlaceholder(ItemStack item) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return false;
+        Byte marker = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.LOCKED_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN);
+        return marker != null && marker == 1;
     }
 
     public int calculateEffectiveUnlockedInventoryWeight(Player player) {
@@ -166,6 +221,20 @@ public class RigModule implements IModule {
             slots[9 + i] = MAIN_INVENTORY_START + i;
         }
         return slots;
+    }
+
+    private ItemStack createLockedSlotPlaceholder() {
+        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§8[ 使用不可 ]");
+            List<String> lore = new ArrayList<>();
+            lore.add("§7リグを装備すると解放されます");
+            meta.setLore(lore);
+            meta.getPersistentDataContainer().set(PDCKeys.LOCKED_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN, (byte) 1);
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     private RigStats getRigStats(ItemStack rigItem) {

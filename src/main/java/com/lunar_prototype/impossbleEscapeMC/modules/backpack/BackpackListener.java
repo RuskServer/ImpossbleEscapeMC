@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import org.bukkit.Bukkit;
@@ -313,12 +314,7 @@ public class BackpackListener implements Listener {
     private void updateDisplay(Player player) {
         BackpackDisplayManager dm = backpackModule.getDisplayManager();
         if (dm == null) return;
-        ItemStack offhand = player.getInventory().getItemInOffHand();
-        if (backpackModule.isBackpackItem(offhand)) {
-            dm.equip(player, offhand);
-        } else {
-            dm.unequip(player);
-        }
+        dm.sync(player);
     }
 
     @EventHandler
@@ -340,7 +336,7 @@ public class BackpackListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         BackpackDisplayManager dm = backpackModule.getDisplayManager();
-        if (dm != null) dm.unequip(event.getPlayer());
+        if (dm != null) dm.clearDisplay(event.getPlayer());
     }
 
     @EventHandler

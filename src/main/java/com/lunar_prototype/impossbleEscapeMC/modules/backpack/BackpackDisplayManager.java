@@ -8,6 +8,8 @@ import com.github.retrooper.packetevents.protocol.player.Equipment;
 import com.github.retrooper.packetevents.protocol.player.EquipmentSlot;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.*;
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -31,16 +33,24 @@ public class BackpackDisplayManager {
     private final Map<UUID, DisplaySession> activeSessions = new HashMap<>();
 
     private static class DisplaySession {
-        final int entityId;
+        final int baseEntityId;
+        final Integer rigEntityId;
         final int taskId;
-        /** PacketEventsのItemStack（ヘルメット再送信に使用） */
-        final com.github.retrooper.packetevents.protocol.item.ItemStack helmetItem;
+        final com.github.retrooper.packetevents.protocol.item.ItemStack backpackHelmetItem;
+        final com.github.retrooper.packetevents.protocol.item.ItemStack rigHelmetItem;
         final UUID worldUuid;
 
-        DisplaySession(int entityId, int taskId, com.github.retrooper.packetevents.protocol.item.ItemStack helmetItem, UUID worldUuid) {
-            this.entityId = entityId;
+        DisplaySession(int baseEntityId,
+                       Integer rigEntityId,
+                       int taskId,
+                       com.github.retrooper.packetevents.protocol.item.ItemStack backpackHelmetItem,
+                       com.github.retrooper.packetevents.protocol.item.ItemStack rigHelmetItem,
+                       UUID worldUuid) {
+            this.baseEntityId = baseEntityId;
+            this.rigEntityId = rigEntityId;
             this.taskId = taskId;
-            this.helmetItem = helmetItem;
+            this.backpackHelmetItem = backpackHelmetItem;
+            this.rigHelmetItem = rigHelmetItem;
             this.worldUuid = worldUuid;
         }
     }
@@ -49,43 +59,88 @@ public class BackpackDisplayManager {
         this.plugin = plugin;
     }
 
+    public void sync(Player player) {
+        BackpackModule backpackModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(BackpackModule.class);
+        RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        if (backpackModule == null) {
+            clearDisplay(player);
+            return;
+        }
+
+        ItemStack backpackItem = player.getInventory().getItemInOffHand();
+        if (!backpackModule.isBackpackItem(backpackItem)) {
+            backpackItem = null;
+        }
+
+        ItemStack rigItem = null;
+        if (rigModule != null) {
+            rigItem = rigModule.getEquippedRig(player);
+        }
+
+        if (backpackItem == null && rigItem == null) {
+            clearDisplay(player);
+            return;
+        }
+
+        equip(player, backpackItem, rigItem);
+    }
+
     /**
-     * バックパックを背中に表示する。
-     * 既に表示中の場合は一度解除してから再表示する。
-     *
-     * @param player      装備プレイヤー
-     * @param backpackItem オフハンドのバックパックBukkitItemStack（ヘルメット装着に使用）
+     * バックパック／リグを背中に表示する。
+     * リグだけ装備している場合も、土台用の空アーマースタンドを先に生成する。
      */
-    public void equip(Player player, ItemStack backpackItem) {
-        unequip(player); // 既存セッションがあれば破棄
+    public void equip(Player player, ItemStack backpackItem, ItemStack rigItem) {
+        clearDisplay(player);
 
-        int entityId = ThreadLocalRandom.current().nextInt(1_000_000, Integer.MAX_VALUE);
+        int baseEntityId = ThreadLocalRandom.current().nextInt(1_000_000, Integer.MAX_VALUE);
+        Integer rigEntityId = rigItem != null
+                ? ThreadLocalRandom.current().nextInt(1_000_000, Integer.MAX_VALUE)
+                : null;
 
-        // BukkitのItemStack → PacketEventsのItemStackへ変換
-        com.github.retrooper.packetevents.protocol.item.ItemStack peItem =
-                SpigotConversionUtil.fromBukkitItemStack(backpackItem);
+        com.github.retrooper.packetevents.protocol.item.ItemStack backpackPeItem =
+                backpackItem != null ? SpigotConversionUtil.fromBukkitItemStack(backpackItem) : null;
+        com.github.retrooper.packetevents.protocol.item.ItemStack rigPeItem =
+                rigItem != null ? SpigotConversionUtil.fromBukkitItemStack(rigItem) : null;
 
         // 毎tick体の向きを同期するタスク
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (!player.isOnline()) {
-                unequip(player);
+                clearDisplay(player);
                 return;
             }
             if (!activeSessions.containsKey(player.getUniqueId())) return;
 
             float bodyYaw = player.getBodyYaw();
             WrapperPlayServerEntityHeadLook headLook =
-                    new WrapperPlayServerEntityHeadLook(entityId, bodyYaw);
+                    new WrapperPlayServerEntityHeadLook(baseEntityId, bodyYaw);
             WrapperPlayServerEntityRotation rotation =
-                    new WrapperPlayServerEntityRotation(entityId, bodyYaw, 0f, true);
+                    new WrapperPlayServerEntityRotation(baseEntityId, bodyYaw, 0f, true);
+
+            WrapperPlayServerEntityHeadLook rigHeadLook = null;
+            WrapperPlayServerEntityRotation rigRotation = null;
+            if (rigEntityId != null) {
+                rigHeadLook = new WrapperPlayServerEntityHeadLook(rigEntityId, bodyYaw);
+                rigRotation = new WrapperPlayServerEntityRotation(rigEntityId, bodyYaw, 0f, true);
+            }
 
             for (Player p : player.getWorld().getPlayers()) {
                 PacketEvents.getAPI().getPlayerManager().sendPacket(p, headLook);
                 PacketEvents.getAPI().getPlayerManager().sendPacket(p, rotation);
+                if (rigHeadLook != null && rigRotation != null) {
+                    PacketEvents.getAPI().getPlayerManager().sendPacket(p, rigHeadLook);
+                    PacketEvents.getAPI().getPlayerManager().sendPacket(p, rigRotation);
+                }
             }
         }, 0L, 1L);
 
-        DisplaySession session = new DisplaySession(entityId, task.getTaskId(), peItem, player.getWorld().getUID());
+        DisplaySession session = new DisplaySession(
+                baseEntityId,
+                rigEntityId,
+                task.getTaskId(),
+                backpackPeItem,
+                rigPeItem,
+                player.getWorld().getUID()
+        );
         activeSessions.put(player.getUniqueId(), session);
 
         // ワールド内の全プレイヤー（自分含む）へスポーンパケットを送信
@@ -99,14 +154,16 @@ public class BackpackDisplayManager {
      *
      * @param player 対象プレイヤー
      */
-    public void unequip(Player player) {
+    public void clearDisplay(Player player) {
         DisplaySession session = activeSessions.remove(player.getUniqueId());
         if (session == null) return;
 
         Bukkit.getScheduler().cancelTask(session.taskId);
 
         WrapperPlayServerDestroyEntities destroy =
-                new WrapperPlayServerDestroyEntities(new int[]{session.entityId});
+                session.rigEntityId != null
+                        ? new WrapperPlayServerDestroyEntities(new int[]{session.baseEntityId, session.rigEntityId})
+                        : new WrapperPlayServerDestroyEntities(new int[]{session.baseEntityId});
 
         // セッションが作成されたワールドの全プレイヤーにパケットを送信
         org.bukkit.World world = Bukkit.getWorld(session.worldUuid);
@@ -122,6 +179,10 @@ public class BackpackDisplayManager {
                 PacketEvents.getAPI().getPlayerManager().sendPacket(p, destroy);
             }
         }
+    }
+
+    public void unequip(Player player) {
+        clearDisplay(player);
     }
 
     /**
@@ -168,8 +229,8 @@ public class BackpackDisplayManager {
         float bodyYaw = owner.getBodyYaw();
 
         // 1. SpawnEntity
-        WrapperPlayServerSpawnEntity spawn = new WrapperPlayServerSpawnEntity(
-                session.entityId,
+        WrapperPlayServerSpawnEntity baseSpawn = new WrapperPlayServerSpawnEntity(
+                session.baseEntityId,
                 Optional.of(UUID.randomUUID()),
                 EntityTypes.ARMOR_STAND,
                 new Vector3d(loc.getX(), loc.getY(), loc.getZ()),
@@ -184,25 +245,61 @@ public class BackpackDisplayManager {
         List<EntityData<?>> metadata = new ArrayList<>();
         metadata.add(new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0x20)); // Invisible
         metadata.add(new EntityData<>(15, EntityDataTypes.BYTE, (byte) 0x10)); // Marker flag
-        WrapperPlayServerEntityMetadata meta =
-                new WrapperPlayServerEntityMetadata(session.entityId, metadata);
+        WrapperPlayServerEntityMetadata baseMeta =
+                new WrapperPlayServerEntityMetadata(session.baseEntityId, metadata);
 
-        // 3. Equipment: ヘルメットスロットにバックパックアイテムを装着
-        List<Equipment> equipmentList = Collections.singletonList(
-                new Equipment(EquipmentSlot.HELMET, session.helmetItem)
-        );
-        WrapperPlayServerEntityEquipment equipment =
-                new WrapperPlayServerEntityEquipment(session.entityId, equipmentList);
+        WrapperPlayServerEntityEquipment baseEquipment = null;
+        if (session.backpackHelmetItem != null) {
+            List<Equipment> equipmentList = Collections.singletonList(
+                    new Equipment(EquipmentSlot.HELMET, session.backpackHelmetItem)
+            );
+            baseEquipment = new WrapperPlayServerEntityEquipment(session.baseEntityId, equipmentList);
+        }
 
-        // 4. Mount: プレイヤーにアーマースタンドをマウント
-        WrapperPlayServerSetPassengers mount = new WrapperPlayServerSetPassengers(
+        WrapperPlayServerSetPassengers playerMount = new WrapperPlayServerSetPassengers(
                 owner.getEntityId(),
-                new int[]{session.entityId}
+                new int[]{session.baseEntityId}
         );
 
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, spawn);
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, meta);
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, equipment);
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, mount);
+        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, baseSpawn);
+        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, baseMeta);
+        if (baseEquipment != null) {
+            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, baseEquipment);
+        }
+        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, playerMount);
+
+        if (session.rigEntityId != null) {
+            WrapperPlayServerSpawnEntity rigSpawn = new WrapperPlayServerSpawnEntity(
+                    session.rigEntityId,
+                    Optional.of(UUID.randomUUID()),
+                    EntityTypes.ARMOR_STAND,
+                    new Vector3d(loc.getX(), loc.getY(), loc.getZ()),
+                    loc.getPitch(),
+                    bodyYaw,
+                    bodyYaw,
+                    0,
+                    Optional.empty()
+            );
+            WrapperPlayServerEntityMetadata rigMeta =
+                    new WrapperPlayServerEntityMetadata(session.rigEntityId, metadata);
+            WrapperPlayServerEntityEquipment rigEquipment = null;
+            if (session.rigHelmetItem != null) {
+                List<Equipment> rigEquipmentList = Collections.singletonList(
+                        new Equipment(EquipmentSlot.HELMET, session.rigHelmetItem)
+                );
+                rigEquipment = new WrapperPlayServerEntityEquipment(session.rigEntityId, rigEquipmentList);
+            }
+            WrapperPlayServerSetPassengers rigMount = new WrapperPlayServerSetPassengers(
+                    session.baseEntityId,
+                    new int[]{session.rigEntityId}
+            );
+
+            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigSpawn);
+            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigMeta);
+            if (rigEquipment != null) {
+                PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigEquipment);
+            }
+            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigMount);
+        }
     }
 }
