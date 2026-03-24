@@ -77,7 +77,7 @@ public class SearchGUI implements Listener {
         if (!(event.getRightClicked() instanceof Mannequin mannequin)) return;
 
         PersistentDataContainer pdc = mannequin.getPersistentDataContainer();
-        if (!pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.STRING)) return;
+        if (!pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY) && !pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.STRING)) return;
 
         event.setCancelled(true);
         open(event.getPlayer(), mannequin);
@@ -113,15 +113,27 @@ public class SearchGUI implements Listener {
             return live != null ? live.getInventory() : null;
         }
         if (source instanceof Mannequin m) {
-            String data = m.getPersistentDataContainer().get(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING);
-            if (data != null) {
-                try {
-                    Component title = m.customName();
-                    if (title == null) title = Component.text("死体漁り");
-                    return CorpseManager.deserializeInventory(data, title);
-                } catch (Exception e) {
-                    plugin.getLogger().warning("Failed to deserialize corpse inventory!");
+            PersistentDataContainer pdc = m.getPersistentDataContainer();
+            Component title = m.customName();
+            if (title == null) title = Component.text("死体漁り");
+
+            try {
+                // 1. BYTE_ARRAY (新形式)
+                if (pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY)) {
+                    byte[] bytes = pdc.get(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY);
+                    if (bytes != null) {
+                        return com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.deserializeInventoryFromBytes(bytes, title);
+                    }
                 }
+                // 2. STRING (旧形式)
+                else if (pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.STRING)) {
+                    String data = pdc.get(PDCKeys.CORPSE_INVENTORY, PDCKeys.STRING);
+                    if (data != null) {
+                        return CorpseManager.deserializeInventory(data, title);
+                    }
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to deserialize corpse inventory!");
             }
         }
         return null;
@@ -231,7 +243,8 @@ public class SearchGUI implements Listener {
                 }
             } else if (source instanceof Mannequin m) {
                 try {
-                    m.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING, CorpseManager.serializeInventory(srcInv));
+                    byte[] bytes = com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.serializeInventoryToBytes(srcInv);
+                    m.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY, bytes);
                     CorpseManager.updateMannequinAppearance(m, srcInv);
                 } catch (IOException e) {
                     plugin.getLogger().warning("Failed to save updated corpse inventory!");

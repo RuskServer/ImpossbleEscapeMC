@@ -211,8 +211,8 @@ public class CorpseManager {
 
     private void finishSpawning(Mannequin mannequin, Inventory virtualInv, Location loc, long durationTicks) {
         try {
-            String serialized = serializeInventory(virtualInv);
-            mannequin.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PersistentDataType.STRING, serialized);
+            byte[] bytes = com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.serializeInventoryToBytes(virtualInv);
+            mannequin.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY, bytes);
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to serialize corpse inventory!");
         }

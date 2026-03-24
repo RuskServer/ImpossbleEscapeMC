@@ -10,6 +10,7 @@ public class PDCKeys {
     public static final PersistentDataType<Integer, Integer> INTEGER = PersistentDataType.INTEGER;
     public static final PersistentDataType<Double, Double> DOUBLE = PersistentDataType.DOUBLE;
     public static final PersistentDataType<Byte, Byte> BOOLEAN = PersistentDataType.BYTE; // Boolean代わりのByte
+    public static final PersistentDataType<byte[], byte[]> BYTE_ARRAY = PersistentDataType.BYTE_ARRAY;
 
     public static final NamespacedKey ITEM_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "item_id");
     public static final NamespacedKey DURABILITY = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "durability");
