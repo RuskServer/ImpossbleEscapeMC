@@ -1,6 +1,7 @@
 # トレーダー設定ファイル
 # type: BUY (購入専用) または SELL (売却専用)
 # limit: 1日の購入制限数 (0は無制限)
+# level: 取引解放に必要なプレイヤーレベル (省略時は1)
 
 prapor:
   displayName: "§6Prapor (Buy Only)"
@@ -10,6 +11,7 @@ prapor:
     - id: "gun_ak74"
       price: 15000
       limit: 2
+      level: 5
     - id: "ammo_545x39_ps"
       price: 150
       limit: 300

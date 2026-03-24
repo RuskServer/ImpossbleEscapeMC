@@ -24,7 +24,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class TraderGUI implements Listener {
     private static final int[] SELL_INPUT_SLOTS = {10, 11, 12, 13, 14, 15, 16};
@@ -76,12 +75,16 @@ public class TraderGUI implements Listener {
             if (slot >= size) break;
             ItemStack icon = ItemFactory.create(ti.itemId);
             if (icon == null) continue;
+            boolean unlocked = traderModule.isUnlocked(data, ti);
+            int requiredLevel = traderModule.getRequiredLevel(ti);
 
             ItemMeta meta = icon.getItemMeta();
             List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
             if (lore == null) lore = new ArrayList<>();
 
             lore.add(Component.empty());
+            lore.add(Component.text("解放レベル: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text("Lv." + requiredLevel, unlocked ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
             lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                     .append(Component.text(ti.price + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
             if (ti.dailyLimit > 0) {
@@ -90,7 +93,11 @@ public class TraderGUI implements Listener {
                 lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                         .append(Component.text(remaining + "/" + ti.dailyLimit, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
             }
-            lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            if (unlocked) {
+                lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            } else {
+                lore.add(Component.text("未解放: Lv." + requiredLevel + " で購入可能", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+            }
 
             meta.lore(lore);
             meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
@@ -169,6 +176,10 @@ public class TraderGUI implements Listener {
                         String itemId = clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
                         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
                         if (ti != null) {
+                            if (!traderModule.isUnlocked(data, ti)) {
+                                player.sendMessage(Component.text("この取引は Lv." + traderModule.getRequiredLevel(ti) + " で解放されます。", NamedTextColor.RED));
+                                return;
+                            }
                             new TraderQuantityGUI(traderModule, trader, ti, player, this).open();
                         }
                     } else {
@@ -238,6 +249,10 @@ public class TraderGUI implements Listener {
         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
         if (ti == null) return;
         if (quantity <= 0) return;
+        if (!traderModule.isUnlocked(data, ti)) {
+            player.sendMessage(Component.text("この取引は Lv." + traderModule.getRequiredLevel(ti) + " で解放されます。", NamedTextColor.RED));
+            return;
+        }
 
         traderModule.checkAndResetDailyPurchases(data);
         if (ti.dailyLimit > 0) {

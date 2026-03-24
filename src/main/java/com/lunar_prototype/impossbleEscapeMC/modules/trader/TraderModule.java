@@ -61,7 +61,8 @@ public class TraderModule implements IModule {
                     String itemId = (String) map.get("id");
                     double price = ((Number) map.get("price")).doubleValue();
                     int limit = map.containsKey("limit") ? ((Number) map.get("limit")).intValue() : 0;
-                    items.add(new TraderItem(itemId, price, limit));
+                    int requiredLevel = map.containsKey("level") ? ((Number) map.get("level")).intValue() : 1;
+                    items.add(new TraderItem(itemId, price, limit, requiredLevel));
                 }
             }
             
@@ -72,6 +73,14 @@ public class TraderModule implements IModule {
 
     public TraderDefinition getTrader(String id) {
         return traders.get(id);
+    }
+
+    public boolean isUnlocked(PlayerData data, TraderItem item) {
+        return data.getLevel() >= getRequiredLevel(item);
+    }
+
+    public int getRequiredLevel(TraderItem item) {
+        return Math.max(1, item.requiredLevel);
     }
 
     public TraderDefinition getTraderByNpcId(int npcId) {
