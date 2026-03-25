@@ -49,7 +49,7 @@ public class GunListener implements Listener {
 
     // 射撃継続判定のタイムアウト（ms）
     // Minecraftの右クリックパケット間隔は約200msだが、タップ撃ち時の余韻を短くするために150msに設定
-    private static final long SHOOTING_KEEP_ALIVE_MS = 150;
+    private static final long SHOOTING_KEEP_ALIVE_MS = 250;
 
     // State machine storage
     private final Map<UUID, com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine> stateMachines = new HashMap<>();
@@ -188,23 +188,26 @@ public class GunListener implements Listener {
         long now = System.currentTimeMillis();
         long lastShot = lastShotTimeMap.getOrDefault(uuid, 0L);
         long requiredIntervalMs = (long) (60000.0 / effectiveStats.rpm);
+        long timeSinceLastShot = now - lastShot;
 
-        // 3. 射撃ループ開始
-        if (now - lastShot >= requiredIntervalMs) {
-            // クールダウンが完了している場合、1発目を即座に発射
-            consecutiveShots.put(uuid, 0); // バースト開始
+        // 次弾発射に必要な待機時間 (既にクールダウン完了なら0)
+        long delayUntilNextShot = Math.max(0, requiredIntervalMs - timeSinceLastShot);
+
+        if (delayUntilNextShot == 0) {
+            // クールダウン完了済のため、1発目を即座に発射
+            consecutiveShots.put(uuid, 0); // バーストカウント初期化
             executeShoot(player, item, effectiveStats);
             lastShotTimeMap.put(uuid, now);
-
-            if ("SEMI".equalsIgnoreCase(effectiveStats.fireMode)) {
-                return;
-            }
-            // フルオートの場合は、次弾のタイミングを指定してループタスクを開始
-            startShooting(player, item, def.gunStats, requiredIntervalMs);
-        } else {
-            // クールダウン中の場合は、最短で発射できるミリ秒後を指定して開始
-            startShooting(player, item, def.gunStats, requiredIntervalMs - (now - lastShot));
+            delayUntilNextShot = requiredIntervalMs; // 次の弾までの間隔を設定
         }
+
+        // セミオートの場合は長押ししても次弾は発射しないため、ここで終了
+        if ("SEMI".equalsIgnoreCase(effectiveStats.fireMode)) {
+            return;
+        }
+
+        // フルオートの場合、次の発射タイミングを指定してタスクを開始・更新する
+        startShooting(player, item, def.gunStats, delayUntilNextShot);
     }
 
     // --- 左クリックでエイム切り替え (トグル) ---
@@ -261,7 +264,9 @@ public class GunListener implements Listener {
         UUID uuid = player.getUniqueId();
         PersistentDataContainer pdc = originalItem.getItemMeta().getPersistentDataContainer();
 
-        // Burst開始時にカウントをリセット
+        // 既存のタスクがあればキャンセル（lastRightClick等を初期化しないためstopShootingは使用しない）
+        BukkitRunnable existing = activeTasks.remove(uuid);
+        if (existing != null) existing.cancel();
         consecutiveShots.putIfAbsent(uuid, 0);
 
         BukkitRunnable task = new BukkitRunnable() {
@@ -272,29 +277,26 @@ public class GunListener implements Listener {
                 long now = System.currentTimeMillis();
                 long lastClick = lastRightClickMap.getOrDefault(uuid, 0L);
 
-                // タイムアウト判定
+                // パケット間隔(最大200ms強)を超えて入力が無い場合、射撃停止
                 if (now - lastClick > SHOOTING_KEEP_ALIVE_MS) {
                     stopShooting(uuid);
                     return;
                 }
 
-                // その他の停止条件
-                if (!player.isOnline() || player.isDead() || player.isSprinting()) {
-                    stopShooting(uuid);
-                    return;
-                }
-
                 ItemStack currentItem = player.getInventory().getItemInMainHand();
-                if (!isHoldingSameGun(player, pdc)) {
+
+                // 停止条件（オフライン、死亡、ダッシュ中、または持ち替え）
+                if (!player.isOnline() || player.isDead() || player.isSprinting() || !isHoldingSameGun(player, pdc)) {
                     stopShooting(uuid);
                     return;
                 }
 
-                // 毎射撃ごとにアタッチメント修正済みのステータスを再計算
+                // アタッチメント修正済みのステータスを再計算
                 GunStats effectiveStats = GunStatsCalculator.calculateEffectiveStats(currentItem, baseStats);
                 double msPerShot = 60000.0 / effectiveStats.rpm;
+                boolean isSemi = "SEMI".equalsIgnoreCase(effectiveStats.fireMode);
 
-                // 時間が来ている分だけ射撃実行
+                // 時間が来ている分だけ射撃実行 (高RPM銃への対応として1tickに最大5発まで)
                 int shotsFiredThisTick = 0;
                 while ((double) now >= nextShotTime && shotsFiredThisTick < 5) {
                     executeShoot(player, currentItem, effectiveStats);
@@ -302,11 +304,8 @@ public class GunListener implements Listener {
                     nextShotTime += msPerShot;
                     shotsFiredThisTick++;
 
-                    if ("SEMI".equalsIgnoreCase(effectiveStats.fireMode)) {
-                        // セミオートの場合は、1回のクリック(正確なタイミング)につき1発まで。
-                        // 長押しし続けている間はタスク自体は残す（アニメーション進行などのため）が、ここから先の弾は撃たない
-                        break;
-                    }
+                    // セミオートの場合は長押ししても1発しか撃たない
+                    if (isSemi) break;
                 }
             }
         };
@@ -456,7 +455,7 @@ public class GunListener implements Listener {
         double durabilityRatio = 1.0;
         if (def != null && def.maxDurability > 0) {
             int currentDur = itemPdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-            currentDur = Math.max(0, currentDur - 1);
+            if (Math.random() < 0.2) { currentDur = Math.max(0, currentDur - 1); }
             itemPdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, currentDur);
             durabilityRatio = (double) currentDur / def.maxDurability;
             
@@ -781,29 +780,38 @@ public class GunListener implements Listener {
     private com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine getOrCreateStateMachine(
             Player player) {
         UUID uuid = player.getUniqueId();
-        if (stateMachines.containsKey(uuid)) {
-            return stateMachines.get(uuid);
-        }
-
         ItemStack item = player.getInventory().getItemInMainHand();
-        ItemMeta meta = item.getItemMeta();
-        GunStats stats = null;
-        if (meta != null) {
-            PersistentDataContainer pdc = meta.getPersistentDataContainer();
-            String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-            ItemDefinition def = ItemRegistry.get(itemId);
-            if (def != null)
-                stats = def.gunStats;
+        
+        // 銃でない場合は null (または既存のものを削除して null)
+        if (!isGun(item)) {
+            stateMachines.remove(uuid);
+            return null;
         }
 
-        var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, stats);
-        var ctx = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponContext(plugin, player, item, effectiveStats);
-        // Default to Idle
-        var sm = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine(ctx,
-                new com.lunar_prototype.impossbleEscapeMC.animation.state.IdleState());
-        stateMachines.put(uuid, sm);
+        ItemMeta meta = item.getItemMeta();
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(itemId);
+        
+        if (def == null || def.gunStats == null) {
+            stateMachines.remove(uuid);
+            return null;
+        }
 
-        startStateTask(player);
+        var sm = stateMachines.get(uuid);
+        var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
+
+        if (sm == null) {
+            var ctx = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponContext(plugin, player, item, effectiveStats);
+            sm = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine(ctx,
+                    new com.lunar_prototype.impossbleEscapeMC.animation.state.IdleState());
+            stateMachines.put(uuid, sm);
+            startStateTask(player);
+        } else {
+            // キャッシュが存在する場合も、常に最新のアイテム参照とステータスを同期
+            sm.getContext().setItem(item);
+            sm.getContext().setStats(effectiveStats);
+        }
 
         return sm;
     }
@@ -818,36 +826,25 @@ public class GunListener implements Listener {
             return;
         }
 
-        var sm = getOrCreateStateMachine(player);
+        ItemStack oldInContext = null;
+        var sm = stateMachines.get(uuid);
+        if (sm != null) {
+            oldInContext = sm.getContext().getItem();
+        }
 
-        // Update Context Item
-        ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        ItemDefinition def = ItemRegistry.get(itemId);
+        // getOrCreateStateMachine 内でステータスの同期が行われる
+        sm = getOrCreateStateMachine(player);
+        if (sm == null) return;
 
-        if (def != null && def.gunStats != null) {
-            ItemStack oldItem = sm.getContext().getItem();
+        // アイテムが物理的に異なる（またはスロットが違う等）場合はリセット
+        if (oldInContext == null || !oldInContext.equals(item)) {
+            // 持ち替え時は強制的にリセットして Idle 状態へ
+            sm.reset();
+        }
 
-            // アイテムが物理的に異なる（またはスロットが違う、メタが違う等）場合はリセット
-            if (oldItem == null || !oldItem.equals(item)) {
-                // 持ち替え時は強制的にリセットして Idle 状態へ
-                sm.getContext().setItem(item);
-                var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
-                sm.getContext().setStats(effectiveStats);
-                sm.reset();
-            } else {
-                // 同じアイテムならコンテキストの参照だけ更新（メタ情報の同期のため）
-                sm.getContext().setItem(item);
-                // アビリティやアタッチメント情報が動的に変わる可能性を考慮してステータスも再計算
-                var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
-                sm.getContext().setStats(effectiveStats);
-            }
-
-            // 監視タスクが止まっていれば再開
-            if (!stateTasks.containsKey(uuid)) {
-                startStateTask(player);
-            }
+        // 監視タスクが止まっていれば再開
+        if (!stateTasks.containsKey(uuid)) {
+            startStateTask(player);
         }
     }
 
