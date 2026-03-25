@@ -266,6 +266,9 @@ public class ItemFactory {
             lore.add("§7Rarity: " + getRarityStars(attDef.rarity));
             lore.add("§7Weight: §f" + weightText);
         }
+        if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) {
+            lore.add("§6Find in Raid");
+        }
         lore.add("");
 
         // --- 2. 弾薬ステータス (弾薬アイテム、または弾薬としての性質を持つ場合) ---

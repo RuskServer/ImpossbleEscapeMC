@@ -146,6 +146,29 @@ public class BackpackModule implements IModule {
         return (int) Math.round(raw * (1.0 - reduction));
     }
 
+    public Inventory loadBackpackInventory(ItemStack backpackItem) {
+        if (!isBackpackItem(backpackItem)) {
+            return Bukkit.createInventory(null, 9, Component.text("Backpack"));
+        }
+        return loadInventory(backpackItem, getBackpackSize(backpackItem)).inventory;
+    }
+
+    public void saveBackpackInventory(ItemStack backpackItem, Inventory inventory) {
+        if (!isBackpackItem(backpackItem) || inventory == null) return;
+
+        ItemMeta meta = backpackItem.getItemMeta();
+        if (meta == null) return;
+
+        try {
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            byte[] bytes = SerializationUtil.serializeInventoryToBytes(inventory);
+            pdc.set(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY, bytes);
+            backpackItem.setItemMeta(meta);
+        } catch (IOException e) {
+            ImpossbleEscapeMC.getInstance().getLogger().warning("Failed to save backpack inventory: " + e.getMessage());
+        }
+    }
+
     private void saveInventoryToOffhandBackpack(Player player, Inventory inventory) {
         ItemStack offhand = player.getInventory().getItemInOffHand();
         if (!isBackpackItem(offhand)) {
@@ -160,19 +183,9 @@ public class BackpackModule implements IModule {
             return;
         }
 
-        ItemMeta meta = offhand.getItemMeta();
-        if (meta == null) return;
+        if (offhand.getItemMeta() == null) return;
 
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        try {
-            byte[] bytes = SerializationUtil.serializeInventoryToBytes(inventory);
-            pdc.set(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY, bytes);
-            // 移行：古い形式のキーがStringとして存在する場合は削除（または新しいキーを優先）
-            // 注意: 同じ NamespacedKey を共有している場合、型が異なれば共存はしないはずですが、明示的に。
-            offhand.setItemMeta(meta);
-        } catch (IOException e) {
-            ImpossbleEscapeMC.getInstance().getLogger().warning("Failed to save backpack inventory: " + e.getMessage());
-        }
+        saveBackpackInventory(offhand, inventory);
     }
 
     private LoadInventoryResult loadInventory(ItemStack backpackItem, int size) {
