@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestCondit
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.*;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.*;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import org.bukkit.configuration.ConfigurationSection;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,8 +65,19 @@ public class QuestParser {
             int level = ((Number) map.get("amount")).intValue();
             return new LevelCondition(level);
         }
-        // 他の条件タイプもここに追加
-        return data -> true; // デフォルト
+        
+        // 未知のタイプまたはデフォルト
+        return new QuestCondition() {
+            @Override
+            public boolean isMet(PlayerData data) {
+                return true;
+            }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
+        };
     }
 
     private static QuestObjective parseObjective(Map<?, ?> map) {
