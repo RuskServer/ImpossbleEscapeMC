@@ -290,10 +290,13 @@ public class GunListener implements Listener {
 
         GunStats effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
 
-        String modelKeyStr = null;
-        if (effectiveStats.equipAnimation != null && effectiveStats.equipAnimation.model != null && !effectiveStats.equipAnimation.model.isEmpty()) {
-            modelKeyStr = effectiveStats.equipAnimation.model;
+        // equipAnimation や equipTimeMs が未設定の場合はリセット処理を行わない
+        if (effectiveStats.equipTimeMs <= 0 || effectiveStats.equipAnimation == null 
+            || effectiveStats.equipAnimation.model == null || effectiveStats.equipAnimation.model.isEmpty()) {
+            return;
         }
+
+        String modelKeyStr = effectiveStats.equipAnimation.model;
 
         try {
             String joined = pdc.get(PDCKeys.ATTACHMENTS, PDCKeys.STRING);
@@ -302,26 +305,14 @@ public class GunListener implements Listener {
                 attachments = java.util.Arrays.asList(joined.split(","));
             }
 
-            if (modelKeyStr != null) {
-                item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL, net.kyori.adventure.key.Key.key(modelKeyStr));
-                item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, 
-                    io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
-                        .addFloat(0.0f)
-                        .addFloat(0.0f)
-                        .addFloat(0.0f)
-                        .addStrings(attachments)
-                        .build());
-            } else {
-                // equipAnimationがない場合は、単一のIntegerとしてセット (古い互換性や未対応武器用)
-                item.resetData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL);
-                item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, 
-                    io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
-                        .addFloat((float) def.customModelData)
-                        .addFloat(0.0f)
-                        .addFloat(0.0f)
-                        .addStrings(attachments)
-                        .build());
-            }
+            item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL, net.kyori.adventure.key.Key.key(modelKeyStr));
+            item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, 
+                io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
+                    .addFloat(0.0f)
+                    .addFloat(0.0f)
+                    .addFloat(0.0f)
+                    .addStrings(attachments)
+                    .build());
         } catch (Exception ignored) {}
     }
 
