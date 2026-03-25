@@ -37,3 +37,6 @@ commands:
   market:
     description: グローバルマーケットを利用します。
     usage: /market
+  quest:
+    description: クエストシステム管理コマンド
+    permission: op

@@ -473,6 +473,18 @@ public class RaidInstance {
             p.hideBossBar(bossBar);
             p.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
+            // クエストトリガーの発火
+            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule = 
+                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+            if (questModule != null) {
+                if (dataModule != null) {
+                    com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(p.getUniqueId());
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("mapId", map.getMapId());
+                    questModule.getEventBus().fire(p, data, com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger.RAID_EXTRACT, params);
+                }
+            }
+
             // メインワールド（オーバーワールド）の初期スポーン地点へテレポート
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
             plugin.getRaidMapManager().updateMapSlot(p);
