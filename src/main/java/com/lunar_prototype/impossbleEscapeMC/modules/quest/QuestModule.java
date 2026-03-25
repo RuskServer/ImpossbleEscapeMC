@@ -7,6 +7,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestEventBus;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -28,8 +29,6 @@ public class QuestModule implements IModule {
         this.plugin = plugin;
     }
 
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
-...
     @Override
     public void onEnable(ServiceContainer container) {
         this.dataModule = container.get(PlayerDataModule.class);
