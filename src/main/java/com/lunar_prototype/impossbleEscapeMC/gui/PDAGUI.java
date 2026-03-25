@@ -165,6 +165,18 @@ public class PDAGUI implements Listener {
         quests.setItemMeta(questsMeta);
         inventory.setItem(16, quests);
 
+        // Settings (設定) ボタンをスロット17に追加
+        ItemStack settingsBtn = new ItemStack(Material.REPEATER);
+        ItemMeta settingsMeta = settingsBtn.getItemMeta();
+        settingsMeta.displayName(Component.text("Settings (操作設定)", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        List<Component> settingsLore = new ArrayList<>();
+        settingsLore.add(Component.text("キーバインドなどの操作設定を行います", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        settingsLore.add(Component.empty());
+        settingsLore.add(Component.text("クリックして設定画面を開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        settingsMeta.lore(settingsLore);
+        settingsBtn.setItemMeta(settingsMeta);
+        inventory.setItem(17, settingsBtn);
+
         // Marketボタン
         int level = data.getLevel();
         ItemStack market = new ItemStack(level >= 10 ? Material.GOLD_INGOT : Material.BARRIER);
@@ -233,6 +245,9 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
             new com.lunar_prototype.impossbleEscapeMC.modules.quest.PDAQuestGUI(player, questModule).open();
+        } else if (slot == 17) {
+            player.closeInventory();
+            new PDASettingsGUI(player).open();
         } else if (slot == 12) {
             LevelModule levelModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(LevelModule.class);
             if (levelModule.getLevel(player.getUniqueId()) < 10) {
