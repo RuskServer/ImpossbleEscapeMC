@@ -62,6 +62,8 @@ public class RaidInstance {
         private RaidOutcome outcome = RaidOutcome.ACTIVE;
         private long experienceToGrant = 0L;
         private int scavKills = 0;
+        private int pmcKills = 0;
+        private int bossKills = 0;
         private boolean extractionCountIncremented = false;
     }
 
@@ -320,15 +322,6 @@ public class RaidInstance {
                 resetCameraDistance(p);
                 plugin.getRaidModule().applyFailureEffect(p);
                 plugin.getRaidMapManager().updateMapSlot(p);
-
-                // レイド帰還後のクエスト通知（受領可能/報告可能）
-                if (questModule != null && dataModule != null) {
-                    questModule.notifyQuestAvailability(
-                            p,
-                            dataModule.getPlayerData(p.getUniqueId()),
-                            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.NotificationSource.RAID_MIA
-                    );
-                }
             }
         }
         players.clear();
@@ -397,21 +390,19 @@ public class RaidInstance {
      * @param scavEntityId 撃破されたSCAVのエンティティUUID
      * @param killerUuid   撃破を行ったプレイヤーのUUID
      */
-    public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid) {
+    public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid, ScavBrain.BrainLevel brainLevel) {
         if (!raidMembers.contains(killerUuid)) return;
-
-        boolean scavBelongsToThisRaid = false;
-        for (VirtualScav vs : virtualScavs) {
-            if (scavEntityId.equals(vs.getEntityId())) {
-                scavBelongsToThisRaid = true;
-                break;
-            }
+        
+        // BOSS判定
+        if (brainLevel == ScavBrain.BrainLevel.HIGH) {
+            RaidResult result = getOrCreateRaidResult(killerUuid);
+            result.bossKills += 1;
+            result.experienceToGrant += 250L; // BOSSは高EXP
+        } else {
+            RaidResult result = getOrCreateRaidResult(killerUuid);
+            result.scavKills += 1;
+            result.experienceToGrant += 50L;
         }
-        if (!scavBelongsToThisRaid) return;
-
-        RaidResult result = getOrCreateRaidResult(killerUuid);
-        result.scavKills += 1;
-        result.experienceToGrant += 50L;
     }
 
     /**
@@ -506,14 +497,9 @@ public class RaidInstance {
             resetCameraDistance(p);
             plugin.getRaidMapManager().updateMapSlot(p);
 
-            // レイド帰還後のクエスト通知（受領可能/報告可能）
-            if (questModule != null && dataModule != null) {
-                questModule.notifyQuestAvailability(
-                        p,
-                        dataModule.getPlayerData(p.getUniqueId()),
-                        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.NotificationSource.RAID_EXTRACT
-                );
-            }
+            p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            resetCameraDistance(p);
+            plugin.getRaidMapManager().updateMapSlot(p);
 
             if (players.isEmpty()) {
                 endRaid();
@@ -579,10 +565,18 @@ public class RaidInstance {
         extractionTimer.remove(player.getUniqueId());
         player.sendMessage(Component.text("死亡しました。レイド失敗です。", NamedTextColor.RED));
 
-        // 死亡救済のリザルトを記録 (経験値はレイド終了時に付与)
+        // 死亡のリザルトを記録 (経験値はレイド終了時に付与)
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
         result.outcome = RaidOutcome.DEAD;
         result.experienceToGrant += 150L;
+
+        // PMCキルの集計 (もしキラーがプレイヤーなら)
+        Player killer = player.getKiller();
+        if (killer != null && !killer.equals(player) && players.contains(killer.getUniqueId())) {
+            RaidResult killerResult = getOrCreateRaidResult(killer.getUniqueId());
+            killerResult.pmcKills += 1;
+            killerResult.experienceToGrant += 100L;
+        }
 
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
@@ -862,6 +856,11 @@ public class RaidInstance {
     private void applyRaidRewardsAndShowResults() {
         com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                 plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+
         if (levelModule == null) return;
 
         for (UUID uuid : raidMembers) {
@@ -876,11 +875,68 @@ public class RaidInstance {
 
             Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
-                player.sendMessage(Component.text("===== RAID RESULT =====", NamedTextColor.GOLD));
-                player.sendMessage(Component.text("結果: " + result.outcome.displayName, NamedTextColor.YELLOW));
-                player.sendMessage(Component.text("SCAVキル: " + result.scavKills, NamedTextColor.WHITE));
-                player.sendMessage(Component.text("獲得EXP: +" + result.experienceToGrant, NamedTextColor.GREEN));
-                player.sendMessage(Component.text("=======================", NamedTextColor.GOLD));
+                // 境界線の構築
+                Component border = Component.text(" ".repeat(40), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH);
+                
+                // 1行目: -脱出成功-----------------------------
+                boolean isSuccess = result.outcome == RaidOutcome.SURVIVED;
+                NamedTextColor statusColor = isSuccess ? NamedTextColor.GREEN : NamedTextColor.RED;
+                String statusText = isSuccess ? "脱出成功" : "脱出失敗";
+                
+                Component dashes = Component.text("-".repeat(15), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH);
+                Component header = Component.text("-", NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH)
+                        .append(Component.text(statusText, statusColor).decoration(net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH, false))
+                        .append(Component.text("-".repeat(25), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH));
+                
+                // 生還/死亡 行
+                Component outcomeLine = Component.text(result.outcome.displayName, statusColor);
+
+                player.sendMessage(header);
+                player.sendMessage(outcomeLine);
+
+                // キルカウント表示
+                Component grayColon = Component.text(":", NamedTextColor.GRAY);
+                if (result.scavKills > 0) {
+                    player.sendMessage(Component.text("SCAVキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.scavKills, NamedTextColor.WHITE)));
+                }
+                if (result.pmcKills > 0) {
+                    player.sendMessage(Component.text("PMCキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.pmcKills, NamedTextColor.WHITE)));
+                }
+                if (result.bossKills > 0) {
+                    player.sendMessage(Component.text("BOSSキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.bossKills, NamedTextColor.WHITE)));
+                }
+
+                player.sendMessage(header);
+
+                // クエスト通知
+                if (questModule != null && dataModule != null) {
+                    com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(uuid);
+                    if (data != null) {
+                        List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> reportable = questModule.getReportableQuests(data);
+                        List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> startable = questModule.getStartableQuests(data);
+
+                        boolean hasQuestInfo = !reportable.isEmpty() || !startable.isEmpty();
+                        if (hasQuestInfo) {
+                            if (!reportable.isEmpty()) {
+                                player.sendMessage(Component.text("！", NamedTextColor.GREEN).append(Component.text("完了したクエストがあります", NamedTextColor.WHITE)));
+                            }
+                            if (!startable.isEmpty()) {
+                                Component goldExcl = Component.text("！", NamedTextColor.GOLD);
+                                Component grayBracketOpen = Component.text("[", NamedTextColor.GRAY);
+                                Component grayBracketClose = Component.text("]", NamedTextColor.GRAY);
+                                Component yellowClick = Component.text("クリックしてクエストを開く", NamedTextColor.YELLOW)
+                                        .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/quest open"));
+                                
+                                player.sendMessage(goldExcl
+                                        .append(Component.text("受注できるクエストがあります ", NamedTextColor.WHITE))
+                                        .append(grayBracketOpen)
+                                        .append(yellowClick)
+                                        .append(grayBracketClose));
+                            }
+                            player.sendMessage(header);
+                        }
+                    }
+                }
             }
         }
     }

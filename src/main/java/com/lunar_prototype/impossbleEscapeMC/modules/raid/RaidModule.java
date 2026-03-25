@@ -382,10 +382,10 @@ public class RaidModule implements IModule {
      * @param scavUuid  撃破されたスカブの UUID
      * @param killerUuid 撃破を行ったプレイヤーの UUID
      */
-    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid) {
+    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid, com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain.BrainLevel brainLevel) {
         RaidInstance raid = activeRaids.get(mapId);
         if (raid == null) return;
-        raid.onScavKilledByPlayer(scavUuid, killerUuid);
+        raid.onScavKilledByPlayer(scavUuid, killerUuid, brainLevel);
     }
 
     /**
