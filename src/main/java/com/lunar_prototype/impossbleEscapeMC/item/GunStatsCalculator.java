@@ -39,11 +39,20 @@ public class GunStatsCalculator {
         int adsTimeAdd = 0;
 
         for (AttachmentDefinition att : attachments) {
-            if (att.modifiers == null) continue;
+            if (att.modifiers != null) {
+                damageMult += att.modifiers.getOrDefault("damage", 0.0);
+                recoilMult += att.modifiers.getOrDefault("recoil", 0.0);
+                adsTimeAdd += att.modifiers.getOrDefault("adsTime", 0.0).intValue();
+            }
             
-            damageMult += att.modifiers.getOrDefault("damage", 0.0);
-            recoilMult += att.modifiers.getOrDefault("recoil", 0.0);
-            adsTimeAdd += att.modifiers.getOrDefault("adsTime", 0.0).intValue();
+            // エイムアニメーションのオーバーライド (最後に定義されていたものが優先)
+            if (att.aimAnimation != null) {
+                effective.aimAnimation = att.aimAnimation;
+            }
+            // スコープ設定のオーバーライド
+            if (att.scope != null) {
+                effective.scope = att.scope;
+            }
         }
 
         effective.damage *= damageMult;
