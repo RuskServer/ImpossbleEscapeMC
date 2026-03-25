@@ -1,15 +1,25 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
+import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 public class RaidInstance {
     private final ImpossbleEscapeMC plugin;
@@ -296,6 +306,7 @@ public class RaidInstance {
             result.outcome = RaidOutcome.MIA;
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
+                clearRaidMarkersFromCurrentInventory(p);
                 p.sendMessage(Component.text("脱出に失敗しました (MIA)。", NamedTextColor.RED));
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
@@ -439,6 +450,7 @@ public class RaidInstance {
             p.playSound(p.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.8f, 1.5f);
         } else {
             extractionTimer.remove(p.getUniqueId());
+            applyFindInRaidToExtractedItems(p);
             p.sendMessage(Component.text("脱出に成功しました！", NamedTextColor.GREEN));
             p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
 
@@ -501,6 +513,7 @@ public class RaidInstance {
                 if (result.outcome == RaidOutcome.ACTIVE) {
                     result.outcome = RaidOutcome.MIA;
                 }
+                clearRaidMarkersFromCurrentInventory(p);
                 p.hideBossBar(bossBar);
                 p.sendMessage(Component.text("レイドが終了しました。", NamedTextColor.RED));
             }
@@ -559,6 +572,7 @@ public class RaidInstance {
         if (result.outcome == RaidOutcome.ACTIVE) {
             result.outcome = RaidOutcome.LEFT;
         }
+        clearRaidMarkersFromCurrentInventory(player);
         players.remove(player.getUniqueId());
         if (players.isEmpty()) {
             endReason = "all_left";
@@ -624,6 +638,7 @@ public class RaidInstance {
             players.add(player.getUniqueId());
             raidMembers.add(player.getUniqueId());
             getOrCreateRaidResult(player.getUniqueId());
+            markRaidBroughtInItems(player);
             player.showBossBar(bossBar);
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
@@ -697,6 +712,88 @@ public class RaidInstance {
      */
     private RaidResult getOrCreateRaidResult(UUID uuid) {
         return raidResults.computeIfAbsent(uuid, ignored -> new RaidResult());
+    }
+
+    private void markRaidBroughtInItems(Player player) {
+        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+        if (backpackModule != null) {
+            backpackModule.saveBackpackFromOpenInventory(player);
+        }
+
+        visitPlayerItems(player, item -> setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, true), backpackModule);
+    }
+
+    private void applyFindInRaidToExtractedItems(Player player) {
+        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+        if (backpackModule != null) {
+            backpackModule.saveBackpackFromOpenInventory(player);
+        }
+
+        visitPlayerItems(player, item -> {
+            ItemMeta meta = item.getItemMeta();
+            if (meta == null) return;
+
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            boolean broughtIn = pdc.getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1;
+            pdc.remove(PDCKeys.RAID_BROUGHT_IN);
+            if (!broughtIn) {
+                pdc.set(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 1);
+            }
+            item.setItemMeta(meta);
+            ItemFactory.updateLore(item);
+        }, backpackModule);
+    }
+
+    private void clearRaidMarkersFromCurrentInventory(Player player) {
+        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+        if (backpackModule != null) {
+            backpackModule.saveBackpackFromOpenInventory(player);
+        }
+
+        visitPlayerItems(player, item -> setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, false), backpackModule);
+    }
+
+    private void visitPlayerItems(Player player, Consumer<ItemStack> consumer, BackpackModule backpackModule) {
+        PlayerInventory inventory = player.getInventory();
+        for (ItemStack item : inventory.getStorageContents()) {
+            visitItemRecursive(item, consumer, backpackModule);
+        }
+        visitItemRecursive(inventory.getHelmet(), consumer, backpackModule);
+        visitItemRecursive(inventory.getChestplate(), consumer, backpackModule);
+        visitItemRecursive(inventory.getLeggings(), consumer, backpackModule);
+        visitItemRecursive(inventory.getBoots(), consumer, backpackModule);
+        visitItemRecursive(inventory.getItemInOffHand(), consumer, backpackModule);
+    }
+
+    private void visitItemRecursive(ItemStack item, Consumer<ItemStack> consumer, BackpackModule backpackModule) {
+        if (item == null || item.getType().isAir()) return;
+
+        consumer.accept(item);
+
+        if (backpackModule == null || !backpackModule.isBackpackItem(item)) return;
+
+        Inventory backpackInventory = backpackModule.loadBackpackInventory(item);
+        for (ItemStack nested : backpackInventory.getContents()) {
+            visitItemRecursive(nested, consumer, backpackModule);
+        }
+        backpackModule.saveBackpackInventory(item, backpackInventory);
+        ItemFactory.updateLore(item);
+    }
+
+    private void setBooleanFlag(ItemStack item, NamespacedKey key, boolean value) {
+        if (item == null || item.getType().isAir()) return;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        if (value) {
+            pdc.set(key, PDCKeys.BOOLEAN, (byte) 1);
+        } else {
+            pdc.remove(key);
+        }
+        item.setItemMeta(meta);
+        ItemFactory.updateLore(item);
     }
 
     /**
