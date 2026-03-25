@@ -130,10 +130,6 @@ public class StaminaModule implements IModule, Listener {
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         if (data == null) return;
 
-        if (data.getStamina() < JUMP_COST) {
-            event.setCancelled(true);
-            return;
-        }
         handleStaminaConsumption(data, JUMP_COST);
     }
 
