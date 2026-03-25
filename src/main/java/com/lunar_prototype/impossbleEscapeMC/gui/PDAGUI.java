@@ -4,6 +4,8 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketMainGUI;
+import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI;
 import net.kyori.adventure.text.Component;
@@ -150,6 +152,25 @@ public class PDAGUI implements Listener {
         tradersMeta.lore(tradersLore);
         traders.setItemMeta(tradersMeta);
         inventory.setItem(15, traders);
+
+        // Marketボタン
+        int level = data.getLevel();
+        ItemStack market = new ItemStack(level >= 10 ? Material.GOLD_INGOT : Material.BARRIER);
+        ItemMeta marketMeta = market.getItemMeta();
+        marketMeta.displayName(Component.text("Market (マーケット)", level >= 10 ? NamedTextColor.YELLOW : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        List<Component> marketLore = new ArrayList<>();
+        marketLore.add(Component.text("プレイヤー間でFIRアイテムを売買します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        marketLore.add(Component.empty());
+        if (level < 10) {
+            marketLore.add(Component.text("解放レベル: Lv.10 (現在のレベル: " + level + ")", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else if (inRaid) {
+            marketLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else {
+            marketLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
+        marketMeta.lore(marketLore);
+        market.setItemMeta(marketMeta);
+        inventory.setItem(12, market);
         
         // 閉じるボタン
         ItemStack close = new ItemStack(Material.BARRIER);
@@ -196,6 +217,22 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             TraderModule traderModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
             new TraderSelectionGUI(player, traderModule).open();
+        } else if (slot == 12) {
+            LevelModule levelModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(LevelModule.class);
+            if (levelModule.getLevel(player.getUniqueId()) < 10) {
+                player.sendMessage(Component.text("§cグローバルマーケットはレベル10から利用可能です。", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
+            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+            if (raidModule.isInRaid(player)) {
+                player.sendMessage(Component.text("§cレイド中はマーケットを開くことができません！", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
+            player.closeInventory();
+            MarketModule marketModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(MarketModule.class);
+            new MarketMainGUI(player, marketModule).open();
         }
     }
 

@@ -91,6 +91,32 @@ public class SerializationUtil {
         }
     }
 
+    /**
+     * ItemStackをBase64形式の文字列にシリアライズします（圧縮あり）。
+     */
+    public static String serializeItemStack(ItemStack item) throws IOException {
+        if (item == null) return null;
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzipStream = new GZIPOutputStream(outputStream);
+             BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(gzipStream)) {
+            dataOutput.writeObject(item);
+        }
+        return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+    }
+
+    /**
+     * Base64形式の文字列からItemStackをデシリアライズします。
+     */
+    public static ItemStack deserializeItemStack(String data) throws IOException, ClassNotFoundException {
+        if (data == null || data.isEmpty()) return null;
+        byte[] bytes = Base64.getDecoder().decode(data);
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+             GZIPInputStream gzipStream = new GZIPInputStream(inputStream);
+             BukkitObjectInputStream dataInput = new BukkitObjectInputStream(gzipStream)) {
+            return (ItemStack) dataInput.readObject();
+        }
+    }
+
     private static boolean isGZipped(byte[] bytes) {
         return bytes != null && bytes.length >= 2 && bytes[0] == (byte) 0x1f && bytes[1] == (byte) 0x8b;
     }
