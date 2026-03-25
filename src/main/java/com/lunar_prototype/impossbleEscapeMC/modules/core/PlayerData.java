@@ -45,6 +45,10 @@ public class PlayerData {
     private java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> activeQuests;
     private java.util.List<String> completedQuests;
 
+    // プレイヤー個人設定
+    private boolean cancelAdsOnSprint;
+    private java.util.Map<String, String> keybinds;
+
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
         this.balance = 0.0;
@@ -69,6 +73,12 @@ public class PlayerData {
 
         this.activeQuests = new java.util.HashMap<>();
         this.completedQuests = new java.util.ArrayList<>();
+        
+        this.cancelAdsOnSprint = true;
+        this.keybinds = new java.util.HashMap<>();
+        // デフォルトのキーバインド設定
+        this.keybinds.put("RELOAD", "DROP"); // デフォルト: アイテムを落とす(Q)キー
+        this.keybinds.put("FIREMODE", "SWAP_HAND"); // デフォルト: オフハンド切り替え(F)キー
     }
 
     public java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> getActiveQuests() {
@@ -304,5 +314,34 @@ public class PlayerData {
 
     public void setDirty(boolean dirty) {
         this.dirty = dirty;
+    }
+
+    public boolean isCancelAdsOnSprint() {
+        return cancelAdsOnSprint;
+    }
+
+    public void setCancelAdsOnSprint(boolean cancelAdsOnSprint) {
+        if (this.cancelAdsOnSprint != cancelAdsOnSprint) {
+            this.cancelAdsOnSprint = cancelAdsOnSprint;
+            this.dirty = true;
+        }
+    }
+
+    public java.util.Map<String, String> getKeybinds() {
+        if (keybinds == null) {
+            keybinds = new java.util.HashMap<>();
+            keybinds.put("RELOAD", "DROP");
+            keybinds.put("FIREMODE", "SWAP_HAND");
+        }
+        return keybinds;
+    }
+
+    public void setKeybind(String action, String key) {
+        getKeybinds().put(action, key);
+        this.dirty = true;
+    }
+
+    public String getKeybindForAction(String action) {
+        return getKeybinds().getOrDefault(action, "");
     }
 }

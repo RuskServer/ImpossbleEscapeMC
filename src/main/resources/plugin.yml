@@ -40,3 +40,6 @@ commands:
   quest:
     description: クエストシステム管理コマンド
     permission: op
+  settings:
+    description: プレイヤーの操作設定やキーバインドを変更します。
+    usage: /settings

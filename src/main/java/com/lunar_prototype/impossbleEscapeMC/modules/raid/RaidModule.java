@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import net.kyori.adventure.bossbar.BossBar;
@@ -382,7 +383,7 @@ public class RaidModule implements IModule {
      * @param scavUuid  撃破されたスカブの UUID
      * @param killerUuid 撃破を行ったプレイヤーの UUID
      */
-    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid, com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain.BrainLevel brainLevel) {
+    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid, ScavBrain.BrainLevel brainLevel) {
         RaidInstance raid = activeRaids.get(mapId);
         if (raid == null) return;
         raid.onScavKilledByPlayer(scavUuid, killerUuid, brainLevel);

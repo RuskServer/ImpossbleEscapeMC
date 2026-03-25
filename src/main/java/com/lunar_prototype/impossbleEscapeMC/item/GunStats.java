@@ -9,6 +9,7 @@ public class GunStats {
     public int pelletCount = 1; // 同時発射弾数（ショットガン用。デフォルト1 = 通常銃と同じ）
     public int customModelData; // 【追加】 ベースとなるモデル番号 (例: 20)
     public int adsTime; // 【追加】ADS時間 (ミリ秒)
+    public int equipTimeMs; // 【追加】持ち替え時間 (ミリ秒)
     public int boltingTime; // 【追加】手動コッキングの時間 (ミリ秒)
     public String shotSound;
     public String caliber;
@@ -19,6 +20,7 @@ public class GunStats {
     public AnimationStats reloadLoopAnimation; // 1発装填ループ用（ショットガン専用）
     public AnimationStats boltingAnimation; // 【追加】ボルトアクション用アニメーション
     public AnimationStats independentAnimation; // 【追加】射撃等の独立アニメーション
+    public AnimationStats equipAnimation; // 【追加】持ち替え時のアニメーション
     public java.util.List<String> validIndependentAnimStates = java.util.Arrays.asList("IDLE", "ADS", "SPRINT"); // 独立アニメの適応範囲
     public AnimationStats aimAnimation;
     public AnimationStats sprintAnimation;

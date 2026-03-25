@@ -29,6 +29,7 @@ public class GunStatsCalculator {
             effective.damage = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, effective.damage);
             effective.recoil = pdc.getOrDefault(PDCKeys.affix("recoil"), PDCKeys.DOUBLE, effective.recoil);
             effective.adsTime = pdc.getOrDefault(PDCKeys.affix("adsTime"), PDCKeys.INTEGER, effective.adsTime);
+            effective.equipTimeMs = pdc.getOrDefault(PDCKeys.affix("equipTimeMs"), PDCKeys.INTEGER, effective.equipTimeMs);
         }
 
         // 2. 装着されているアタッチメントの修正を適用
@@ -37,17 +38,23 @@ public class GunStatsCalculator {
         double damageMult = 1.0;
         double recoilMult = 1.0;
         int adsTimeAdd = 0;
+        int equipTimeAdd = 0;
 
         for (AttachmentDefinition att : attachments) {
             if (att.modifiers != null) {
                 damageMult += att.modifiers.getOrDefault("damage", 0.0);
                 recoilMult += att.modifiers.getOrDefault("recoil", 0.0);
                 adsTimeAdd += att.modifiers.getOrDefault("adsTime", 0.0).intValue();
+                equipTimeAdd += att.modifiers.getOrDefault("equipTime", 0.0).intValue();
             }
             
             // エイムアニメーションのオーバーライド (最後に定義されていたものが優先)
             if (att.aimAnimation != null) {
                 effective.aimAnimation = att.aimAnimation;
+            }
+            // 持ち替えアニメーションのオーバーライド
+            if (att.equipAnimation != null) {
+                effective.equipAnimation = att.equipAnimation;
             }
             // スコープ設定のオーバーライド
             if (att.scope != null) {
@@ -58,11 +65,13 @@ public class GunStatsCalculator {
         effective.damage *= damageMult;
         effective.recoil *= recoilMult;
         effective.adsTime += adsTimeAdd;
+        effective.equipTimeMs += equipTimeAdd;
 
         // 最小値ガード
         effective.damage = Math.max(0, effective.damage);
         effective.recoil = Math.max(0, effective.recoil);
         effective.adsTime = Math.max(0, effective.adsTime);
+        effective.equipTimeMs = Math.max(0, effective.equipTimeMs);
 
         return effective;
     }
@@ -77,6 +86,7 @@ public class GunStatsCalculator {
         copy.pelletCount = base.pelletCount;
         copy.customModelData = base.customModelData;
         copy.adsTime = base.adsTime;
+        copy.equipTimeMs = base.equipTimeMs;
         copy.boltingTime = base.boltingTime;
         copy.shotSound = base.shotSound;
         copy.caliber = base.caliber;
@@ -87,6 +97,7 @@ public class GunStatsCalculator {
         copy.reloadLoopAnimation = base.reloadLoopAnimation;
         copy.boltingAnimation = base.boltingAnimation;
         copy.independentAnimation = base.independentAnimation;
+        copy.equipAnimation = base.equipAnimation;
         copy.validIndependentAnimStates = base.validIndependentAnimStates;
         copy.aimAnimation = base.aimAnimation;
         copy.sprintAnimation = base.sprintAnimation;

@@ -27,6 +27,7 @@ public class AttachmentDefinitionParser {
         }
         
         att.aimAnimation = ParserUtils.parseAnimation(section, "aimAnimation");
+        att.equipAnimation = ParserUtils.parseAnimation(section, "equipAnimation");
         att.scope = ParserUtils.parseScope(section, "scope");
 
         return att;

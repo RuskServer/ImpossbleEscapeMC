@@ -10,6 +10,7 @@ public class AttachmentDefinition {
     public int customModelData;
     public int rarity;
     public GunStats.AnimationStats aimAnimation; // エイム時のアニメーションを上書き
+    public GunStats.AnimationStats equipAnimation; // 持ち替え時のアニメーションを上書き
     public GunStats.ScopeStats scope; // スコープ（ズーム）設定を上書き
     public java.util.Map<String, Double> modifiers = new java.util.HashMap<>(); // ステータス修正値 (例: "recoil" -> -0.1)
 }

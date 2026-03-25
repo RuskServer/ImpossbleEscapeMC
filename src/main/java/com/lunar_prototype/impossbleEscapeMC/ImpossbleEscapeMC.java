@@ -210,6 +210,11 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("quest").setExecutor(questCmd);
         getCommand("quest").setTabCompleter(questCmd);
 
+        // Settings (操作設定) コマンド登録
+        com.lunar_prototype.impossbleEscapeMC.modules.core.SettingsCommand settingsCmd = new com.lunar_prototype.impossbleEscapeMC.modules.core.SettingsCommand(serviceContainer.get(PlayerDataModule.class));
+        getCommand("settings").setExecutor(settingsCmd);
+        getCommand("settings").setTabCompleter(settingsCmd);
+
         CrossbowTask.start(this);
 
         asyncComputeResourcePackHash();

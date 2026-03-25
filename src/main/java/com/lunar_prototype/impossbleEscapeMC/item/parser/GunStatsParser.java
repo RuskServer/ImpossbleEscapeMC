@@ -16,6 +16,7 @@ public class GunStatsParser {
         gStats.fireMode = section.getString("fireMode", "SEMI");
         gStats.customModelData = section.getInt("customModelData", 0);
         gStats.adsTime = section.getInt("adsTime", 200);
+        gStats.equipTimeMs = section.getInt("equipTimeMs", 500); // 持ち替え時間パース
         gStats.boltingTime = section.getInt("boltingTime", 1000);
         gStats.caliber = section.getString("caliber");
         gStats.shotSound = section.getString("shotSound", "ENTITY_GENERIC_EXPLODE");
@@ -27,6 +28,7 @@ public class GunStatsParser {
         gStats.reloadLoopAnimation = ParserUtils.parseAnimation(section, "reloadLoopAnimation");
         gStats.boltingAnimation = ParserUtils.parseAnimation(section, "boltingAnimation");
         gStats.independentAnimation = ParserUtils.parseAnimation(section, "independentAnimation");
+        gStats.equipAnimation = ParserUtils.parseAnimation(section, "equipAnimation"); // 持ち替えアニメーションパース
 
         if (section.contains("validIndependentAnimStates")) {
             gStats.validIndependentAnimStates = section.getStringList("validIndependentAnimStates");

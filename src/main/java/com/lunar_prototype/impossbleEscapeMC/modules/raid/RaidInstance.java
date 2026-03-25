@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -315,12 +316,12 @@ public class RaidInstance {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 clearRaidMarkersFromCurrentInventory(p);
-                p.sendMessage(Component.text("脱出に失敗しました (MIA)。", NamedTextColor.RED));
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 p.hideBossBar(bossBar);
                 resetCameraDistance(p);
                 plugin.getRaidModule().applyFailureEffect(p);
+                showIndividualRaidResult(p);
                 plugin.getRaidMapManager().updateMapSlot(p);
             }
         }
@@ -458,8 +459,6 @@ public class RaidInstance {
         } else {
             extractionTimer.remove(p.getUniqueId());
             applyFindInRaidToExtractedItems(p);
-            p.sendMessage(Component.text("脱出に成功しました！", NamedTextColor.GREEN));
-            p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
 
             // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());
@@ -492,13 +491,9 @@ public class RaidInstance {
                 }
             }
 
-            // メインワールド（オーバーワールド）の初期スポーン地点へテレポート
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
             resetCameraDistance(p);
-            plugin.getRaidMapManager().updateMapSlot(p);
-
-            p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
-            resetCameraDistance(p);
+            showIndividualRaidResult(p);
             plugin.getRaidMapManager().updateMapSlot(p);
 
             if (players.isEmpty()) {
@@ -540,7 +535,7 @@ public class RaidInstance {
                 clearRaidMarkersFromCurrentInventory(p);
                 p.hideBossBar(bossBar);
                 resetCameraDistance(p);
-                p.sendMessage(Component.text("レイドが終了しました。", NamedTextColor.RED));
+                showIndividualRaidResult(p);
             }
         }
         players.clear();
@@ -563,7 +558,6 @@ public class RaidInstance {
     public void onPlayerDeath(Player player) {
         if (!players.contains(player.getUniqueId())) return;
         extractionTimer.remove(player.getUniqueId());
-        player.sendMessage(Component.text("死亡しました。レイド失敗です。", NamedTextColor.RED));
 
         // 死亡のリザルトを記録 (経験値はレイド終了時に付与)
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
@@ -581,6 +575,7 @@ public class RaidInstance {
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
         resetCameraDistance(player);
+        showIndividualRaidResult(player);
         plugin.getRaidMapManager().updateMapSlot(player);
 
         if (players.isEmpty()) {
@@ -856,86 +851,90 @@ public class RaidInstance {
     private void applyRaidRewardsAndShowResults() {
         com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                 plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
-        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
-        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
-
         if (levelModule == null) return;
 
         for (UUID uuid : raidMembers) {
             RaidResult result = getOrCreateRaidResult(uuid);
             if (result.outcome == RaidOutcome.ACTIVE) {
                 result.outcome = RaidOutcome.MIA;
+                Player player = Bukkit.getPlayer(uuid);
+                if (player != null && player.isOnline()) {
+                    showIndividualRaidResult(player);
+                }
             }
 
             if (result.experienceToGrant > 0) {
                 levelModule.addExperience(uuid, result.experienceToGrant);
             }
+        }
+    }
 
-            Player player = Bukkit.getPlayer(uuid);
-            if (player != null && player.isOnline()) {
-                // 境界線の構築
-                Component border = Component.text(" ".repeat(40), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH);
-                
-                // 1行目: -脱出成功-----------------------------
-                boolean isSuccess = result.outcome == RaidOutcome.SURVIVED;
-                NamedTextColor statusColor = isSuccess ? NamedTextColor.GREEN : NamedTextColor.RED;
-                String statusText = isSuccess ? "脱出成功" : "脱出失敗";
-                
-                Component dashes = Component.text("-".repeat(15), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH);
-                Component header = Component.text("-", NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH)
-                        .append(Component.text(statusText, statusColor).decoration(net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH, false))
-                        .append(Component.text("-".repeat(25), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH));
-                
-                // 生還/死亡 行
-                Component outcomeLine = Component.text(result.outcome.displayName, statusColor);
+    private void showIndividualRaidResult(Player player) {
+        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
 
-                player.sendMessage(header);
-                player.sendMessage(outcomeLine);
+        RaidResult result = getOrCreateRaidResult(player.getUniqueId());
+        boolean isSuccess = result.outcome == RaidOutcome.SURVIVED;
 
-                // キルカウント表示
-                Component grayColon = Component.text(":", NamedTextColor.GRAY);
-                if (result.scavKills > 0) {
-                    player.sendMessage(Component.text("SCAVキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.scavKills, NamedTextColor.WHITE)));
-                }
-                if (result.pmcKills > 0) {
-                    player.sendMessage(Component.text("PMCキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.pmcKills, NamedTextColor.WHITE)));
-                }
-                if (result.bossKills > 0) {
-                    player.sendMessage(Component.text("BOSSキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.bossKills, NamedTextColor.WHITE)));
-                }
+        // 境界線の構築 (半角空白 + 取り消し線)
+        Component borderLine = Component.text(" ".repeat(40), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH);
+        
+        // 1行目: -脱出成功 [Strikethrough Spaces]
+        NamedTextColor statusColor = isSuccess ? NamedTextColor.GREEN : NamedTextColor.RED;
+        String statusHeader = isSuccess ? "脱出成功" : "脱出失敗";
+        
+        Component header = Component.text("-", NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH)
+                .append(Component.text(statusHeader, statusColor).decoration(net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH, false))
+                .append(Component.text(" ".repeat(30), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH));
 
-                player.sendMessage(header);
+        // 生還/死亡 行
+        Component outcomeLine = Component.text(result.outcome.displayName, statusColor);
 
-                // クエスト通知
-                if (questModule != null && dataModule != null) {
-                    com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(uuid);
-                    if (data != null) {
-                        List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> reportable = questModule.getReportableQuests(data);
-                        List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> startable = questModule.getStartableQuests(data);
+        player.sendMessage(header);
+        player.sendMessage(outcomeLine);
 
-                        boolean hasQuestInfo = !reportable.isEmpty() || !startable.isEmpty();
-                        if (hasQuestInfo) {
-                            if (!reportable.isEmpty()) {
-                                player.sendMessage(Component.text("！", NamedTextColor.GREEN).append(Component.text("完了したクエストがあります", NamedTextColor.WHITE)));
-                            }
-                            if (!startable.isEmpty()) {
-                                Component goldExcl = Component.text("！", NamedTextColor.GOLD);
-                                Component grayBracketOpen = Component.text("[", NamedTextColor.GRAY);
-                                Component grayBracketClose = Component.text("]", NamedTextColor.GRAY);
-                                Component yellowClick = Component.text("クリックしてクエストを開く", NamedTextColor.YELLOW)
-                                        .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/quest open"));
-                                
-                                player.sendMessage(goldExcl
-                                        .append(Component.text("受注できるクエストがあります ", NamedTextColor.WHITE))
-                                        .append(grayBracketOpen)
-                                        .append(yellowClick)
-                                        .append(grayBracketClose));
-                            }
-                            player.sendMessage(header);
-                        }
+        // キルカウント表示
+        Component grayColon = Component.text(":", NamedTextColor.GRAY);
+        if (result.scavKills > 0) {
+            player.sendMessage(Component.text("SCAVキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.scavKills, NamedTextColor.WHITE)));
+        }
+        if (result.pmcKills > 0) {
+            player.sendMessage(Component.text("PMCキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.pmcKills, NamedTextColor.WHITE)));
+        }
+        if (result.bossKills > 0) {
+            player.sendMessage(Component.text("BOSSキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.bossKills, NamedTextColor.WHITE)));
+        }
+
+        // 下部境界線
+        player.sendMessage(borderLine);
+
+        // クエスト通知
+        if (questModule != null && dataModule != null) {
+            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+            if (data != null) {
+                List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> reportable = questModule.getReportableQuests(data);
+                List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> startable = questModule.getStartableQuests(data);
+
+                if (!reportable.isEmpty() || !startable.isEmpty()) {
+                    if (!reportable.isEmpty()) {
+                        player.sendMessage(Component.text("！", NamedTextColor.GREEN).append(Component.text("完了したクエストがあります", NamedTextColor.WHITE)));
                     }
+                    if (!startable.isEmpty()) {
+                        Component goldExcl = Component.text("！", NamedTextColor.GOLD);
+                        Component grayBracketOpen = Component.text("[", NamedTextColor.GRAY);
+                        Component grayBracketClose = Component.text("]", NamedTextColor.GRAY);
+                        Component yellowClick = Component.text("クリックしてクエストを開く", NamedTextColor.YELLOW)
+                                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/quest open"));
+                        
+                        player.sendMessage(goldExcl
+                                .append(Component.text("受注できるクエストがあります ", NamedTextColor.WHITE))
+                                .append(grayBracketOpen)
+                                .append(yellowClick)
+                                .append(grayBracketClose));
+                    }
+                    player.sendMessage(borderLine);
                 }
             }
         }

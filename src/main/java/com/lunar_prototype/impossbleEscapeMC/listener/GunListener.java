@@ -232,6 +232,19 @@ public class GunListener implements Listener {
     @EventHandler
     public void onSprint(PlayerToggleSprintEvent event) {
         Player player = event.getPlayer();
+        
+        // ADS解除設定のチェック
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+        if (event.isSprinting() && dataModule != null) {
+            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+            if (!data.isCancelAdsOnSprint() && isAiming(player.getUniqueId())) {
+                // ADS中のダッシュ解除がOFF、かつADS中の場合 -> ダッシュをキャンセルしてADSを維持
+                event.setCancelled(true);
+                player.setSprinting(false);
+                return;
+            }
+        }
+
         var sm = getOrCreateStateMachine(player);
 
         if (event.isSprinting()) {
@@ -335,7 +348,7 @@ public class GunListener implements Listener {
     }
 
     @EventHandler
-    public void onReload(PlayerDropItemEvent event) {
+    public void onDropItem(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
 
         // クリエイティブや他のインベントリ（チェスト等）を開いている時は除外
@@ -348,48 +361,106 @@ public class GunListener implements Listener {
         if (!isGun(droppedItem))
             return;
 
-        // 【修正】メインハンドにアイテムが残っている場合、それはインベントリ内の別のスロットから
-        // 投げ出された（ドラッグ等）と判断し、リロードではなく通常のドロップとして扱う。
-        // Qキーで手持ちの銃を落とした場合は、この時点でメインハンドは一時的にAIRになるため、
-        // 以下のチェックを通過してリロード処理（キャンセル）が行われる。
+        // メインハンドにアイテムが残っている場合、それはインベントリ内の別のスロットから
+        // 投げ出された（ドラッグ等）と判断し、通常のドロップとして扱う。
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         if (mainHand != null && mainHand.getType() != Material.AIR) {
             return;
         }
 
-        // 通常プレイ中のドロップ（リロード）処理
-        event.setCancelled(true);
-        int slotIndex = player.getInventory().getHeldItemSlot();
+        handleKeybindAction(player, droppedItem, "DROP", event);
 
-        // キャンセル直後はインベントリにアイテムが戻っていない可能性があるため、1tick後に処理する
+        // キーバインドとして処理された場合、エンティティの回収やモデル更新を行う
+        if (event.isCancelled()) {
+            int slotIndex = player.getInventory().getHeldItemSlot();
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (!player.isOnline() || player.getInventory().getHeldItemSlot() != slotIndex) return;
+                    ItemStack currentItem = player.getInventory().getItemInMainHand();
+                    if (currentItem == null || currentItem.getType() == Material.AIR) return;
+                    updateWeaponModel(player, currentItem);
+                }
+            }.runTaskLater(plugin, 1);
+        }
+    }
+
+    @EventHandler
+    public void onSwapHand(PlayerSwapHandItemsEvent event) {
+        Player player = event.getPlayer();
+        ItemStack offHandItem = event.getOffHandItem(); // スワップ後のオフハンド＝元メインハンド
+
+        if (!isGun(offHandItem)) return;
+
+        handleKeybindAction(player, offHandItem, "SWAP_HAND", event);
+
+        if (event.isCancelled()) {
+            int slotIndex = player.getInventory().getHeldItemSlot();
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (!player.isOnline() || player.getInventory().getHeldItemSlot() != slotIndex) return;
+                    ItemStack currentItem = player.getInventory().getItemInMainHand();
+                    if (currentItem == null || currentItem.getType() == Material.AIR) return;
+                    updateWeaponModel(player, currentItem);
+                }
+            }.runTaskLater(plugin, 1);
+        }
+    }
+
+    private void handleKeybindAction(Player player, ItemStack item, String inputKey, org.bukkit.event.Cancellable event) {
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+        if (dataModule == null) return;
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+
+        String action = "";
+        for (Map.Entry<String, String> entry : data.getKeybinds().entrySet()) {
+            if (entry.getValue().equalsIgnoreCase(inputKey)) {
+                action = entry.getKey().toUpperCase();
+                break;
+            }
+        }
+
+        if (action.isEmpty()) return;
+
+        // 何らかのアクションにバインドされている入力なら元のイベントをキャンセル
+        event.setCancelled(true);
+
+        switch (action) {
+            case "RELOAD":
+                executeReload(player, item);
+                break;
+            case "FIREMODE":
+                executeFiremodeSwitch(player, item);
+                break;
+        }
+    }
+
+    private void executeReload(Player player, ItemStack currentItem) {
+        int slotIndex = player.getInventory().getHeldItemSlot();
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (!player.isOnline())
-                    return;
+                if (!player.isOnline() || player.getInventory().getHeldItemSlot() != slotIndex) return;
+                ItemStack item = player.getInventory().getItemInMainHand();
+                if (item == null || item.getType() == Material.AIR) return;
 
-                // 1ティックの間にスロットが切り替わっていたら中断
-                if (player.getInventory().getHeldItemSlot() != slotIndex)
-                    return;
-
-                ItemStack currentItem = player.getInventory().getItemInMainHand();
-                if (currentItem == null || currentItem.getType() == Material.AIR)
-                    return;
-
-                // ジャムの解消
-                ItemMeta meta = currentItem.getItemMeta();
+                ItemMeta meta = item.getItemMeta();
                 if (meta != null) {
                     meta.getPersistentDataContainer().set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0);
-                    currentItem.setItemMeta(meta);
+                    item.setItemMeta(meta);
                 }
-
-                // ステートマシンのアイテム参照を最新に更新
-                updateWeaponModel(player, currentItem);
 
                 var sm = getOrCreateStateMachine(player);
                 sm.handleInput(com.lunar_prototype.impossbleEscapeMC.animation.state.InputType.RELOAD);
             }
         }.runTaskLater(plugin, 1);
+    }
+
+    private void executeFiremodeSwitch(Player player, ItemStack currentItem) {
+        // 現在FIREMODE切り替えは未実装。枠だけ用意。
+        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.5f);
+        player.sendActionBar(net.kyori.adventure.text.Component.text("射撃モード切替（未実装）", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
     }
 
     // 【重要】タルコフ式反動ロジック
@@ -804,7 +875,7 @@ public class GunListener implements Listener {
         if (sm == null) {
             var ctx = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponContext(plugin, player, item, effectiveStats);
             sm = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine(ctx,
-                    new com.lunar_prototype.impossbleEscapeMC.animation.state.IdleState());
+                    new com.lunar_prototype.impossbleEscapeMC.animation.state.EquippingState(plugin));
             stateMachines.put(uuid, sm);
             startStateTask(player);
         } else {
@@ -836,10 +907,10 @@ public class GunListener implements Listener {
         sm = getOrCreateStateMachine(player);
         if (sm == null) return;
 
-        // アイテムが物理的に異なる（またはスロットが違う等）場合はリセット
+        // アイテムが物理的に異なる（またはスロットが違う等）場合はEquipping状態へ
         if (oldInContext == null || !oldInContext.equals(item)) {
-            // 持ち替え時は強制的にリセットして Idle 状態へ
-            sm.reset();
+            // 持ち替え時は強制的にEquipping状態へ
+            sm.transitionTo(new com.lunar_prototype.impossbleEscapeMC.animation.state.EquippingState(plugin));
         }
 
         // 監視タスクが止まっていれば再開
