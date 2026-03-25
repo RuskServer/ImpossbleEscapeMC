@@ -65,6 +65,7 @@ public class AttachmentGUIListener implements Listener {
                     // 新しいアタッチメントをセット
                     attachments.set(targetSlot.getId(), attDef.id);
                     saveAttachmentList(gunItem, attachments);
+                    ItemFactory.updateLore(gunItem);
 
                     // アイテムを1つ消費
                     clickedItem.setAmount(clickedItem.getAmount() - 1);
@@ -110,8 +111,9 @@ public class AttachmentGUIListener implements Listener {
                 }
 
                 // 新しいアタッチメントをセット
-                attachments.set(targetSlot.getId(), attDef.modelId);
+                attachments.set(targetSlot.getId(), attDef.id);
                 saveAttachmentList(gunItem, attachments);
+                ItemFactory.updateLore(gunItem);
 
                 // カーソルのアイテムを消費
                 cursor.setAmount(cursor.getAmount() - 1);
@@ -151,6 +153,7 @@ public class AttachmentGUIListener implements Listener {
                 
                 attachments.set(targetSlot.getId(), defaultAtt);
                 saveAttachmentList(gunItem, attachments);
+                ItemFactory.updateLore(gunItem);
 
                 // アタッチメントアイテムをプレイヤーに返却
                 ItemStack ejected = ItemFactory.create(attDef.id);
