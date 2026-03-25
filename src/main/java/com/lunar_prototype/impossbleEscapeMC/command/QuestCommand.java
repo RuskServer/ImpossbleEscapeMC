@@ -70,6 +70,8 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             params.put("itemId", itemId);
             params.put("itemType", def.type);
             params.put("amount", item.getAmount());
+            boolean isFIR = meta.getPersistentDataContainer().getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte)0) == 1;
+            params.put("isFIR", isFIR);
 
             // トリガーを発火
             questModule.getEventBus().fire(player, data, QuestTrigger.HAND_IN, params);

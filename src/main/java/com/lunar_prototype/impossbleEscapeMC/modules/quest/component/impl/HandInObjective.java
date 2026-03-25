@@ -15,11 +15,13 @@ public class HandInObjective implements QuestObjective {
     private final String itemId;   // null if type-based
     private final String itemType; // null if id-based
     private final int targetAmount;
+    private final boolean requireFIR;
 
-    public HandInObjective(String itemId, String itemType, int targetAmount) {
+    public HandInObjective(String itemId, String itemType, int targetAmount, boolean requireFIR) {
         this.itemId = itemId;
         this.itemType = itemType;
         this.targetAmount = targetAmount;
+        this.requireFIR = requireFIR;
     }
 
     @Override
@@ -29,7 +31,10 @@ public class HandInObjective implements QuestObjective {
         // 納品されたアイテムの情報
         String handedItemId = (String) params.get("itemId");
         String handedItemType = (String) params.get("itemType");
+        boolean isFIR = params.containsKey("isFIR") && (boolean) params.get("isFIR");
         int amount = params.containsKey("amount") ? ((Number) params.get("amount")).intValue() : 1;
+
+        if (requireFIR && !isFIR) return false;
 
         boolean matches = false;
         if (itemId != null) {
@@ -61,6 +66,11 @@ public class HandInObjective implements QuestObjective {
     @Override
     public String getDescription() {
         String target = (itemId != null) ? "アイテム: " + itemId : "カテゴリー: " + itemType;
-        return target + " を納品する (" + targetAmount + "個)";
+        String firSuffix = requireFIR ? " (FIR品のみ)" : "";
+        return target + " を納品する (" + targetAmount + "個)" + firSuffix;
+    }
+
+    public boolean isRequireFIR() {
+        return requireFIR;
     }
 }

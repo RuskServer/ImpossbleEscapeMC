@@ -194,10 +194,17 @@ public class TraderQuestGUI implements Listener {
         ItemDefinition def = ItemRegistry.get(itemId);
         if (def == null) return false;
 
+        boolean isFIR = meta.getPersistentDataContainer().getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte)0) == 1;
+        if (obj.isRequireFIR() && !isFIR) {
+            player.sendMessage(Component.text("この目標にはFIR品(レイドで見つけた品)が必要です。", NamedTextColor.RED));
+            return false;
+        }
+
         Map<String, Object> params = new HashMap<>();
         params.put("itemId", itemId);
         params.put("itemType", def.type);
         params.put("amount", item.getAmount());
+        params.put("isFIR", isFIR);
 
         // 進行を試みる
         if (obj.updateProgress(player, data, active, index, QuestTrigger.HAND_IN, params)) {
