@@ -183,16 +183,6 @@ public class PlayerListener implements Listener {
                 public void run() {
                     if (player.isOnline()) {
                         plugin.getRaidModule().applyFailureEffect(player);
-
-                        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
-                                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
-                        if (questModule != null && dataModule != null) {
-                            questModule.notifyQuestAvailability(
-                                    player,
-                                    dataModule.getPlayerData(player.getUniqueId()),
-                                    com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.NotificationSource.RAID_DEATH_FAILURE
-                            );
-                        }
                     }
                 }
             }.runTaskLater(plugin, 5); // 0.25秒後に実行

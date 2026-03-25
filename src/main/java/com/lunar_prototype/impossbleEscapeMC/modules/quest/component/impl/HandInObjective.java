@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl;
 
+import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
@@ -65,7 +67,17 @@ public class HandInObjective implements QuestObjective {
 
     @Override
     public String getDescription() {
-        String target = (itemId != null) ? "アイテム: " + itemId : "カテゴリー: " + itemType;
+        String targetName = itemId;
+        if (itemId != null) {
+            ItemDefinition def = ItemRegistry.get(itemId);
+            if (def != null && def.displayName != null) {
+                targetName = def.displayName;
+            }
+        } else if (itemType != null) {
+            targetName = "カテゴリー: " + itemType;
+        }
+
+        String target = (itemId != null) ? "アイテム: " + targetName : targetName;
         String firSuffix = requireFIR ? " (FIR品のみ)" : "";
         return target + " を納品する (" + targetAmount + "個)" + firSuffix;
     }

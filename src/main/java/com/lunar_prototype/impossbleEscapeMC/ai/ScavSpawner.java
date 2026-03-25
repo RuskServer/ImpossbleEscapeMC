@@ -77,7 +77,7 @@ public class ScavSpawner implements Listener {
 
         var speedAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED);
         if (speedAttr != null) {
-            speedAttr.setBaseValue(0.1);
+            speedAttr.setBaseValue(0.15);
         }
 
         // タルコフ風の装備設定
@@ -371,8 +371,8 @@ public class ScavSpawner implements Listener {
                 boolean killerInRaid = plugin.getRaidModule() != null && plugin.getRaidModule().isInRaid(killerPlayer);
 
                 if (isRaidScav && killerInRaid) {
-                    plugin.getRaidModule().onScavKilledByPlayer(raidMapId, uuid, killerPlayer.getUniqueId());
-                    killerPlayer.sendMessage(Component.text("§a+50 EXP (SCAV Kill) ※レイド終了時に付与"));
+                    plugin.getRaidModule().onScavKilledByPlayer(raidMapId, uuid, killerPlayer.getUniqueId(), controller.getBrain().getBrainLevel());
+                    killerPlayer.sendMessage(Component.text("§a+EXP Kill ※レイド終了時に付与"));
                 } else {
                     com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                             plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);

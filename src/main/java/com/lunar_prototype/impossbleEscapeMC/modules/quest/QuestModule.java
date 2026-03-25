@@ -285,7 +285,7 @@ public class QuestModule implements IModule {
         }
     }
 
-    private List<QuestDefinition> getStartableQuests(PlayerData data) {
+    public List<QuestDefinition> getStartableQuests(PlayerData data) {
         List<QuestDefinition> result = new ArrayList<>();
         for (QuestDefinition q : quests.values()) {
             if (canStart(data, q)) result.add(q);
@@ -293,7 +293,7 @@ public class QuestModule implements IModule {
         return result;
     }
 
-    private List<QuestDefinition> getReportableQuests(PlayerData data) {
+    public List<QuestDefinition> getReportableQuests(PlayerData data) {
         List<QuestDefinition> result = new ArrayList<>();
         for (Map.Entry<String, ActiveQuest> entry : data.getActiveQuests().entrySet()) {
             QuestDefinition def = getQuest(entry.getKey());
