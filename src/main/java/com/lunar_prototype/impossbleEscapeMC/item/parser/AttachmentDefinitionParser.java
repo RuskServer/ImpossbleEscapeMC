@@ -19,6 +19,13 @@ public class AttachmentDefinitionParser {
         att.rarity = section.getInt("rarity", 1);
         att.weight = ParserUtils.getWeight(section);
         
+        ConfigurationSection modSection = section.getConfigurationSection("modifiers");
+        if (modSection != null) {
+            for (String key : modSection.getKeys(false)) {
+                att.modifiers.put(key, modSection.getDouble(key));
+            }
+        }
+
         return att;
     }
 }

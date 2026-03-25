@@ -182,25 +182,28 @@ public class GunListener implements Listener {
         // バニラのアイテム動作（クロスボウの発射など）をキャンセル
         event.setCancelled(true);
 
+        // 1. 初回発射時のステータス計算
+        GunStats effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
+
         long now = System.currentTimeMillis();
         long lastShot = lastShotTimeMap.getOrDefault(uuid, 0L);
-        long requiredIntervalMs = (long) (60000.0 / def.gunStats.rpm);
+        long requiredIntervalMs = (long) (60000.0 / effectiveStats.rpm);
 
         // 3. 射撃ループ開始
         if (now - lastShot >= requiredIntervalMs) {
             // クールダウンが完了している場合、1発目を即座に発射
             consecutiveShots.put(uuid, 0); // バースト開始
-            executeShoot(player, pdc, def.gunStats);
+            executeShoot(player, item, effectiveStats);
             lastShotTimeMap.put(uuid, now);
 
-            if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode)) {
+            if ("SEMI".equalsIgnoreCase(effectiveStats.fireMode)) {
                 return;
             }
             // フルオートの場合は、次弾のタイミングを指定してループタスクを開始
-            startShooting(player, pdc, def.gunStats, requiredIntervalMs);
+            startShooting(player, item, def.gunStats, requiredIntervalMs);
         } else {
             // クールダウン中の場合は、最短で発射できるミリ秒後を指定して開始
-            startShooting(player, pdc, def.gunStats, requiredIntervalMs - (now - lastShot));
+            startShooting(player, item, def.gunStats, requiredIntervalMs - (now - lastShot));
         }
     }
 
@@ -254,17 +257,15 @@ public class GunListener implements Listener {
         updateWeaponModel(player, newItem);
     }
 
-    private void startShooting(Player player, PersistentDataContainer pdc, GunStats stats, long firstShotDelayMs) {
+    private void startShooting(Player player, ItemStack originalItem, GunStats baseStats, long firstShotDelayMs) {
         UUID uuid = player.getUniqueId();
+        PersistentDataContainer pdc = originalItem.getItemMeta().getPersistentDataContainer();
 
         // Burst開始時にカウントをリセット
         consecutiveShots.putIfAbsent(uuid, 0);
 
-        double msPerShot = 60000.0 / stats.rpm;
-
         BukkitRunnable task = new BukkitRunnable() {
             private double nextShotTime = (double) System.currentTimeMillis() + firstShotDelayMs;
-            private boolean firstShot = true;
 
             @Override
             public void run() {
@@ -278,21 +279,30 @@ public class GunListener implements Listener {
                 }
 
                 // その他の停止条件
-                if (!player.isOnline() || player.isDead() || player.isSprinting() || !isHoldingSameGun(player, pdc)) {
+                if (!player.isOnline() || player.isDead() || player.isSprinting()) {
                     stopShooting(uuid);
                     return;
                 }
 
+                ItemStack currentItem = player.getInventory().getItemInMainHand();
+                if (!isHoldingSameGun(player, pdc)) {
+                    stopShooting(uuid);
+                    return;
+                }
+
+                // 毎射撃ごとにアタッチメント修正済みのステータスを再計算
+                GunStats effectiveStats = GunStatsCalculator.calculateEffectiveStats(currentItem, baseStats);
+                double msPerShot = 60000.0 / effectiveStats.rpm;
+
                 // 時間が来ている分だけ射撃実行
                 int shotsFiredThisTick = 0;
                 while ((double) now >= nextShotTime && shotsFiredThisTick < 5) {
-                    executeShoot(player, pdc, stats);
+                    executeShoot(player, currentItem, effectiveStats);
                     lastShotTimeMap.put(uuid, now);
                     nextShotTime += msPerShot;
-                    firstShot = false;
                     shotsFiredThisTick++;
 
-                    if ("SEMI".equalsIgnoreCase(stats.fireMode)) {
+                    if ("SEMI".equalsIgnoreCase(effectiveStats.fireMode)) {
                         // セミオートの場合は、1回のクリック(正確なタイミング)につき1発まで。
                         // 長押しし続けている間はタスク自体は残す（アニメーション進行などのため）が、ここから先の弾は撃たない
                         break;
@@ -384,8 +394,7 @@ public class GunListener implements Listener {
     }
 
     // 【重要】タルコフ式反動ロジック
-    private void executeShoot(Player player, PersistentDataContainer pdc, GunStats stats) {
-        ItemStack item = player.getInventory().getItemInMainHand();
+    private void executeShoot(Player player, ItemStack item, GunStats stats) {
         if (item == null || !item.hasItemMeta())
             return;
 
@@ -508,8 +517,9 @@ public class GunListener implements Listener {
             }
         }
 
-        double damage = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, stats.damage);
-        double baseRecoil = pdc.getOrDefault(PDCKeys.affix("recoil"), PDCKeys.DOUBLE, stats.recoil);
+        // --- バースト（連射）による反動計算 ---
+        double damage = stats.damage;
+        double baseRecoil = stats.recoil;
 
         // 現在の連射数を取得して加算
         int shots = consecutiveShots.getOrDefault(player.getUniqueId(), 0);
@@ -786,7 +796,8 @@ public class GunListener implements Listener {
                 stats = def.gunStats;
         }
 
-        var ctx = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponContext(plugin, player, item, stats);
+        var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, stats);
+        var ctx = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponContext(plugin, player, item, effectiveStats);
         // Default to Idle
         var sm = new com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponStateMachine(ctx,
                 new com.lunar_prototype.impossbleEscapeMC.animation.state.IdleState());
@@ -822,11 +833,15 @@ public class GunListener implements Listener {
             if (oldItem == null || !oldItem.equals(item)) {
                 // 持ち替え時は強制的にリセットして Idle 状態へ
                 sm.getContext().setItem(item);
-                sm.getContext().setStats(def.gunStats);
+                var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
+                sm.getContext().setStats(effectiveStats);
                 sm.reset();
             } else {
                 // 同じアイテムならコンテキストの参照だけ更新（メタ情報の同期のため）
                 sm.getContext().setItem(item);
+                // アビリティやアタッチメント情報が動的に変わる可能性を考慮してステータスも再計算
+                var effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
+                sm.getContext().setStats(effectiveStats);
             }
 
             // 監視タスクが止まっていれば再開

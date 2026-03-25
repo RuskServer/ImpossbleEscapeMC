@@ -9,4 +9,5 @@ public class AttachmentDefinition {
     public String modelId; // CustomModelData用のモデルID (strings配列に入る値)
     public int customModelData;
     public int rarity;
+    public java.util.Map<String, Double> modifiers = new java.util.HashMap<>(); // ステータス修正値 (例: "recoil" -> -0.1)
 }
