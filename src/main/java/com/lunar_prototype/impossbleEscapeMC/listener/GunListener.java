@@ -268,9 +268,61 @@ public class GunListener implements Listener {
         // 射撃を強制停止
         stopShooting(uuid);
 
+        // 前のスロットの銃モデルを初期状態（equipの0フレーム目）にリセット
+        ItemStack oldItem = player.getInventory().getItem(event.getPreviousSlot());
+        if (oldItem != null && isGun(oldItem)) {
+            resetGunModel(oldItem);
+        }
+
         // 次のティックを待たずに、新しいスロットのアイテムで即座に更新
         ItemStack newItem = player.getInventory().getItem(event.getNewSlot());
         updateWeaponModel(player, newItem);
+    }
+
+    private void resetGunModel(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return;
+        org.bukkit.persistence.PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId == null) return;
+        
+        com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
+        if (def == null || def.gunStats == null) return;
+
+        GunStats effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
+
+        String modelKeyStr = null;
+        if (effectiveStats.equipAnimation != null && effectiveStats.equipAnimation.model != null && !effectiveStats.equipAnimation.model.isEmpty()) {
+            modelKeyStr = effectiveStats.equipAnimation.model;
+        }
+
+        try {
+            String joined = pdc.get(PDCKeys.ATTACHMENTS, PDCKeys.STRING);
+            java.util.List<String> attachments = new java.util.ArrayList<>();
+            if (joined != null && !joined.isEmpty()) {
+                attachments = java.util.Arrays.asList(joined.split(","));
+            }
+
+            if (modelKeyStr != null) {
+                item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL, net.kyori.adventure.key.Key.key(modelKeyStr));
+                item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, 
+                    io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
+                        .addFloat(0.0f)
+                        .addFloat(0.0f)
+                        .addFloat(0.0f)
+                        .addStrings(attachments)
+                        .build());
+            } else {
+                // equipAnimationがない場合は、単一のIntegerとしてセット (古い互換性や未対応武器用)
+                item.resetData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL);
+                item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, 
+                    io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
+                        .addFloat((float) def.customModelData)
+                        .addFloat(0.0f)
+                        .addFloat(0.0f)
+                        .addStrings(attachments)
+                        .build());
+            }
+        } catch (Exception ignored) {}
     }
 
     private void startShooting(Player player, ItemStack originalItem, GunStats baseStats, long firstShotDelayMs) {

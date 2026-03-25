@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.PDAQuestGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
@@ -81,6 +82,11 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             player.sendMessage("§aアイテムを納品しました: " + def.displayName + " x" + item.getAmount());
             return true;
         }
+
+        if (args.length > 0 && args[0].equalsIgnoreCase("open")) {
+            new PDAQuestGUI(player, questModule).open();
+            return true;
+        }
         return true;
     }
 
@@ -90,6 +96,7 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             completions.add("reload");
             completions.add("handin");
+            completions.add("open");
         }
         return completions;
     }
