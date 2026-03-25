@@ -34,3 +34,6 @@ commands:
   trader:
     description: トレーダーシステム管理・利用コマンド
     permission: op
+  market:
+    description: グローバルマーケットを利用します。
+    usage: /market
