@@ -2,10 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.AndCondition;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ExtractObjective;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.HandInObjective;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.KillEntityObjective;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.*;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.*;
 import org.bukkit.configuration.ConfigurationSection;
 import java.util.ArrayList;
@@ -17,7 +14,7 @@ import java.util.Map;
  */
 public class QuestParser {
 
-    public static QuestDefinition parse(String id, ConfigurationSection section) {
+    public static QuestDefinition parse(String id, ConfigurationSection section, QuestModule questModule) {
         if (section == null) return null;
 
         String traderId = section.getString("trader_id");
@@ -28,7 +25,7 @@ public class QuestParser {
         List<QuestCondition> conditions = new ArrayList<>();
         if (section.contains("conditions")) {
             for (Map<?, ?> map : section.getMapList("conditions")) {
-                conditions.add(parseCondition(map));
+                conditions.add(parseCondition(map, questModule));
             }
         }
 
@@ -51,17 +48,24 @@ public class QuestParser {
         return new QuestDefinition(id, traderId, displayName, description, conditions, objectives, rewards);
     }
 
-    private static QuestCondition parseCondition(Map<?, ?> map) {
+    private static QuestCondition parseCondition(Map<?, ?> map, QuestModule questModule) {
         String type = (String) map.get("type");
         if ("and".equalsIgnoreCase(type)) {
             List<Map<?, ?>> subMaps = (List<Map<?, ?>>) map.get("conditions");
             List<QuestCondition> subConditions = new ArrayList<>();
             for (Map<?, ?> subMap : subMaps) {
-                subConditions.add(parseCondition(subMap));
+                subConditions.add(parseCondition(subMap, questModule));
             }
             return new AndCondition(subConditions);
+        } else if ("completed_quest".equalsIgnoreCase(type)) {
+            String qId = (String) map.get("quest_id");
+            return new CompletedQuestCondition(qId, questModule);
+        } else if ("level".equalsIgnoreCase(type)) {
+            int level = ((Number) map.get("amount")).intValue();
+            return new LevelCondition(level);
         }
-        return null;
+        // 他の条件タイプもここに追加
+        return data -> true; // デフォルト
     }
 
     private static QuestObjective parseObjective(Map<?, ?> map) {

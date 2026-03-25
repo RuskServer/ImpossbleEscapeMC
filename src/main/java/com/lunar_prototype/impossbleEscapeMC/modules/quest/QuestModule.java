@@ -109,7 +109,7 @@ public class QuestModule implements IModule {
         for (File file : files) {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             String id = file.getName().replace(".yml", "");
-            QuestDefinition def = QuestParser.parse(id, config);
+            QuestDefinition def = QuestParser.parse(id, config, this);
             if (def != null) {
                 quests.put(id, def);
             }
