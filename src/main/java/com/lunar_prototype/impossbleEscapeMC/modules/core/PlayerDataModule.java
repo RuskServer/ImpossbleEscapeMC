@@ -10,6 +10,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.entity.Player;
 
 import java.io.*;
 import java.util.Map;
@@ -60,7 +61,9 @@ public class PlayerDataModule implements IModule, Listener {
     /**
      * 非同期でデータをロード
      */
-    private void loadAsync(UUID uuid) {
+    private void loadAsync(Player player) {
+        UUID uuid = player.getUniqueId();
+
         CompletableFuture.runAsync(() -> {
             File file = new File(dataFolder, uuid + ".json");
             if (!file.exists()) return;
@@ -74,7 +77,17 @@ public class PlayerDataModule implements IModule, Listener {
                 plugin.getLogger().severe("Failed to load player data for " + uuid);
                 e.printStackTrace();
             }
-        });
+        }).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
+            Player current = Bukkit.getPlayer(uuid);
+            if (current == null || !current.isOnline()) return;
+
+            PlayerData data = dataCache.get(uuid);
+            if (data == null) {
+                data = getPlayerData(uuid);
+            }
+
+            Bukkit.getPluginManager().callEvent(new PlayerDataLoadedEvent(current, data));
+        }));
     }
 
     /**
@@ -111,7 +124,9 @@ public class PlayerDataModule implements IModule, Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        loadAsync(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        getPlayerData(player.getUniqueId()); // イベント発火前にキャッシュエントリを用意
+        loadAsync(player);
     }
 
     @EventHandler

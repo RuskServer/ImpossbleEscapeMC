@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataLoadedEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
@@ -12,6 +13,12 @@ import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestEventBus;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.Sound;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.io.File;
 import java.util.*;
@@ -24,6 +31,13 @@ public class QuestModule implements IModule {
     private final Map<String, QuestDefinition> quests = new HashMap<>();
     private final QuestEventBus eventBus = new QuestEventBus();
     private PlayerDataModule dataModule;
+
+    public enum NotificationSource {
+        PLAYER_JOIN,
+        RAID_EXTRACT,
+        RAID_MIA,
+        RAID_DEATH_FAILURE
+    }
 
     public QuestModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -38,11 +52,19 @@ public class QuestModule implements IModule {
         
         // リスナーの登録
         plugin.getServer().getPluginManager().registerEvents(new QuestListener(this, dataModule), plugin);
+        plugin.getServer().getPluginManager().registerEvents(new PlayerDataLoadedJoinListener(), plugin);
         
         // 位置チェックタスクの開始 (20 ticks = 1秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, this::checkPlayerLocations, 20L, 20L);
         
         container.register(QuestModule.class, this);
+    }
+
+    private class PlayerDataLoadedJoinListener implements Listener {
+        @EventHandler
+        public void onPlayerDataLoaded(PlayerDataLoadedEvent event) {
+            notifyQuestAvailability(event.getPlayer(), event.getPlayerData(), NotificationSource.PLAYER_JOIN);
+        }
     }
 
     private void checkPlayerLocations() {
@@ -193,5 +215,105 @@ public class QuestModule implements IModule {
             }
         }
         return true;
+    }
+
+    /**
+     * GUI上の「報告可能」（= ActiveQuest の全objectiveが完了済み）かどうか。
+     */
+    public boolean isAllObjectivesMet(QuestDefinition q, ActiveQuest active) {
+        for (int i = 0; i < q.getObjectives().size(); i++) {
+            if (!q.getObjectives().get(i).isCompleted(active, i)) return false;
+        }
+        return true;
+    }
+
+    public void notifyQuestAvailability(Player player, NotificationSource source) {
+        if (dataModule == null || player == null) return;
+        notifyQuestAvailability(player, dataModule.getPlayerData(player.getUniqueId()), source);
+    }
+
+    public void notifyQuestAvailability(Player player, PlayerData data, NotificationSource source) {
+        if (player == null || data == null) return;
+
+        List<QuestDefinition> startable = getStartableQuests(data);
+        List<QuestDefinition> reportable = getReportableQuests(data);
+        if (startable.isEmpty() && reportable.isEmpty()) return;
+
+        String header;
+        NamedTextColor headerColor;
+        switch (source) {
+            case PLAYER_JOIN -> {
+                header = "クエスト状況を確認しました。";
+                headerColor = NamedTextColor.AQUA;
+            }
+            case RAID_EXTRACT -> {
+                header = "レイド帰還後、クエストに進展があります。";
+                headerColor = NamedTextColor.GOLD;
+            }
+            case RAID_MIA -> {
+                header = "レイド終了後、クエストに報告可能なものがあります。";
+                headerColor = NamedTextColor.RED;
+            }
+            case RAID_DEATH_FAILURE -> {
+                header = "死亡後の復帰中、クエストに報告可能なものがあります。";
+                headerColor = NamedTextColor.RED;
+            }
+            default -> {
+                header = "クエスト情報";
+                headerColor = NamedTextColor.GRAY;
+            }
+        }
+
+        player.sendMessage(Component.text(header, headerColor));
+
+        if (!startable.isEmpty()) {
+            player.sendMessage(Component.text(
+                    "受領できるクエストがあります: " + formatQuestTitles(startable) +
+                            "。PDAのトレーダー一覧→クエスト一覧で確認してください。",
+                    NamedTextColor.GREEN
+            ));
+            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        }
+
+        if (!reportable.isEmpty()) {
+            player.sendMessage(Component.text(
+                    "報酬を受け取れる（報告可能）クエストがあります: " + formatQuestTitles(reportable) +
+                            "。トレーダーのクエスト一覧で左クリックして完了できます。",
+                    NamedTextColor.YELLOW
+            ));
+            player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+        }
+    }
+
+    private List<QuestDefinition> getStartableQuests(PlayerData data) {
+        List<QuestDefinition> result = new ArrayList<>();
+        for (QuestDefinition q : quests.values()) {
+            if (canStart(data, q)) result.add(q);
+        }
+        return result;
+    }
+
+    private List<QuestDefinition> getReportableQuests(PlayerData data) {
+        List<QuestDefinition> result = new ArrayList<>();
+        for (Map.Entry<String, ActiveQuest> entry : data.getActiveQuests().entrySet()) {
+            QuestDefinition def = getQuest(entry.getKey());
+            if (def == null) continue;
+            if (isAllObjectivesMet(def, entry.getValue())) result.add(def);
+        }
+        return result;
+    }
+
+    private String formatQuestTitles(List<QuestDefinition> quests) {
+        int limit = 3;
+        int realLimit = Math.min(limit, quests.size());
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < realLimit; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(quests.get(i).getDisplayName());
+        }
+
+        if (quests.size() > limit) sb.append(" ほか");
+        return sb.toString();
     }
 }

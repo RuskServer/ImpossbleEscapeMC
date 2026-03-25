@@ -68,11 +68,16 @@ public class ScavSpawner implements Listener {
     public UUID spawnScav(Location loc, String raidSessionId, String mapId) {
         Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
 
-        // 体力を40 (バニラの2倍) に固定
+        // 体力を40 (バニラの2倍) に固定、移動速度を 0.1 に設定
         var healthAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         if (healthAttr != null) {
             healthAttr.setBaseValue(40.0);
             scav.setHealth(40.0);
+        }
+
+        var speedAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED);
+        if (speedAttr != null) {
+            speedAttr.setBaseValue(0.1);
         }
 
         // タルコフ風の装備設定
