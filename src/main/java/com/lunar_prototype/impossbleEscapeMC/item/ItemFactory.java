@@ -286,18 +286,35 @@ public class ItemFactory {
             boolean chamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
             String chamberSuffix = chamberLoaded ? " §a(+1)" : "";
 
+            GunStats effective = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
+            
             lore.add("§6§l<< GUN STATS >>");
             lore.add("§7Ammo: §e" + ammo + chamberSuffix + " §8/ §7" + def.gunStats.magSize);
             String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
             AmmoDefinition currentAmmo = ItemRegistry.getAmmo(ammoId);
             
-            double gunMultiplier = pdc.getOrDefault(PDCKeys.affix("damage"), PDCKeys.DOUBLE, def.gunStats.damage);
             double baseDamage = (currentAmmo != null) ? currentAmmo.damage : 0.0;
-            double totalDamage = baseDamage * gunMultiplier;
+            double totalDamage = baseDamage * effective.damage;
 
-            lore.add("§7Damage: §f" + String.format("%.1f", totalDamage) + " §8(x" + String.format("%.2f", gunMultiplier) + ")");
-            lore.add("§7RPM: §f" + def.gunStats.rpm);
-            lore.add("§7Mode: §f" + def.gunStats.fireMode);
+            lore.add("§7Damage: §f" + String.format("%.1f", totalDamage) + " §8(x" + String.format("%.2f", effective.damage) + ")");
+            
+            // 反動の差分表示
+            double recoilDiff = effective.recoil - def.gunStats.recoil;
+            String recoilColor = recoilDiff <= 0 ? "§a" : "§c";
+            String recoilSign = recoilDiff >= 0 ? "+" : "";
+            String recoilDiffText = Math.abs(recoilDiff) > 0.001 ? " §8(" + recoilColor + recoilSign + String.format("%.2f", recoilDiff) + "§8)" : "";
+            lore.add("§7Recoil: §f" + String.format("%.2f", effective.recoil) + recoilDiffText);
+
+            lore.add("§7RPM: §f" + effective.rpm);
+            
+            // ADS時間の表示と差分
+            int adsDiff = effective.adsTime - def.gunStats.adsTime;
+            String adsColor = adsDiff <= 0 ? "§a" : "§c";
+            String adsSign = adsDiff >= 0 ? "+" : "";
+            String adsDiffText = adsDiff != 0 ? " §8(" + adsColor + adsSign + adsDiff + "ms§8)" : "";
+            lore.add("§7ADS Time: §f" + effective.adsTime + "ms" + adsDiffText);
+
+            lore.add("§7Mode: §f" + effective.fireMode);
             
             String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "None";
             lore.add("§7Chambered: §f" + ammoName);
@@ -334,10 +351,25 @@ public class ItemFactory {
             lore.add("");
         }
 
-        // --- 5. アタッチメントステータス ---
         if (attDef != null) {
             lore.add("§e§l<< ATTACHMENT >>");
             lore.add("§7Slot: §f" + attDef.slot.name());
+            
+            if (!attDef.modifiers.isEmpty()) {
+                lore.add("");
+                lore.add("§b§l<< EFFECTS >>");
+                for (java.util.Map.Entry<String, Double> entry : attDef.modifiers.entrySet()) {
+                    String stat = entry.getKey();
+                    double val = entry.getValue();
+                    String color = val < 0 ? "§a" : "§c"; // 反動やADS時間はマイナスが良い
+                    if (stat.equals("damage")) color = val > 0 ? "§a" : "§c"; // ダメージはプラスが良い
+                    
+                    String sign = val >= 0 ? "+" : "";
+                    String unit = (stat.equals("recoil") || stat.equals("damage")) ? String.format("%.0f%%", val * 100) : val + "ms";
+                    
+                    lore.add("§b " + stat.toUpperCase() + ": " + color + sign + unit);
+                }
+            }
             lore.add("");
         }
 
