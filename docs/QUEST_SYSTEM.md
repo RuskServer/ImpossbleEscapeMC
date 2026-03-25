@@ -39,7 +39,7 @@
 | :--- | :--- | :--- | :--- |
 | **エンティティ討伐** | `kill_entity` | `entity: "ID"`, `amount: 数` | 指定された種類のエンティティを一定数倒す |
 | **脱出** | `extract` | `map: "ID"`, `amount: 数` | 指定されたマップ(or "any")から脱出する |
-| **納品** | `hand_in` | `item_id: "ID"`, `item_type: "TYPE"`, `amount: 数` | アイテムIDまたはカテゴリーで指定されたアイテムを納品する |
+| **納品** | `hand_in` | `item_id: "ID"`, `item_type: "TYPE"`, `amount: 数`, `fir: true/false` | アイテムIDまたはカテゴリーで指定されたアイテムを納品する。`fir: true`でFIR品のみ受付。 |
 
 ### C. 報酬コンポーネント (Rewards)
 クエスト完了時に付与される報酬を定義します。
@@ -79,9 +79,11 @@ objectives:
   - type: "hand_in"
     item_id: "salewa"        # 特定アイテムID指定
     amount: 3
+    fir: true                # FIR品(Found In Raid)のみ受付
   - type: "hand_in"
     item_type: "med"         # カテゴリー指定 (med, gun, attachment等)
     amount: 5
+    fir: false               # 通常品も受付
 
 # 完了報酬
 rewards:

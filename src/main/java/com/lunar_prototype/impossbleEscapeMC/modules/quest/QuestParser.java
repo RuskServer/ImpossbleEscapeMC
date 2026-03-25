@@ -94,7 +94,8 @@ public class QuestParser {
             String itemId = (String) map.get("item_id");
             String itemType = (String) map.get("item_type");
             int amount = map.containsKey("amount") ? ((Number) map.get("amount")).intValue() : 1;
-            return new HandInObjective(itemId, itemType, amount);
+            boolean fir = map.containsKey("fir") && (boolean) map.get("fir");
+            return new HandInObjective(itemId, itemType, amount, fir);
         }
         return null;
     }
