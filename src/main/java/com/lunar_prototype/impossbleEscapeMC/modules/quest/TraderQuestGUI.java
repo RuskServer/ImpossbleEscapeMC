@@ -70,7 +70,7 @@ public class TraderQuestGUI implements Listener {
                 setQuestMeta(item, q, "§a§l完了済み", NamedTextColor.GREEN, null, data);
             } else if (active != null) {
                 item = new ItemStack(Material.WRITABLE_BOOK);
-                boolean allDone = isAllObjectivesMet(q, active);
+                boolean allDone = questModule.isAllObjectivesMet(q, active);
                 setQuestMeta(item, q, allDone ? "§e§l報告可能" : "§6§l進行中", allDone ? NamedTextColor.YELLOW : NamedTextColor.GOLD, active, data);
             } else if (isAvailable) {
                 item = new ItemStack(Material.BOOK);
@@ -104,7 +104,7 @@ public class TraderQuestGUI implements Listener {
 
         // 操作ガイド
         if (active != null) {
-            if (isAllObjectivesMet(q, active)) {
+            if (questModule.isAllObjectivesMet(q, active)) {
                 lore.add(Component.text("▶ 左クリックで報酬を受け取って完了", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
             } else {
                 lore.add(Component.text("▶ 右クリックで手持ちアイテムを納品", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
@@ -116,13 +116,6 @@ public class TraderQuestGUI implements Listener {
         meta.lore(lore);
         meta.getPersistentDataContainer().set(PDCKeys.QUEST_ID, PDCKeys.STRING, q.getId());
         item.setItemMeta(meta);
-    }
-
-    private boolean isAllObjectivesMet(QuestDefinition q, ActiveQuest active) {
-        for (int i = 0; i < q.getObjectives().size(); i++) {
-            if (!q.getObjectives().get(i).isCompleted(active, i)) return false;
-        }
-        return true;
     }
 
     @EventHandler
@@ -152,7 +145,7 @@ public class TraderQuestGUI implements Listener {
                 setupGUI();
             }
         } else {
-            if (isAllObjectivesMet(q, active)) {
+            if (questModule.isAllObjectivesMet(q, active)) {
                 // 完了処理
                 questModule.completeQuest(player, data, q);
                 setupGUI();

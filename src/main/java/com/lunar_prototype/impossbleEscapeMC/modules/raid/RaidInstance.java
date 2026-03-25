@@ -300,6 +300,12 @@ public class RaidInstance {
      */
     public void handleMIA() {
         endReason = "mia_cycle_end";
+
+        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+
         for (UUID uuid : new HashSet<>(players)) {
             extractionTimer.remove(uuid);
             RaidResult result = getOrCreateRaidResult(uuid);
@@ -311,8 +317,18 @@ public class RaidInstance {
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 p.hideBossBar(bossBar);
+                resetCameraDistance(p);
                 plugin.getRaidModule().applyFailureEffect(p);
                 plugin.getRaidMapManager().updateMapSlot(p);
+
+                // レイド帰還後のクエスト通知（受領可能/報告可能）
+                if (questModule != null && dataModule != null) {
+                    questModule.notifyQuestAvailability(
+                            p,
+                            dataModule.getPlayerData(p.getUniqueId()),
+                            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.NotificationSource.RAID_MIA
+                    );
+                }
             }
         }
         players.clear();
@@ -487,7 +503,17 @@ public class RaidInstance {
 
             // メインワールド（オーバーワールド）の初期スポーン地点へテレポート
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            resetCameraDistance(p);
             plugin.getRaidMapManager().updateMapSlot(p);
+
+            // レイド帰還後のクエスト通知（受領可能/報告可能）
+            if (questModule != null && dataModule != null) {
+                questModule.notifyQuestAvailability(
+                        p,
+                        dataModule.getPlayerData(p.getUniqueId()),
+                        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.NotificationSource.RAID_EXTRACT
+                );
+            }
 
             if (players.isEmpty()) {
                 endRaid();
@@ -527,6 +553,7 @@ public class RaidInstance {
                 }
                 clearRaidMarkersFromCurrentInventory(p);
                 p.hideBossBar(bossBar);
+                resetCameraDistance(p);
                 p.sendMessage(Component.text("レイドが終了しました。", NamedTextColor.RED));
             }
         }
@@ -559,6 +586,7 @@ public class RaidInstance {
 
         players.remove(player.getUniqueId());
         player.hideBossBar(bossBar);
+        resetCameraDistance(player);
         plugin.getRaidMapManager().updateMapSlot(player);
 
         if (players.isEmpty()) {
@@ -586,6 +614,7 @@ public class RaidInstance {
         }
         clearRaidMarkersFromCurrentInventory(player);
         players.remove(player.getUniqueId());
+        resetCameraDistance(player);
         if (players.isEmpty()) {
             endReason = "all_left";
             endRaid();
@@ -666,6 +695,7 @@ public class RaidInstance {
 
             playStartEffect(player);
             showExtractions(player);
+            setRaidCameraDistance(player);
             plugin.getRaidMapManager().updateMapSlot(player);
         }
     }
@@ -702,6 +732,7 @@ public class RaidInstance {
             if (p != null) {
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.showBossBar(bossBar);
+                setRaidCameraDistance(p);
                 p.sendMessage(Component.text("レイドへ再復帰しました。", NamedTextColor.GREEN));
             }
         }
@@ -806,6 +837,20 @@ public class RaidInstance {
         }
         item.setItemMeta(meta);
         ItemFactory.updateLore(item);
+    }
+
+    private void setRaidCameraDistance(Player player) {
+        var attr = player.getAttribute(org.bukkit.attribute.Attribute.CAMERA_DISTANCE);
+        if (attr != null) {
+            attr.setBaseValue(0.0);
+        }
+    }
+
+    private void resetCameraDistance(Player player) {
+        var attr = player.getAttribute(org.bukkit.attribute.Attribute.CAMERA_DISTANCE);
+        if (attr != null) {
+            attr.setBaseValue(4.0);
+        }
     }
 
     /**

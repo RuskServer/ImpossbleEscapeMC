@@ -68,6 +68,10 @@ public class RaidModule implements IModule {
         if (queueBossBar != null) {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 p.hideBossBar(queueBossBar);
+                var attr = p.getAttribute(org.bukkit.attribute.Attribute.CAMERA_DISTANCE);
+                if (attr != null) {
+                    attr.setBaseValue(4.0);
+                }
             }
         }
 
