@@ -106,6 +106,14 @@ public class TraderGUI implements Listener {
 
             inventory.setItem(slot++, icon);
         }
+
+        // クエストボタン (右下に配置)
+        ItemStack questBtn = new ItemStack(Material.BOOK);
+        ItemMeta qm = questBtn.getItemMeta();
+        qm.displayName(Component.text("クエスト一覧", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+        qm.lore(List.of(Component.text("受領・報告はこちらから", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
+        questBtn.setItemMeta(qm);
+        inventory.setItem(inventory.getSize() - 1, questBtn);
     }
 
     private void setupSellGUI() {
@@ -168,7 +176,14 @@ public class TraderGUI implements Listener {
 
         if (trader.type == TraderType.BUY) {
             event.setCancelled(true);
-            if (event.getRawSlot() < inventory.getSize()) {
+            int slot = event.getRawSlot();
+            if (slot == inventory.getSize() - 1) {
+                player.closeInventory();
+                com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule qm = traderModule.getPlugin().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+                new com.lunar_prototype.impossbleEscapeMC.modules.quest.TraderQuestGUI(player, trader, qm).open();
+                return;
+            }
+            if (slot < inventory.getSize()) {
                 ItemStack clicked = event.getCurrentItem();
                 if (clicked != null && clicked.getType() != Material.AIR) {
                     PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());

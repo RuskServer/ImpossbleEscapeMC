@@ -41,6 +41,10 @@ public class PlayerData {
     private long painkillerUntil; // 鎮痛効果終了時間 (ms)
     private long lastPainkillerTrigger; // 最後の自動鎮痛発動時間 (ms)
 
+    // クエストシステム
+    private java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> activeQuests;
+    private java.util.List<String> completedQuests;
+
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
         this.balance = 0.0;
@@ -62,6 +66,31 @@ public class PlayerData {
         this.bleedingLevel = 0;
         this.painkillerUntil = 0;
         this.lastPainkillerTrigger = 0;
+
+        this.activeQuests = new java.util.HashMap<>();
+        this.completedQuests = new java.util.ArrayList<>();
+    }
+
+    public java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> getActiveQuests() {
+        if (activeQuests == null) activeQuests = new java.util.HashMap<>();
+        return activeQuests;
+    }
+
+    public java.util.List<String> getCompletedQuests() {
+        if (completedQuests == null) completedQuests = new java.util.ArrayList<>();
+        return completedQuests;
+    }
+
+    public boolean isQuestCompleted(String questId) {
+        return getCompletedQuests().contains(questId);
+    }
+
+    public void completeQuest(String questId) {
+        if (!isQuestCompleted(questId)) {
+            getCompletedQuests().add(questId);
+            getActiveQuests().remove(questId);
+            this.dirty = true;
+        }
     }
 
     public int getCurrentWeight() {

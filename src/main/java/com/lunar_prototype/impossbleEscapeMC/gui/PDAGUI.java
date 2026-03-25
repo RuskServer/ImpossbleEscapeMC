@@ -153,6 +153,18 @@ public class PDAGUI implements Listener {
         traders.setItemMeta(tradersMeta);
         inventory.setItem(15, traders);
 
+        // Questsボタン
+        ItemStack quests = new ItemStack(Material.BOOK);
+        ItemMeta questsMeta = quests.getItemMeta();
+        questsMeta.displayName(Component.text("Quests (クエスト進捗)", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+        List<Component> questsLore = new ArrayList<>();
+        questsLore.add(Component.text("現在進行中のクエストを確認します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        questsLore.add(Component.empty());
+        questsLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        questsMeta.lore(questsLore);
+        quests.setItemMeta(questsMeta);
+        inventory.setItem(16, quests);
+
         // Marketボタン
         int level = data.getLevel();
         ItemStack market = new ItemStack(level >= 10 ? Material.GOLD_INGOT : Material.BARRIER);
@@ -217,6 +229,10 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             TraderModule traderModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
             new TraderSelectionGUI(player, traderModule).open();
+        } else if (slot == 16) {
+            player.closeInventory();
+            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+            new com.lunar_prototype.impossbleEscapeMC.modules.quest.PDAQuestGUI(player, questModule).open();
         } else if (slot == 12) {
             LevelModule levelModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(LevelModule.class);
             if (levelModule.getLevel(player.getUniqueId()) < 10) {

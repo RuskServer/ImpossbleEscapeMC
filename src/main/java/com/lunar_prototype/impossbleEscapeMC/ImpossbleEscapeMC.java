@@ -3,16 +3,14 @@ package com.lunar_prototype.impossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.BrainManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
-import com.lunar_prototype.impossbleEscapeMC.command.AttachmentCommand;
-import com.lunar_prototype.impossbleEscapeMC.command.GetItemCommand;
-import com.lunar_prototype.impossbleEscapeMC.command.ItemReloadCommand;
-import com.lunar_prototype.impossbleEscapeMC.command.ScavCommand;
+import com.lunar_prototype.impossbleEscapeMC.command.*;
 import com.lunar_prototype.impossbleEscapeMC.core.ModuleBootstrap;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUIListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
@@ -152,6 +150,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightModule());
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.stamina.StaminaModule());
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule());
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.scoreboard.ScoreboardModule());
 
@@ -205,6 +204,11 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         MarketModule marketModule = serviceContainer.get(MarketModule.class);
         LevelModule levelModule = serviceContainer.get(LevelModule.class);
         getCommand("market").setExecutor(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketCommand(marketModule, levelModule));
+
+        QuestModule questModule = serviceContainer.get(QuestModule.class);
+        QuestCommand questCmd = new QuestCommand(questModule);
+        getCommand("quest").setExecutor(questCmd);
+        getCommand("quest").setTabCompleter(questCmd);
 
         CrossbowTask.start(this);
 

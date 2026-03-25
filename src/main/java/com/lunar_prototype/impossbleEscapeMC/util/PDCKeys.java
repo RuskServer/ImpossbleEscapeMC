@@ -35,6 +35,7 @@ public class PDCKeys {
     public static final NamespacedKey LOCKED_SLOT_PLACEHOLDER = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "locked_slot_placeholder");
     public static final NamespacedKey FIND_IN_RAID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "find_in_raid");
     public static final NamespacedKey RAID_BROUGHT_IN = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "raid_brought_in");
+    public static final NamespacedKey QUEST_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "quest_id");
 
     public static NamespacedKey affix(String stat) {
         return new NamespacedKey(ImpossbleEscapeMC.getInstance(), "affix_" + stat);

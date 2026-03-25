@@ -8,11 +8,17 @@ public class TraderItem {
     public double price;     // 価格
     public int dailyLimit;   // 1日の購入制限 (0なら無制限)
     public int requiredLevel; // 解放に必要なプレイヤーレベル
+    public String requiredQuestId; // 解放に必要なクエストID (nullなら無条件)
 
     public TraderItem(String itemId, double price, int dailyLimit, int requiredLevel) {
+        this(itemId, price, dailyLimit, requiredLevel, null);
+    }
+
+    public TraderItem(String itemId, double price, int dailyLimit, int requiredLevel, String requiredQuestId) {
         this.itemId = itemId;
         this.price = price;
         this.dailyLimit = dailyLimit;
         this.requiredLevel = Math.max(1, requiredLevel);
+        this.requiredQuestId = requiredQuestId;
     }
 }
