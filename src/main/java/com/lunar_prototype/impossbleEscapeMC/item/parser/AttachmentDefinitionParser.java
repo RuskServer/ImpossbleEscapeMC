@@ -18,7 +18,17 @@ public class AttachmentDefinitionParser {
         att.customModelData = section.getInt("customModelData", 0);
         att.rarity = section.getInt("rarity", 1);
         att.weight = ParserUtils.getWeight(section);
+
+        ConfigurationSection modSection = section.getConfigurationSection("modifiers");
+        if (modSection != null) {
+            for (String key : modSection.getKeys(false)) {
+                att.modifiers.put(key, modSection.getDouble(key));
+            }
+        }
         
+        att.aimAnimation = ParserUtils.parseAnimation(section, "aimAnimation");
+        att.scope = ParserUtils.parseScope(section, "scope");
+
         return att;
     }
 }
