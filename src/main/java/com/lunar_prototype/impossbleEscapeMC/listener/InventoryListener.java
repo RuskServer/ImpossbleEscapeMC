@@ -137,6 +137,9 @@ public class InventoryListener implements Listener {
     private void startButtonTask() {
         taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
+                // 定期的なコスト更新
+                com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
+                
                 InventoryView view = player.getOpenInventory();
                 if (isPlayerCraftingGrid(view)) {
                     // サバイバルとアドベンチャーのみに限定
@@ -177,6 +180,14 @@ public class InventoryListener implements Listener {
         if (isGuiTrigger(event.getCursor())) {
             event.setCursor(null);
         }
+
+        // コスト制限用アイテムの操作禁止
+        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getCurrentItem()) ||
+            com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getCursor())) {
+            event.setCancelled(true);
+            return;
+        }
+
         // ホットキーによる入れ替え防止
         if (event.getClick() == ClickType.NUMBER_KEY) {
             ItemStack hotbarItem = event.getWhoClicked().getInventory().getItem(event.getHotbarButton());
@@ -184,10 +195,17 @@ public class InventoryListener implements Listener {
                 event.getWhoClicked().getInventory().setItem(event.getHotbarButton(), null);
                 event.setCancelled(true);
             }
+            if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(hotbarItem)) {
+                event.setCancelled(true);
+            }
         }
 
         InventoryView view = event.getView();
-        if (!isPlayerCraftingGrid(view)) return;
+        if (!isPlayerCraftingGrid(view)) {
+            // 他のGUI（バックパック等）でもコスト更新をスケジュール
+            scheduleCostUpdate((Player) event.getWhoClicked(), event.getView());
+            return;
+        }
 
         Player player = (Player) event.getWhoClicked();
         if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
@@ -198,6 +216,18 @@ public class InventoryListener implements Listener {
             event.setCancelled(true);
             return;
         }
+
+        scheduleCostUpdate(player, view);
+    }
+
+    private void scheduleCostUpdate(Player player, InventoryView view) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline()) return;
+            com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
+            if (view.getTopInventory() != null && !(view.getTopInventory().getHolder() instanceof Player)) {
+                com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, view.getTopInventory());
+            }
+        });
     }
 
     @EventHandler
@@ -205,6 +235,16 @@ public class InventoryListener implements Listener {
         if (isGuiTrigger(event.getItem().getItemStack())) {
             event.getItem().remove();
             event.setCancelled(true);
+            return;
+        }
+
+        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getItem().getItemStack())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (event.getEntity() instanceof Player player) {
+            scheduleCostUpdate(player, player.getOpenInventory());
         }
     }
 
@@ -212,7 +252,14 @@ public class InventoryListener implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         if (isGuiTrigger(event.getItemDrop().getItemStack())) {
             event.getItemDrop().remove();
+            return;
         }
+        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getItemDrop().getItemStack())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        scheduleCostUpdate(event.getPlayer(), event.getPlayer().getOpenInventory());
     }
 
     @EventHandler
@@ -222,14 +269,17 @@ public class InventoryListener implements Listener {
             event.getView().setItem(1, null);
         }
         
-        // 念のためプレイヤーのインベントリ全体をスキャンしてボタンが混じっていれば消去
         Player player = (Player) event.getPlayer();
+        // 念のためプレイヤーのインベントリ全体をスキャンしてボタンやコストプレースホルダーが混じっていれば消去
         for (int i = 0; i < player.getInventory().getSize(); i++) {
             ItemStack item = player.getInventory().getItem(i);
-            if (isGuiTrigger(item)) {
+            if (isGuiTrigger(item) || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item)) {
                 player.getInventory().setItem(i, null);
             }
         }
+        
+        // 閉じるときにコストを再計算して占有スロットを再配置
+        com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
     }
 
     @EventHandler
@@ -246,7 +296,13 @@ public class InventoryListener implements Listener {
     public void onInventoryDrag(InventoryDragEvent event) {
         if ((event.getRawSlots().contains(4) || event.getRawSlots().contains(1)) && isPlayerCraftingGrid(event.getView())) {
             event.setCancelled(true);
-            Player player = (Player) event.getWhoClicked();
         }
+
+        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getOldCursor())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        scheduleCostUpdate((Player) event.getWhoClicked(), event.getView());
     }
 }

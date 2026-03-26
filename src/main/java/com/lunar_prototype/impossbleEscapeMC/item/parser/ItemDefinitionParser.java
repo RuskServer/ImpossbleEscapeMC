@@ -21,6 +21,14 @@ public class ItemDefinitionParser {
         def.customModelData = section.getInt("customModelData", 0);
         def.maxDurability = section.getInt("maxDurability");
         def.weight = ParserUtils.getWeight(section);
+        def.cost = section.getInt("cost", 1);
+        def.stackable = section.getBoolean("stackable", false);
+        
+        // 弾薬と紙幣は常にスタック可能
+        if ("AMMO".equalsIgnoreCase(def.type) || "MONEY".equalsIgnoreCase(def.type)) {
+            def.stackable = true;
+        }
+
         def.displayName = section.getString("displayName", id);
 
         // Affixの読み込み
