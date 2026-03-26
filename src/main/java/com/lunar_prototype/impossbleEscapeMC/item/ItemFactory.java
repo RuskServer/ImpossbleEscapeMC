@@ -15,11 +15,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.components.EquippableComponent;
 import org.bukkit.persistence.PersistentDataContainer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class ItemFactory {
     private static final Random random = new Random();
@@ -226,9 +222,6 @@ public class ItemFactory {
         return updateLore(item);
     }
 
-    /**
-     * アイテムの現在の状態(PDC)に基づいてLoreを再構築します
-     */
     public static ItemStack updateLore(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null)
@@ -236,150 +229,184 @@ public class ItemFactory {
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        
+
         ItemDefinition def = ItemRegistry.get(itemId);
         AmmoDefinition ammoDef = ItemRegistry.getAmmo(itemId);
         AttachmentDefinition attDef = ItemRegistry.getAttachment(itemId);
 
-        // どれにも該当しない場合は何もしない
         if (def == null && ammoDef == null && attDef == null)
             return item;
 
         List<String> lore = new ArrayList<>();
 
+        // --- 重量 ---
         int weightGrams = pdc.getOrDefault(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, 0);
-        String weightText = weightGrams >= 1000 
-            ? String.format("%.2fkg", weightGrams / 1000.0) 
-            : weightGrams + "g";
+        String weightText = weightGrams >= 1000
+                ? String.format("%.2fkg", weightGrams / 1000.0)
+                : weightGrams + "g";
 
-        // --- 1. 基本情報 (タイプとレアリティ) ---
+        // --- タイプ ---
+        String typeName = "UNKNOWN";
+        int rarity = 0;
+
         if (def != null) {
-            lore.add("§7Type: §f" + def.type);
-            lore.add("§7Rarity: " + getRarityStars(def.rarity));
-            lore.add("§7Weight: §f" + weightText);
+            typeName = def.type;
+            rarity = def.rarity;
         } else if (ammoDef != null) {
-            lore.add("§7Type: §fAMMO");
-            lore.add("§7Rarity: " + getRarityStars(ammoDef.rarity));
-            lore.add("§7Weight: §f" + weightText);
+            typeName = "弾薬";
+            rarity = ammoDef.rarity;
         } else if (attDef != null) {
-            lore.add("§7Type: §fATTACHMENT");
-            lore.add("§7Rarity: " + getRarityStars(attDef.rarity));
-            lore.add("§7Weight: §f" + weightText);
+            typeName = "アタッチメント";
+            rarity = attDef.rarity;
         }
+
+        lore.add("§7" + typeName);
+        lore.add(getRarityStars(rarity));
+        lore.add("§f" + weightText);
+
         if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) {
             lore.add("§6Find in Raid");
         }
+
         lore.add("");
 
-        // --- 2. 弾薬ステータス (弾薬アイテム、または弾薬としての性質を持つ場合) ---
-        if (ammoDef != null) {
-            lore.add("§6§l<< AMMO STATS >>");
-            lore.add("§7Caliber: §e" + ammoDef.caliber);
-            lore.add("§7Penetration: §fClass " + ammoDef.ammoClass);
-            lore.add("§7Base Damage: §f" + ammoDef.damage);
-            lore.add("");
-        }
-
-        // --- 3. 銃ステータス (GUNの場合) ---
+        // =========================
+        // 銃ステータス
+        // =========================
         if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
+
             int ammo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
             boolean chamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
-            String chamberSuffix = chamberLoaded ? " §a(+1)" : "";
 
             GunStats effective = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
-            
-            lore.add("§6§l<< GUN STATS >>");
-            lore.add("§7Ammo: §e" + ammo + chamberSuffix + " §8/ §7" + def.gunStats.magSize);
+
+            // --- モード ---
+            String[] modes = effective.fireMode.split(",");
+            StringBuilder modeLine = new StringBuilder();
+
+            for (int i = 0; i < modes.length; i++) {
+                if (i == 0) {
+                    modeLine.append("§f").append(modes[i].trim());
+                } else {
+                    modeLine.append("§8・§7").append(modes[i].trim());
+                }
+            }
+
+            String chamberText = chamberLoaded ? " §a(+1)" : "";
+
+            lore.add(modeLine + "   §f" + ammo + chamberText + " §8/ §7" + def.gunStats.magSize);
+
+            // --- 弾薬 ---
             String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
             AmmoDefinition currentAmmo = ItemRegistry.getAmmo(ammoId);
-            
+
+            String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "なし";
+            String caliber = (currentAmmo != null) ? currentAmmo.caliber : def.gunStats.caliber;
+
+            if (currentAmmo != null) {
+                lore.add("§7装填中 §f" + ammoName + " §8/ §7装填可能 §f" + caliber);
+            } else {
+                lore.add("§7装填可能 §f" + caliber);
+            }
+
+            // --- ダメージ ---
             double baseDamage = (currentAmmo != null) ? currentAmmo.damage : 0.0;
             double totalDamage = baseDamage * effective.damage;
+            lore.add("§7ダメージ §f" + String.format("%.0f", totalDamage));
 
-            lore.add("§7Damage: §f" + String.format("%.1f", totalDamage) + " §8(x" + String.format("%.2f", effective.damage) + ")");
-            
-            // 反動の差分表示
-            double recoilDiff = effective.recoil - def.gunStats.recoil;
-            String recoilColor = recoilDiff <= 0 ? "§a" : "§c";
-            String recoilSign = recoilDiff >= 0 ? "+" : "";
-            String recoilDiffText = Math.abs(recoilDiff) > 0.001 ? " §8(" + recoilColor + recoilSign + String.format("%.2f", recoilDiff) + "§8)" : "";
-            lore.add("§7Recoil: §f" + String.format("%.2f", effective.recoil) + recoilDiffText);
+            // --- RPM ---
+            lore.add("§7" + effective.rpm + " RPM");
 
-            lore.add("§7RPM: §f" + effective.rpm);
-            
-            // ADS時間の表示と差分
-            int adsDiff = effective.adsTime - def.gunStats.adsTime;
-            String adsColor = adsDiff <= 0 ? "§a" : "§c";
-            String adsSign = adsDiff >= 0 ? "+" : "";
-            String adsDiffText = adsDiff != 0 ? " §8(" + adsColor + adsSign + adsDiff + "ms§8)" : "";
-            lore.add("§7ADS Time: §f" + effective.adsTime + "ms" + adsDiffText);
+            // --- 耐久値 ---
+            int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
 
-            lore.add("§7Mode: §f" + effective.fireMode);
-            
-            String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "None";
-            lore.add("§7Chambered: §f" + ammoName);
             lore.add("");
         }
 
-        // --- 4. 防具ステータス (ARMORの場合) ---
+        // =========================
+        // 弾薬
+        // =========================
+        if (ammoDef != null) {
+            lore.add("§7口径 §f" + ammoDef.caliber);
+            lore.add("§7貫通 §fClass " + ammoDef.ammoClass);
+            lore.add("§7ダメージ §f" + ammoDef.damage);
+            lore.add("");
+        }
+
+        // =========================
+        // 防具
+        // =========================
         if (def != null && def.armorStats != null) {
-            lore.add("§9§l<< ARMOR STATS >>");
-            lore.add("§7Class: §f" + def.armorStats.armorClass);
-            lore.add("§7Defense: §f" + def.armorStats.defense);
+            lore.add("§7クラス §f" + def.armorStats.armorClass);
+            lore.add("§7防御 §f" + def.armorStats.defense);
             lore.add("");
         }
 
-        // --- 4.5 医療ステータス (MEDの場合) ---
+        // =========================
+        // 医療
+        // =========================
         if (def != null && "MED".equalsIgnoreCase(def.type) && def.medStats != null && def.medStats.continuous) {
             int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-            lore.add("§a§l<< MEDICAL KIT >>");
-            lore.add("§7Durability: §e" + durability + " §8/ §7" + def.maxDurability);
+            lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
             lore.add("");
         }
 
+        // =========================
+        // バックパック
+        // =========================
         if (def != null && def.backpackStats != null) {
-            lore.add("§2§l<< BACKPACK STATS >>");
-            lore.add("§7Slots: §f" + def.backpackStats.size);
-            lore.add("§7Reduction: §f" + String.format("%.0f%%", def.backpackStats.reduction * 100));
+            lore.add("§7容量 §f" + def.backpackStats.size);
+            lore.add("§7軽減 §f" + String.format("%.0f%%", def.backpackStats.reduction * 100));
             lore.add("");
         }
 
+        // =========================
+        // リグ
+        // =========================
         if (def != null && def.rigStats != null) {
-            lore.add("§c§l<< RIG STATS >>");
-            lore.add("§7Unlocked Slots: §f" + def.rigStats.size);
-            lore.add("§7Reduction: §f" + String.format("%.0f%%", def.rigStats.reduction * 100));
+            lore.add("§7スロット §f" + def.rigStats.size);
+            lore.add("§7軽減 §f" + String.format("%.0f%%", def.rigStats.reduction * 100));
             lore.add("");
         }
 
+        // =========================
+        // アタッチメント
+        // =========================
         if (attDef != null) {
-            lore.add("§e§l<< ATTACHMENT >>");
-            lore.add("§7Slot: §f" + attDef.slot.name());
-            
+            lore.add("§7スロット §f" + attDef.slot.name());
+
             if (!attDef.modifiers.isEmpty()) {
-                lore.add("");
-                lore.add("§b§l<< EFFECTS >>");
-                for (java.util.Map.Entry<String, Double> entry : attDef.modifiers.entrySet()) {
+                for (Map.Entry<String, Double> entry : attDef.modifiers.entrySet()) {
                     String stat = entry.getKey();
                     double val = entry.getValue();
-                    String color = val < 0 ? "§a" : "§c"; // 反動やADS時間はマイナスが良い
-                    if (stat.equals("damage")) color = val > 0 ? "§a" : "§c"; // ダメージはプラスが良い
-                    
+
+                    String color = val < 0 ? "§a" : "§c";
+                    if (stat.equals("damage")) color = val > 0 ? "§a" : "§c";
+
                     String sign = val >= 0 ? "+" : "";
-                    String unit = (stat.equals("recoil") || stat.equals("damage")) ? String.format("%.0f%%", val * 100) : val + "ms";
-                    
-                    lore.add("§b " + stat.toUpperCase() + ": " + color + sign + unit);
+
+                    String unit;
+                    if (stat.equals("recoil") || stat.equals("damage")) {
+                        unit = String.format("%.0f%%", val * 100);
+                    } else {
+                        unit = val + "ms";
+                    }
+
+                    lore.add("§7" + stat.toUpperCase() + " " + color + sign + unit);
                 }
             }
             lore.add("");
         }
 
-        // --- 6. 特殊効果 (Affixes) ---
+        // =========================
+        // Affix
+        // =========================
         if (def != null && def.affixes != null && !def.affixes.isEmpty()) {
-            lore.add("§b§l<< MODIFICATIONS >>");
             for (Affix a : def.affixes) {
                 double val = pdc.getOrDefault(PDCKeys.affix(a.stat), PDCKeys.DOUBLE, 0.0);
                 String sign = val >= 0 ? "+" : "";
-                lore.add("§b " + a.stat.toUpperCase() + ": " + sign + String.format("%.1f", val));
+                lore.add("§7" + a.stat.toUpperCase() + " §f" + sign + String.format("%.1f", val));
             }
             lore.add("");
         }
@@ -387,8 +414,7 @@ public class ItemFactory {
         meta.setLore(lore);
         item.setItemMeta(meta);
 
-        // --- バニラ耐久値バーとの同期 ---
-        // item.setItemMeta(meta) の後に実行しないと、meta内の古い値で上書きされるため
+        // --- 耐久値バー同期 ---
         if (def != null && def.maxDurability > 0) {
             int current = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
             int damage = Math.max(0, def.maxDurability - current);
