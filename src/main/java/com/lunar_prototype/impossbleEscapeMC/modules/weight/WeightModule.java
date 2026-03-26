@@ -23,13 +23,17 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerInteractEvent; // Import for PlayerInteractEvent
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.Sound; // Import for Sound
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.NamespacedKey;
+import net.kyori.adventure.text.Component; // Import for Component
+import net.kyori.adventure.text.format.NamedTextColor; // Import for NamedTextColor
 
 public class WeightModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
@@ -98,6 +102,35 @@ public class WeightModule implements IModule, Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
         Bukkit.getScheduler().runTask(plugin, () -> updatePlayerWeight(event.getPlayer()));
+    }
+
+    @EventHandler
+    public void onPlayerUseExcitant(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = event.getItem();
+
+        if (item == null || !event.getAction().isRightClick()) return;
+        if (!item.hasItemMeta()) return;
+
+        String itemId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+
+        if ("EXCITANT".equals(itemId)) {
+            PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+            if (data != null) {
+                if (data.isExcitantActive()) {
+                    player.sendActionBar(Component.text("興奮剤はすでに効果を発揮しています！", NamedTextColor.YELLOW));
+                    event.setCancelled(true);
+                    return;
+                }
+                data.activateExcitant(60 * 1000L); // 60秒間効果持続
+                item.subtract(1); // アイテムを1つ消費
+                player.sendActionBar(Component.text("興奮剤を摂取しました！重量許容量が一時的に増加 (-15kg)", NamedTextColor.BLUE));
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+                // 即座に重量を更新してフィードバック
+                updatePlayerWeight(player);
+            }
+            event.setCancelled(true); // デフォルトのアイテム使用を防ぐ
+        }
     }
 
     /**
@@ -175,6 +208,13 @@ public class WeightModule implements IModule, Listener {
             }
         }
 
+        // 興奮剤の効果を適用
+        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        if (data != null && data.isExcitantActive()) {
+            total -= 15000; // 15kg (15000グラム) 軽減
+            if (total < 0) total = 0; // 重量が負にならないようにする
+        }
+
         return total;
     }
 
@@ -213,12 +253,13 @@ public class WeightModule implements IModule, Listener {
         moveSpeed.removeModifier(SPEED_MODIFIER_KEY);
 
         double penalty = 0.0;
-        // 15kg (Normalの上限) から速度ペナルティを開始
-        if (weight > 15000) {
-            // 以前は40kgで-20%, 50kgで停止(-100%)だったが、これを半分に緩和
-            // 15kg〜50kgの間で線形に増加し、50kgで最大-50%にする
-            double ratio = Math.min(1.0, (double) (weight - 15000) / (50000 - 15000));
-            penalty = -ratio * 0.5; // 最大で移動速度 -50% (以前は最大-100%)
+        final int SPEED_DEBUFF_START_WEIGHT = 40000; // 40kg
+        final int SPEED_DEBUFF_MAX_WEIGHT = 60000; // 60kg
+        final double MAX_SPEED_PENALTY = 0.75; // -75% speed reduction
+
+        if (weight > SPEED_DEBUFF_START_WEIGHT) {
+            double ratio = Math.min(1.0, (double) (weight - SPEED_DEBUFF_START_WEIGHT) / (SPEED_DEBUFF_MAX_WEIGHT - SPEED_DEBUFF_START_WEIGHT));
+            penalty = -ratio * MAX_SPEED_PENALTY;
         }
 
         if (penalty != 0.0) {
