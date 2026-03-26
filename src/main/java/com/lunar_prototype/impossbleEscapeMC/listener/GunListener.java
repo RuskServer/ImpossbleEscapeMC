@@ -246,6 +246,7 @@ public class GunListener implements Listener {
         }
 
         var sm = getOrCreateStateMachine(player);
+        if (sm == null) return;
 
         if (event.isSprinting()) {
             sm.handleInput(com.lunar_prototype.impossbleEscapeMC.animation.state.InputType.SPRINT_START);
@@ -495,7 +496,9 @@ public class GunListener implements Listener {
                 }
 
                 var sm = getOrCreateStateMachine(player);
-                sm.handleInput(com.lunar_prototype.impossbleEscapeMC.animation.state.InputType.RELOAD);
+                if (sm != null) {
+                    sm.handleInput(com.lunar_prototype.impossbleEscapeMC.animation.state.InputType.RELOAD);
+                }
             }
         }.runTaskLater(plugin, 1);
     }
