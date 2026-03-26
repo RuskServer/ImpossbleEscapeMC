@@ -11,6 +11,8 @@ public class ItemDefinition {
     public int customModelData;
     public int maxDurability;
     public int weight; // weight in grams
+    public int cost = 1; // slots occupied
+    public boolean stackable = false;
     public List<Affix> affixes;
     public GunStats gunStats;
     public MedStats medStats;

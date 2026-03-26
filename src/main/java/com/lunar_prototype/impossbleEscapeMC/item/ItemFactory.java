@@ -39,6 +39,7 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, attDef.id);
             pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, attDef.weight);
+            pdc.set(PDCKeys.ITEM_COST, PDCKeys.INTEGER, 1);
 
             String rarityColor = getRarityColor(attDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', attDef.displayName));
@@ -54,6 +55,7 @@ public class ItemFactory {
             meta.setLore(lore);
 
             item.setItemMeta(meta);
+            item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
             applyTooltipStyle(item, attDef.rarity);
             return item;
         }
@@ -66,6 +68,7 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, ammoDef.id);
             pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, ammoDef.weight);
+            pdc.set(PDCKeys.ITEM_COST, PDCKeys.INTEGER, 1);
 
             String rarityColor = getRarityColor(ammoDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', ammoDef.displayName));
@@ -101,7 +104,13 @@ public class ItemFactory {
 
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, def.id);
             pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, def.weight);
+            pdc.set(PDCKeys.ITEM_COST, PDCKeys.INTEGER, def.cost);
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+
+            // Stackability enforcement
+            if (!def.stackable) {
+                item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+            }
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
                 // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
@@ -241,6 +250,7 @@ public class ItemFactory {
 
         // --- 重量 ---
         int weightGrams = pdc.getOrDefault(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, 0);
+        int cost = pdc.getOrDefault(PDCKeys.ITEM_COST, PDCKeys.INTEGER, 1);
         String weightText = weightGrams >= 1000
                 ? String.format("%.2fkg", weightGrams / 1000.0)
                 : weightGrams + "g";
@@ -262,7 +272,7 @@ public class ItemFactory {
 
         lore.add("§7" + typeName);
         lore.add(getRarityStars(rarity));
-        lore.add("§f" + weightText);
+        lore.add("§f" + weightText + " §8| §7Size: §f" + cost);
 
         if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) {
             lore.add("§6Find in Raid");
@@ -449,5 +459,26 @@ public class ItemFactory {
             default -> "white_frame.png";
         };
         item.setData(DataComponentTypes.TOOLTIP_STYLE, Key.key("minecraft", styleId));
+    }
+
+    public static ItemStack createCostSlotPlaceholder() {
+        ItemStack item = new ItemStack(Material.BARRIER);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§8[ サイズ制限 ]");
+            List<String> lore = new ArrayList<>();
+            lore.add("§7他のアイテムのサイズによって占有されています");
+            meta.setLore(lore);
+            meta.getPersistentDataContainer().set(PDCKeys.COST_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN, (byte) 1);
+            item.setItemMeta(meta);
+        }
+        item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        return item;
+    }
+
+    public static boolean isCostSlotPlaceholder(ItemStack item) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return false;
+        Byte marker = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.COST_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN);
+        return marker != null && marker == 1;
     }
 }

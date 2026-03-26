@@ -29,6 +29,8 @@ public class PDCKeys {
     public static final NamespacedKey CORPSE_INVENTORY = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "corpse_inventory");
     public static final NamespacedKey GUI_TRIGGER = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "gui_trigger");
     public static final NamespacedKey ITEM_WEIGHT = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "item_weight");
+    public static final NamespacedKey ITEM_COST = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "item_cost");
+    public static final NamespacedKey COST_SLOT_PLACEHOLDER = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "cost_slot_placeholder");
     public static final NamespacedKey BACKPACK_DATA = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "backpack_data");
     public static final NamespacedKey BACKPACK_UID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "backpack_uid");
     public static final NamespacedKey MAP_ZOOM = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "map_zoom");

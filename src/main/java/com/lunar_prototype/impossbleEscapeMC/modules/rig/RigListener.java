@@ -128,7 +128,7 @@ public class RigListener implements Listener {
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         rigModule.clearLockedSlotPlaceholders(player);
-        event.getDrops().removeIf(rigModule::isLockedSlotPlaceholder);
+        event.getDrops().removeIf(RigModule::isLockedSlotPlaceholder);
     }
 
     private void handleMoveIntoPlayerInventory(InventoryClickEvent event, Player player) {

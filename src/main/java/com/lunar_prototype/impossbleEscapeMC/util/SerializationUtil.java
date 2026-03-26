@@ -25,7 +25,14 @@ public class SerializationUtil {
             
             dataOutput.writeInt(inventory.getSize());
             for (int i = 0; i < inventory.getSize(); i++) {
-                dataOutput.writeObject(inventory.getItem(i));
+                ItemStack item = inventory.getItem(i);
+                // コスト占有スロットやリグ制限スロットは保存しない
+                if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item) ||
+                    com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)) {
+                    dataOutput.writeObject(null);
+                } else {
+                    dataOutput.writeObject(item);
+                }
             }
         }
         return outputStream.toByteArray();

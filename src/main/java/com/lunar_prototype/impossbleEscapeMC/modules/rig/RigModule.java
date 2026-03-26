@@ -20,8 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class RigModule implements IModule {
-    private static final int MAIN_INVENTORY_START = 9;
-    private static final int MAIN_INVENTORY_END = 35;
+    public static final int MAIN_INVENTORY_START = 9;
+    public static final int MAIN_INVENTORY_END = 35;
 
     private ImpossbleEscapeMC plugin;
 
@@ -184,7 +184,7 @@ public class RigModule implements IModule {
         }
     }
 
-    public boolean isLockedSlotPlaceholder(ItemStack item) {
+    public static boolean isLockedSlotPlaceholder(ItemStack item) {
         if (item == null || item.getType().isAir() || !item.hasItemMeta()) return false;
         Byte marker = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.LOCKED_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN);
         return marker != null && marker == 1;
