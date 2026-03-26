@@ -41,6 +41,10 @@ public class PlayerData {
     private long painkillerUntil; // 鎮痛効果終了時間 (ms)
     private long lastPainkillerTrigger; // 最後の自動鎮痛発動時間 (ms)
 
+    // 興奮剤システム
+    private transient boolean excitantActive; // 興奮剤がアクティブかどうか
+    private long excitantExpiryTime; // 興奮剤の効果が切れる時間 (ms)
+
     // クエストシステム
     private java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> activeQuests;
     private java.util.List<String> completedQuests;
@@ -70,6 +74,9 @@ public class PlayerData {
         this.bleedingLevel = 0;
         this.painkillerUntil = 0;
         this.lastPainkillerTrigger = 0;
+
+        this.excitantActive = false;
+        this.excitantExpiryTime = 0L;
 
         this.activeQuests = new java.util.HashMap<>();
         this.completedQuests = new java.util.ArrayList<>();
@@ -231,6 +238,29 @@ public class PlayerData {
 
     public boolean isPainkillerActive() {
         return System.currentTimeMillis() < painkillerUntil;
+    }
+
+    public boolean isExcitantActive() {
+        // 効果終了時刻を過ぎていたら自動的に非アクティブと判断
+        if (excitantActive && System.currentTimeMillis() >= excitantExpiryTime) {
+            excitantActive = false;
+            dirty = true;
+        }
+        return excitantActive;
+    }
+
+    public void activateExcitant(long durationMillis) {
+        this.excitantActive = true;
+        this.excitantExpiryTime = System.currentTimeMillis() + durationMillis;
+        this.dirty = true;
+    }
+
+    public void deactivateExcitant() {
+        if (this.excitantActive) { // アクティブな場合のみ変更
+            this.excitantActive = false;
+            this.excitantExpiryTime = 0L;
+            this.dirty = true;
+        }
     }
 
     public long getLastPainkillerTrigger() {

@@ -53,9 +53,17 @@ public enum WeightStage {
             case LIGHT -> 0.9; // (以前は 0.8)
             case NORMAL -> 1.0;
             case HEAVY -> {
-                // 15,001〜35,000g: 1.1 → 1.4 (linear) (以前は 1.2 → 1.8)
-                double ratio = (double) (weightGrams - 15000) / (35000 - 15000);
-                yield 1.1 + (ratio * 0.3); // 1.4 - 1.1 = 0.3
+                final int STAMINA_INCREASE_START_WEIGHT = 20000; // 20kg
+                final int HEAVY_UPPER_LIMIT = 35000; // 35kg
+                final double STAMINA_MULTIPLIER_AT_20KG = 1.0; // Multiplier at 20kg (no penalty yet)
+                final double STAMINA_MULTIPLIER_AT_35KG = 1.6; // Multiplier at 35kg (example)
+
+                if (weightGrams <= STAMINA_INCREASE_START_WEIGHT) {
+                    yield 1.0; // No penalty up to 20kg within HEAVY stage
+                } else {
+                    double ratio = (double) (weightGrams - STAMINA_INCREASE_START_WEIGHT) / (HEAVY_UPPER_LIMIT - STAMINA_INCREASE_START_WEIGHT);
+                    yield STAMINA_MULTIPLIER_AT_20KG + (ratio * (STAMINA_MULTIPLIER_AT_35KG - STAMINA_MULTIPLIER_AT_20KG));
+                }
             }
             case CRITICAL -> 1.5; // (以前は 2.0)
         };
@@ -66,9 +74,17 @@ public enum WeightStage {
             case LIGHT -> -150L; // -0.15 seconds (以前は -0.3)
             case NORMAL -> 0L;
             case HEAVY -> {
-                // 15,001〜35,000g: +250ms → +1000ms (linear) (以前は +500 → +2000)
-                double ratio = (double) (weightGrams - 15000) / (35000 - 15000);
-                yield (long) (250 + (ratio * 750)); 
+                final int STAMINA_PENALTY_START_WEIGHT = 20000; // 20kg
+                final int HEAVY_UPPER_LIMIT = 35000; // 35kg
+                final long STAMINA_PENALTY_AT_20KG = 0L; // No penalty up to 20kg
+                final long STAMINA_PENALTY_AT_35KG = 1000L; // 1000ms penalty at 35kg (example)
+
+                if (weightGrams <= STAMINA_PENALTY_START_WEIGHT) {
+                    yield 0L; // No penalty up to 20kg within HEAVY stage
+                } else {
+                    double ratio = (double) (weightGrams - STAMINA_PENALTY_START_WEIGHT) / (HEAVY_UPPER_LIMIT - STAMINA_PENALTY_START_WEIGHT);
+                    yield (long) (STAMINA_PENALTY_AT_20KG + (ratio * (STAMINA_PENALTY_AT_35KG - STAMINA_PENALTY_AT_20KG)));
+                }
             }
             case CRITICAL -> 1500L; // +1.5 seconds (以前は +3.0)
         };
