@@ -48,6 +48,7 @@ public class ScavSpawner implements Listener {
     private static final Map<UUID, ScavController> controllers = new ConcurrentHashMap<>();
     private static final Map<UUID, String> scavRaidSessions = new ConcurrentHashMap<>();
     private static final Map<UUID, String> scavRaidMaps = new ConcurrentHashMap<>();
+    private static final Map<String, Integer> raidClass4Count = new ConcurrentHashMap<>();
 
     public ScavSpawner(ImpossbleEscapeMC plugin, GunListener gunListener) {
         this.plugin = plugin;
@@ -81,7 +82,7 @@ public class ScavSpawner implements Listener {
         }
 
         // タルコフ風の装備設定
-        setupScavEquipment(scav);
+        setupScavEquipment(scav, raidSessionId);
 
         // 例: プレイヤー風に偽装（名前は"SCAV"）
         Disguise disguise = DisguiseAPI.getCustomDisguise("SCAV");
@@ -116,7 +117,7 @@ public class ScavSpawner implements Listener {
         return ScavBrain.BrainLevel.MID;
     }
 
-    private void setupScavEquipment(Mob scav) {
+    private void setupScavEquipment(Mob scav, String raidSessionId) {
         // 1. スポーン時に持たせる銃の候補リスト
         String[] gunPool = { "ak74", "m4a1", "m700", "mossberg_590" };
         String randomGunId = gunPool[new java.util.Random().nextInt(gunPool.length)];
@@ -155,10 +156,10 @@ public class ScavSpawner implements Listener {
         }
 
         // 3. 防具のランダム装備
-        setupRandomArmor(scav);
+        setupRandomArmor(scav, raidSessionId);
     }
 
-    private void setupRandomArmor(Mob scav) {
+    private void setupRandomArmor(Mob scav, String raidSessionId) {
         EntityEquipment inv = scav.getEquipment();
         if (inv == null) {
             return;
@@ -179,7 +180,7 @@ public class ScavSpawner implements Listener {
             return;
         }
 
-        int armorClass = rollArmorClass();
+        int armorClass = rollArmorClass(raidSessionId);
         List<ItemDefinition> classArmors = ItemRegistry.getArmorItemsByClass(armorClass);
         Map<Integer, List<ItemDefinition>> armorsByClass = ItemRegistry.getArmorItemsGroupedByClass();
 
@@ -221,7 +222,7 @@ public class ScavSpawner implements Listener {
         inv.setChestplateDropChance(inv.getChestplate() != null ? 0.05f : 0.0f);
     }
 
-    private int rollArmorClass() {
+    private int rollArmorClass(String raidSessionId) {
         double roll = RANDOM.nextDouble();
         if (roll < ARMOR_CLASS_2_CHANCE) {
             return 2;
@@ -230,6 +231,17 @@ public class ScavSpawner implements Listener {
             return 3;
         }
         if (roll < ARMOR_CLASS_2_CHANCE + ARMOR_CLASS_3_CHANCE + ARMOR_CLASS_4_CHANCE) {
+            // クラス4の制限チェック
+            if (raidSessionId != null && !raidSessionId.isEmpty()) {
+                int currentCount = raidClass4Count.getOrDefault(raidSessionId, 0);
+                if (currentCount < 2) {
+                    raidClass4Count.put(raidSessionId, currentCount + 1);
+                    return 4;
+                } else {
+                    // 上限に達した場合はクラス3へフォールバック
+                    return 3;
+                }
+            }
             return 4;
         }
         return 3;
@@ -409,5 +421,6 @@ public class ScavSpawner implements Listener {
         controllers.clear();
         scavRaidSessions.clear();
         scavRaidMaps.clear();
+        raidClass4Count.clear();
     }
 }
