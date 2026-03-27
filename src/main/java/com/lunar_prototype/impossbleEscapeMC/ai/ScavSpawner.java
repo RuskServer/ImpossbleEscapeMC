@@ -207,12 +207,14 @@ public class ScavSpawner implements Listener {
         if (helmetId != null && (equipBoth || equipHelmetOnly)) {
             ItemStack helmet = ItemFactory.create(helmetId);
             if (helmet != null) {
+                randomizeArmorDurability(helmet);
                 inv.setHelmet(helmet);
             }
         }
         if (chestId != null && (equipBoth || equipChestOnly)) {
             ItemStack chest = ItemFactory.create(chestId);
             if (chest != null) {
+                randomizeArmorDurability(chest);
                 inv.setChestplate(chest);
             }
         }
@@ -220,6 +222,30 @@ public class ScavSpawner implements Listener {
         // 防具のドロップ率は低め
         inv.setHelmetDropChance(inv.getHelmet() != null ? 0.05f : 0.0f);
         inv.setChestplateDropChance(inv.getChestplate() != null ? 0.05f : 0.0f);
+    }
+
+    /**
+     * アーマーの耐久値をランダムに設定 (最大値の30%〜50%)
+     */
+    private void randomizeArmorDurability(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return;
+
+        ItemMeta meta = item.getItemMeta();
+        String itemId = meta.getPersistentDataContainer().get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
+        if (itemId == null) return;
+
+        com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
+        if (def == null || def.maxDurability <= 0) return;
+
+        // 30% 〜 50% の範囲で抽選
+        double ratio = 0.3 + (RANDOM.nextDouble() * 0.2);
+        int newDurability = (int) (def.maxDurability * ratio);
+
+        meta.getPersistentDataContainer().set(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.DURABILITY, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, newDurability);
+        item.setItemMeta(meta);
+
+        // 見た目を同期
+        com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.updateLore(item);
     }
 
     private int rollArmorClass(String raidSessionId) {
