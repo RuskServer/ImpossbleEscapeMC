@@ -105,12 +105,13 @@ public class TraderQuestGUI implements Listener {
         // 操作ガイド
         if (active != null) {
             if (questModule.isAllObjectivesMet(q, active)) {
-                lore.add(Component.text("▶ 左クリックで報酬を受け取って完了", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("▶ [左クリック] で報酬を受け取って完了", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
             } else {
-                lore.add(Component.text("▶ 右クリックで手持ちアイテムを納品", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("▶ [右クリック] でインベントリ内の対象アイテムを納品", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("   (条件を満たすアイテムを自動で一括納品します)", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             }
         } else if (questModule.canStart(data, q)) {
-            lore.add(Component.text("▶ クリックで受領する", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("▶ [左クリック] でクエストを受領する", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
         }
 
         meta.lore(lore);
@@ -157,56 +158,72 @@ public class TraderQuestGUI implements Listener {
     }
 
     private void handleHandIn(QuestDefinition q, ActiveQuest active, PlayerData data) {
-        boolean handedIn = false;
+        boolean anyHandedIn = false;
+        Map<String, Integer> totalHandedIn = new HashMap<>();
+
         for (int i = 0; i < q.getObjectives().size(); i++) {
             QuestObjective obj = q.getObjectives().get(i);
-            if (obj instanceof HandInObjective && !obj.isCompleted(active, i)) {
-                // インベントリから納品可能なアイテムを探す
-                if (tryHandIn(player, (HandInObjective) obj, i, active, data)) {
-                    handedIn = true;
+            if (!(obj instanceof HandInObjective)) continue;
+            if (obj.isCompleted(active, i)) continue;
+
+            HandInObjective hio = (HandInObjective) obj;
+            
+            // Scan inventory for this objective
+            for (ItemStack item : player.getInventory().getContents()) {
+                if (item == null || item.getType() == org.bukkit.Material.AIR) continue;
+                if (obj.isCompleted(active, i)) break;
+
+                ItemMeta meta = item.getItemMeta();
+                String itemId = meta != null ? meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+                if (itemId == null) continue;
+
+                ItemDefinition def = ItemRegistry.get(itemId);
+                if (def == null) continue;
+
+                boolean isFIR = meta.getPersistentDataContainer().getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1;
+                
+                // Match check
+                if (hio.isRequireFIR() && !isFIR) continue;
+                
+                boolean match = false;
+                if (hio.getItemId() != null) {
+                    match = hio.getItemId().equalsIgnoreCase(itemId);
+                } else if (hio.getItemType() != null) {
+                    match = hio.getItemType().equalsIgnoreCase(def.type);
+                }
+
+                if (match) {
+                    int current = active.getProgress(i);
+                    int needed = hio.getTargetAmount() - current;
+                    if (needed <= 0) break;
+
+                    int toTake = Math.min(item.getAmount(), needed);
+                    
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("itemId", itemId);
+                    params.put("itemType", def.type);
+                    params.put("isFIR", isFIR);
+                    params.put("amount", toTake);
+
+                    if (hio.updateProgress(player, data, active, i, QuestTrigger.HAND_IN, params)) {
+                        item.setAmount(item.getAmount() - toTake);
+                        totalHandedIn.put(def.displayName, totalHandedIn.getOrDefault(def.displayName, 0) + toTake);
+                        anyHandedIn = true;
+                        data.setDirty(true);
+                    }
                 }
             }
         }
-        if (handedIn) {
+
+        if (anyHandedIn) {
+            totalHandedIn.forEach((name, amount) -> {
+                player.sendMessage(Component.text("納品しました: " + name + " x" + amount, NamedTextColor.GREEN));
+            });
+            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.5f);
             setupGUI();
         } else {
-            player.sendMessage(Component.text("納品可能なアイテムを持っていません。", NamedTextColor.RED));
+            player.sendMessage(Component.text("納品可能なアイテムをインベントリに持っていません。", NamedTextColor.RED));
         }
-    }
-
-    private boolean tryHandIn(Player player, HandInObjective obj, int index, ActiveQuest active, PlayerData data) {
-        // アイテムIDまたはカテゴリーが一致するものをインベントリから探す
-        // 簡単のためメインハンドから優先的に納品
-        ItemStack item = player.getInventory().getItemInMainHand();
-        if (item == null || item.getType() == Material.AIR) return false;
-
-        ItemMeta meta = item.getItemMeta();
-        String itemId = meta != null ? meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-        if (itemId == null) return false;
-
-        ItemDefinition def = ItemRegistry.get(itemId);
-        if (def == null) return false;
-
-        boolean isFIR = meta.getPersistentDataContainer().getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte)0) == 1;
-        if (obj.isRequireFIR() && !isFIR) {
-            player.sendMessage(Component.text("この目標にはFIR品(レイドで見つけた品)が必要です。", NamedTextColor.RED));
-            return false;
-        }
-
-        Map<String, Object> params = new HashMap<>();
-        params.put("itemId", itemId);
-        params.put("itemType", def.type);
-        params.put("amount", item.getAmount());
-        params.put("isFIR", isFIR);
-
-        // 進行を試みる
-        if (obj.updateProgress(player, data, active, index, QuestTrigger.HAND_IN, params)) {
-            player.getInventory().setItemInMainHand(null);
-            player.sendMessage(Component.text("アイテムを納品しました: " + def.displayName + " x" + item.getAmount(), NamedTextColor.GREEN));
-            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.5f);
-            return true;
-        }
-        return false;
     }
 
     @EventHandler
