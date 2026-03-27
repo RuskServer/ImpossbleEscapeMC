@@ -39,6 +39,7 @@
 | :--- | :--- | :--- | :--- |
 | **エンティティ討伐** | `kill_entity` | `entity: "ID"`, `amount: 数` | 指定された種類のエンティティを一定数倒す |
 | **脱出** | `extract` | `map: "ID"`, `amount: 数` | 指定されたマップ(or "any")から脱出する |
+| **地点到達** | `reach_location` | `world: "ID"`, `x: 数`, `y: 数`, `z: 数`, `radius: 数`, `name: "名称"` | 特定の座標地点に到達する |
 | **納品** | `hand_in` | `item_id: "ID"`, `item_type: "TYPE"`, `amount: 数`, `fir: true/false` | アイテムIDまたはカテゴリーで指定されたアイテムを納品する。`fir: true`でFIR品のみ受付。 |
 
 ### C. 報酬コンポーネント (Rewards)
@@ -84,6 +85,13 @@ objectives:
     item_type: "med"         # カテゴリー指定 (med, gun, attachment等)
     amount: 5
     fir: false               # 通常品も受付
+  - type: "reach_location"
+    world: "factory"
+    x: 100
+    y: 64
+    z: 200
+    radius: 5
+    name: "給水塔"
 
 # 完了報酬
 rewards:

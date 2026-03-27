@@ -96,6 +96,14 @@ public class QuestParser {
             int amount = map.containsKey("amount") ? ((Number) map.get("amount")).intValue() : 1;
             boolean fir = map.containsKey("fir") && (boolean) map.get("fir");
             return new HandInObjective(itemId, itemType, amount, fir);
+        } else if ("reach_location".equalsIgnoreCase(type)) {
+            String world = (String) map.get("world");
+            double x = ((Number) map.get("x")).doubleValue();
+            double y = ((Number) map.get("y")).doubleValue();
+            double z = ((Number) map.get("z")).doubleValue();
+            double radius = map.containsKey("radius") ? ((Number) map.get("radius")).doubleValue() : 5.0;
+            String name = (String) map.get("name");
+            return new ReachLocationObjective(world, x, y, z, radius, name);
         }
         return null;
     }

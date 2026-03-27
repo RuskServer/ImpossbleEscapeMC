@@ -85,4 +85,16 @@ public class HandInObjective implements QuestObjective {
     public boolean isRequireFIR() {
         return requireFIR;
     }
+
+    public String getItemId() {
+        return itemId;
+    }
+
+    public String getItemType() {
+        return itemType;
+    }
+
+    public int getTargetAmount() {
+        return targetAmount;
+    }
 }
