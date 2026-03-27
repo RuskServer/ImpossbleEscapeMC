@@ -54,7 +54,8 @@ public class TraderModule implements IModule {
             String displayName = section.getString("displayName", id);
             TraderType type = TraderType.valueOf(section.getString("type", "BUY").toUpperCase());
             int npcId = section.getInt("npc_id", -1);
-            boolean canRepair = section.getBoolean("repair", false);
+            boolean canRepairArmor = section.getBoolean("repair_armor", section.getBoolean("repair", false));
+            boolean canRepairWeapon = section.getBoolean("repair_weapon", false);
             
             List<TraderItem> items = new ArrayList<>();
             if (section.contains("items")) {
@@ -68,7 +69,7 @@ public class TraderModule implements IModule {
                 }
             }
             
-            traders.put(id, new TraderDefinition(id, displayName, type, items, npcId, canRepair));
+            traders.put(id, new TraderDefinition(id, displayName, type, items, npcId, canRepairArmor, canRepairWeapon));
         }
         plugin.getLogger().info("Loaded " + traders.size() + " traders.");
     }
@@ -76,7 +77,7 @@ public class TraderModule implements IModule {
     /**
      * アーマークラスごとの100%修理基準価格
      */
-    public static double getBaseRepairCost(int armorClass) {
+    public static double getBaseArmorRepairCost(int armorClass) {
         return switch (armorClass) {
             case 1 -> 15000.0;
             case 2 -> 35000.0;
@@ -85,6 +86,20 @@ public class TraderModule implements IModule {
             case 5 -> 220000.0;
             case 6 -> 480000.0;
             default -> 10000.0;
+        };
+    }
+
+    /**
+     * 武器のレア度ごとの100%修理基準価格
+     */
+    public static double getBaseWeaponRepairCost(int rarity) {
+        return switch (rarity) {
+            case 1 -> 20000.0;
+            case 2 -> 45000.0;
+            case 3 -> 75000.0;
+            case 4 -> 130000.0;
+            case 5 -> 300000.0;
+            default -> 15000.0;
         };
     }
 

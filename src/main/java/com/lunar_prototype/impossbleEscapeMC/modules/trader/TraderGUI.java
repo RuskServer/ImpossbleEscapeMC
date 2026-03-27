@@ -77,7 +77,7 @@ public class TraderGUI implements Listener {
         int size = Math.min(54, Math.max(9, rows * 9));
         
         // 修理ボタンを表示するために、最低2行は確保 (サイズ 18 以上)
-        if (trader.canRepair) {
+        if (trader.canRepairArmor || trader.canRepairWeapon) {
             size = Math.max(18, size);
         }
 
@@ -132,12 +132,22 @@ public class TraderGUI implements Listener {
         inventory.setItem(inventory.getSize() - 1, questBtn);
 
         // 修理ボタン (左下に配置、またはクエストの隣)
-        if (trader.canRepair) {
+        if (trader.canRepairArmor || trader.canRepairWeapon) {
             ItemStack repairBtn = new ItemStack(Material.ANVIL);
             ItemMeta rm = repairBtn.getItemMeta();
-            rm.displayName(Component.text("アーマー修理", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-            rm.lore(List.of(Component.text("壊れたアーマーを修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-                    Component.text("クリックで修理メニューへ", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
+            rm.displayName(Component.text("装備修理", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            
+            List<Component> rl = new ArrayList<>();
+            if (trader.canRepairArmor && trader.canRepairWeapon) {
+                rl.add(Component.text("アーマーと武器を修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            } else if (trader.canRepairArmor) {
+                rl.add(Component.text("アーマーを専門に修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            } else {
+                rl.add(Component.text("武器を専門に修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            }
+            rl.add(Component.text("クリックで修理メニューへ", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            
+            rm.lore(rl);
             repairBtn.setItemMeta(rm);
             inventory.setItem(inventory.getSize() - 2, repairBtn);
         }
@@ -187,18 +197,40 @@ public class TraderGUI implements Listener {
                         .append(Component.text(String.format("%.0f", cost) + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
                 lore.add(Component.empty());
                 lore.add(Component.text("クリックで修理を確定します", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-            } else if (isRepairable(target)) {
-                lore.add(Component.text("このアイテムは修理の必要がありません", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             } else {
-                lore.add(Component.text("このアイテムは修理できません", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+                String error = getRepairError(target);
+                lore.add(Component.text(error, NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
             }
         } else {
-            lore.add(Component.text("中央のスロットにアーマーを入れてください", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("中央のスロットにアイテムを入れてください", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         }
         
         meta.lore(lore);
         button.setItemMeta(meta);
         inventory.setItem(REPAIR_EXECUTE_SLOT, button);
+    }
+
+    private String getRepairError(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return "アイテムが無効です";
+        ItemMeta meta = item.getItemMeta();
+        String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId == null) return "修理不可能なアイテムです";
+        
+        ItemDefinition def = ItemRegistry.get(itemId);
+        if (def == null || def.maxDurability <= 0) return "耐久値のないアイテムです";
+
+        int currentDur = meta.getPersistentDataContainer().getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+        if (currentDur >= def.maxDurability) return "修理の必要がありません";
+
+        if (def.armorStats != null) {
+            if (!trader.canRepairArmor) return "この店ではアーマーを修理できません";
+        } else if ("GUN".equalsIgnoreCase(def.type)) {
+            if (!trader.canRepairWeapon) return "この店では武器を修理できません";
+        } else {
+            return "このアイテムは修理できません";
+        }
+
+        return "不明なエラー";
     }
 
     private boolean isRepairable(ItemStack item) {
@@ -207,7 +239,14 @@ public class TraderGUI implements Listener {
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         if (itemId == null) return false;
         ItemDefinition def = ItemRegistry.get(itemId);
-        return def != null && def.armorStats != null && def.maxDurability > 0;
+        if (def == null || def.maxDurability <= 0) return false;
+
+        if (def.armorStats != null) {
+            return trader.canRepairArmor;
+        } else if ("GUN".equalsIgnoreCase(def.type)) {
+            return trader.canRepairWeapon;
+        }
+        return false;
     }
 
     private double calculateRepairCost(ItemStack item) {
@@ -221,7 +260,13 @@ public class TraderGUI implements Listener {
         if (currentDur >= def.maxDurability) return 0;
 
         double damageRatio = 1.0 - ((double) currentDur / def.maxDurability);
-        double basePrice = TraderModule.getBaseRepairCost(def.armorStats.armorClass);
+        double basePrice;
+        
+        if (def.armorStats != null) {
+            basePrice = TraderModule.getBaseArmorRepairCost(def.armorStats.armorClass);
+        } else {
+            basePrice = TraderModule.getBaseWeaponRepairCost(def.rarity);
+        }
         
         return basePrice * damageRatio;
     }
@@ -239,12 +284,18 @@ public class TraderGUI implements Listener {
 
             // 耐久値をリセット
             meta.getPersistentDataContainer().set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            
+            // 武器の場合はジャムも解除
+            if ("GUN".equalsIgnoreCase(def.type)) {
+                meta.getPersistentDataContainer().set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0);
+            }
+
             target.setItemMeta(meta);
             
             // 見た目を更新 (Lore, 耐久値バー)
             ItemFactory.updateLore(target);
 
-            player.sendMessage(Component.text("アーマーを修理し、" + String.format("%.0f", cost) + "₽ を支払いました。", NamedTextColor.GREEN));
+            player.sendMessage(Component.text("アイテムを修理し、" + String.format("%.0f", cost) + "₽ を支払いました。", NamedTextColor.GREEN));
             updateRepairButton();
         } else {
             player.sendMessage(Component.text("所持金が足りません。", NamedTextColor.RED));
@@ -343,7 +394,7 @@ public class TraderGUI implements Listener {
             }
             
             // 修理ボタン
-            if (trader.canRepair && slot == inventory.getSize() - 2) {
+            if ((trader.canRepairArmor || trader.canRepairWeapon) && slot == inventory.getSize() - 2) {
                 mode = GUIMode.REPAIR;
                 open();
                 return;
