@@ -350,6 +350,11 @@ public class ItemFactory {
         if (def != null && def.armorStats != null) {
             lore.add("§7クラス §f" + def.armorStats.armorClass);
             lore.add("§7防御 §f" + def.armorStats.defense);
+            
+            if (def.maxDurability > 0) {
+                int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+                lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
+            }
             lore.add("");
         }
 

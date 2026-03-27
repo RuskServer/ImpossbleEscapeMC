@@ -28,6 +28,12 @@ import java.util.List;
 public class TraderGUI implements Listener {
     private static final int[] SELL_INPUT_SLOTS = {10, 11, 12, 13, 14, 15, 16};
     private static final int SELL_BUTTON_SLOT = 22;
+    private static final int REPAIR_INPUT_SLOT = 13;
+    private static final int REPAIR_EXECUTE_SLOT = 22;
+    private static final int REPAIR_BACK_SLOT = 18;
+
+    private enum GUIMode { SHOP, REPAIR }
+    private GUIMode mode = GUIMode.SHOP;
 
     private final TraderModule traderModule;
     private final TraderDefinition trader;
@@ -39,7 +45,7 @@ public class TraderGUI implements Listener {
         this.trader = trader;
         this.player = player;
         
-        // SELLの場合は固定27スロット、BUYの場合は一旦null（open時に動的生成）
+        // 初期サイズとモードの設定
         if (trader.type == TraderType.SELL) {
             this.inventory = Bukkit.createInventory(null, 27, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
         }
@@ -48,10 +54,14 @@ public class TraderGUI implements Listener {
     }
 
     public void open() {
-        if (trader.type == TraderType.BUY) {
-            setupBuyGUI();
+        if (mode == GUIMode.SHOP) {
+            if (trader.type == TraderType.BUY) {
+                setupBuyGUI();
+            } else {
+                setupSellGUI();
+            }
         } else {
-            setupSellGUI();
+            setupRepairGUI();
         }
         player.openInventory(inventory);
     }
@@ -65,7 +75,12 @@ public class TraderGUI implements Listener {
         int rows = (int) Math.ceil(itemCount / 9.0);
         int size = Math.min(54, Math.max(9, rows * 9));
         
-        if (this.inventory == null) {
+        // 修理ボタンを表示するために、最低2行は確保 (サイズ 18 以上)
+        if (trader.canRepair) {
+            size = Math.max(18, size);
+        }
+
+        if (this.inventory == null || this.inventory.getSize() != size) {
             this.inventory = Bukkit.createInventory(null, size, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
         }
         inventory.clear();
@@ -114,6 +129,125 @@ public class TraderGUI implements Listener {
         qm.lore(List.of(Component.text("受領・報告はこちらから", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
         questBtn.setItemMeta(qm);
         inventory.setItem(inventory.getSize() - 1, questBtn);
+
+        // 修理ボタン (左下に配置、またはクエストの隣)
+        if (trader.canRepair) {
+            ItemStack repairBtn = new ItemStack(Material.ANVIL);
+            ItemMeta rm = repairBtn.getItemMeta();
+            rm.displayName(Component.text("アーマー修理", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            rm.lore(List.of(Component.text("壊れたアーマーを修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
+                    Component.text("クリックで修理メニューへ", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
+            repairBtn.setItemMeta(rm);
+            inventory.setItem(inventory.getSize() - 2, repairBtn);
+        }
+    }
+
+    private void setupRepairGUI() {
+        if (this.inventory == null || this.inventory.getSize() != 27) {
+            this.inventory = Bukkit.createInventory(null, 27, Component.text(trader.displayName + " - 修理").decoration(TextDecoration.ITALIC, false));
+        }
+        inventory.clear();
+
+        ItemStack bg = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta bgMeta = bg.getItemMeta();
+        bgMeta.displayName(Component.empty());
+        bg.setItemMeta(bgMeta);
+
+        for (int i = 0; i < inventory.getSize(); i++) {
+            inventory.setItem(i, bg);
+        }
+
+        inventory.setItem(REPAIR_INPUT_SLOT, null); // 投入口
+
+        // 戻るボタン
+        ItemStack back = new ItemStack(Material.ARROW);
+        ItemMeta bm = back.getItemMeta();
+        bm.displayName(Component.text("ショップに戻る", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        back.setItemMeta(bm);
+        inventory.setItem(REPAIR_BACK_SLOT, back);
+
+        updateRepairButton();
+    }
+
+    private void updateRepairButton() {
+        if (mode != GUIMode.REPAIR) return;
+
+        ItemStack target = inventory.getItem(REPAIR_INPUT_SLOT);
+        double cost = calculateRepairCost(target);
+
+        ItemStack button = new ItemStack(cost > 0 ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK);
+        ItemMeta meta = button.getItemMeta();
+        meta.displayName(Component.text("修理を実行する", cost > 0 ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        
+        List<Component> lore = new ArrayList<>();
+        if (target != null && target.getType() != Material.AIR) {
+            if (cost > 0) {
+                lore.add(Component.text("修理費用: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                        .append(Component.text(String.format("%.0f", cost) + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+                lore.add(Component.empty());
+                lore.add(Component.text("クリックで修理を確定します", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            } else if (isRepairable(target)) {
+                lore.add(Component.text("このアイテムは修理の必要がありません", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            } else {
+                lore.add(Component.text("このアイテムは修理できません", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+            }
+        } else {
+            lore.add(Component.text("中央のスロットにアーマーを入れてください", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        }
+        
+        meta.lore(lore);
+        button.setItemMeta(meta);
+        inventory.setItem(REPAIR_EXECUTE_SLOT, button);
+    }
+
+    private boolean isRepairable(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return false;
+        ItemMeta meta = item.getItemMeta();
+        String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId == null) return false;
+        ItemDefinition def = ItemRegistry.get(itemId);
+        return def != null && def.armorStats != null && def.maxDurability > 0;
+    }
+
+    private double calculateRepairCost(ItemStack item) {
+        if (!isRepairable(item)) return 0;
+        
+        ItemMeta meta = item.getItemMeta();
+        String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(itemId);
+        
+        int currentDur = meta.getPersistentDataContainer().getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+        if (currentDur >= def.maxDurability) return 0;
+
+        double damageRatio = 1.0 - ((double) currentDur / def.maxDurability);
+        double basePrice = TraderModule.getBaseRepairCost(def.armorStats.armorClass);
+        
+        return basePrice * damageRatio;
+    }
+
+    private void handleRepair() {
+        ItemStack target = inventory.getItem(REPAIR_INPUT_SLOT);
+        double cost = calculateRepairCost(target);
+
+        if (cost <= 0) return;
+
+        if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), cost)) {
+            ItemMeta meta = target.getItemMeta();
+            String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+            ItemDefinition def = ItemRegistry.get(itemId);
+
+            // 耐久値をリセット
+            meta.getPersistentDataContainer().set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            target.setItemMeta(meta);
+            
+            // 見た目を更新 (Lore, 耐久値バー)
+            ItemFactory.updateLore(target);
+
+            player.sendMessage(Component.text("アーマーを修理し、" + String.format("%.0f", cost) + "₽ を支払いました。", NamedTextColor.GREEN));
+            updateRepairButton();
+        } else {
+            player.sendMessage(Component.text("所持金が足りません。", NamedTextColor.RED));
+        }
     }
 
     private void setupSellGUI() {
@@ -174,15 +308,46 @@ public class TraderGUI implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
 
+        if (mode == GUIMode.REPAIR) {
+            int slot = event.getRawSlot();
+            if (slot < inventory.getSize()) {
+                if (slot == REPAIR_BACK_SLOT) {
+                    event.setCancelled(true);
+                    // ショップに戻る際にアイテムがあれば返却
+                    returnRepairItem();
+                    mode = GUIMode.SHOP;
+                    open();
+                } else if (slot == REPAIR_EXECUTE_SLOT) {
+                    event.setCancelled(true);
+                    handleRepair();
+                } else if (slot != REPAIR_INPUT_SLOT) {
+                    event.setCancelled(true);
+                }
+            }
+            // クリック後に計算を更新
+            Bukkit.getScheduler().runTask(traderModule.getPlugin(), this::updateRepairButton);
+            return;
+        }
+
         if (trader.type == TraderType.BUY) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
+            
+            // クエストボタン
             if (slot == inventory.getSize() - 1) {
                 player.closeInventory();
                 com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule qm = traderModule.getPlugin().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
                 new com.lunar_prototype.impossbleEscapeMC.modules.quest.TraderQuestGUI(player, trader, qm).open();
                 return;
             }
+            
+            // 修理ボタン
+            if (trader.canRepair && slot == inventory.getSize() - 2) {
+                mode = GUIMode.REPAIR;
+                open();
+                return;
+            }
+
             if (slot < inventory.getSize()) {
                 ItemStack clicked = event.getCurrentItem();
                 if (clicked != null && clicked.getType() != Material.AIR) {
@@ -221,9 +386,31 @@ public class TraderGUI implements Listener {
         }
     }
 
+    private void returnRepairItem() {
+        ItemStack item = inventory.getItem(REPAIR_INPUT_SLOT);
+        if (item != null && item.getType() != Material.AIR) {
+            player.getInventory().addItem(item).values().forEach(remaining -> 
+                player.getWorld().dropItemNaturally(player.getLocation(), remaining)
+            );
+            inventory.setItem(REPAIR_INPUT_SLOT, null);
+        }
+    }
+
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!event.getInventory().equals(inventory)) return;
+        
+        if (mode == GUIMode.REPAIR) {
+            for (int slot : event.getRawSlots()) {
+                if (slot < inventory.getSize() && slot != REPAIR_INPUT_SLOT) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+            Bukkit.getScheduler().runTask(traderModule.getPlugin(), this::updateRepairButton);
+            return;
+        }
+
         if (trader.type == TraderType.SELL) {
             for (int slot : event.getRawSlots()) {
                 if (slot < inventory.getSize()) {
@@ -245,7 +432,9 @@ public class TraderGUI implements Listener {
         if (!event.getInventory().equals(inventory)) return;
         
         // 投入エリアに残ったアイテムを返却
-        if (trader.type == TraderType.SELL) {
+        if (mode == GUIMode.REPAIR) {
+            returnRepairItem();
+        } else if (trader.type == TraderType.SELL) {
             for (int slot : SELL_INPUT_SLOTS) {
                 ItemStack item = inventory.getItem(slot);
                 if (item != null && item.getType() != Material.AIR) {
