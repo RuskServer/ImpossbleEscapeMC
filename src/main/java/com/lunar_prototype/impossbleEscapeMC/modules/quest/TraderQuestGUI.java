@@ -43,10 +43,10 @@ public class TraderQuestGUI implements Listener {
         this.questModule = questModule;
         this.dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
         this.inventory = Bukkit.createInventory(null, 54, Component.text("Quests - " + trader.displayName).decoration(TextDecoration.ITALIC, false));
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }
 
     public void open() {
+        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
         setupGUI();
         player.openInventory(inventory);
     }

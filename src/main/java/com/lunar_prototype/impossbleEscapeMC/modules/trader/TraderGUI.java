@@ -49,11 +49,12 @@ public class TraderGUI implements Listener {
         if (trader.type == TraderType.SELL) {
             this.inventory = Bukkit.createInventory(null, 27, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
         }
-
-        Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
     }
 
     public void open() {
+        // リスナーの登録 (閉じると解除されるため、開くたびに登録)
+        Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
+
         if (mode == GUIMode.SHOP) {
             if (trader.type == TraderType.BUY) {
                 setupBuyGUI();
