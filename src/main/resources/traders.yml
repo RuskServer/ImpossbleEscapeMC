@@ -27,3 +27,15 @@ fence:
       price: 5000
     - id: "med_ifak"
       price: 400
+
+ragman:
+  displayName: "§bRagman (Armor & Repair)"
+  type: BUY
+  repair: true
+  items:
+    - id: "armor_class3"
+      price: 25000
+      level: 1
+    - id: "armor_class4"
+      price: 60000
+      level: 1

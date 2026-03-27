@@ -54,6 +54,7 @@ public class TraderModule implements IModule {
             String displayName = section.getString("displayName", id);
             TraderType type = TraderType.valueOf(section.getString("type", "BUY").toUpperCase());
             int npcId = section.getInt("npc_id", -1);
+            boolean canRepair = section.getBoolean("repair", false);
             
             List<TraderItem> items = new ArrayList<>();
             if (section.contains("items")) {
@@ -67,9 +68,24 @@ public class TraderModule implements IModule {
                 }
             }
             
-            traders.put(id, new TraderDefinition(id, displayName, type, items, npcId));
+            traders.put(id, new TraderDefinition(id, displayName, type, items, npcId, canRepair));
         }
         plugin.getLogger().info("Loaded " + traders.size() + " traders.");
+    }
+
+    /**
+     * アーマークラスごとの100%修理基準価格
+     */
+    public static double getBaseRepairCost(int armorClass) {
+        return switch (armorClass) {
+            case 1 -> 15000.0;
+            case 2 -> 35000.0;
+            case 3 -> 65000.0;
+            case 4 -> 100000.0; // 基準
+            case 5 -> 220000.0;
+            case 6 -> 480000.0;
+            default -> 10000.0;
+        };
     }
 
     public TraderDefinition getTrader(String id) {
