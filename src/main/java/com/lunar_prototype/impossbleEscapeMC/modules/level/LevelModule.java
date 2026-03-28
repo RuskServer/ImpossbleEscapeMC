@@ -47,6 +47,34 @@ public class LevelModule implements IModule {
     }
 
     /**
+     * レイドの結末に応じたベース報酬を計算
+     * @param level プレイヤーの現在のレベル
+     * @param outcome 結末 (SURVIVED, DEAD, MIA, LEFT)
+     * @return 経験値量
+     */
+    public long getRaidOutcomeReward(int level, String outcome) {
+        long required = getRequiredExperience(level);
+        return switch (outcome.toUpperCase()) {
+            case "SURVIVED" -> (long) (required * 0.25); // 25%
+            case "DEAD" -> (long) (required * 0.10);     // 10%
+            case "MIA", "LEFT" -> (long) (required * 0.05); // 5%
+            default -> 0L;
+        };
+    }
+
+    /**
+     * レベルに応じてスケーリングされたキル報酬を計算
+     * @param level プレイヤーの現在のレベル
+     * @param baseAmount 基礎経験値量 (例: SCAV=50, BOSS=250)
+     * @return スケーリング後の経験値量
+     */
+    public long getScaledKillReward(int level, long baseAmount) {
+        // レベル1を基準(100%)とし、1レベルごとに10%増加
+        double multiplier = 1.0 + (Math.max(0, level - 1) * 0.1);
+        return (long) (baseAmount * multiplier);
+    }
+
+    /**
      * 経験値を追加。レベルアップした場合は再帰的に判定。
      */
     public void addExperience(UUID uuid, long amount) {

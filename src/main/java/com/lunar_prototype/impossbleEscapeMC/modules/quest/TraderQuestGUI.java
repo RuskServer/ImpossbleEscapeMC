@@ -88,7 +88,11 @@ public class TraderQuestGUI implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(q.getDisplayName() + " [" + status + "]", color).decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text(q.getDescription(), NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        
+        // 説明文の自動改行
+        for (String line : wrapText(q.getDescription(), 30)) {
+            lore.add(Component.text(line, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        }
         lore.add(Component.empty());
 
         // 目標の表示
@@ -98,7 +102,10 @@ public class TraderQuestGUI implements Listener {
             String progressText = (active != null) ? " (" + obj.getProgressText(active, i) + ")" : "";
             boolean done = (active != null && obj.isCompleted(active, i));
             
-            lore.add(Component.text("- " + obj.getDescription() + progressText, done ? NamedTextColor.GREEN : NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            String fullDesc = "- " + obj.getDescription() + progressText;
+            for (String line : wrapText(fullDesc, 30)) {
+                lore.add(Component.text(line, done ? NamedTextColor.GREEN : NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            }
         }
         lore.add(Component.empty());
 
@@ -107,8 +114,7 @@ public class TraderQuestGUI implements Listener {
             if (questModule.isAllObjectivesMet(q, active)) {
                 lore.add(Component.text("▶ [左クリック] で報酬を受け取って完了", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
             } else {
-                lore.add(Component.text("▶ [右クリック] でインベントリ内の対象アイテムを納品", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-                lore.add(Component.text("   (条件を満たすアイテムを自動で一括納品します)", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("▶ [右クリック] で納品 (対象アイテムを一括納品)", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             }
         } else if (questModule.canStart(data, q)) {
             lore.add(Component.text("▶ [左クリック] でクエストを受領する", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
@@ -117,6 +123,30 @@ public class TraderQuestGUI implements Listener {
         meta.lore(lore);
         meta.getPersistentDataContainer().set(PDCKeys.QUEST_ID, PDCKeys.STRING, q.getId());
         item.setItemMeta(meta);
+    }
+
+    private List<String> wrapText(String text, int limit) {
+        if (text == null || text.isEmpty()) return Collections.emptyList();
+        List<String> lines = new ArrayList<>();
+        StringBuilder currentLine = new StringBuilder();
+        
+        for (String word : text.split(" ")) {
+            if (currentLine.length() + word.length() + 1 > limit) {
+                if (currentLine.length() > 0) {
+                    lines.add(currentLine.toString());
+                    currentLine = new StringBuilder();
+                }
+                // 単語が制限より長い場合は強制分割
+                while (word.length() > limit) {
+                    lines.add(word.substring(0, limit));
+                    word = word.substring(limit);
+                }
+            }
+            if (currentLine.length() > 0) currentLine.append(" ");
+            currentLine.append(word);
+        }
+        if (currentLine.length() > 0) lines.add(currentLine.toString());
+        return lines;
     }
 
     @EventHandler

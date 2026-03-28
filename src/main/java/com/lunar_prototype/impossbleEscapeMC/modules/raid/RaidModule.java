@@ -204,6 +204,11 @@ public class RaidModule implements IModule {
             plugin.getLootManager().refillAllContainers();
         }
 
+        // 3. 死体消去
+        if (plugin.getCorpseManager() != null) {
+            plugin.getCorpseManager().cleanup();
+        }
+
         // Hide BossBar for all currently queued players before transferring them
         for (Set<UUID> queue : raidQueues.values()) {
             for (UUID uuid : queue) {
