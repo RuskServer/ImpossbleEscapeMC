@@ -287,7 +287,7 @@ public class RaidInstance {
     }
 
     private void updateBossBar() {
-        int timeLeft = plugin.getRaidModule().getGlobalTimeLeft();
+        int timeLeft = plugin.getRaidModule().getMapTimeLeft(map.getMapId());
         String timeStr = String.format("%02d:%02d", timeLeft / 60, timeLeft % 60);
         bossBar.name(Component.text("残りレイド時間: " + timeStr, NamedTextColor.WHITE));
         bossBar.progress((float) timeLeft / (float) RaidModule.CYCLE_DURATION);
@@ -741,7 +741,7 @@ public class RaidInstance {
     }
 
     public int getTimeLeft() {
-        return plugin.getRaidModule().getGlobalTimeLeft();
+        return plugin.getRaidModule().getMapTimeLeft(map.getMapId());
     }
 
     public boolean isParticipant(UUID uuid) {
