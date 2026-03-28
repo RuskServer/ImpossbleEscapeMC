@@ -473,7 +473,7 @@ public class RaidInstance {
             p.playSound(p.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.8f, 1.5f);
         } else {
             extractionTimer.remove(p.getUniqueId());
-            applyFindInRaidToExtractedItems(p);
+            // applyFindInRaidToExtractedItems(p); // 取得時に付与されるようになったため削除
 
             // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());

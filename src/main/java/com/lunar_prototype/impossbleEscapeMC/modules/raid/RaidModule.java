@@ -220,7 +220,10 @@ public class RaidModule implements IModule {
 
         // 2. 物資リセット
         if (plugin.getLootManager() != null) {
-            plugin.getLootManager().refillAllContainers();
+            RaidMap map = maps.get(mapId);
+            if (map != null) {
+                plugin.getLootManager().refillContainers(map);
+            }
         }
 
         // 3. 死体消去
@@ -344,10 +347,24 @@ public class RaidModule implements IModule {
     }
 
     public void forceStartCycle() {
+        forceStartCycle(null);
+    }
+
+    public void forceStartCycle(String targetMapId) {
+        if (targetMapId != null) {
+            if (maps.containsKey(targetMapId)) {
+                onMapCycleEnd(targetMapId);
+                mapTimers.put(targetMapId, CYCLE_DURATION);
+            }
+            return;
+        }
+
+        // 引数なしの場合は全マップをリセットし、回転オフセットを再適用する
         for (String mapId : maps.keySet()) {
             onMapCycleEnd(mapId);
             mapTimers.put(mapId, CYCLE_DURATION);
         }
+        applyRotationOffsets();
     }
 
     public RaidInstance getActiveRaid(String mapId) {

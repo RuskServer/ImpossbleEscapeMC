@@ -233,6 +233,27 @@ public class ItemFactory {
         return updateLore(item);
     }
 
+    public static void applyFIR(ItemStack item) {
+        if (item == null || item.getType().isAir()) return;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        
+        // すでにFIRが付いている、または持ち込み品（RAID_BROUGHT_IN）の場合は何もしない
+        if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
+        if (pdc.getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
+
+        // 弾薬には FIR を付けない（既存の仕様を踏襲）
+        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId != null && ItemRegistry.getAmmo(itemId) != null) return;
+
+        pdc.set(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 1);
+        item.setItemMeta(meta);
+        updateLore(item);
+    }
+
     public static ItemStack updateLore(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null)
