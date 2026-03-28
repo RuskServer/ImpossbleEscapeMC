@@ -29,9 +29,9 @@ public class RaidModule implements IModule {
     private final File stateFile;
 
     public static final int CYCLE_DURATION = 600; // 10 minutes (600 seconds)
-    private int globalTimeLeft; // seconds
+    private final Map<String, Integer> mapTimers = new HashMap<>();
     private BukkitRunnable globalTimerTask;
-    private BossBar queueBossBar;
+    private final Map<String, BossBar> queueBossBars = new HashMap<>();
 
     public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -44,15 +44,22 @@ public class RaidModule implements IModule {
 
     @Override
     public void onEnable(ServiceContainer container) {
-        // Initialize BossBar
-        queueBossBar = BossBar.bossBar(
-                Component.text("出撃準備中...", NamedTextColor.YELLOW),
-                1.0f,
-                BossBar.Color.YELLOW,
-                BossBar.Overlay.PROGRESS
-        );
-
         loadMaps();
+        
+        // Initialize BossBars and Timers for each map
+        for (String mapId : maps.keySet()) {
+            mapTimers.put(mapId, CYCLE_DURATION);
+            queueBossBars.put(mapId, BossBar.bossBar(
+                    Component.text("出撃準備中 (" + mapId + ")...", NamedTextColor.YELLOW),
+                    1.0f,
+                    BossBar.Color.YELLOW,
+                    BossBar.Overlay.PROGRESS
+            ));
+        }
+
+        // Apply rotation offset if there are 2 maps (one starts at 5 mins)
+        applyRotationOffsets();
+
         loadState(); // 状態の復元
         startGlobalTimer();
         
@@ -65,25 +72,32 @@ public class RaidModule implements IModule {
         saveState(); // 終了時に保存
         stopAllRaids();
         
-        // Cleanup BossBar
-        if (queueBossBar != null) {
+        // Cleanup BossBars
+        for (BossBar bar : queueBossBars.values()) {
             for (Player p : Bukkit.getOnlinePlayers()) {
-                p.hideBossBar(queueBossBar);
-                var attr = p.getAttribute(org.bukkit.attribute.Attribute.CAMERA_DISTANCE);
-                if (attr != null) {
-                    attr.setBaseValue(4.0);
-                }
+                p.hideBossBar(bar);
             }
         }
+        queueBossBars.clear();
 
         if (globalTimerTask != null) {
             globalTimerTask.cancel();
         }
     }
 
+    private void applyRotationOffsets() {
+        List<String> mapIds = new ArrayList<>(maps.keySet());
+        if (mapIds.size() >= 2) {
+            // 2つのマップがある場合、2番目のマップを5分(300秒)ずらす
+            String secondMap = mapIds.get(1);
+            mapTimers.put(secondMap, 300);
+            plugin.getLogger().info("Applied 5-minute offset to " + secondMap + " for rotation.");
+        }
+    }
+
     private void saveState() {
         Map<String, Object> state = new HashMap<>();
-        state.put("globalTimeLeft", globalTimeLeft);
+        state.put("mapTimers", mapTimers);
         
         Map<String, List<String>> raidPlayers = new HashMap<>();
         for (Map.Entry<String, RaidInstance> entry : activeRaids.entrySet()) {
@@ -108,8 +122,13 @@ public class RaidModule implements IModule {
             Map<String, Object> state = gson.fromJson(reader, Map.class);
             if (state == null) return;
 
-            if (state.containsKey("globalTimeLeft")) {
-                this.globalTimeLeft = ((Double) state.get("globalTimeLeft")).intValue();
+            if (state.containsKey("mapTimers")) {
+                Map<String, Double> loadedTimers = (Map<String, Double>) state.get("mapTimers");
+                for (Map.Entry<String, Double> entry : loadedTimers.entrySet()) {
+                    if (mapTimers.containsKey(entry.getKey())) {
+                        mapTimers.put(entry.getKey(), entry.getValue().intValue());
+                    }
+                }
             }
 
             if (state.containsKey("activeRaids")) {
@@ -138,66 +157,66 @@ public class RaidModule implements IModule {
     }
 
     private void startGlobalTimer() {
-        // If state was not loaded (e.g. fresh start), ensure it's set
-        if (globalTimeLeft <= 0) {
-            this.globalTimeLeft = CYCLE_DURATION;
-        }
-
         globalTimerTask = new BukkitRunnable() {
             @Override
             public void run() {
-                if (globalTimeLeft <= 0) {
-                    onCycleEnd();
-                    globalTimeLeft = CYCLE_DURATION;
+                for (String mapId : new ArrayList<>(maps.keySet())) {
+                    int timeLeft = mapTimers.getOrDefault(mapId, CYCLE_DURATION);
+                    
+                    if (timeLeft <= 0) {
+                        onMapCycleEnd(mapId);
+                        mapTimers.put(mapId, CYCLE_DURATION);
+                    } else {
+                        mapTimers.put(mapId, timeLeft - 1);
+                    }
+                    
+                    updateMapBossBar(mapId);
+                    notifyQueuedPlayers(mapId);
                 }
-                
-                // 待機中のプレイヤーに通知 (例: 1分前、10秒前)
-                notifyQueuedPlayers();
-                
-                // Update BossBar
-                updateBossBar();
-
-                globalTimeLeft--;
             }
         };
         globalTimerTask.runTaskTimer(plugin, 0, 20);
     }
 
-    private void updateBossBar() {
-        if (queueBossBar == null) return;
+    private void updateMapBossBar(String mapId) {
+        BossBar bar = queueBossBars.get(mapId);
+        if (bar == null) return;
 
-        float progress = (float) globalTimeLeft / (float) CYCLE_DURATION;
-        // Clamp progress
+        int timeLeft = mapTimers.getOrDefault(mapId, 0);
+        float progress = (float) timeLeft / (float) CYCLE_DURATION;
         progress = Math.max(0.0f, Math.min(1.0f, progress));
         
-        queueBossBar.progress(progress);
-        queueBossBar.name(Component.text("出撃まであと " + formatTime(globalTimeLeft), NamedTextColor.YELLOW));
+        bar.progress(progress);
+        bar.name(Component.text("出撃まであと " + formatTime(timeLeft) + " (" + mapId + ")", NamedTextColor.YELLOW));
     }
 
-    private void notifyQueuedPlayers() {
-        if (globalTimeLeft == 60 || globalTimeLeft <= 10 && globalTimeLeft > 0) {
-            String message = "§e[RAID] §f出撃まであと §b" + globalTimeLeft + "秒";
-            for (Set<UUID> queue : raidQueues.values()) {
-                for (UUID uuid : queue) {
-                    Player p = Bukkit.getPlayer(uuid);
-                    if (p != null) {
-                        p.sendMessage(message);
-                        p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.0f);
-                    }
+    private void notifyQueuedPlayers(String mapId) {
+        int timeLeft = mapTimers.getOrDefault(mapId, 0);
+        if (timeLeft == 60 || (timeLeft <= 10 && timeLeft > 0)) {
+            Set<UUID> queue = raidQueues.get(mapId);
+            if (queue == null) return;
+
+            String message = "§e[RAID] §f" + mapId + " 出撃まであと §b" + timeLeft + "秒";
+            for (UUID uuid : queue) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) {
+                    p.sendMessage(message);
+                    p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.0f);
                 }
             }
         }
     }
 
-    private void onCycleEnd() {
-        plugin.getLogger().info("Raid cycle ended. Starting new raids and MIA processing...");
+    private void onMapCycleEnd(String mapId) {
+        plugin.getLogger().info("Raid cycle ended for " + mapId + ". Starting new raids and MIA processing...");
 
-        // 1. 既存レイドの終了処理 (MIA)
-        for (RaidInstance raid : new ArrayList<>(activeRaids.values())) {
-            raid.handleMIA();
-            raid.stop();
+        // 1. 既存レイドの終了処理 (MIA) - 対象マップのみ
+        RaidInstance activeRaid = activeRaids.get(mapId);
+        if (activeRaid != null) {
+            activeRaid.handleMIA();
+            activeRaid.stop();
+            activeRaids.remove(mapId);
         }
-        activeRaids.clear();
 
         // 2. 物資リセット
         if (plugin.getLootManager() != null) {
@@ -206,29 +225,27 @@ public class RaidModule implements IModule {
 
         // 3. 死体消去
         if (plugin.getCorpseManager() != null) {
-            plugin.getCorpseManager().cleanup();
-        }
-
-        // Hide BossBar for all currently queued players before transferring them
-        for (Set<UUID> queue : raidQueues.values()) {
-            for (UUID uuid : queue) {
-                Player p = Bukkit.getPlayer(uuid);
-                if (p != null) {
-                    p.hideBossBar(queueBossBar);
+            RaidMap map = maps.get(mapId);
+            if (map != null) {
+                org.bukkit.World world = Bukkit.getWorld(map.getWorldName());
+                if (world != null) {
+                    plugin.getCorpseManager().cleanup(world);
                 }
             }
         }
 
-        // 3. 一斉スタート (キューの掃き出し)
-        for (Map.Entry<String, Set<UUID>> entry : raidQueues.entrySet()) {
-            String mapId = entry.getKey();
-            Set<UUID> playerUuids = entry.getValue();
-            if (playerUuids.isEmpty()) continue;
-
+        // 4. 一斉スタート (キューの掃き出し) - 対象マップのみ
+        Set<UUID> playerUuids = raidQueues.get(mapId);
+        if (playerUuids != null && !playerUuids.isEmpty()) {
             List<Player> participants = new ArrayList<>();
+            BossBar bar = queueBossBars.get(mapId);
+
             for (UUID uuid : playerUuids) {
                 Player p = Bukkit.getPlayer(uuid);
-                if (p != null) participants.add(p);
+                if (p != null) {
+                    participants.add(p);
+                    if (bar != null) p.hideBossBar(bar);
+                }
             }
 
             if (!participants.isEmpty()) {
@@ -238,10 +255,10 @@ public class RaidModule implements IModule {
                     activeRaids.put(mapId, raid);
                 }
             }
+            raidQueues.remove(mapId);
         }
-        raidQueues.clear();
 
-        Bukkit.broadcast(Component.text("新たなレイドサイクルが開始されました。出撃隊は各マップへ転送されました。", NamedTextColor.AQUA));
+        Bukkit.broadcast(Component.text(mapId + " の新たなレイドサイクルが開始されました。", NamedTextColor.AQUA));
     }
 
     /**
@@ -262,11 +279,13 @@ public class RaidModule implements IModule {
         leaveQueue(player);
 
         raidQueues.computeIfAbsent(mapId, k -> new HashSet<>()).add(player.getUniqueId());
-        player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(globalTimeLeft), NamedTextColor.GREEN));
+        int timeLeft = mapTimers.getOrDefault(mapId, CYCLE_DURATION);
+        player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(timeLeft), NamedTextColor.GREEN));
         
         // Show BossBar
-        if (queueBossBar != null) {
-            player.showBossBar(queueBossBar);
+        BossBar bar = queueBossBars.get(mapId);
+        if (bar != null) {
+            player.showBossBar(bar);
         }
         
         return true;
@@ -276,12 +295,10 @@ public class RaidModule implements IModule {
      * キューから離脱
      */
     public void leaveQueue(Player player) {
-        for (Set<UUID> queue : raidQueues.values()) {
-            if (queue.remove(player.getUniqueId())) {
-                // Hide BossBar if they were in a queue
-                if (queueBossBar != null) {
-                    player.hideBossBar(queueBossBar);
-                }
+        for (Map.Entry<String, Set<UUID>> entry : raidQueues.entrySet()) {
+            if (entry.getValue().remove(player.getUniqueId())) {
+                BossBar bar = queueBossBars.get(entry.getKey());
+                if (bar != null) player.hideBossBar(bar);
             }
         }
     }
@@ -317,13 +334,20 @@ public class RaidModule implements IModule {
     }
 
     public int getGlobalTimeLeft() {
-        return globalTimeLeft;
+        // Fallback: 最初のマップの時間を返す
+        if (mapTimers.isEmpty()) return CYCLE_DURATION;
+        return mapTimers.values().iterator().next();
+    }
+
+    public int getMapTimeLeft(String mapId) {
+        return mapTimers.getOrDefault(mapId, CYCLE_DURATION);
     }
 
     public void forceStartCycle() {
-        onCycleEnd();
-        this.globalTimeLeft = CYCLE_DURATION;
-        updateBossBar();
+        for (String mapId : maps.keySet()) {
+            onMapCycleEnd(mapId);
+            mapTimers.put(mapId, CYCLE_DURATION);
+        }
     }
 
     public RaidInstance getActiveRaid(String mapId) {
