@@ -512,16 +512,24 @@ public class TraderGUI implements Listener {
         }
 
         traderModule.checkAndResetDailyPurchases(data);
+        int finalQuantity = quantity;
+        boolean limitAdjusted = false;
         if (ti.dailyLimit > 0) {
             int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
-            if (bought + quantity > ti.dailyLimit) {
-                int allowed = Math.max(0, ti.dailyLimit - bought);
-                player.sendMessage(Component.text("本日の購入制限に達しています（残り " + allowed + " 個）。", NamedTextColor.RED));
+            int allowed = Math.max(0, ti.dailyLimit - bought);
+            
+            if (allowed <= 0) {
+                player.sendMessage(Component.text("本日の購入制限に達しています。", NamedTextColor.RED));
                 return;
+            }
+            
+            if (quantity > allowed) {
+                finalQuantity = allowed;
+                limitAdjusted = true;
             }
         }
 
-        double totalPrice = ti.price * quantity;
+        double totalPrice = ti.price * finalQuantity;
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), totalPrice)) {
             // アイテムをスタック数に合わせて配布
             ItemStack sample = ItemFactory.create(ti.itemId);
@@ -532,7 +540,7 @@ public class TraderGUI implements Listener {
             }
             
             int maxStack = sample.getType().getMaxStackSize();
-            int remainingToGive = quantity;
+            int remainingToGive = finalQuantity;
             boolean inventoryFull = false;
 
             while (remainingToGive > 0) {
@@ -546,7 +554,7 @@ public class TraderGUI implements Listener {
                 remainingToGive -= amount;
             }
 
-            int actualGiven = quantity - remainingToGive;
+            int actualGiven = finalQuantity - remainingToGive;
             if (actualGiven > 0) {
                 if (ti.dailyLimit > 0) {
                     for (int i = 0; i < actualGiven; i++) {
@@ -554,7 +562,12 @@ public class TraderGUI implements Listener {
                     }
                     traderModule.getDataModule().saveAsync(player.getUniqueId());
                 }
-                player.sendMessage(Component.text(ti.itemId + " を " + actualGiven + " 個購入しました。", NamedTextColor.GREEN));
+                
+                if (limitAdjusted) {
+                    player.sendMessage(Component.text("購入制限により、残りの購入可能数である " + actualGiven + " 個を購入しました。", NamedTextColor.YELLOW));
+                } else {
+                    player.sendMessage(Component.text(ti.itemId + " を " + actualGiven + " 個購入しました。", NamedTextColor.GREEN));
+                }
                 setupBuyGUI();
             }
 
