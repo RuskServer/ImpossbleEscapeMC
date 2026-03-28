@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.rig;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Item;
@@ -128,7 +129,7 @@ public class RigListener implements Listener {
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         rigModule.clearLockedSlotPlaceholders(player);
-        event.getDrops().removeIf(RigModule::isLockedSlotPlaceholder);
+        event.getDrops().removeIf(item -> RigModule.isLockedSlotPlaceholder(item) || ItemFactory.isCostSlotPlaceholder(item));
     }
 
     private void handleMoveIntoPlayerInventory(InventoryClickEvent event, Player player) {

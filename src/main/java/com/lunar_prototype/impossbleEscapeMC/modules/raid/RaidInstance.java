@@ -39,6 +39,7 @@ public class RaidInstance {
     private int respawnTicks = 0;
     private String endReason = "raid_end";
     private boolean ended = false;
+    private static final double MIN_SCAV_SPAWN_DISTANCE = 24.0;
 
     private enum RaidOutcome {
         SURVIVED("生還"),
@@ -304,11 +305,6 @@ public class RaidInstance {
     public void handleMIA() {
         endReason = "mia_cycle_end";
 
-        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
-        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
-
         for (UUID uuid : new HashSet<>(players)) {
             extractionTimer.remove(uuid);
             RaidResult result = getOrCreateRaidResult(uuid);
@@ -344,17 +340,25 @@ public class RaidInstance {
     private void updateScavs() {
         for (VirtualScav vs : virtualScavs) {
             boolean playerNearby = false;
+            boolean tooCloseOrVisible = false;
             Location spawnLoc = vs.getSpawnLocation();
 
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
-                if (p != null && p.getWorld().equals(spawnLoc.getWorld()) && p.getLocation().distance(spawnLoc) < 64) {
+                if (p == null || !p.getWorld().equals(spawnLoc.getWorld())) continue;
+
+                double dist = p.getLocation().distance(spawnLoc);
+                if (dist < 64) {
                     playerNearby = true;
-                    break;
+                }
+                
+                // 目の前湧き防止チェック
+                if (dist < MIN_SCAV_SPAWN_DISTANCE || isLocationVisible(p, spawnLoc)) {
+                    tooCloseOrVisible = true;
                 }
             }
 
-            if (playerNearby && !vs.isSpawned() && !vs.isDead()) {
+            if (playerNearby && !tooCloseOrVisible && !vs.isSpawned() && !vs.isDead()) {
                 UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc, raidSessionId, map.getMapId());
                 vs.setEntityId(uuid);
                 vs.setSpawned(true);
@@ -364,6 +368,24 @@ public class RaidInstance {
                 vs.setEntityId(null);
             }
         }
+    }
+
+    private boolean isLocationVisible(Player player, Location target) {
+        if (!player.getWorld().equals(target.getWorld())) return false;
+        
+        Location eye = player.getEyeLocation();
+        org.bukkit.util.Vector toTarget = target.toVector().subtract(eye.toVector());
+        double dist = toTarget.length();
+        if (dist > 80) return false; // 描画距離外などは無視
+        
+        // 1. 方向チェック (視野角 約110度)
+        org.bukkit.util.Vector dir = eye.getDirection();
+        double dot = dir.dot(toTarget.normalize());
+        if (dot < 0.3) return false; // 背後や真横なら見えていないとみなす
+
+        // 2. 遮蔽物チェック (RayTrace)
+        var result = player.getWorld().rayTraceBlocks(eye, toTarget.normalize(), dist, org.bukkit.FluidCollisionMode.NEVER, true);
+        return result == null; // 何にも当たらなければ見える
     }
 
     /**
@@ -473,7 +495,6 @@ public class RaidInstance {
             p.playSound(p.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.8f, 1.5f);
         } else {
             extractionTimer.remove(p.getUniqueId());
-            // applyFindInRaidToExtractedItems(p); // 取得時に付与されるようになったため削除
 
             // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());
@@ -800,37 +821,6 @@ public class RaidInstance {
         }
 
         visitPlayerItems(player, item -> setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, true), backpackModule);
-    }
-
-    private void applyFindInRaidToExtractedItems(Player player) {
-        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
-        if (backpackModule != null) {
-            backpackModule.saveBackpackFromOpenInventory(player);
-        }
-
-        visitPlayerItems(player, item -> {
-            ItemMeta meta = item.getItemMeta();
-            if (meta == null) return;
-
-            PersistentDataContainer pdc = meta.getPersistentDataContainer();
-            
-            // 弾薬には FIR を付けない
-            String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-            if (itemId != null && com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAmmo(itemId) != null) {
-                pdc.remove(PDCKeys.RAID_BROUGHT_IN);
-                item.setItemMeta(meta);
-                ItemFactory.updateLore(item);
-                return;
-            }
-
-            boolean broughtIn = pdc.getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1;
-            pdc.remove(PDCKeys.RAID_BROUGHT_IN);
-            if (!broughtIn) {
-                pdc.set(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 1);
-            }
-            item.setItemMeta(meta);
-            ItemFactory.updateLore(item);
-        }, backpackModule);
     }
 
     private void clearRaidMarkersFromCurrentInventory(Player player) {
