@@ -813,6 +813,16 @@ public class RaidInstance {
             if (meta == null) return;
 
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            
+            // 弾薬には FIR を付けない
+            String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+            if (itemId != null && com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAmmo(itemId) != null) {
+                pdc.remove(PDCKeys.RAID_BROUGHT_IN);
+                item.setItemMeta(meta);
+                ItemFactory.updateLore(item);
+                return;
+            }
+
             boolean broughtIn = pdc.getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1;
             pdc.remove(PDCKeys.RAID_BROUGHT_IN);
             if (!broughtIn) {

@@ -51,20 +51,26 @@ public class MarketSellGUI implements Listener {
 
             ItemStack icon = item.clone();
             boolean isFir = marketModule.isFir(item);
+            boolean canSell = marketModule.canSellOnMarket(item);
             
             ItemMeta meta = icon.getItemMeta();
             List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
             if (lore == null) lore = new ArrayList<>();
             
             lore.add(Component.empty());
-            if (isFir) {
-                lore.add(Component.text("FIRステータス: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                        .append(Component.text("あり (出品可能)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false)));
+            if (canSell) {
+                if (isFir) {
+                    lore.add(Component.text("FIRステータス: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                            .append(Component.text("あり (出品可能)", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false)));
+                } else {
+                    lore.add(Component.text("FIRステータス: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                            .append(Component.text("なし (弾薬は出品可能)", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
+                }
                 lore.add(Component.text("クリックして価格設定へ", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
             } else {
                 lore.add(Component.text("FIRステータス: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                         .append(Component.text("なし (出品不可)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
-                lore.add(Component.text("※マーケットではFIRアイテムのみ売却できます。", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("※マーケットではFIRアイテム、または弾薬のみ売却できます。", NamedTextColor.DARK_RED).decoration(TextDecoration.ITALIC, false));
             }
             
             meta.lore(lore);
@@ -100,8 +106,8 @@ public class MarketSellGUI implements Listener {
             ItemStack original = contents[slot];
             if (original == null || original.getType() == Material.AIR) return;
 
-            if (!marketModule.isFir(original)) {
-                player.sendMessage(Component.text("FIRステータスのないアイテムは出品できません。", NamedTextColor.RED));
+            if (!marketModule.canSellOnMarket(original)) {
+                player.sendMessage(Component.text("出品するにはFIRステータス、または弾薬である必要があります。", NamedTextColor.RED));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
                 return;
             }
