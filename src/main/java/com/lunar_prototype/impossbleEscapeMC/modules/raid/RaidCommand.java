@@ -44,8 +44,13 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
                 break;
             case "start":
                 if (player.isOp()) {
-                    manager.forceStartCycle();
-                    player.sendMessage(Component.text("レイドサイクルを強制終了し、出撃を開始しました。", NamedTextColor.GREEN));
+                    String targetMap = args.length >= 2 ? args[1] : null;
+                    manager.forceStartCycle(targetMap);
+                    if (targetMap != null) {
+                        player.sendMessage(Component.text("マップ " + targetMap + " のレイドサイクルを強制終了し、出撃を開始しました。", NamedTextColor.GREEN));
+                    } else {
+                        player.sendMessage(Component.text("全マップのレイドサイクルを強制終了し、出撃を開始しました。", NamedTextColor.GREEN));
+                    }
                 }
                 break;
             case "map":
@@ -217,6 +222,9 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
                 if (sub.equals("map")) return Arrays.asList("create", "delete");
                 if (sub.equals("spawn") || sub.equals("extract")) return Arrays.asList("add");
                 if (sub.equals("scavspawn")) return Arrays.asList("add", "clear");
+                if (sub.equals("start")) return manager.getMapIds().stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
             }
         }
 

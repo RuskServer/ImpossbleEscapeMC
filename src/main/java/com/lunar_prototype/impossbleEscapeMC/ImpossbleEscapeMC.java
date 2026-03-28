@@ -168,6 +168,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(searchGUI, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.map.MapSlotListener(this, raidMapManager), this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidItemListener(this), this);
 
         // PacketEvents リスナーの登録
         com.github.retrooper.packetevents.PacketEvents.getAPI().getEventManager().registerListener(

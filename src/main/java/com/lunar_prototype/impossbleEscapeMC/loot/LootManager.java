@@ -86,16 +86,20 @@ public class LootManager {
 
     public void refillAllContainers() {
         for (RaidMap map : plugin.getRaidModule().getMaps().values()) {
-            String worldName = map.getWorldName();
-            if (worldName == null) continue;
+            refillContainers(map);
+        }
+    }
 
-            for (RaidMap.LootContainer lc : map.getLootContainers()) {
-                Location loc = lc.getLocation(worldName);
-                if (loc == null) continue;
-                Block block = loc.getBlock();
-                if (block.getState() instanceof Container container) {
-                    refillContainer(container, lc.getTableId());
-                }
+    public void refillContainers(RaidMap map) {
+        String worldName = map.getWorldName();
+        if (worldName == null) return;
+
+        for (RaidMap.LootContainer lc : map.getLootContainers()) {
+            Location loc = lc.getLocation(worldName);
+            if (loc == null) continue;
+            Block block = loc.getBlock();
+            if (block.getState() instanceof Container container) {
+                refillContainer(container, lc.getTableId());
             }
         }
     }
