@@ -81,6 +81,26 @@ public class MarketModule implements IModule {
         return pdc.has(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN);
     }
 
+    /**
+     * マーケットに出品可能か確認 (FIRアイテム、または弾薬)
+     */
+    public boolean canSellOnMarket(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return false;
+        
+        // FIRなら出品可能
+        if (isFir(item)) return true;
+
+        // 弾薬ならFIRなしでも出品可能
+        ItemMeta meta = item.getItemMeta();
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId != null && com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAmmo(itemId) != null) {
+            return true;
+        }
+
+        return false;
+    }
+
     private void loadListings() {
         if (!dataFile.exists()) return;
 
