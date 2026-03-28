@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.RigStats;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -142,7 +143,7 @@ public class RigModule implements IModule {
 
             ItemStack item = inventory.getItem(slot);
             if (item == null || item.getType().isAir()) continue;
-            if (isLockedSlotPlaceholder(item)) continue;
+            if (isLockedSlotPlaceholder(item) || ItemFactory.isCostSlotPlaceholder(item)) continue;
 
             inventory.setItem(slot, null);
             Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), item);

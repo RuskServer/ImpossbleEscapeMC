@@ -61,10 +61,12 @@ public class TraderQuantityGUI implements Listener {
         updateQuantityDisplay();
 
         // 操作ボタン
+        inventory.setItem(10, createButton(Material.NETHER_WART_BLOCK, "§c-64", "§7個数を64減らす"));
         inventory.setItem(11, createButton(Material.RED_TERRACOTTA, "§c-10", "§7個数を10減らす"));
         inventory.setItem(12, createButton(Material.ORANGE_TERRACOTTA, "§6-1", "§7個数を1減らす"));
         inventory.setItem(14, createButton(Material.LIME_TERRACOTTA, "§a+1", "§7個数を1増やす"));
         inventory.setItem(15, createButton(Material.GREEN_TERRACOTTA, "§2+10", "§7個数を10増やす"));
+        inventory.setItem(16, createButton(Material.DARK_PRISMARINE, "§2+64", "§7個数を64増やす"));
 
         // 決定・キャンセル
         inventory.setItem(22, createButton(Material.EMERALD_BLOCK, "§a§l購入を確定", "§7合計: " + (traderItem.price * quantity) + "₽"));
@@ -118,10 +120,12 @@ public class TraderQuantityGUI implements Listener {
         event.setCancelled(true);
 
         int slot = event.getRawSlot();
-        if (slot == 11) { quantity = Math.max(1, quantity - 10); updateQuantityDisplay(); }
+        if (slot == 10) { quantity = Math.max(1, quantity - 64); updateQuantityDisplay(); }
+        else if (slot == 11) { quantity = Math.max(1, quantity - 10); updateQuantityDisplay(); }
         else if (slot == 12) { quantity = Math.max(1, quantity - 1); updateQuantityDisplay(); }
         else if (slot == 14) { quantity = Math.min(1000, quantity + 1); updateQuantityDisplay(); }
         else if (slot == 15) { quantity = Math.min(1000, quantity + 10); updateQuantityDisplay(); }
+        else if (slot == 16) { quantity = Math.min(1000, quantity + 64); updateQuantityDisplay(); }
         else if (slot == 18) { player.closeInventory(); parentGUI.open(); }
         else if (slot == 22) {
             PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
