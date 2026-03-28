@@ -55,8 +55,8 @@ public class ItemFactory {
             lore.add("§7Rarity: " + getRarityStars(attDef.rarity));
             meta.setLore(lore);
 
+            meta.setMaxStackSize(1);
             item.setItemMeta(meta);
-            item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
             applyTooltipStyle(item, attDef.rarity);
             return item;
         }
@@ -109,10 +109,8 @@ public class ItemFactory {
             pdc.set(PDCKeys.ITEM_COST, PDCKeys.INTEGER, def.cost);
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
 
-            // Stackability enforcement
-            if (!def.stackable) {
-                item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
-            }
+            // Stackability enforcement (Basically only ammo can stack)
+            meta.setMaxStackSize(1);
 
             if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
                 // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
@@ -498,9 +496,9 @@ public class ItemFactory {
             lore.add("§7他のアイテムのサイズによって占有されています");
             meta.setLore(lore);
             meta.getPersistentDataContainer().set(PDCKeys.COST_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN, (byte) 1);
+            meta.setMaxStackSize(1);
             item.setItemMeta(meta);
         }
-        item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
         return item;
     }
 
