@@ -394,15 +394,30 @@ public class RaidInstance {
     public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid, ScavBrain.BrainLevel brainLevel) {
         if (!raidMembers.contains(killerUuid)) return;
         
+        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        int playerLevel = 1;
+        if (levelModule != null) {
+            playerLevel = levelModule.getLevel(killerUuid);
+        }
+
         // BOSS判定
         if (brainLevel == ScavBrain.BrainLevel.HIGH) {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.bossKills += 1;
-            result.experienceToGrant += 250L; // BOSSは高EXP
+            if (levelModule != null) {
+                result.experienceToGrant += levelModule.getScaledKillReward(playerLevel, 250L);
+            } else {
+                result.experienceToGrant += 250L;
+            }
         } else {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.scavKills += 1;
-            result.experienceToGrant += 50L;
+            if (levelModule != null) {
+                result.experienceToGrant += levelModule.getScaledKillReward(playerLevel, 50L);
+            } else {
+                result.experienceToGrant += 50L;
+            }
         }
     }
 
@@ -463,7 +478,14 @@ public class RaidInstance {
             // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());
             result.outcome = RaidOutcome.SURVIVED;
-            result.experienceToGrant += 250L;
+            
+            com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
+                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+            if (levelModule != null) {
+                result.experienceToGrant += levelModule.getRaidOutcomeReward(levelModule.getLevel(p.getUniqueId()), "SURVIVED");
+            } else {
+                result.experienceToGrant += 250L;
+            }
 
             // 脱出回数加算
             com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
@@ -525,6 +547,14 @@ public class RaidInstance {
             }
         }
 
+        // Cleanup corpses in the world
+        if (plugin.getCorpseManager() != null) {
+            org.bukkit.World world = Bukkit.getWorld(map.getWorldName());
+            if (world != null) {
+                plugin.getCorpseManager().cleanup(world);
+            }
+        }
+
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
@@ -559,17 +589,34 @@ public class RaidInstance {
         if (!players.contains(player.getUniqueId())) return;
         extractionTimer.remove(player.getUniqueId());
 
+        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        int playerLevel = 1;
+        if (levelModule != null) {
+            playerLevel = levelModule.getLevel(player.getUniqueId());
+        }
+
         // 死亡のリザルトを記録 (経験値はレイド終了時に付与)
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
         result.outcome = RaidOutcome.DEAD;
-        result.experienceToGrant += 150L;
+        
+        if (levelModule != null) {
+            result.experienceToGrant += levelModule.getRaidOutcomeReward(playerLevel, "DEAD");
+        } else {
+            result.experienceToGrant += 150L;
+        }
 
         // PMCキルの集計 (もしキラーがプレイヤーなら)
         Player killer = player.getKiller();
         if (killer != null && !killer.equals(player) && players.contains(killer.getUniqueId())) {
             RaidResult killerResult = getOrCreateRaidResult(killer.getUniqueId());
             killerResult.pmcKills += 1;
-            killerResult.experienceToGrant += 100L;
+            if (levelModule != null) {
+                int killerLevel = levelModule.getLevel(killer.getUniqueId());
+                killerResult.experienceToGrant += levelModule.getScaledKillReward(killerLevel, 100L);
+            } else {
+                killerResult.experienceToGrant += 100L;
+            }
         }
 
         players.remove(player.getUniqueId());
@@ -855,16 +902,27 @@ public class RaidInstance {
 
         for (UUID uuid : raidMembers) {
             RaidResult result = getOrCreateRaidResult(uuid);
+            boolean alreadyShown = result.outcome != RaidOutcome.ACTIVE;
+
             if (result.outcome == RaidOutcome.ACTIVE) {
                 result.outcome = RaidOutcome.MIA;
-                Player player = Bukkit.getPlayer(uuid);
-                if (player != null && player.isOnline()) {
-                    showIndividualRaidResult(player);
-                }
+            }
+
+            // Outcomeに応じた追加EXPを最後に計算 (生還・死亡は既に加算済み)
+            if (result.outcome == RaidOutcome.MIA || result.outcome == RaidOutcome.LEFT) {
+                result.experienceToGrant += levelModule.getRaidOutcomeReward(levelModule.getLevel(uuid), result.outcome.name());
             }
 
             if (result.experienceToGrant > 0) {
                 levelModule.addExperience(uuid, result.experienceToGrant);
+            }
+
+            // オンラインのプレイヤーに結果を表示 (まだ表示されていない場合)
+            if (!alreadyShown) {
+                Player player = Bukkit.getPlayer(uuid);
+                if (player != null && player.isOnline()) {
+                    showIndividualRaidResult(player);
+                }
             }
         }
     }

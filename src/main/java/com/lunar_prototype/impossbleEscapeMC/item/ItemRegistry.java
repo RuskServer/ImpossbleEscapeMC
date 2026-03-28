@@ -134,6 +134,17 @@ public class ItemRegistry {
         return Collections.unmodifiableMap(armorByClass);
     }
 
+    public static List<ItemDefinition> getBackpackItems() {
+        List<ItemDefinition> backpacks = new ArrayList<>();
+        for (ItemDefinition def : ITEM_MAP.values()) {
+            if (def.backpackStats != null) {
+                backpacks.add(def);
+            }
+        }
+        backpacks.sort(Comparator.comparing(def -> def.id));
+        return backpacks;
+    }
+
     public static AmmoDefinition getWeakestAmmoForCaliber(String caliber) {
         AmmoDefinition weakest = null;
         for (AmmoDefinition ammo : AMMO_MAP.values()) {

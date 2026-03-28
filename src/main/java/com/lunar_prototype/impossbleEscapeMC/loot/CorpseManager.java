@@ -106,7 +106,7 @@ public class CorpseManager {
             }
         }
         
-        finishSpawning(mannequin, virtualInv, loc, 1800L);
+        finishSpawning(mannequin, virtualInv, loc);
     }
 
     public void spawnPlayerCorpse(Player player, LivingEntity killer) {
@@ -157,8 +157,8 @@ public class CorpseManager {
             virtualInv.setItem(9 + i, playerInv.getItem(i));
         }
 
-        // Finish spawning with 10 minutes (12000 ticks) duration for players
-        finishSpawning(mannequin, virtualInv, loc, 12000L);
+        // Finish spawning
+        finishSpawning(mannequin, virtualInv, loc);
     }
 
     private ItemStack createDogTag(Player victim, LivingEntity killer) {
@@ -209,7 +209,7 @@ public class CorpseManager {
         return dogTag;
     }
 
-    private void finishSpawning(Mannequin mannequin, Inventory virtualInv, Location loc, long durationTicks) {
+    private void finishSpawning(Mannequin mannequin, Inventory virtualInv, Location loc) {
         try {
             byte[] bytes = com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.serializeInventoryToBytes(virtualInv);
             mannequin.getPersistentDataContainer().set(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY, bytes);
@@ -219,21 +219,6 @@ public class CorpseManager {
 
         UUID uuid = mannequin.getUniqueId();
         activeCorpseLocations.put(uuid, loc);
-
-        // Schedule removal
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            activeCorpseLocations.remove(uuid);
-            org.bukkit.entity.Entity entity = Bukkit.getEntity(uuid);
-            if (entity != null) {
-                entity.remove();
-            } else {
-                if (loc.getWorld() != null) {
-                    loc.getChunk().load();
-                    org.bukkit.entity.Entity e = Bukkit.getEntity(uuid);
-                    if (e != null) e.remove();
-                }
-            }
-        }, durationTicks);
     }
 
     public static void updateMannequinAppearance(Mannequin mannequin, Inventory inventory) {
@@ -247,10 +232,17 @@ public class CorpseManager {
     }
 
     public void cleanup() {
-        plugin.getLogger().info("Cleaning up " + activeCorpseLocations.size() + " corpses...");
-        for (Map.Entry<UUID, Location> entry : activeCorpseLocations.entrySet()) {
+        cleanup(null);
+    }
+
+    public void cleanup(org.bukkit.World world) {
+        plugin.getLogger().info("Cleaning up corpses" + (world != null ? " in " + world.getName() : "") + "...");
+        java.util.Iterator<Map.Entry<UUID, Location>> it = activeCorpseLocations.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Location> entry = it.next();
             Location loc = entry.getValue();
             if (loc.getWorld() == null) continue;
+            if (world != null && !loc.getWorld().equals(world)) continue;
 
             // チャンクを強制ロードして削除を確実にする
             if (!loc.getChunk().isLoaded()) {
@@ -261,8 +253,8 @@ public class CorpseManager {
             if (entity != null) {
                 entity.remove();
             }
+            it.remove();
         }
-        activeCorpseLocations.clear();
     }
 
     // Serialization utilities

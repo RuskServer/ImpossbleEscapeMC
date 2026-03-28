@@ -158,6 +158,23 @@ public class ScavSpawner implements Listener {
 
         // 3. 防具のランダム装備
         setupRandomArmor(scav, raidSessionId);
+
+        // 4. バックパックのランダム装備 (20%の確率)
+        if (RANDOM.nextDouble() < 0.20) {
+            setupRandomBackpack(scav);
+        }
+    }
+
+    private void setupRandomBackpack(Mob scav) {
+        List<ItemDefinition> backpacks = ItemRegistry.getBackpackItems();
+        if (backpacks.isEmpty()) return;
+
+        ItemDefinition def = backpacks.get(RANDOM.nextInt(backpacks.size()));
+        ItemStack backpack = ItemFactory.create(def.id);
+        if (backpack != null) {
+            scav.getEquipment().setItemInOffHand(backpack);
+            scav.getEquipment().setItemInOffHandDropChance(0.15f); // 15% drop chance
+        }
     }
 
     private void setupRandomArmor(Mob scav, String raidSessionId) {
