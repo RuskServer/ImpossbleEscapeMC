@@ -35,6 +35,7 @@ public class ItemFactory {
         if (attDef != null) {
             Material mat = Material.matchMaterial(attDef.material);
             item = new ItemStack(mat == null ? Material.IRON_NUGGET : mat);
+            item.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
             meta = item.getItemMeta();
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, attDef.id);
@@ -64,6 +65,7 @@ public class ItemFactory {
             // --- 弾薬アイテムの生成 ---
             Material mat = Material.matchMaterial(ammoDef.material);
             item = new ItemStack(mat == null ? Material.IRON_NUGGET : mat);
+            item.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
             meta = item.getItemMeta();
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, ammoDef.id);
@@ -85,7 +87,7 @@ public class ItemFactory {
             item = new ItemStack(mat);
             meta = item.getItemMeta();
 
-            item.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            item.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
 
             if (def.customModelData != 0) {
                 meta.setCustomModelData(def.customModelData);
