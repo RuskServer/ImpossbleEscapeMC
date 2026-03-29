@@ -12,19 +12,9 @@
       <option name="url" value="https://maven.scotty-mccormick.com/repository/maven-public/" />
     </remote-repository>
     <remote-repository>
-      <option name="id" value="codemc-snapshots" />
-      <option name="name" value="codemc-snapshots" />
-      <option name="url" value="https://repo.codemc.io/repository/maven-snapshots/" />
-    </remote-repository>
-    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Central Repository" />
       <option name="url" value="https://repo.maven.apache.org/maven2" />
-    </remote-repository>
-    <remote-repository>
-      <option name="id" value="codemc-releases" />
-      <option name="name" value="codemc-releases" />
-      <option name="url" value="https://repo.codemc.io/repository/maven-releases/" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="papermc-repo" />
@@ -37,9 +27,29 @@
       <option name="url" value="https://repo1.maven.org/maven2" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="ruskserver-releases" />
+      <option name="name" value="ruskserver-releases" />
+      <option name="url" value="https://repo.ruskserver.com/repository/maven-public/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="codemc-snapshots" />
+      <option name="name" value="codemc-snapshots" />
+      <option name="url" value="https://repo.codemc.io/repository/maven-snapshots/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="codemc-releases" />
+      <option name="name" value="codemc-releases" />
+      <option name="url" value="https://repo.codemc.io/repository/maven-releases/" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="jboss.community" />
       <option name="name" value="JBoss Community repository" />
       <option name="url" value="https://repository.jboss.org/nexus/content/repositories/public/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="enginehub" />
+      <option name="name" value="enginehub" />
+      <option name="url" value="https://maven.enginehub.org/repo/" />
     </remote-repository>
     <remote-repository>
       <option name="id" value="libsdisguises-public" />
@@ -52,9 +62,9 @@
       <option name="url" value="https://repo.ruskserver.com/repository/maven-releases/" />
     </remote-repository>
     <remote-repository>
-      <option name="id" value="ruskserver-releases" />
-      <option name="name" value="ruskserver-releases" />
-      <option name="url" value="https://repo.ruskserver.com/repository/maven-public/" />
+      <option name="id" value="intellectualsites" />
+      <option name="name" value="intellectualsites" />
+      <option name="url" value="https://repo.intellectualsites.com/content/groups/public/" />
     </remote-repository>
   </component>
 </project>
