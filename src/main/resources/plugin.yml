@@ -43,3 +43,6 @@ commands:
   settings:
     description: プレイヤーの操作設定やキーバインドを変更します。
     usage: /settings
+  hideout:
+    description: 隠れ家システム管理・利用コマンド
+    usage: /hideout
