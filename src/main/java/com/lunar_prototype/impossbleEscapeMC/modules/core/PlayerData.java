@@ -53,6 +53,10 @@ public class PlayerData {
     private boolean cancelAdsOnSprint;
     private java.util.Map<String, String> keybinds;
 
+    // 隠れ家システム
+    private java.util.Map<String, Integer> hideoutLevels;
+    private int hideoutIndex; // 隠れ家の配置場所を決めるインデックス (-1: 未割り当て)
+
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
         this.balance = 0.0;
@@ -86,6 +90,9 @@ public class PlayerData {
         // デフォルトのキーバインド設定
         this.keybinds.put("RELOAD", "DROP"); // デフォルト: アイテムを落とす(Q)キー
         this.keybinds.put("FIREMODE", "SWAP_HAND"); // デフォルト: オフハンド切り替え(F)キー
+
+        this.hideoutLevels = new java.util.HashMap<>();
+        this.hideoutIndex = -1;
     }
 
     public java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> getActiveQuests() {
@@ -373,5 +380,31 @@ public class PlayerData {
 
     public String getKeybindForAction(String action) {
         return getKeybinds().getOrDefault(action, "");
+    }
+
+    // 隠れ家システム
+    public java.util.Map<String, Integer> getHideoutLevels() {
+        if (hideoutLevels == null) hideoutLevels = new java.util.HashMap<>();
+        return hideoutLevels;
+    }
+
+    public int getHideoutLevel(String type) {
+        return getHideoutLevels().getOrDefault(type, 0);
+    }
+
+    public void setHideoutLevel(String type, int level) {
+        getHideoutLevels().put(type, level);
+        this.dirty = true;
+    }
+
+    public int getHideoutIndex() {
+        return hideoutIndex;
+    }
+
+    public void setHideoutIndex(int hideoutIndex) {
+        if (this.hideoutIndex != hideoutIndex) {
+            this.hideoutIndex = hideoutIndex;
+            this.dirty = true;
+        }
     }
 }
