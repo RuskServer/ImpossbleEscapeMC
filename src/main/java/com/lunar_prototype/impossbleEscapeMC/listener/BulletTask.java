@@ -24,9 +24,10 @@ import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 
 import java.util.Collection;
+import java.util.Locale;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
-import java.util.Map;
 
 /**
  * 弾丸の物理挙動、当たり判定、ダメージ計算を担当するタスク
@@ -248,11 +249,19 @@ public class BulletTask extends BukkitRunnable {
     private void playHitSound(Player player, Location loc, String configKey, String defaultSound, float vol, float pitch) {
         String soundName = plugin.getConfig().getString(configKey, defaultSound);
         Location playAt = (player != null) ? player.getLocation() : loc;
+
+        Sound s = null;
         try {
-            Sound s = Sound.valueOf(soundName.toUpperCase());
+            NamespacedKey key = soundName.contains(":") ?
+                    NamespacedKey.fromString(soundName.toLowerCase(Locale.ROOT)) :
+                    NamespacedKey.minecraft(soundName.toLowerCase(Locale.ROOT).replace("_", "."));
+            if (key != null) s = Registry.SOUNDS.get(key);
+        } catch (Exception ignored) {}
+
+        if (s != null) {
             if (player != null) player.playSound(playAt, s, vol, pitch);
             else playAt.getWorld().playSound(playAt, s, vol, pitch);
-        } catch (Exception e) {
+        } else {
             if (player != null) player.playSound(playAt, soundName, vol, pitch);
             else playAt.getWorld().playSound(playAt, soundName, vol, pitch);
         }

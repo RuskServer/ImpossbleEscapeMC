@@ -719,12 +719,18 @@ public class GunListener implements Listener {
         String soundName = stats.shotSound;
         float shotPitch = 1.8f + (float) ((Math.random() - 0.5) * 0.1); // 銃声のピッチにノイズを追加
 
+        Sound standardSound = null;
         try {
-            // Bukkit標準のサウンドにあるかチェック
-            Sound standardSound = Sound.valueOf(soundName.toUpperCase());
+            NamespacedKey key = soundName.contains(":") ?
+                    NamespacedKey.fromString(soundName.toLowerCase(Locale.ROOT)) :
+                    NamespacedKey.minecraft(soundName.toLowerCase(Locale.ROOT).replace("_", "."));
+            if (key != null) standardSound = Registry.SOUNDS.get(key);
+        } catch (Exception ignored) {}
+
+        if (standardSound != null) {
             // 音量8.0で約128ブロックまで聞こえるように拡大
             player.getWorld().playSound(player.getLocation(), standardSound, 8.0f, shotPitch);
-        } catch (IllegalArgumentException e) {
+        } else {
             // 標準にない場合はカスタムサウンド(リソースパック)として再生
             player.getWorld().playSound(player.getLocation(), soundName, 8.0f, shotPitch);
         }
