@@ -34,7 +34,7 @@ public class ReachLocationObjective implements QuestObjective {
 
         // トリガーパラメータから位置情報を取得
         String targetName = (String) params.get("locationName");
-        if (targetName != null && targetName.equals(locationName)) {
+        if (targetName != null && targetName.equalsIgnoreCase(locationName)) {
             activeQuest.setProgress(index, 1); // 1 = 到達済み
             return true;
         }
@@ -53,7 +53,8 @@ public class ReachLocationObjective implements QuestObjective {
 
     @Override
     public String getDescription() {
-        return locationName + " を探索する";
+        String name = (locationName != null) ? locationName : "指定地点";
+        return name + " を探索する";
     }
 
     // マップ連携用のゲッター

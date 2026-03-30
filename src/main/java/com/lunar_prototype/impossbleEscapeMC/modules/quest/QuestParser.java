@@ -103,6 +103,8 @@ public class QuestParser {
             double z = ((Number) map.get("z")).doubleValue();
             double radius = map.containsKey("radius") ? ((Number) map.get("radius")).doubleValue() : 5.0;
             String name = (String) map.get("name");
+            if (name == null) name = (String) map.get("location_name");
+            if (name == null) name = (String) map.get("location");
             return new ReachLocationObjective(world, x, y, z, radius, name);
         }
         return null;

@@ -29,7 +29,9 @@ public class RaidModule implements IModule {
     private final File stateFile;
 
     public static final int CYCLE_DURATION = 600; // 10 minutes (600 seconds)
+    public static final int LATE_JOIN_WINDOW = 300; // 5 minutes (300 seconds)
     private final Map<String, Integer> mapTimers = new HashMap<>();
+    private final Map<String, Long> lastCycleStartTime = new HashMap<>();
     private BukkitRunnable globalTimerTask;
     private final Map<String, BossBar> queueBossBars = new HashMap<>();
 
@@ -49,6 +51,7 @@ public class RaidModule implements IModule {
         // Initialize BossBars and Timers for each map
         for (String mapId : maps.keySet()) {
             mapTimers.put(mapId, CYCLE_DURATION);
+            lastCycleStartTime.put(mapId, System.currentTimeMillis());
             queueBossBars.put(mapId, BossBar.bossBar(
                     Component.text("出撃準備中 (" + mapId + ")...", NamedTextColor.YELLOW),
                     1.0f,
@@ -209,6 +212,7 @@ public class RaidModule implements IModule {
 
     private void onMapCycleEnd(String mapId) {
         plugin.getLogger().info("Raid cycle ended for " + mapId + ". Starting new raids and MIA processing...");
+        lastCycleStartTime.put(mapId, System.currentTimeMillis());
 
         // 1. 既存レイドの終了処理 (MIA) - 対象マップのみ
         RaidInstance activeRaid = activeRaids.get(mapId);
@@ -278,6 +282,33 @@ public class RaidModule implements IModule {
             }
         }
 
+        // 途中参加のチェック (レイド開始1-2分以内)
+        long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(mapId, 0L)) / 1000;
+        if (age < LATE_JOIN_WINDOW) {
+            RaidInstance active = activeRaids.get(mapId);
+            
+            // すでにこのレイドで死んでいる場合は途中参加不可
+            if (active != null && active.hasDied(player.getUniqueId())) {
+                player.sendMessage(Component.text("このレイドセッションですでに死亡しているため、再参加はできません。", NamedTextColor.RED));
+                return false;
+            }
+
+            if (active == null) {
+                // インスタンスがなければ新規作成
+                RaidMap map = maps.get(mapId);
+                if (map != null) {
+                    active = new RaidInstance(plugin, map, new ArrayList<>());
+                    activeRaids.put(mapId, active);
+                }
+            }
+            
+            if (active != null) {
+                active.joinInProgress(player);
+                player.sendMessage(Component.text(mapId + " のレイドに途中参加しました。", NamedTextColor.GREEN));
+                return true;
+            }
+        }
+
         // すでに別のキューにいる場合は削除
         leaveQueue(player);
 
@@ -292,6 +323,75 @@ public class RaidModule implements IModule {
         }
         
         return true;
+    }
+
+    /**
+     * オートマッチング (最適なマップを自動選択)
+     */
+    public void autoMatch(Player player) {
+        // すでにレイド中なら中断
+        if (isInRaid(player)) {
+            player.sendMessage(Component.text("すでにレイドに参加中です。", NamedTextColor.RED));
+            return;
+        }
+
+        com.lunar_prototype.impossbleEscapeMC.party.Party party = plugin.getPartyManager().getParty(player.getUniqueId());
+        if (party != null && !party.isLeader(player.getUniqueId())) {
+            player.sendMessage(Component.text("パーティリーダーのみがマッチングを開始できます。", NamedTextColor.RED));
+            return;
+        }
+
+        List<String> mapIds = getMapIds();
+        if (mapIds.isEmpty()) return;
+
+        // 1. 途中参加可能なレイドを優先
+        String bestMapId = null;
+
+        // 1a. すでにレイドインスタンス（タスク）が動いているものを最優先
+        for (String id : mapIds) {
+            long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(id, 0L)) / 1000;
+            RaidInstance active = activeRaids.get(id);
+            if (age < LATE_JOIN_WINDOW && active != null && !active.hasDied(player.getUniqueId())) {
+                bestMapId = id;
+                break;
+            }
+        }
+
+        // 1b. インスタンスはないが、サイクル開始直後（途中参加枠内）のものを次に優先
+        if (bestMapId == null) {
+            for (String id : mapIds) {
+                long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(id, 0L)) / 1000;
+                // インスタンスがない場合は死亡チェック不要（死亡していればインスタンスが存在するため）
+                if (age < LATE_JOIN_WINDOW && !activeRaids.containsKey(id)) {
+                    bestMapId = id;
+                    break;
+                }
+            }
+        }
+
+        // 2. なければ待機時間の最も短い (mapTimerが小さい) マップを選択
+        if (bestMapId == null) {
+            int shortestWait = Integer.MAX_VALUE;
+            for (String id : mapIds) {
+                int timeLeft = mapTimers.getOrDefault(id, CYCLE_DURATION);
+                if (timeLeft < shortestWait) {
+                    shortestWait = timeLeft;
+                    bestMapId = id;
+                }
+            }
+        }
+
+        if (bestMapId != null) {
+            final String finalMapId = bestMapId;
+            if (party != null) {
+                for (UUID member : party.getMembers()) {
+                    Player p = Bukkit.getPlayer(member);
+                    if (p != null) joinQueue(p, finalMapId);
+                }
+            } else {
+                joinQueue(player, bestMapId);
+            }
+        }
     }
 
     /**
@@ -344,6 +444,10 @@ public class RaidModule implements IModule {
 
     public int getMapTimeLeft(String mapId) {
         return mapTimers.getOrDefault(mapId, CYCLE_DURATION);
+    }
+
+    public long getMapLastStartTime(String mapId) {
+        return lastCycleStartTime.getOrDefault(mapId, 0L);
     }
 
     public void forceStartCycle() {

@@ -682,7 +682,12 @@ public class RaidInstance {
         endRaid();
     }
 
-    public void joinPlayer(Player player) {
+    public long getAgeInSeconds() {
+        return (System.currentTimeMillis() - startTime) / 1000;
+    }
+
+    public void joinInProgress(Player player) {
+        if (ended) return;
         joinPlayers(Collections.singletonList(player));
     }
 
@@ -769,8 +774,13 @@ public class RaidInstance {
         return players.contains(uuid);
     }
 
+    public boolean hasDied(UUID uuid) {
+        RaidResult result = raidResults.get(uuid);
+        return result != null && result.outcome == RaidOutcome.DEAD;
+    }
+
     /**
-     * 指定したプレイヤー UUID の集合をこのレイドの参加者として復帰させる。
+     * 指定した UUID の集合をこのレイドの参加者として復帰させる。
      *
      * <p>内部の参加者トラッキング（現在参加中の set と raidMembers）に追加し、
      * 各 UUID について結果用のエントリを作成する。サーバ上でオンラインのプレイヤーには

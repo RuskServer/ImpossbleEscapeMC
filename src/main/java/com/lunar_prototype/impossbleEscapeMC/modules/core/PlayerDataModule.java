@@ -24,16 +24,21 @@ import java.util.concurrent.CompletableFuture;
 public class PlayerDataModule implements IModule, Listener {
     private final ImpossbleEscapeMC plugin;
     private final File dataFolder;
+    private final File backupFolder;
     private final Gson gson;
     private final Map<UUID, PlayerData> dataCache = new ConcurrentHashMap<>();
 
     public PlayerDataModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.dataFolder = new File(plugin.getDataFolder(), "userdata");
+        this.backupFolder = new File(dataFolder, "backups");
         this.gson = new GsonBuilder().setPrettyPrinting().create();
         
         if (!dataFolder.exists()) {
             dataFolder.mkdirs();
+        }
+        if (!backupFolder.exists()) {
+            backupFolder.mkdirs();
         }
     }
 
@@ -112,13 +117,63 @@ public class PlayerDataModule implements IModule, Listener {
     }
 
     private void saveInternal(PlayerData data) {
-        File file = new File(dataFolder, data.getUuid() + ".json");
-        try (Writer writer = new FileWriter(file)) {
-            gson.toJson(data, writer);
+        String fileName = data.getUuid() + ".json";
+        File finalFile = new File(dataFolder, fileName);
+        File tempFile = new File(dataFolder, fileName + ".tmp");
+
+        try {
+            // 1. 一時ファイルに書き込み
+            try (Writer writer = new FileWriter(tempFile)) {
+                gson.toJson(data, writer);
+            }
+
+            // 2. 書き込み成功時のみ、既存ファイルをバックアップ
+            if (finalFile.exists()) {
+                rotateBackups(data.getUuid());
+            }
+
+            // 3. アトミックな移動 (OSレベルで安全に置き換え)
+            java.nio.file.Files.move(tempFile.toPath(), finalFile.toPath(), 
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING, 
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            
             data.setDirty(false); // 保存完了
         } catch (IOException e) {
             plugin.getLogger().severe("Failed to save player data for " + data.getUuid());
             e.printStackTrace();
+            if (tempFile.exists()) {
+                tempFile.delete(); // 失敗した一時ファイルを削除
+            }
+        }
+    }
+
+    private void rotateBackups(UUID uuid) {
+        File backupDir = new File(backupFolder, uuid.toString());
+        if (!backupDir.exists()) {
+            backupDir.mkdirs();
+        }
+
+        // 3 -> 削除, 2 -> 3, 1 -> 2
+        for (int i = 3; i >= 1; i--) {
+            File current = new File(backupDir, i + ".json");
+            if (current.exists()) {
+                if (i == 3) {
+                    current.delete();
+                } else {
+                    File next = new File(backupDir, (i + 1) + ".json");
+                    try {
+                        java.nio.file.Files.move(current.toPath(), next.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException ignored) {}
+                }
+            }
+        }
+
+        File mainFile = new File(dataFolder, uuid + ".json");
+        if (mainFile.exists()) {
+            try {
+                java.nio.file.Files.copy(mainFile.toPath(), new File(backupDir, "1.json").toPath(), 
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ignored) {}
         }
     }
 
