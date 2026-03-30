@@ -246,9 +246,10 @@ public class ItemFactory {
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         
-        // すでにFIRが付いている、または持ち込み品（RAID_BROUGHT_IN）の場合は何もしない
+        // すでにFIRが付いている、または持ち込み品（RAID_BROUGHT_IN）、またはプレイヤーが一度落としたものの場合は何もしない
         if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
         if (pdc.getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
+        if (pdc.getOrDefault(PDCKeys.DROPPED_BY_PLAYER, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
 
         // 弾薬には FIR を付けない（既存の仕様を踏襲）
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);

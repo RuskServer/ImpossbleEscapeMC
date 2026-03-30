@@ -3,15 +3,20 @@ package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
+import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
 
 public class RaidItemListener implements Listener {
 
@@ -19,6 +24,18 @@ public class RaidItemListener implements Listener {
 
     public RaidItemListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onDrop(PlayerDropItemEvent event) {
+        // プレイヤーが落としたアイテムにフラグを立てる（FIRロンダリング防止）
+        ItemStack item = event.getItemDrop().getItemStack();
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            pdc.set(PDCKeys.DROPPED_BY_PLAYER, PDCKeys.BOOLEAN, (byte) 1);
+            item.setItemMeta(meta);
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

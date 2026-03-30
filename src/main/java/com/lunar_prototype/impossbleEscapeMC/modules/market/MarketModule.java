@@ -78,7 +78,7 @@ public class MarketModule implements IModule {
         if (item == null || !item.hasItemMeta()) return false;
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        return pdc.has(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN);
+        return pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1;
     }
 
     /**
