@@ -83,17 +83,19 @@ public class QuestModule implements IModule {
                         if (reach.isCompleted(active, i)) continue;
 
                         org.bukkit.Location loc = player.getLocation();
-                        if (loc.getWorld().getName().equalsIgnoreCase(reach.getWorldName())) {
+                        String targetWorld = reach.getWorldName();
+                        if (targetWorld != null && loc.getWorld().getName().equalsIgnoreCase(targetWorld)) {
                             double dx = loc.getX() - reach.getX();
                             double dy = loc.getY() - reach.getY();
                             double dz = loc.getZ() - reach.getZ();
                             double distSq = dx*dx + dy*dy + dz*dz;
 
                             if (distSq <= reach.getRadiusSquared()) {
+                                String name = reach.getLocationName() != null ? reach.getLocationName() : "指定地点";
                                 Map<String, Object> params = new HashMap<>();
                                 params.put("locationName", reach.getLocationName());
                                 eventBus.fire(player, data, QuestTrigger.LOCATION_REACHED, params);
-                                player.sendMessage(net.kyori.adventure.text.Component.text("地点に到達しました: " + reach.getLocationName(), net.kyori.adventure.text.format.NamedTextColor.GREEN));
+                                player.sendMessage(net.kyori.adventure.text.Component.text("地点に到達しました: " + name, net.kyori.adventure.text.format.NamedTextColor.GREEN));
                                 player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
                             }
                         }

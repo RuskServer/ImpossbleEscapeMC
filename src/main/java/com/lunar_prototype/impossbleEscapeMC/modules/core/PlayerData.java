@@ -1,7 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.core;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightStage;
+
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * プレイヤーのデータを保持するデータクラス (POJO)
@@ -68,8 +71,8 @@ public class PlayerData {
         this.lastStaminaActionTime = 0L;
         this.isExhausted = false;
         this.stashLevel = 1;
-        this.stashPages = new java.util.HashMap<>();
-        this.dailyPurchases = new java.util.HashMap<>();
+        this.stashPages = new ConcurrentHashMap<>();
+        this.dailyPurchases = new ConcurrentHashMap<>();
         this.lastResetTimestamp = System.currentTimeMillis();
         this.dirty = false;
         
@@ -82,26 +85,26 @@ public class PlayerData {
         this.excitantActive = false;
         this.excitantExpiryTime = 0L;
 
-        this.activeQuests = new java.util.HashMap<>();
-        this.completedQuests = new java.util.ArrayList<>();
+        this.activeQuests = new ConcurrentHashMap<>();
+        this.completedQuests = new CopyOnWriteArrayList<>();
         
         this.cancelAdsOnSprint = true;
-        this.keybinds = new java.util.HashMap<>();
+        this.keybinds = new ConcurrentHashMap<>();
         // デフォルトのキーバインド設定
         this.keybinds.put("RELOAD", "DROP"); // デフォルト: アイテムを落とす(Q)キー
         this.keybinds.put("FIREMODE", "SWAP_HAND"); // デフォルト: オフハンド切り替え(F)キー
 
-        this.hideoutLevels = new java.util.HashMap<>();
+        this.hideoutLevels = new ConcurrentHashMap<>();
         this.hideoutIndex = -1;
     }
 
     public java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> getActiveQuests() {
-        if (activeQuests == null) activeQuests = new java.util.HashMap<>();
+        if (activeQuests == null) activeQuests = new ConcurrentHashMap<>();
         return activeQuests;
     }
 
     public java.util.List<String> getCompletedQuests() {
-        if (completedQuests == null) completedQuests = new java.util.ArrayList<>();
+        if (completedQuests == null) completedQuests = new CopyOnWriteArrayList<>();
         return completedQuests;
     }
 
@@ -190,7 +193,7 @@ public class PlayerData {
     }
 
     public java.util.Map<Integer, String> getStashPages() {
-        if (stashPages == null) stashPages = new java.util.HashMap<>();
+        if (stashPages == null) stashPages = new ConcurrentHashMap<>();
         return stashPages;
     }
 
@@ -275,12 +278,14 @@ public class PlayerData {
     }
 
     public void setLastPainkillerTrigger(long lastPainkillerTrigger) {
-        this.lastPainkillerTrigger = lastPainkillerTrigger;
-        this.dirty = true;
+        if (this.lastPainkillerTrigger != lastPainkillerTrigger) {
+            this.lastPainkillerTrigger = lastPainkillerTrigger;
+            this.dirty = true;
+        }
     }
 
     public java.util.Map<String, Integer> getDailyPurchases() {
-        if (dailyPurchases == null) dailyPurchases = new java.util.HashMap<>();
+        if (dailyPurchases == null) dailyPurchases = new ConcurrentHashMap<>();
         return dailyPurchases;
     }
 
@@ -289,8 +294,10 @@ public class PlayerData {
     }
 
     public void setLastResetTimestamp(long lastResetTimestamp) {
-        this.lastResetTimestamp = lastResetTimestamp;
-        this.dirty = true;
+        if (this.lastResetTimestamp != lastResetTimestamp) {
+            this.lastResetTimestamp = lastResetTimestamp;
+            this.dirty = true;
+        }
     }
 
     public void incrementPurchase(String key) {
@@ -314,8 +321,10 @@ public class PlayerData {
     }
 
     public void setBalance(double balance) {
-        this.balance = balance;
-        this.dirty = true;
+        if (this.balance != balance) {
+            this.balance = balance;
+            this.dirty = true;
+        }
     }
 
     public int getLevel() {
@@ -323,8 +332,10 @@ public class PlayerData {
     }
 
     public void setLevel(int level) {
-        this.level = level;
-        this.dirty = true;
+        if (this.level != level) {
+            this.level = level;
+            this.dirty = true;
+        }
     }
 
     public long getExperience() {
@@ -332,8 +343,10 @@ public class PlayerData {
     }
 
     public void setExperience(long experience) {
-        this.experience = experience;
-        this.dirty = true;
+        if (this.experience != experience) {
+            this.experience = experience;
+            this.dirty = true;
+        }
     }
 
     public int getExtractions() {
@@ -341,8 +354,10 @@ public class PlayerData {
     }
 
     public void setExtractions(int extractions) {
-        this.extractions = extractions;
-        this.dirty = true;
+        if (this.extractions != extractions) {
+            this.extractions = extractions;
+            this.dirty = true;
+        }
     }
 
     public boolean isDirty() {
@@ -366,7 +381,7 @@ public class PlayerData {
 
     public java.util.Map<String, String> getKeybinds() {
         if (keybinds == null) {
-            keybinds = new java.util.HashMap<>();
+            keybinds = new ConcurrentHashMap<>();
             keybinds.put("RELOAD", "DROP");
             keybinds.put("FIREMODE", "SWAP_HAND");
         }
@@ -384,7 +399,7 @@ public class PlayerData {
 
     // 隠れ家システム
     public java.util.Map<String, Integer> getHideoutLevels() {
-        if (hideoutLevels == null) hideoutLevels = new java.util.HashMap<>();
+        if (hideoutLevels == null) hideoutLevels = new ConcurrentHashMap<>();
         return hideoutLevels;
     }
 
@@ -408,3 +423,4 @@ public class PlayerData {
         }
     }
 }
+

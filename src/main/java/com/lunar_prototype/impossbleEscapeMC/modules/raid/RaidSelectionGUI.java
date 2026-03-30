@@ -51,6 +51,27 @@ public class RaidSelectionGUI implements Listener {
     }
 
     private void updateInventory(Inventory inv, Player player) {
+        // オートマッチングボタン
+        ItemStack autoMatch = new ItemStack(Material.COMPASS);
+        ItemMeta autoMeta = autoMatch.getItemMeta();
+        if (autoMeta != null) {
+            autoMeta.displayName(Component.text("オートマッチング", NamedTextColor.GOLD, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
+            List<Component> autoLore = new ArrayList<>();
+            autoLore.add(Component.empty());
+            autoLore.add(Component.text("最適なレイドを自動で選択し出撃します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            autoLore.add(Component.text("- 途中参加可能なレイドを優先", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            autoLore.add(Component.text("- または開始が最も近いマップ", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            autoLore.add(Component.empty());
+            autoLore.add(Component.text("▶ クリックでマッチング開始", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            autoMeta.lore(autoLore);
+            
+            PersistentDataContainer pdc = autoMeta.getPersistentDataContainer();
+            pdc.set(PDCKeys.RAID_MAP_ID, PDCKeys.STRING, "AUTO_MATCH");
+            pdc.set(PDCKeys.GUI_TYPE, PDCKeys.STRING, GUI_ID);
+            autoMatch.setItemMeta(autoMeta);
+        }
+        inv.setItem(4, autoMatch);
+
         List<String> mapIds = manager.getMapIds();
         int slot = 11; // 2つ並べる場合にバランスよく
 
@@ -67,9 +88,17 @@ public class RaidSelectionGUI implements Listener {
                 lore.add(Component.empty());
                 
                 RaidInstance active = manager.getActiveRaid(id);
-                if (active != null) {
-                    lore.add(Component.text("● ", NamedTextColor.RED).append(Component.text("進行中 (レイド中)", NamedTextColor.GRAY)).decoration(TextDecoration.ITALIC, false));
-                    lore.add(Component.text("  参加人数: ", NamedTextColor.GRAY).append(Component.text(active.getPlayerCount() + "名", NamedTextColor.WHITE)).decoration(TextDecoration.ITALIC, false));
+                long age = (System.currentTimeMillis() - manager.getMapLastStartTime(id)) / 1000;
+                boolean isLateJoinable = age < RaidModule.LATE_JOIN_WINDOW;
+
+                if (active != null || isLateJoinable) {
+                    if (isLateJoinable) {
+                        lore.add(Component.text("● ", NamedTextColor.AQUA).append(Component.text("進行中 (途中参加可能)", NamedTextColor.GRAY)).decoration(TextDecoration.ITALIC, false));
+                    } else {
+                        lore.add(Component.text("● ", NamedTextColor.RED).append(Component.text("進行中 (レイド中)", NamedTextColor.GRAY)).decoration(TextDecoration.ITALIC, false));
+                    }
+                    int playerCount = active != null ? active.getPlayerCount() : 0;
+                    lore.add(Component.text("  参加人数: ", NamedTextColor.GRAY).append(Component.text(playerCount + "名", NamedTextColor.WHITE)).decoration(TextDecoration.ITALIC, false));
                 } else {
                     lore.add(Component.text("● ", NamedTextColor.GREEN).append(Component.text("待機中 (空きあり)", NamedTextColor.GRAY)).decoration(TextDecoration.ITALIC, false));
                 }
@@ -86,6 +115,8 @@ public class RaidSelectionGUI implements Listener {
                     lore.add(Component.text("  (クリックでキャンセル)", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
                     meta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 1, true);
                     meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
+                } else if (isLateJoinable) {
+                    lore.add(Component.text("▶ クリックで途中参加", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
                 } else {
                     lore.add(Component.text("▶ クリックで出撃待機列に参加", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
                 }
@@ -138,6 +169,13 @@ public class RaidSelectionGUI implements Listener {
 
         String mapId = pdc.get(PDCKeys.RAID_MAP_ID, PDCKeys.STRING);
         if (mapId == null) return;
+
+        if (mapId.equals("AUTO_MATCH")) {
+            manager.autoMatch(player);
+            player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+            player.closeInventory();
+            return;
+        }
             
         // パーティ対応
         Party party = ImpossbleEscapeMC.getInstance().getPartyManager().getParty(player.getUniqueId());

@@ -8,7 +8,7 @@ import java.util.Map;
  */
 public class ActiveQuest {
     private final String questId;
-    private final Map<Integer, Integer> progress; // Objective index -> Current count
+    private Map<String, Integer> progress; // Objective index (as string) -> Current count
     private boolean completed; // 報告可能状態かどうか
 
     public ActiveQuest(String questId) {
@@ -18,15 +18,18 @@ public class ActiveQuest {
     }
 
     public String getQuestId() { return questId; }
-    public Map<Integer, Integer> getProgress() { return progress; }
+    public Map<String, Integer> getProgress() {
+        if (progress == null) progress = new HashMap<>();
+        return progress;
+    }
     public boolean isCompleted() { return completed; }
     public void setCompleted(boolean completed) { this.completed = completed; }
 
     public int getProgress(int index) {
-        return progress.getOrDefault(index, 0);
+        return getProgress().getOrDefault(String.valueOf(index), 0);
     }
 
     public void setProgress(int index, int value) {
-        progress.put(index, value);
+        getProgress().put(String.valueOf(index), value);
     }
 }
