@@ -8,6 +8,8 @@ import com.lunar_prototype.impossbleEscapeMC.core.ModuleBootstrap;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutCommand;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
@@ -153,6 +155,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.scoreboard.ScoreboardModule());
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule(this));
 
         // モジュールの有効化
         moduleBootstrap.enableModules();
@@ -215,6 +218,11 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.core.SettingsCommand settingsCmd = new com.lunar_prototype.impossbleEscapeMC.modules.core.SettingsCommand(serviceContainer.get(PlayerDataModule.class));
         getCommand("settings").setExecutor(settingsCmd);
         getCommand("settings").setTabCompleter(settingsCmd);
+
+        HideoutModule hideoutModule = serviceContainer.get(HideoutModule.class);
+        HideoutCommand hideoutCmd = new HideoutCommand(hideoutModule);
+        getCommand("hideout").setExecutor(hideoutCmd);
+        getCommand("hideout").setTabCompleter(hideoutCmd);
 
         CrossbowTask.start(this);
 
