@@ -7,6 +7,7 @@ import net.kyori.adventure.key.Key;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemFlag;
@@ -165,10 +166,16 @@ public class ItemFactory {
 
                     if (def.armorStats != null) {
                         if (def.armorStats.equipSound != null) {
+                            String soundName = def.armorStats.equipSound;
                             try {
-                                equippable.setEquipSound(Sound.valueOf(def.armorStats.equipSound.toUpperCase()));
-                            } catch (IllegalArgumentException ignored) {
-                            }
+                                NamespacedKey key = soundName.contains(":") ?
+                                        NamespacedKey.fromString(soundName.toLowerCase(Locale.ROOT)) :
+                                        NamespacedKey.minecraft(soundName.toLowerCase(Locale.ROOT).replace("_", "."));
+                                if (key != null) {
+                                    Sound sound = Registry.SOUNDS.get(key);
+                                    if (sound != null) equippable.setEquipSound(sound);
+                                }
+                            } catch (Exception ignored) {}
                         }
                         if (def.armorStats.model != null && !def.armorStats.model.isEmpty()) {
                             NamespacedKey key = NamespacedKey.fromString(def.armorStats.model);

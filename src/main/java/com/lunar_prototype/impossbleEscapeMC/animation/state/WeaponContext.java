@@ -7,6 +7,8 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.CustomModelData;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -15,6 +17,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class WeaponContext {
     private final ImpossbleEscapeMC plugin;
@@ -227,10 +230,17 @@ public class WeaponContext {
     }
 
     public void playSound(String sound, float volume, float pitch) {
+        Sound standardSound = null;
         try {
-            Sound standardSound = Sound.valueOf(sound.toUpperCase());
+            NamespacedKey key = sound.contains(":") ?
+                    NamespacedKey.fromString(sound.toLowerCase(Locale.ROOT)) :
+                    NamespacedKey.minecraft(sound.toLowerCase(Locale.ROOT).replace("_", "."));
+            if (key != null) standardSound = Registry.SOUNDS.get(key);
+        } catch (Exception ignored) {}
+
+        if (standardSound != null) {
             playSound(standardSound, volume, pitch);
-        } catch (IllegalArgumentException e) {
+        } else {
             player.getWorld().playSound(player.getLocation(), sound, volume, pitch);
         }
     }
