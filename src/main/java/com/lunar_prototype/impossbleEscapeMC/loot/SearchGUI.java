@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -222,6 +223,19 @@ public class SearchGUI implements Listener {
             if (sourceItem == null || sourceItem.getType() == Material.AIR) return;
 
             ItemStack toMove = sourceItem.clone();
+            ItemFactory.applyFIR(toMove); // FIRを適用
+            // バックパックなどのコンテナ内アイテムにも適用
+            com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpackModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.class);
+            if (backpackModule != null && backpackModule.isBackpackItem(toMove)) {
+                Inventory inv = backpackModule.loadBackpackInventory(toMove);
+                for (ItemStack content : inv.getContents()) {
+                    if (content != null && !content.getType().isAir()) {
+                        ItemFactory.applyFIR(content);
+                    }
+                }
+                backpackModule.saveBackpackInventory(toMove, inv);
+            }
+
             Map<Integer, ItemStack> leftover = player.getInventory().addItem(toMove);
             int leftoverAmount = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
             int movedAmount = sourceItem.getAmount() - leftoverAmount;

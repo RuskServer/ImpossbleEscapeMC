@@ -115,9 +115,23 @@ public class RaidMapManager {
         
         meta.getPersistentDataContainer().set(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, nextZoom);
         
-        // バニラのスケールも同期させる (SUPER_ZOOM の時は CLOSEST にしておく)
+        // バニラのスケールも同期させる
         MapView.Scale vanillaScale = getVanillaScale(nextZoom);
-        view.setScale(vanillaScale);
+        if (view.getScale() != vanillaScale) {
+            view.setScale(vanillaScale);
+        }
+
+        // setScale は全てのレンダラーを削除するため、常に再登録を確認する
+        boolean hasRenderer = false;
+        for (org.bukkit.map.MapRenderer r : view.getRenderers()) {
+            if (r instanceof RaidMapRenderer) {
+                hasRenderer = true;
+                break;
+            }
+        }
+        if (!hasRenderer) {
+            view.addRenderer(renderer);
+        }
         
         meta.lore(createMapLore(nextZoom));
         item.setItemMeta(meta);

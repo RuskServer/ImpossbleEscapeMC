@@ -830,7 +830,11 @@ public class RaidInstance {
             backpackModule.saveBackpackFromOpenInventory(player);
         }
 
-        visitPlayerItems(player, item -> setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, true), backpackModule);
+        visitPlayerItems(player, item -> {
+            setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, true);
+            setBooleanFlag(item, PDCKeys.FIND_IN_RAID, false);
+            setBooleanFlag(item, PDCKeys.DROPPED_BY_PLAYER, false);
+        }, backpackModule);
     }
 
     private void clearRaidMarkersFromCurrentInventory(Player player) {
