@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerToggleSprintEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.NamespacedKey;
@@ -60,6 +61,11 @@ public class StaminaModule implements IModule, Listener {
 
             PlayerData data = dataModule.getPlayerData(player.getUniqueId());
             if (data == null) continue;
+
+            // Allow sprinting even at low hunger by keeping food level at least at 7 if stamina is available
+            if (data.getStamina() > 0 && player.getFoodLevel() < 7) {
+                player.setFoodLevel(7);
+            }
 
             boolean isConsuming = false;
 
@@ -117,7 +123,11 @@ public class StaminaModule implements IModule, Listener {
                 recoveryMultiplier = 1.5f; // Standing still
             }
 
-            float finalRecovery = RECOVERY_PER_TICK * recoveryMultiplier;
+            // --- Hunger Penalty ---
+            // Scaled from 1.0x at 20 food to ~0.3x at 0 food
+            float foodMultiplier = 0.3f + (0.7f * (player.getFoodLevel() / 20.0f));
+            
+            float finalRecovery = RECOVERY_PER_TICK * recoveryMultiplier * foodMultiplier;
             data.setStamina(data.getStamina() + finalRecovery);
         }
     }
@@ -141,6 +151,15 @@ public class StaminaModule implements IModule, Listener {
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         if (data != null && data.getStamina() <= 0) {
             event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onFoodLevelChange(FoodLevelChangeEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        if (data != null && data.getStamina() > 0 && event.getFoodLevel() < 7) {
+            event.setFoodLevel(7);
         }
     }
 

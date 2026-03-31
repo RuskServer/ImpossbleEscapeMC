@@ -29,7 +29,7 @@ public class RaidModule implements IModule {
     private final File stateFile;
 
     public static final int CYCLE_DURATION = 600; // 10 minutes (600 seconds)
-    public static final int LATE_JOIN_WINDOW = 300; // 5 minutes (300 seconds)
+    public static final int LATE_JOIN_WINDOW = 240; // 4 minutes (240 seconds)
     private final Map<String, Integer> mapTimers = new HashMap<>();
     private final Map<String, Long> lastCycleStartTime = new HashMap<>();
     private BukkitRunnable globalTimerTask;
