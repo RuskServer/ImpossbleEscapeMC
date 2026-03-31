@@ -72,13 +72,16 @@ public class CostSlotManager {
         List<Integer> slots = new ArrayList<>();
 
         if (inventory.getHolder() instanceof Player) {
+            RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+            if (rigModule != null && rigModule.isControlSuppressed(player)) {
+                return slots;
+            }
             // メインインベントリ（ホットバー + リグ解放分）
             // ホットバー (0-8)
             for (int i = 0; i < 9; i++) {
                 slots.add(i);
             }
             // リグ解放分 (9-35)
-            RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
             if (rigModule != null) {
                 int unlockedEnd = rigModule.getUnlockedMainInventoryEndSlot(player);
                 for (int i = RigModule.MAIN_INVENTORY_START; i <= unlockedEnd; i++) {

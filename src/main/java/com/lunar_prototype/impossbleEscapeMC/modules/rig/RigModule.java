@@ -7,6 +7,7 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.RigStats;
+import com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -18,13 +19,17 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 public class RigModule implements IModule {
     public static final int MAIN_INVENTORY_START = 9;
     public static final int MAIN_INVENTORY_END = 35;
 
     private ImpossbleEscapeMC plugin;
+    private final Set<UUID> lootSessionSuppressedPlayers = new HashSet<>();
 
     @Override
     public void onEnable(ServiceContainer container) {
@@ -32,6 +37,7 @@ public class RigModule implements IModule {
         Bukkit.getPluginManager().registerEvents(new RigListener(this, plugin), plugin);
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
+                if (isControlSuppressed(player)) continue;
                 enforceLockedSlots(player);
                 syncLockedSlotPlaceholders(player);
             }
@@ -210,6 +216,25 @@ public class RigModule implements IModule {
     public int getUnlockedMainInventoryEndSlot(Player player) {
         int enabled = getEnabledMainInventorySlots(player);
         return Math.min(MAIN_INVENTORY_END, MAIN_INVENTORY_START + enabled - 1);
+    }
+
+    public void setLootSessionSuppressed(UUID playerId, boolean suppressed) {
+        if (suppressed) {
+            lootSessionSuppressedPlayers.add(playerId);
+        } else {
+            lootSessionSuppressedPlayers.remove(playerId);
+        }
+    }
+
+    public boolean isLootSessionSuppressed(UUID playerId) {
+        return lootSessionSuppressedPlayers.contains(playerId);
+    }
+
+    public boolean isControlSuppressed(Player player) {
+        if (player == null) return false;
+        if (isLootSessionSuppressed(player.getUniqueId())) return true;
+        return player.getOpenInventory() != null
+                && player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder;
     }
 
     private int[] getAllowedStorageSlots(Player player) {

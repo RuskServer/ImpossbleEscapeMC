@@ -36,6 +36,7 @@ public class MapSlotListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInteract(PlayerInteractEvent event) {
+        if (mapManager.isLootSessionSuppressed(event.getPlayer().getUniqueId())) return;
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         
         ItemStack item = event.getItem();
@@ -49,23 +50,27 @@ public class MapSlotListener implements Listener {
 
     @EventHandler
     public void onWorldChange(PlayerChangedWorldEvent event) {
+        if (mapManager.isLootSessionSuppressed(event.getPlayer().getUniqueId())) return;
         mapManager.updateMapSlot(event.getPlayer());
     }
 
     @EventHandler
     public void onGameModeChange(PlayerGameModeChangeEvent event) {
+        if (mapManager.isLootSessionSuppressed(event.getPlayer().getUniqueId())) return;
         // ゲームモード変更後に更新
         Bukkit.getScheduler().runTask(plugin, () -> mapManager.updateMapSlot(event.getPlayer()));
     }
 
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
+        if (mapManager.isLootSessionSuppressed(event.getPlayer().getUniqueId())) return;
         Bukkit.getScheduler().runTask(plugin, () -> mapManager.updateMapSlot(event.getPlayer()));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (mapManager.isLootSessionSuppressed(player.getUniqueId())) return;
         if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) return;
 
         // スロット8（ホットバー一番右）への直接クリックまたはホットキー操作を制限
@@ -79,6 +84,7 @@ public class MapSlotListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
+        if (mapManager.isLootSessionSuppressed(event.getPlayer().getUniqueId())) return;
         if (mapManager.isMapSlotItem(event.getItemDrop().getItemStack())) {
             event.setCancelled(true);
         }
@@ -86,6 +92,7 @@ public class MapSlotListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onSwapHand(PlayerSwapHandItemsEvent event) {
+        if (mapManager.isLootSessionSuppressed(event.getPlayer().getUniqueId())) return;
         if (mapManager.isMapSlotItem(event.getMainHandItem()) || mapManager.isMapSlotItem(event.getOffHandItem())) {
             event.setCancelled(true);
         }

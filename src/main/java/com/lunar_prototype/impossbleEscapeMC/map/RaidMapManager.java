@@ -13,13 +13,16 @@ import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.map.MapView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 
 public class RaidMapManager {
 
     private final ImpossbleEscapeMC plugin;
     private final RaidMapRenderer renderer;
+    private final Set<java.util.UUID> lootSessionSuppressedPlayers = new HashSet<>();
 
     public RaidMapManager(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -27,6 +30,9 @@ public class RaidMapManager {
     }
 
     public void updateMapSlot(Player player) {
+        if (isLootSessionSuppressed(player.getUniqueId())) {
+            return;
+        }
         if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
@@ -177,5 +183,17 @@ public class RaidMapManager {
         
         String plainName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(name);
         return plainName.contains("地図データ受信中") || plainName.contains("タクティカルマップ");
+    }
+
+    public void setLootSessionSuppressed(java.util.UUID playerId, boolean suppressed) {
+        if (suppressed) {
+            lootSessionSuppressedPlayers.add(playerId);
+        } else {
+            lootSessionSuppressedPlayers.remove(playerId);
+        }
+    }
+
+    public boolean isLootSessionSuppressed(java.util.UUID playerId) {
+        return lootSessionSuppressedPlayers.contains(playerId);
     }
 }

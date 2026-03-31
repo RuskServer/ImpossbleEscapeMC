@@ -105,3 +105,4 @@ In `config.yml`:
 ## Change Log
 - 2026-03-24: Added collaboration boundary doc and ownership map for SearchGUI, SCAV behavior, alertness, and raid logger pipeline.
 - 2026-03-24: Added TraderSelectionGUI and updated PDAGUI to allow remote trader access when not in a raid.
+- 2026-03-31: Added loot session start/end custom events and a loot-backpack overlay listener that temporarily maps player inventory rows (9-35) to backpack pages during SearchGUI sessions, with map/rig suppression and end-of-session restoration.

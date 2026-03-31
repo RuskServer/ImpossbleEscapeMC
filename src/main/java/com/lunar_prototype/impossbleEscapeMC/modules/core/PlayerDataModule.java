@@ -27,6 +27,7 @@ public class PlayerDataModule implements IModule, Listener {
     private final File backupFolder;
     private final Gson gson;
     private final Map<UUID, PlayerData> dataCache = new ConcurrentHashMap<>();
+    private final Map<UUID, Object> saveLocks = new ConcurrentHashMap<>();
 
     public PlayerDataModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -117,11 +118,22 @@ public class PlayerDataModule implements IModule, Listener {
     }
 
     private void saveInternal(PlayerData data) {
+        Object lock = saveLocks.computeIfAbsent(data.getUuid(), ignored -> new Object());
+        synchronized (lock) {
+            saveInternalLocked(data);
+        }
+    }
+
+    private void saveInternalLocked(PlayerData data) {
         String fileName = data.getUuid() + ".json";
         File finalFile = new File(dataFolder, fileName);
         File tempFile = new File(dataFolder, fileName + ".tmp");
 
         try {
+            if (!dataFolder.exists() && !dataFolder.mkdirs()) {
+                throw new IOException("Failed to create userdata directory: " + dataFolder.getAbsolutePath());
+            }
+
             // 1. 一時ファイルに書き込み
             try (Writer writer = new FileWriter(tempFile)) {
                 gson.toJson(data, writer);
@@ -193,5 +205,6 @@ public class PlayerDataModule implements IModule, Listener {
             saveInternal(data);
         }
         dataCache.remove(uuid);
+        saveLocks.remove(uuid);
     }
 }

@@ -49,6 +49,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootManager lootManager;
     private com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI searchGUI;
+    private com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener lootBackpackOverlayListener;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener lootEggListener;
     private com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager corpseManager;
     private com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager raidMapManager;
@@ -121,6 +122,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         partyManager = new com.lunar_prototype.impossbleEscapeMC.party.PartyManager(this);
         lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
         searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
+        lootBackpackOverlayListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener(this);
         lootEggListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener(this);
         corpseManager = new com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager(this);
         raidMapManager = new com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager(this);
@@ -132,6 +134,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.party.PartyManager.class, partyManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootManager.class, lootManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class, searchGUI);
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class, lootBackpackOverlayListener);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener.class, lootEggListener);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager.class, corpseManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager.class, raidMapManager);
@@ -169,6 +172,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI(raidModule), this);
         getServer().getPluginManager().registerEvents(searchGUI, this);
+        getServer().getPluginManager().registerEvents(lootBackpackOverlayListener, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.map.MapSlotListener(this, raidMapManager), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidItemListener(this), this);
