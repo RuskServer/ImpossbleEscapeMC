@@ -272,9 +272,13 @@ public class LootBackpackOverlayListener implements Listener {
         for (int i = 0; i < BACKPACK_DISPLAY_SLOTS.size(); i++) {
             int playerSlot = BACKPACK_DISPLAY_SLOTS.get(i);
             int backpackSlot = startIndex + i;
-            ItemStack item = backpackSlot < session.backpackInventory.getSize()
-                    ? session.backpackInventory.getItem(backpackSlot)
-                    : createUnavailableSlotPlaceholder();
+            ItemStack item;
+            if (backpackSlot < session.backpackInventory.getSize()) {
+                ItemStack raw = session.backpackInventory.getItem(backpackSlot);
+                item = isForbiddenPlaceholder(raw) ? null : raw;
+            } else {
+                item = createUnavailableSlotPlaceholder();
+            }
             inv.setItem(playerSlot, cloneOrNull(item));
         }
 
@@ -302,7 +306,7 @@ public class LootBackpackOverlayListener implements Listener {
             if (backpackSlot >= session.backpackInventory.getSize()) continue;
             int playerSlot = BACKPACK_DISPLAY_SLOTS.get(i);
             ItemStack current = inv.getItem(playerSlot);
-            if (isUnavailableSlotPlaceholder(current)) {
+            if (isUnavailableSlotPlaceholder(current) || isForbiddenPlaceholder(current)) {
                 session.backpackInventory.setItem(backpackSlot, null);
             } else {
                 session.backpackInventory.setItem(backpackSlot, cloneOrNull(current));
@@ -498,6 +502,11 @@ public class LootBackpackOverlayListener implements Listener {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    private boolean isForbiddenPlaceholder(ItemStack item) {
+        return com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)
+                || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item);
     }
 
     private static List<Integer> createBackpackDisplaySlots() {

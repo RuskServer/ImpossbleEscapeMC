@@ -154,7 +154,12 @@ public class CorpseManager {
         // 9-44: Player's 36 inventory slots
         for (int i = 0; i < 36; i++) {
             if (i == 8) continue; // スロット8（マップスロット）は死体に入れない
-            virtualInv.setItem(9 + i, playerInv.getItem(i));
+            ItemStack item = playerInv.getItem(i);
+            if (com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)
+                    || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item)) {
+                continue;
+            }
+            virtualInv.setItem(9 + i, item);
         }
 
         // Finish spawning
