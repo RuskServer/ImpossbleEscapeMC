@@ -35,6 +35,7 @@ public class RigListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (rigModule.isControlSuppressed(player)) return;
 
         scheduleSync(player);
         if (!rigModule.isRestrictedMode(player)) return;
@@ -66,6 +67,7 @@ public class RigListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (rigModule.isControlSuppressed(player)) return;
 
         scheduleSync(player);
         if (!rigModule.isRestrictedMode(player)) return;
@@ -85,6 +87,7 @@ public class RigListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
+        if (rigModule.isControlSuppressed(player)) return;
         if (!rigModule.isRestrictedMode(player)) return;
 
         Item entityItem = event.getItem();
@@ -104,6 +107,7 @@ public class RigListener implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
+        if (rigModule.isControlSuppressed(event.getPlayer())) return;
         ItemStack item = event.getItem();
         if (item == null) return;
         if (!rigModule.isRigItem(item)) return;
@@ -112,16 +116,19 @@ public class RigListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
+        if (rigModule.isControlSuppressed(event.getPlayer())) return;
         scheduleSync(event.getPlayer());
     }
 
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
+        if (rigModule.isControlSuppressed(event.getPlayer())) return;
         scheduleSync(event.getPlayer());
     }
 
     @EventHandler
     public void onGameModeChange(PlayerGameModeChangeEvent event) {
+        if (rigModule.isControlSuppressed(event.getPlayer())) return;
         scheduleSync(event.getPlayer());
     }
 

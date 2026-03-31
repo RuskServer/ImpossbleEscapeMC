@@ -2,6 +2,10 @@ package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndEvent;
+import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndReason;
+import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionSourceType;
+import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionStartEvent;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -19,6 +23,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -97,6 +102,7 @@ public class SearchGUI implements Listener {
         Inventory guiInv = Bukkit.createInventory(holder, realInv.getSize(), Component.text("Searching..."));
         updateInventory(guiInv, source);
         player.openInventory(guiInv);
+        Bukkit.getPluginManager().callEvent(new LootSessionStartEvent(player, detectSourceType(source), source, realInv));
     }
 
     private Container getLiveContainer(Object source) {
@@ -285,6 +291,20 @@ public class SearchGUI implements Listener {
         }
     }
 
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getInventory().getHolder() instanceof SearchHolder holder)) return;
+        if (!(event.getPlayer() instanceof Player player)) return;
+
+        Bukkit.getPluginManager().callEvent(new LootSessionEndEvent(
+                player,
+                detectSourceType(holder.getSource()),
+                holder.getSource(),
+                holder.getLiveInventory(),
+                LootSessionEndReason.CLOSED
+        ));
+    }
+
     private void startSearching(Player player, Inventory guiInv, SearchHolder holder, Object source, int slot) {
         Inventory realInv = holder.getLiveInventory();
         if (realInv == null) return;
@@ -357,5 +377,15 @@ public class SearchGUI implements Listener {
                 live.update(true, false);
             }
         }
+    }
+
+    private LootSessionSourceType detectSourceType(Object source) {
+        if (source instanceof Container) {
+            return LootSessionSourceType.CRATE;
+        }
+        if (source instanceof Mannequin) {
+            return LootSessionSourceType.CORPSE;
+        }
+        return LootSessionSourceType.UNKNOWN;
     }
 }
