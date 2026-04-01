@@ -36,6 +36,9 @@ jobs:
         mvn -B versions:set \
           -DnewVersion=${{ steps.calver.outputs.version }} \
           -DgenerateBackupPoms=false
+        
+    - name: Initialize Paper NMS
+      run: mvn -B paper-nms:init
 
     - name: Build
       run: mvn -B package --file pom.xml
