@@ -23,6 +23,7 @@ public class RaidMapRenderer extends MapRenderer {
     private final Map<UUID, Long> lastUpdate = new HashMap<>();
     private final Map<UUID, String> lastLoc = new HashMap<>();
     private final Map<UUID, Integer> lastZoomIndex = new HashMap<>();
+    private final Map<UUID, Boolean> lastIndoorState = new HashMap<>();
     private final Map<Material, Color> baseColorCache = new EnumMap<>(Material.class);
 
     public RaidMapRenderer(ImpossbleEscapeMC plugin) {
@@ -37,6 +38,9 @@ public class RaidMapRenderer extends MapRenderer {
         UUID playerId = player.getUniqueId();
         Integer previousZoom = lastZoomIndex.put(playerId, zoomIndex);
         boolean zoomChanged = previousZoom == null || previousZoom != zoomIndex;
+        boolean indoor = isIndoor(player);
+        Boolean previousIndoor = lastIndoorState.put(playerId, indoor);
+        boolean indoorChanged = previousIndoor == null || previousIndoor != indoor;
 
         MapCursorCollection cursors = canvas.getCursors();
         while (cursors.size() > 0) {
@@ -47,15 +51,23 @@ public class RaidMapRenderer extends MapRenderer {
         map.setCenterX(player.getLocation().getBlockX());
         map.setCenterZ(player.getLocation().getBlockZ());
 
-        // 倍率ごとに背景を描画し、前の倍率の残像が残らないようにする
+        // 倍率と屋内/屋外モードに応じて背景を描画する
         if (zoomIndex == 0) {
-            if (zoomChanged) {
+            if (zoomChanged || indoorChanged) {
                 lastUpdate.remove(playerId);
                 lastLoc.remove(playerId);
             }
-            updateSuperZoomTerrain(canvas, player);
+            if (indoor) {
+                updateIndoorTerrain(canvas, player, zoomIndex);
+            } else {
+                updateSuperZoomTerrain(canvas, player);
+            }
         } else {
-            updateOverviewTerrain(canvas, player, zoomIndex);
+            if (indoor) {
+                updateIndoorTerrain(canvas, player, zoomIndex);
+            } else {
+                updateOverviewTerrain(canvas, player, zoomIndex);
+            }
         }
 
         RaidInstance raid = plugin.getRaidModule().getActiveRaids().stream()
@@ -150,6 +162,66 @@ public class RaidMapRenderer extends MapRenderer {
         }
     }
 
+    private void updateIndoorTerrain(MapCanvas canvas, Player player, int zoomIndex) {
+        int centerX = player.getLocation().getBlockX();
+        int centerZ = player.getLocation().getBlockZ();
+        int centerY = player.getLocation().getBlockY();
+        org.bukkit.World world = player.getWorld();
+
+        double scale = getScaleFactor(zoomIndex);
+        int cellSize = Math.max(1, (int) Math.round(scale));
+
+        for (int px = 0; px < 128; px += cellSize) {
+            for (int pz = 0; pz < 128; pz += cellSize) {
+                int wx = centerX + (int) Math.round((px - 64) * scale);
+                int wz = centerZ + (int) Math.round((pz - 64) * scale);
+                org.bukkit.block.Block block = findFloorBlock(world, wx, centerY, wz);
+                byte color = getBlockColor(block);
+
+                for (int dx = 0; dx < cellSize && px + dx < 128; dx++) {
+                    for (int dz = 0; dz < cellSize && pz + dz < 128; dz++) {
+                        canvas.setPixel(px + dx, pz + dz, color);
+                    }
+                }
+            }
+        }
+    }
+
+    private org.bukkit.block.Block findFloorBlock(org.bukkit.World world, int x, int centerY, int z) {
+        int minY = Math.max(world.getMinHeight(), centerY - 16);
+        int maxY = Math.min(world.getMaxHeight() - 1, centerY + 4);
+
+        for (int y = maxY; y >= minY; y--) {
+            org.bukkit.block.Block block = world.getBlockAt(x, y, z);
+            if (!block.isPassable()) {
+                return block;
+            }
+        }
+
+        return world.getHighestBlockAt(x, z);
+    }
+
+    private boolean isIndoor(Player player) {
+        org.bukkit.World world = player.getWorld();
+        int x = player.getLocation().getBlockX();
+        int y = player.getLocation().getBlockY() + 1;
+        int z = player.getLocation().getBlockZ();
+        int maxY = Math.min(world.getMaxHeight() - 1, y + 12);
+
+        for (int scanY = y; scanY <= maxY; scanY++) {
+            org.bukkit.block.Block block = world.getBlockAt(x, scanY, z);
+            if (block.isPassable()) continue;
+
+            Material type = block.getType();
+            if (type.name().contains("LEAVES")) {
+                return false;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
     private byte getBlockColor(org.bukkit.block.Block block) {
         Material type = block.getType();
         Color base = getBaseColor(type);
@@ -178,6 +250,25 @@ public class RaidMapRenderer extends MapRenderer {
             color = new Color(52, 113, 205);
         } else if (name.contains("LAVA") || name.contains("MAGMA")) {
             color = new Color(255, 96, 24);
+        } else if (name.contains("GLASS") || name.contains("GLAZED_TERRACOTTA")) {
+            color = new Color(196, 222, 230);
+        } else if (name.contains("CONCRETE")) {
+            color = resolveDyeColor(name);
+        } else if (name.contains("TERRACOTTA")) {
+            color = resolveTerracottaColor(name);
+        } else if (name.contains("QUARTZ") || name.contains("SMOOTH_STONE") || name.contains("POLISHED") || name.contains("CALCITE")) {
+            color = new Color(220, 220, 220);
+        } else if (name.contains("STONE_BRICKS") || name.contains("MOSSY_STONE_BRICKS")
+                || name.contains("CRACKED_STONE_BRICKS") || name.contains("CHISELED_STONE_BRICKS")) {
+            color = new Color(128, 128, 128);
+        } else if (name.contains("DEEPSLATE_BRICKS") || name.contains("DEEPSLATE_TILES")
+                || name.contains("POLISHED_DEEPSLATE")) {
+            color = new Color(78, 82, 88);
+        } else if (name.contains("COPPER") || name.contains("IRON_BLOCK") || name.contains("RAW_IRON_BLOCK")
+                || name.contains("GOLD_BLOCK") || name.contains("NETHERITE_BLOCK")) {
+            color = new Color(176, 176, 176);
+        } else if (name.contains("GLOWSTONE") || name.contains("SEA_LANTERN") || name.contains("SHROOMLIGHT")) {
+            color = new Color(228, 198, 96);
         } else if (name.contains("SNOW") || name.contains("ICE") || name.contains("PACKED_ICE")) {
             color = new Color(222, 235, 242);
         } else if (name.contains("SAND") || name.contains("SANDSTONE") || name.contains("END_STONE")) {
@@ -228,6 +319,27 @@ public class RaidMapRenderer extends MapRenderer {
         if (materialName.startsWith("MAGENTA_")) return new Color(182, 74, 166);
         if (materialName.startsWith("PINK_")) return new Color(214, 132, 153);
         return null;
+    }
+
+    private Color resolveTerracottaColor(String materialName) {
+        if (materialName.startsWith("WHITE_")) return new Color(209, 178, 161);
+        if (materialName.startsWith("LIGHT_GRAY_")) return new Color(153, 153, 153);
+        if (materialName.startsWith("GRAY_")) return new Color(96, 96, 96);
+        if (materialName.startsWith("BLACK_")) return new Color(37, 23, 16);
+        if (materialName.startsWith("BROWN_")) return new Color(141, 96, 77);
+        if (materialName.startsWith("RED_")) return new Color(143, 61, 47);
+        if (materialName.startsWith("ORANGE_")) return new Color(186, 133, 35);
+        if (materialName.startsWith("YELLOW_")) return new Color(186, 133, 35);
+        if (materialName.startsWith("LIME_")) return new Color(103, 119, 54);
+        if (materialName.startsWith("GREEN_")) return new Color(84, 109, 27);
+        if (materialName.startsWith("CYAN_")) return new Color(58, 110, 107);
+        if (materialName.startsWith("LIGHT_BLUE_")) return new Color(113, 108, 137);
+        if (materialName.startsWith("BLUE_")) return new Color(74, 59, 91);
+        if (materialName.startsWith("PURPLE_")) return new Color(122, 73, 88);
+        if (materialName.startsWith("MAGENTA_")) return new Color(150, 88, 109);
+        if (materialName.startsWith("PINK_")) return new Color(160, 77, 78);
+        if (materialName.startsWith("CYAN_")) return new Color(58, 110, 107);
+        return new Color(160, 82, 45);
     }
 
     private static double clamp(double value, double min, double max) {
