@@ -60,6 +60,13 @@ public class QuestListener implements Listener {
         }
         
         params.put("entityType", type);
+        try {
+            if (killer.getWorld().equals(victim.getWorld())) {
+                params.put("killDistance", killer.getLocation().distance(victim.getLocation()));
+            }
+        } catch (IllegalArgumentException ignored) {
+            // ワールド不一致などで距離計算できない場合は距離条件を判定しない
+        }
         questModule.getEventBus().fire(killer, data, QuestTrigger.KILL_ENTITY, params);
     }
     

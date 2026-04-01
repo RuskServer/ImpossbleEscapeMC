@@ -22,6 +22,7 @@ public class RaidMapRenderer extends MapRenderer {
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Long> lastUpdate = new HashMap<>();
     private final Map<UUID, String> lastLoc = new HashMap<>();
+    private final Map<UUID, Integer> lastZoomIndex = new HashMap<>();
     private final Map<Material, Color> baseColorCache = new EnumMap<>(Material.class);
 
     public RaidMapRenderer(ImpossbleEscapeMC plugin) {
@@ -33,6 +34,17 @@ public class RaidMapRenderer extends MapRenderer {
     public void render(@NotNull MapView map, @NotNull MapCanvas canvas, @NotNull Player player) {
         // 現在のズーム設定をアイテムから取得
         int zoomIndex = getZoomIndex(player, map);
+        UUID playerId = player.getUniqueId();
+        Integer previousZoom = lastZoomIndex.put(playerId, zoomIndex);
+        boolean zoomChanged = previousZoom == null || previousZoom != zoomIndex;
+
+        MapCursorCollection cursors = canvas.getCursors();
+        if (zoomIndex != 0 || zoomChanged) {
+            clearCanvas(canvas);
+            while (cursors.size() > 0) {
+                cursors.removeCursor(cursors.getCursor(0));
+            }
+        }
 
         // 地図の中心をプレイヤーに合わせる（リアルタイム更新）
         map.setCenterX(player.getLocation().getBlockX());
@@ -43,18 +55,11 @@ public class RaidMapRenderer extends MapRenderer {
             updateSuperZoomTerrain(canvas, player);
         }
 
-        MapCursorCollection cursors = canvas.getCursors();
-
         RaidInstance raid = plugin.getRaidModule().getActiveRaids().stream()
                 .filter(r -> r.isParticipant(player.getUniqueId()))
                 .findFirst().orElse(null);
 
         if (raid == null) return;
-
-        // 描画ごとにクリアして、アイコンを再構築（Cursorsはオーバーレイなので）
-        while (cursors.size() > 0) {
-            cursors.removeCursor(cursors.getCursor(0));
-        }
 
         // 1. 自分の位置を描画 (Green pointer)
         // 中心座標に合わせているので (0, 0)
@@ -63,6 +68,14 @@ public class RaidMapRenderer extends MapRenderer {
 
         // 2. 脱出地点を描画 (Red flags / Portals)
         drawExtractions(cursors, map, player, raid, zoomIndex);
+    }
+
+    private void clearCanvas(MapCanvas canvas) {
+        for (int x = 0; x < 128; x++) {
+            for (int z = 0; z < 128; z++) {
+                canvas.setPixel(x, z, (byte) 0);
+            }
+        }
     }
 
     private int getZoomIndex(Player player, MapView map) {

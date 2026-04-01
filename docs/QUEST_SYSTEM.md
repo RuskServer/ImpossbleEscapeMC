@@ -37,7 +37,7 @@
 
 | タイプ | YAML キー | パラメータ | 説明 |
 | :--- | :--- | :--- | :--- |
-| **エンティティ討伐** | `kill_entity` | `entity: "ID"`, `amount: 数` | 指定された種類のエンティティを一定数倒す |
+| **エンティティ討伐** | `kill_entity` | `entity: "ID"`, `amount: 数`, `min_distance: 数`, `max_distance: 数`, `distance: 数` | 指定された種類のエンティティを一定数倒す。`min_distance` / `max_distance` でプレイヤーからの直線距離を範囲指定できる。`distance` は完全一致指定 |
 | **脱出** | `extract` | `map: "ID"`, `amount: 数` | 指定されたマップ(or "any")から脱出する |
 | **地点到達** | `reach_location` | `world: "ID"`, `x: 数`, `y: 数`, `z: 数`, `radius: 数`, `name: "名称"` | 特定の座標地点に到達する |
 | **納品** | `hand_in` | `item_id: "ID"`, `item_type: "TYPE"`, `amount: 数`, `fir: true/false` | アイテムIDまたはカテゴリーで指定されたアイテムを納品する。`fir: true`でFIR品のみ受付。 |
@@ -74,6 +74,12 @@ objectives:
   - type: "kill_entity"
     entity: "SCAV"
     amount: 5
+    min_distance: 30
+    max_distance: 80
+  - type: "kill_entity"
+    entity: "BOSS"
+    amount: 1
+    distance: 100
   - type: "extract"
     map: "factory"
     amount: 1
