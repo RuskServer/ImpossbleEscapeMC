@@ -10,6 +10,7 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.MapMeta;
+import org.bukkit.map.MapRenderer;
 import org.bukkit.map.MapView;
 
 import java.util.ArrayList;
@@ -121,15 +122,22 @@ public class RaidMapManager {
         
         meta.getPersistentDataContainer().set(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, nextZoom);
         
-        // バニラのスケールも同期させる
+        // バニラのスケールも同期させる。
+        // setScale() で既存レンダラーが落ちる環境があるため、事前に保持して復元する。
         MapView.Scale vanillaScale = getVanillaScale(nextZoom);
         if (view.getScale() != vanillaScale) {
+            List<MapRenderer> existingRenderers = new ArrayList<>(view.getRenderers());
             view.setScale(vanillaScale);
+            for (MapRenderer mapRenderer : existingRenderers) {
+                if (!view.getRenderers().contains(mapRenderer)) {
+                    view.addRenderer(mapRenderer);
+                }
+            }
         }
 
-        // setScale は全てのレンダラーを削除するため、常に再登録を確認する
+        // 念のためカスタムレンダラーの残存を確認する
         boolean hasRenderer = false;
-        for (org.bukkit.map.MapRenderer r : view.getRenderers()) {
+        for (MapRenderer r : view.getRenderers()) {
             if (r instanceof RaidMapRenderer) {
                 hasRenderer = true;
                 break;
