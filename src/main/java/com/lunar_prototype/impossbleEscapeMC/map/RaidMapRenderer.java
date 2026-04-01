@@ -14,12 +14,15 @@ import org.jetbrains.annotations.NotNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.awt.Color;
+import java.util.EnumMap;
 
 public class RaidMapRenderer extends MapRenderer {
 
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Long> lastUpdate = new HashMap<>();
     private final Map<UUID, String> lastLoc = new HashMap<>();
+    private final Map<Material, Color> baseColorCache = new EnumMap<>(Material.class);
 
     public RaidMapRenderer(ImpossbleEscapeMC plugin) {
         super(true); // contextual = true (player specific)
@@ -102,7 +105,7 @@ public class RaidMapRenderer extends MapRenderer {
                 int wz = centerZ + bz;
                 // 高速化のため、ある程度の高さから探索開始
                 org.bukkit.block.Block block = world.getHighestBlockAt(wx, wz);
-                byte color = getBlockColor(block.getType());
+                byte color = getBlockColor(block);
                 
                 int px = (bx + 32) * 2;
                 int pz = (bz + 32) * 2;
@@ -115,20 +118,92 @@ public class RaidMapRenderer extends MapRenderer {
         }
     }
 
-    private byte getBlockColor(Material type) {
+    private byte getBlockColor(org.bukkit.block.Block block) {
+        Material type = block.getType();
+        Color base = getBaseColor(type);
+
+        // 高度に応じて軽く明暗をつけて、地形の凹凸を見分けやすくする
+        int y = block.getY();
+        double brightness = clamp(0.78 + ((y - 64) * 0.004), 0.58, 1.16);
+        if (type.name().contains("WATER")) {
+            brightness *= 0.92;
+        }
+
+        int r = clamp((int) Math.round(base.getRed() * brightness), 0, 255);
+        int g = clamp((int) Math.round(base.getGreen() * brightness), 0, 255);
+        int b = clamp((int) Math.round(base.getBlue() * brightness), 0, 255);
+        return MapPalette.matchColor(r, g, b);
+    }
+
+    private Color getBaseColor(Material type) {
+        Color cached = baseColorCache.get(type);
+        if (cached != null) return cached;
+
         String name = type.name();
-        if (name.contains("GRASS")) return MapPalette.DARK_GREEN;
-        if (name.contains("WATER")) return MapPalette.BLUE;
-        if (name.contains("STONE") || name.contains("COBBLE")) return MapPalette.GRAY_2;
-        if (name.contains("DIRT") || name.contains("PATH")) return MapPalette.BROWN;
-        if (name.contains("WOOD") || name.contains("LOG") || name.contains("PLANKS")) return MapPalette.DARK_BROWN;
-        if (name.contains("LEAVES")) return MapPalette.LIGHT_GREEN;
-        if (name.contains("SAND")) return MapPalette.LIGHT_BROWN;
-        if (name.contains("SNOW")) return MapPalette.WHITE;
-        if (name.contains("ICE")) return MapPalette.PALE_BLUE;
-        if (name.contains("IRON") || name.contains("METAL")) return MapPalette.GRAY_1;
-        if (name.contains("BRICK")) return MapPalette.RED;
-        return MapPalette.PALE_BLUE;
+        Color color;
+
+        if (name.contains("WATER") || name.contains("KELP") || name.contains("SEAGRASS")) {
+            color = new Color(52, 113, 205);
+        } else if (name.contains("LAVA") || name.contains("MAGMA")) {
+            color = new Color(255, 96, 24);
+        } else if (name.contains("SNOW") || name.contains("ICE") || name.contains("PACKED_ICE")) {
+            color = new Color(222, 235, 242);
+        } else if (name.contains("SAND") || name.contains("SANDSTONE") || name.contains("END_STONE")) {
+            color = new Color(222, 208, 149);
+        } else if (name.contains("GRASS") || name.contains("MOSS") || name.contains("FERN")) {
+            color = new Color(97, 153, 63);
+        } else if (name.contains("LEAVES") || name.contains("VINE") || name.contains("AZALEA")) {
+            color = new Color(72, 124, 54);
+        } else if (name.contains("DIRT") || name.contains("PODZOL") || name.contains("MUD") || name.contains("PATH") || name.contains("FARMLAND")) {
+            color = new Color(122, 86, 58);
+        } else if (name.contains("STONE") || name.contains("COBBLE") || name.contains("DEEPSLATE") || name.contains("TUFF")
+                || name.contains("BASALT") || name.contains("BLACKSTONE") || name.contains("ORE")) {
+            color = new Color(112, 112, 112);
+        } else if (name.contains("GRAVEL") || name.contains("CLAY") || name.contains("ANDESITE") || name.contains("DIORITE")) {
+            color = new Color(150, 150, 150);
+        } else if (name.contains("LOG") || name.contains("PLANKS") || name.contains("WOOD") || name.contains("BAMBOO_BLOCK") || name.contains("STRIPPED_")) {
+            color = new Color(134, 102, 67);
+        } else if (name.contains("BRICK") || name.contains("NETHER_BRICK")) {
+            color = new Color(143, 68, 56);
+        } else if (name.contains("NETHERRACK") || name.contains("CRIMSON")) {
+            color = new Color(124, 38, 38);
+        } else if (name.contains("WARPED")) {
+            color = new Color(52, 122, 116);
+        } else {
+            Color dyeLike = resolveDyeColor(name);
+            color = dyeLike != null ? dyeLike : new Color(138, 154, 166);
+        }
+
+        baseColorCache.put(type, color);
+        return color;
+    }
+
+    private Color resolveDyeColor(String materialName) {
+        if (materialName.startsWith("WHITE_")) return new Color(235, 235, 235);
+        if (materialName.startsWith("LIGHT_GRAY_")) return new Color(170, 170, 170);
+        if (materialName.startsWith("GRAY_")) return new Color(110, 110, 110);
+        if (materialName.startsWith("BLACK_")) return new Color(42, 42, 42);
+        if (materialName.startsWith("BROWN_")) return new Color(116, 80, 52);
+        if (materialName.startsWith("RED_")) return new Color(172, 45, 45);
+        if (materialName.startsWith("ORANGE_")) return new Color(218, 118, 37);
+        if (materialName.startsWith("YELLOW_")) return new Color(222, 196, 56);
+        if (materialName.startsWith("LIME_")) return new Color(110, 185, 53);
+        if (materialName.startsWith("GREEN_")) return new Color(78, 126, 48);
+        if (materialName.startsWith("CYAN_")) return new Color(56, 132, 136);
+        if (materialName.startsWith("LIGHT_BLUE_")) return new Color(96, 164, 210);
+        if (materialName.startsWith("BLUE_")) return new Color(52, 78, 176);
+        if (materialName.startsWith("PURPLE_")) return new Color(119, 74, 155);
+        if (materialName.startsWith("MAGENTA_")) return new Color(182, 74, 166);
+        if (materialName.startsWith("PINK_")) return new Color(214, 132, 153);
+        return null;
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private void drawExtractions(MapCursorCollection cursors, MapView map, Player player, RaidInstance raid, int zoomIndex) {
