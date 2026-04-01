@@ -39,20 +39,23 @@ public class RaidMapRenderer extends MapRenderer {
         boolean zoomChanged = previousZoom == null || previousZoom != zoomIndex;
 
         MapCursorCollection cursors = canvas.getCursors();
-        if (zoomIndex != 0 || zoomChanged) {
-            clearCanvas(canvas);
-            while (cursors.size() > 0) {
-                cursors.removeCursor(cursors.getCursor(0));
-            }
+        while (cursors.size() > 0) {
+            cursors.removeCursor(cursors.getCursor(0));
         }
 
         // 地図の中心をプレイヤーに合わせる（リアルタイム更新）
         map.setCenterX(player.getLocation().getBlockX());
         map.setCenterZ(player.getLocation().getBlockZ());
 
-        // SUPER_ZOOM (2:1) の場合は地形を自前で描画
+        // 倍率ごとに背景を描画し、前の倍率の残像が残らないようにする
         if (zoomIndex == 0) {
+            if (zoomChanged) {
+                lastUpdate.remove(playerId);
+                lastLoc.remove(playerId);
+            }
             updateSuperZoomTerrain(canvas, player);
+        } else {
+            updateOverviewTerrain(canvas, player, zoomIndex);
         }
 
         RaidInstance raid = plugin.getRaidModule().getActiveRaids().stream()
@@ -68,14 +71,6 @@ public class RaidMapRenderer extends MapRenderer {
 
         // 2. 脱出地点を描画 (Red flags / Portals)
         drawExtractions(cursors, map, player, raid, zoomIndex);
-    }
-
-    private void clearCanvas(MapCanvas canvas) {
-        for (int x = 0; x < 128; x++) {
-            for (int z = 0; z < 128; z++) {
-                canvas.setPixel(x, z, (byte) 0);
-            }
-        }
     }
 
     private int getZoomIndex(Player player, MapView map) {
@@ -127,6 +122,30 @@ public class RaidMapRenderer extends MapRenderer {
                 canvas.setPixel(px + 1, pz, color);
                 canvas.setPixel(px, pz + 1, color);
                 canvas.setPixel(px + 1, pz + 1, color);
+            }
+        }
+    }
+
+    private void updateOverviewTerrain(MapCanvas canvas, Player player, int zoomIndex) {
+        int centerX = player.getLocation().getBlockX();
+        int centerZ = player.getLocation().getBlockZ();
+        org.bukkit.World world = player.getWorld();
+
+        double scale = getScaleFactor(zoomIndex);
+        int cellSize = Math.max(1, (int) Math.round(scale));
+
+        for (int px = 0; px < 128; px += cellSize) {
+            for (int pz = 0; pz < 128; pz += cellSize) {
+                int wx = centerX + (int) Math.round((px - 64) * scale);
+                int wz = centerZ + (int) Math.round((pz - 64) * scale);
+                org.bukkit.block.Block block = world.getHighestBlockAt(wx, wz);
+                byte color = getBlockColor(block);
+
+                for (int dx = 0; dx < cellSize && px + dx < 128; dx++) {
+                    for (int dz = 0; dz < cellSize && pz + dz < 128; dz++) {
+                        canvas.setPixel(px + dx, pz + dz, color);
+                    }
+                }
             }
         }
     }
@@ -220,14 +239,8 @@ public class RaidMapRenderer extends MapRenderer {
     }
 
     private void drawExtractions(MapCursorCollection cursors, MapView map, Player player, RaidInstance raid, int zoomIndex) {
-        RaidMap raidMap = plugin.getRaidModule().getMaps().values().stream()
-                .filter(m -> m.getWorldName().equals(player.getWorld().getName()))
-                .findFirst().orElse(null);
-        
-        if (raidMap == null) return;
-
-        for (RaidMap.ExtractionPoint ep : raidMap.getExtractionPoints()) {
-            org.bukkit.Location loc = ep.getLocation(raidMap.getWorldName());
+        for (RaidMap.ExtractionPoint ep : raid.getActiveExtractions()) {
+            org.bukkit.Location loc = ep.getLocation(player.getWorld().getName());
             if (loc == null) continue;
 
             int x = clampCoordinate(calculateMapX(map, loc.getX(), zoomIndex));
