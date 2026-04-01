@@ -23,6 +23,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CrossbowMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.util.Vector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,20 +73,6 @@ public class PlayerListener implements Listener {
 
         PlayerData data = (entity instanceof Player p) ? dataModule.getPlayerData(p.getUniqueId()) : null;
 
-        // 音を出す移動か？
-        boolean isMakingNoise = !isSneaking;
-        if (isMakingNoise) {
-            int ticks = continuousNoiseTicks.getOrDefault(entity.getUniqueId(), 0) + 1;
-            continuousNoiseTicks.put(entity.getUniqueId(), ticks);
-
-            // 2秒(40ticks)以上音を出している場合
-            if (ticks >= 40) {
-                alertNearbyScavsOfFootsteps(entity, data);
-            }
-        } else {
-            continuousNoiseTicks.put(entity.getUniqueId(), 0);
-        }
-
         double distance = from.distance(to);
 
         // 倍率設定
@@ -101,6 +88,27 @@ public class PlayerListener implements Listener {
         // 距離を蓄積
         UUID uuid = entity.getUniqueId();
         double totalWalked = walkDistanceMap.getOrDefault(uuid, 0.0) + (distance * multiplier);
+        Vector movementDirection = to.toVector().subtract(from.toVector());
+        double movementSpeed = movementDirection.length() * 20.0;
+        if (movementDirection.lengthSquared() > 0) {
+            movementDirection = movementDirection.normalize();
+        } else {
+            movementDirection = null;
+        }
+
+        // 音を出す移動か？
+        boolean isMakingNoise = !isSneaking;
+        if (isMakingNoise) {
+            int ticks = continuousNoiseTicks.getOrDefault(entity.getUniqueId(), 0) + 1;
+            continuousNoiseTicks.put(entity.getUniqueId(), ticks);
+
+            // 2秒(40ticks)以上音を出している場合
+            if (ticks >= 40) {
+                alertNearbyScavsOfFootsteps(entity, data, movementDirection, movementSpeed, ticks, totalWalked, isSprinting, isSneaking);
+            }
+        } else {
+            continuousNoiseTicks.put(entity.getUniqueId(), 0);
+        }
 
         if (totalWalked > 3.0) {
             float volume = 0.8f;
@@ -120,7 +128,8 @@ public class PlayerListener implements Listener {
         walkDistanceMap.put(uuid, totalWalked);
     }
 
-    private void alertNearbyScavsOfFootsteps(LivingEntity source, PlayerData data) {
+    private void alertNearbyScavsOfFootsteps(LivingEntity source, PlayerData data, Vector movementDirection, double movementSpeed,
+                                             int continuousTicks, double walkedDistance, boolean sprinting, boolean sneaking) {
         double baseRadius = 32.0;
         double radius = baseRadius;
         
@@ -133,7 +142,15 @@ public class PlayerListener implements Listener {
             if (entity instanceof Mob mob) {
                 ScavController controller = ScavSpawner.getController(mob.getUniqueId());
                 if (controller != null && !mob.equals(source)) {
-                    controller.onSoundHeard(source.getLocation());
+                    controller.onSoundHeard(ScavController.SoundContact.footstep(
+                            source.getLocation(),
+                            movementDirection,
+                            movementSpeed > 0 ? movementSpeed : 0.1,
+                            sprinting,
+                            sneaking,
+                            continuousTicks,
+                            walkedDistance
+                    ));
                 }
             }
         }

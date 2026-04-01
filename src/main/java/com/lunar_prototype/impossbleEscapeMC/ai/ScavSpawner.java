@@ -376,7 +376,7 @@ public class ScavSpawner implements Listener {
                     return false;
                 });
             }
-        }.runTaskTimer(plugin, 1L, 5L);
+        }.runTaskTimer(plugin, 1L, 3L);
     }
 
     /**

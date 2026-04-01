@@ -21,6 +21,44 @@ import org.bukkit.util.Vector;
 import java.util.*;
 
 public class ScavController {
+    public static class SoundContact {
+        public enum Kind {
+            FOOTSTEP,
+            GUNSHOT,
+            UNKNOWN
+        }
+
+        public final Kind kind;
+        public final Location sourceLocation;
+        public final Vector movementDirection;
+        public final double movementSpeed;
+        public final boolean sprinting;
+        public final boolean sneaking;
+        public final int continuousNoiseTicks;
+        public final double walkedDistance;
+
+        public SoundContact(Kind kind, Location sourceLocation, Vector movementDirection, double movementSpeed,
+                            boolean sprinting, boolean sneaking, int continuousNoiseTicks, double walkedDistance) {
+            this.kind = kind != null ? kind : Kind.UNKNOWN;
+            this.sourceLocation = sourceLocation != null ? sourceLocation.clone() : null;
+            this.movementDirection = movementDirection != null ? movementDirection.clone() : null;
+            this.movementSpeed = movementSpeed;
+            this.sprinting = sprinting;
+            this.sneaking = sneaking;
+            this.continuousNoiseTicks = continuousNoiseTicks;
+            this.walkedDistance = walkedDistance;
+        }
+
+        public static SoundContact footstep(Location sourceLocation, Vector movementDirection, double movementSpeed,
+                                            boolean sprinting, boolean sneaking, int continuousNoiseTicks, double walkedDistance) {
+            return new SoundContact(Kind.FOOTSTEP, sourceLocation, movementDirection, movementSpeed, sprinting, sneaking, continuousNoiseTicks, walkedDistance);
+        }
+
+        public static SoundContact gunshot(Location sourceLocation) {
+            return new SoundContact(Kind.GUNSHOT, sourceLocation, null, 0.0, false, false, 0, 0.0);
+        }
+    }
+
     private enum BehaviorState {
         RELAXED,
         SUSPICIOUS,
@@ -46,6 +84,7 @@ public class ScavController {
     private int cornerCheckTicks = 0;
     private boolean isHoldingAngle = false;
     private int lastSquadUpdate = 0;
+    private int lostTargetSteps = 0;
 
     public boolean isSprinting() {
         return isSprinting;
@@ -159,6 +198,7 @@ public class ScavController {
         if (target != null) {
             canSeeTarget = vision.checkVision(target);
             if (canSeeTarget) {
+                lostTargetSteps = 0;
                 addAlertness(0.08f, "VISUAL_CONTACT", raidSessionId);
                 lastKnownLocation = target.getLocation();
                 searchTicks = 0;
@@ -171,15 +211,26 @@ public class ScavController {
                     squad.shareTargetWithAllies(lastKnownLocation);
                 }
             } else {
-                handleSearching();
-                if (lastKnownLocation != null && !isSprinting) {
-                    isPreAiming = true;
-                    updatePreAim(lastKnownLocation);
-                } else {
+                lostTargetSteps++;
+                if (lostTargetSteps >= 4 && lastKnownLocation != null) {
+                    scav.setTarget(null);
+                    target = null;
+                    canSeeTarget = false;
+                    lostTargetSteps = 0;
                     isPreAiming = false;
+                    handleSearching();
+                } else {
+                    handleSearching();
+                    if (lastKnownLocation != null && !isSprinting) {
+                        isPreAiming = true;
+                        updatePreAim(lastKnownLocation);
+                    } else {
+                        isPreAiming = false;
+                    }
                 }
             }
         } else {
+            lostTargetSteps = 0;
             isPreAiming = false;
             handleSearching();
         }
@@ -383,30 +434,108 @@ public class ScavController {
     }
 
     public void onSoundHeard(Location source) {
-        if (scav.getTarget() == null || !scav.hasLineOfSight(scav.getTarget())) {
-            String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
-            double dist = scav.getLocation().distance(source);
-            float hearingBoost = (float) Math.max(0.10, 0.30 - (dist / 160.0));
-            addAlertness(hearingBoost, "SOUND_HEARD", raidSessionId);
+        onSoundHeard(SoundContact.gunshot(source));
+    }
 
-            isAlerted = true;
-            lastHeardSoundLocation = source.clone();
-            investigateTicks = (behaviorState == BehaviorState.RELAXED) ? 40 : 100;
-            if (behaviorState != BehaviorState.RELAXED) {
-                lastKnownLocation = source.clone();
-            }
-            scav.setRotation(scav.getLocation().setDirection(source.toVector().subtract(scav.getEyeLocation().toVector()).normalize()).getYaw(), 0);
-            playScavVoice("minecraft:scav1", 1.0f, 1.0f); // 索敵ボイスに変更
-
-            if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
-                Map<String, Object> payload = new HashMap<>();
-                payload.put("x", source.getX());
-                payload.put("y", source.getY());
-                payload.put("z", source.getZ());
-                payload.put("state", behaviorState.name());
-                plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "SOUND_INVESTIGATE_START", payload);
-            }
+    public void onSoundHeard(SoundContact sound) {
+        if (sound == null || sound.sourceLocation == null) return;
+        if (scav.getTarget() != null && scav.hasLineOfSight(scav.getTarget()) && sound.kind != SoundContact.Kind.GUNSHOT) {
+            return;
         }
+
+        Location source = sound.sourceLocation.clone();
+        String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
+        double dist = scav.getLocation().distance(source);
+
+        float hearingBoost = (float) Math.max(0.08, 0.28 - (dist / 180.0));
+        double movementSpeed = Math.max(0.0, sound.movementSpeed);
+        if (sound.kind == SoundContact.Kind.GUNSHOT) {
+            hearingBoost = (float) Math.max(0.20, 0.45 - (dist / 140.0));
+        } else {
+            if (sound.sprinting) hearingBoost += 0.08f;
+            if (sound.continuousNoiseTicks >= 40) hearingBoost += 0.08f;
+            if (sound.continuousNoiseTicks >= 80) hearingBoost += 0.05f;
+            if (!sound.sneaking && movementSpeed > 0.12) hearingBoost += 0.03f;
+            if (sound.walkedDistance > 1.5) hearingBoost += 0.03f;
+        }
+        addAlertness(hearingBoost, "SOUND_HEARD", raidSessionId);
+
+        isAlerted = true;
+        lastHeardSoundLocation = source.clone();
+
+        SoundArc arc = classifySoundArc(source);
+        int baseInvestigate = (behaviorState == BehaviorState.RELAXED) ? 40 : 100;
+        if (sound.kind == SoundContact.Kind.GUNSHOT) {
+            baseInvestigate += 20;
+        } else {
+            if (sound.sprinting) baseInvestigate += 20;
+            if (sound.continuousNoiseTicks >= 40) baseInvestigate += 20;
+            if (arc != SoundArc.FRONT) baseInvestigate += 20;
+            if (arc == SoundArc.BACK) baseInvestigate += 20;
+        }
+        investigateTicks = baseInvestigate;
+
+        if (sound.kind == SoundContact.Kind.GUNSHOT
+                || arc != SoundArc.FRONT
+                || sound.sprinting
+                || sound.continuousNoiseTicks >= 40
+                || behaviorState != BehaviorState.RELAXED) {
+            Location inferred = source.clone();
+            if (sound.kind == SoundContact.Kind.FOOTSTEP && sound.movementDirection != null && sound.movementSpeed > 0.05) {
+                double lead = Math.min(5.0, 1.0 + (sound.movementSpeed * 0.35) + (arc == SoundArc.BACK ? 1.25 : 0.0));
+                inferred.add(sound.movementDirection.clone().normalize().multiply(lead));
+            }
+            lastKnownLocation = inferred;
+        }
+
+        Vector toSource = source.toVector().subtract(scav.getEyeLocation().toVector());
+        if (toSource.lengthSquared() > 0) {
+            scav.setRotation(scav.getLocation().setDirection(toSource.normalize()).getYaw(), 0);
+        }
+        playScavVoice("minecraft:scav1", 1.0f, 1.0f); // 索敵ボイスに変更
+
+        if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("x", source.getX());
+            payload.put("y", source.getY());
+            payload.put("z", source.getZ());
+            payload.put("state", behaviorState.name());
+            payload.put("kind", sound.kind.name());
+            payload.put("arc", arc.name());
+            payload.put("speed", movementSpeed);
+            payload.put("continuousTicks", sound.continuousNoiseTicks);
+            payload.put("walkedDistance", sound.walkedDistance);
+            plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "SOUND_INVESTIGATE_START", payload);
+        }
+    }
+
+    private enum SoundArc {
+        FRONT,
+        SIDE,
+        BACK
+    }
+
+    private SoundArc classifySoundArc(Location source) {
+        Vector toSource = source.toVector().subtract(scav.getLocation().toVector());
+        if (toSource.lengthSquared() == 0) return SoundArc.FRONT;
+
+        Vector forward = scav.getLocation().getDirection().clone();
+        forward.setY(0);
+        if (forward.lengthSquared() == 0) return SoundArc.FRONT;
+        forward.normalize();
+
+        Vector flatToSource = toSource.clone();
+        flatToSource.setY(0);
+        if (flatToSource.lengthSquared() == 0) return SoundArc.FRONT;
+        flatToSource.normalize();
+
+        Vector lateral = new Vector(-forward.getZ(), 0, forward.getX());
+        double frontDot = flatToSource.dot(forward);
+        double sideDot = Math.abs(flatToSource.dot(lateral.normalize()));
+
+        if (frontDot < -0.35) return SoundArc.BACK;
+        if (sideDot > 0.65) return SoundArc.SIDE;
+        return SoundArc.FRONT;
     }
 
     public void playScavVoice(String sound, float volume, float pitch) {
