@@ -118,6 +118,10 @@ public class RaidInstance {
         }
     }
 
+    public List<RaidMap.ExtractionPoint> getActiveExtractions() {
+        return Collections.unmodifiableList(activeExtractions);
+    }
+
     private Location findSafeSpawn(List<Location> spawns, Set<Location> usedThisWave) {
         if (spawns.isEmpty()) return null;
 
