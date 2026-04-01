@@ -711,7 +711,7 @@ public class GunListener implements Listener {
             if (entity instanceof Mob mob) {
                 ScavController controller = ScavSpawner.getController(mob.getUniqueId());
                 if (controller != null) {
-                    controller.onSoundHeard(player.getLocation());
+                    controller.onSoundHeard(ScavController.SoundContact.gunshot(player.getLocation()));
                 }
             }
         }

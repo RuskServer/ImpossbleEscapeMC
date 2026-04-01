@@ -210,7 +210,7 @@ public class ScavBrain {
             
             this.currentActions = new int[] { moveAction, shootAction };
             recordHistory(moveAction);
-            this.decisionTimer = 4 + random.nextInt(4);
+            this.decisionTimer = 3 + random.nextInt(3);
         } else {
             decisionTimer--;
             modeInertia--;
