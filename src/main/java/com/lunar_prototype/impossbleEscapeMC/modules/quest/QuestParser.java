@@ -85,7 +85,23 @@ public class QuestParser {
         if ("kill_entity".equalsIgnoreCase(type)) {
             String entity = (String) map.get("entity");
             int amount = ((Number) map.get("amount")).intValue();
-            return new KillEntityObjective(entity, amount);
+            Double minDistance = null;
+            Double maxDistance = null;
+
+            if (map.containsKey("distance")) {
+                double distance = ((Number) map.get("distance")).doubleValue();
+                minDistance = distance;
+                maxDistance = distance;
+            } else {
+                if (map.containsKey("min_distance")) {
+                    minDistance = ((Number) map.get("min_distance")).doubleValue();
+                }
+                if (map.containsKey("max_distance")) {
+                    maxDistance = ((Number) map.get("max_distance")).doubleValue();
+                }
+            }
+
+            return new KillEntityObjective(entity, amount, minDistance, maxDistance);
         } else if ("extract".equalsIgnoreCase(type)) {
             String mapId = (String) map.get("map");
             int amount = map.containsKey("amount") ? ((Number) map.get("amount")).intValue() : 1;
