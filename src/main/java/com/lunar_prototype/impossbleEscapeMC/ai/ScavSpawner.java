@@ -8,8 +8,10 @@ import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import net.kyori.adventure.text.Component;
+import net.minecraft.world.entity.ai.goal.GoalSelector;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.craftbukkit.entity.CraftMob;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -90,6 +92,13 @@ public class ScavSpawner implements Listener {
 
         // 適用
         DisguiseAPI.disguiseToAll(scav, disguise);
+
+        net.minecraft.world.entity.Mob nmsMob = ((CraftMob) scav).getHandle();
+        GoalSelector goalSelector = nmsMob.goalSelector;
+        GoalSelector targetSelector = nmsMob.targetSelector;
+
+        goalSelector.getAvailableGoals().clear();
+        targetSelector.getAvailableGoals().clear();
 
         // コントローラーを生成して登録
         ScavBrain.BrainLevel brainLevel = rollBrainLevel();
