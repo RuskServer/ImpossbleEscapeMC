@@ -291,13 +291,13 @@ public class GunListener implements Listener {
 
         GunStats effectiveStats = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
 
-        // equipAnimation や equipTimeMs が未設定の場合はリセット処理を行わない
-        if (effectiveStats.equipTimeMs <= 0 || effectiveStats.equipAnimation == null 
-            || effectiveStats.equipAnimation.model == null || effectiveStats.equipAnimation.model.isEmpty()) {
+        // 持ち替え後に残るモデルを、基本の見た目へ戻す
+        if (effectiveStats.idleAnimation == null || effectiveStats.idleAnimation.model == null
+            || effectiveStats.idleAnimation.model.isEmpty()) {
             return;
         }
 
-        String modelKeyStr = effectiveStats.equipAnimation.model;
+        String modelKeyStr = effectiveStats.idleAnimation.model;
 
         try {
             String joined = pdc.get(PDCKeys.ATTACHMENTS, PDCKeys.STRING);
@@ -309,8 +309,6 @@ public class GunListener implements Listener {
             item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL, net.kyori.adventure.key.Key.key(modelKeyStr));
             item.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA, 
                 io.papermc.paper.datacomponent.item.CustomModelData.customModelData()
-                    .addFloat(0.0f)
-                    .addFloat(0.0f)
                     .addFloat(0.0f)
                     .addStrings(attachments)
                     .build());
@@ -949,18 +947,13 @@ public class GunListener implements Listener {
             return;
         }
 
-        ItemStack oldInContext = null;
-        var sm = stateMachines.get(uuid);
-        if (sm != null) {
-            oldInContext = sm.getContext().getItem();
-        }
-
+        boolean hadMachine = stateMachines.containsKey(uuid);
         // getOrCreateStateMachine 内でステータスの同期が行われる
-        sm = getOrCreateStateMachine(player);
+        var sm = getOrCreateStateMachine(player);
         if (sm == null) return;
 
-        // アイテムが物理的に異なる（またはスロットが違う等）場合はEquipping状態へ
-        if (oldInContext == null || !oldInContext.equals(item)) {
+        // 持ち替えイベントでは、既存の状態機械なら必ずEquip開始へ入れる
+        if (hadMachine) {
             // 持ち替え時は強制的にEquipping状態へ
             sm.transitionTo(new com.lunar_prototype.impossbleEscapeMC.animation.state.EquippingState(plugin));
         }
