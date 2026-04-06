@@ -12,7 +12,7 @@
     <name>impossbleescapemc</name>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -20,6 +20,10 @@
         <pluginRepository>
             <id>bytecode.space</id>
             <url>https://repo.bytecode.space/repository/maven-public/</url>
+        </pluginRepository>
+        <pluginRepository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
         </pluginRepository>
     </pluginRepositories>
 
@@ -50,9 +54,9 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>ca.bkaw</groupId>
+                <groupId>com.github.rusklabo</groupId>
                 <artifactId>paper-nms-maven-plugin</artifactId>
-                <version>1.4.10</version>
+                <version>1.5.2-fix3</version>
                 <executions>
                     <execution>
                         <phase>process-classes</phase>
@@ -102,7 +106,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.11-R0.1-SNAPSHOT</version>
+            <version>26.1.1.build.14-alpha</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -132,7 +136,7 @@
         <dependency>
             <groupId>ca.bkaw</groupId>
             <artifactId>paper-nms</artifactId>
-            <version>1.21.11-SNAPSHOT</version>
+            <version>26.1.1.build.14-alpha-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
