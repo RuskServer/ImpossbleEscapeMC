@@ -56,7 +56,7 @@
             <plugin>
                 <groupId>com.github.rusklabo</groupId>
                 <artifactId>paper-nms-maven-plugin</artifactId>
-                <version>1.5.2-fix3</version>
+                <version>1.5.2-fix4</version>
                 <executions>
                     <execution>
                         <phase>process-classes</phase>
@@ -136,7 +136,7 @@
         <dependency>
             <groupId>ca.bkaw</groupId>
             <artifactId>paper-nms</artifactId>
-            <version>26.1.1.build.14-alpha-SNAPSHOT</version>
+            <version>26.1.1.build.14-alpha</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
