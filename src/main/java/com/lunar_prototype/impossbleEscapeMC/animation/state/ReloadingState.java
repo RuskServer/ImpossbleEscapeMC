@@ -123,6 +123,9 @@ public class ReloadingState implements WeaponState {
     public void onUpdate(WeaponContext ctx) {
         if (!isReloadPossible) {
             if (ctx.getStateMachine() != null) {
+                if (elapsed > 0) {
+                    ctx.getPlugin().getLogger().info("Reload not possible for " + ctx.getPlayer().getName() + ", returning to Idle/Sprint");
+                }
                 if (ctx.getPlayer().isSprinting()) {
                     ctx.getStateMachine().transitionTo(new SprintingState());
                 } else {
@@ -133,6 +136,19 @@ public class ReloadingState implements WeaponState {
         }
 
         elapsed++;
+
+        // 最新版での入力誤検知（パケット遅延等）対策: 
+        // リロード開始直後（10tick=0.5秒）はダッシュによる強制キャンセルを無効化する
+        if (elapsed < 10) {
+            // ガード期間中
+        } else if (ctx.getPlayer().isSprinting()) {
+            // 10tick以降にダッシュしている場合はキャンセル（本来の仕様）
+            if (ctx.getStateMachine() != null) {
+                // ctx.sendActionBar("§cReload Cancelled (Sprinting)"); // Exitで表示されるので不要
+                ctx.getStateMachine().transitionTo(new SprintingState());
+                return;
+            }
+        }
 
         // Render Animation
         if (animStats != null) {
@@ -171,34 +187,34 @@ public class ReloadingState implements WeaponState {
         }
 
         // Reset Item Model is handled by next state (Idle) which applies its own model
-        // but it's good practice to ensure clean state.
         ctx.resetCache();
     }
 
     @Override
     public WeaponState handleInput(WeaponContext ctx, InputType input) {
-        // If reload not possible (or finished), process input as if we are in Idle
+        // リロードが不可能、または完了している場合はIdleの挙動を継承
         if (!isReloadPossible) {
             WeaponState next = new IdleState().handleInput(ctx, input);
             return next != null ? next : new IdleState();
         }
 
-        // Grace period: Ignore input for first few ticks to prevent accidental cancel
-        if (elapsed < 5) {
+        // 10tick（0.5秒）の間は誤検知防止のためスプリント以外の入力を完全に無視
+        if (elapsed < 10) {
+            if (input == InputType.SPRINT_START) return new SprintingState();
             return null;
         }
 
-        // While reloading...
+        // 10tick以降
         switch (input) {
-            case RELOAD: // Spamming reload key?
+            case RELOAD:
+                // 既にリロード中なので、再度リロードステートへ遷移（自爆）するのを防ぐ
+                return null;
             case SPRINT_START:
-            case SPRINT_END:
-                return null; // Ignore these, allow reload to continue
+                return new SprintingState();
             case RIGHT_CLICK_START:
-            case LEFT_CLICK: // Shooting attempt
-                // Cancel reload and transition to the appropriate state
-                WeaponState next = new IdleState().handleInput(ctx, input);
-                return next != null ? next : new IdleState();
+            case LEFT_CLICK:
+                // 射撃・ADSによるキャンセル
+                return new IdleState().handleInput(ctx, input);
             default:
                 return null;
         }
