@@ -46,6 +46,7 @@ public class GunListener implements Listener {
     private final Set<UUID> shootingPlayers = new HashSet<>();
     private final Map<UUID, BukkitRunnable> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> consecutiveShots = new HashMap<>();
+    private final Map<UUID, Integer> pendingDropKeybindUntilTick = new HashMap<>();
 
     // 射撃継続判定のタイムアウト（ms）
     // Minecraftの右クリックパケット間隔は約200msだが、タップ撃ち時の余韻を短くするために150msに設定
@@ -410,10 +411,16 @@ public class GunListener implements Listener {
             return;
         }
 
-        handleKeybindAction(player, droppedItem, "DROP", event);
+        String action = handleKeybindAction(player, droppedItem, "DROP", event);
 
         // キーバインドとして処理された場合、エンティティの回収やモデル更新を行う
         if (event.isCancelled()) {
+            UUID uuid = player.getUniqueId();
+            pendingDropKeybindUntilTick.put(uuid, Bukkit.getCurrentTick() + 3);
+            if ("RELOAD".equals(action)) {
+                return;
+            }
+
             int slotIndex = player.getInventory().getHeldItemSlot();
             new BukkitRunnable() {
                 @Override
@@ -450,9 +457,9 @@ public class GunListener implements Listener {
         }
     }
 
-    private void handleKeybindAction(Player player, ItemStack item, String inputKey, org.bukkit.event.Cancellable event) {
+    private String handleKeybindAction(Player player, ItemStack item, String inputKey, org.bukkit.event.Cancellable event) {
         com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
-        if (dataModule == null) return;
+        if (dataModule == null) return "";
         com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
 
         String action = "";
@@ -463,7 +470,7 @@ public class GunListener implements Listener {
             }
         }
 
-        if (action.isEmpty()) return;
+        if (action.isEmpty()) return "";
 
         // 何らかのアクションにバインドされている入力なら元のイベントをキャンセル
         event.setCancelled(true);
@@ -476,6 +483,7 @@ public class GunListener implements Listener {
                 executeFiremodeSwitch(player, item);
                 break;
         }
+        return action;
     }
 
     private void executeReload(Player player, ItemStack currentItem) {
@@ -953,7 +961,7 @@ public class GunListener implements Listener {
         if (sm == null) return;
 
         // 持ち替えイベントでは、既存の状態機械なら必ずEquip開始へ入れる
-        if (hadMachine) {
+        if (hadMachine && !isReloadingState(sm.getCurrentState())) {
             // 持ち替え時は強制的にEquipping状態へ
             sm.transitionTo(new com.lunar_prototype.impossbleEscapeMC.animation.state.EquippingState(plugin));
         }
@@ -980,10 +988,16 @@ public class GunListener implements Listener {
                 // 現在持っているアイテムを取得
                 ItemStack current = player.getInventory().getItemInMainHand();
                 if (!isGun(current)) {
+                    Integer protectedUntil = pendingDropKeybindUntilTick.get(uuid);
+                    if (protectedUntil != null && Bukkit.getCurrentTick() <= protectedUntil) {
+                        return;
+                    }
+                    pendingDropKeybindUntilTick.remove(uuid);
                     stopStateTask(player);
                     stateMachines.remove(uuid);
                     return;
                 }
+                pendingDropKeybindUntilTick.remove(uuid);
 
                 if (stateMachines.containsKey(uuid)) {
                     var sm = stateMachines.get(uuid);
@@ -1001,6 +1015,7 @@ public class GunListener implements Listener {
 
     private void stopStateTask(Player player) {
         UUID uuid = player.getUniqueId();
+        pendingDropKeybindUntilTick.remove(uuid);
         if (stateTasks.containsKey(uuid)) {
             stateTasks.get(uuid).cancel();
             stateTasks.remove(uuid);
@@ -1026,8 +1041,12 @@ public class GunListener implements Listener {
     private boolean isReloading(UUID uuid) {
         if (!stateMachines.containsKey(uuid))
             return false;
-        return stateMachines.get(uuid)
-                .getCurrentState() instanceof com.lunar_prototype.impossbleEscapeMC.animation.state.ReloadingState;
+        return isReloadingState(stateMachines.get(uuid).getCurrentState());
+    }
+
+    private boolean isReloadingState(com.lunar_prototype.impossbleEscapeMC.animation.state.WeaponState state) {
+        return state instanceof com.lunar_prototype.impossbleEscapeMC.animation.state.ReloadingState
+                || state instanceof com.lunar_prototype.impossbleEscapeMC.animation.state.ShotgunReloadingState;
     }
 
     private boolean isBolting(UUID uuid) {
