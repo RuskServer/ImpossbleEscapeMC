@@ -57,6 +57,10 @@ public class LootManager {
                     entry.maxAmount = itemMap.containsKey("max") ? ((Number) itemMap.get("max")).intValue() : 1;
                     if (itemMap.containsKey("display_name")) {
                         entry.displayName = (String) itemMap.get("display_name");
+                    } else if (itemMap.containsKey("displayName")) {
+                        entry.displayName = (String) itemMap.get("displayName");
+                    } else if (itemMap.containsKey("display-name")) {
+                        entry.displayName = (String) itemMap.get("display-name");
                     }
                     table.items.add(entry);
                 }
