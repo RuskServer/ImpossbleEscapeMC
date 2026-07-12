@@ -74,7 +74,12 @@ public class TraderQuantityGUI implements Listener {
     }
 
     private void updateQuantityDisplay() {
-        ItemStack item = ItemFactory.create(traderItem.itemId);
+        ItemStack item;
+        if (traderItem.displayName != null && !traderItem.displayName.isEmpty()) {
+            item = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), traderItem.itemId, traderItem.displayName);
+        } else {
+            item = ItemFactory.create(traderItem.itemId);
+        }
         if (item == null) return;
         item.setAmount(Math.max(1, Math.min(64, quantity))); // 表示上のみ
 

@@ -89,7 +89,12 @@ public class TraderGUI implements Listener {
         int slot = 0;
         for (TraderItem ti : trader.items) {
             if (slot >= size) break;
-            ItemStack icon = ItemFactory.create(ti.itemId);
+            ItemStack icon;
+            if (ti.displayName != null && !ti.displayName.isEmpty()) {
+                icon = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), ti.itemId, ti.displayName);
+            } else {
+                icon = ItemFactory.create(ti.itemId);
+            }
             if (icon == null) continue;
             boolean unlocked = traderModule.isUnlocked(data, ti);
             int requiredLevel = traderModule.getRequiredLevel(ti);
@@ -532,7 +537,12 @@ public class TraderGUI implements Listener {
         double totalPrice = ti.price * finalQuantity;
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), totalPrice)) {
             // アイテムをスタック数に合わせて配布
-            ItemStack sample = ItemFactory.create(ti.itemId);
+            ItemStack sample;
+            if (ti.displayName != null && !ti.displayName.isEmpty()) {
+                sample = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), ti.itemId, ti.displayName);
+            } else {
+                sample = ItemFactory.create(ti.itemId);
+            }
             if (sample == null) {
                 // 万が一アイテムが見つからない場合は返金
                 traderModule.getEconomyModule().deposit(player.getUniqueId(), totalPrice);

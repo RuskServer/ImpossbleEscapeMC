@@ -5,6 +5,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.trader;
  */
 public class TraderItem {
     public String itemId;    // ItemRegistry内のID
+    public String displayName;
     public double price;     // 価格
     public int dailyLimit;   // 1日の購入制限 (0なら無制限)
     public int requiredLevel; // 解放に必要なプレイヤーレベル
