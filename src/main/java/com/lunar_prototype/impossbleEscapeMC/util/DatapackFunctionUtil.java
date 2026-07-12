@@ -44,8 +44,8 @@ public class DatapackFunctionUtil {
         CommandSourceStack sourceStack = dummyPlayer.createCommandSourceStack()
                 .withPermission(new net.minecraft.server.permissions.LevelBasedPermissionSet() {
                     @Override
-                    public int level() {
-                        return 2;
+                    public net.minecraft.server.permissions.PermissionLevel level() {
+                        return net.minecraft.server.permissions.PermissionLevel.GAMEMASTERS;
                     }
                 }) // 一般的なデータパック関数実行用の権限レベル (通常は2)
                 .withSuppressedOutput(); // ログ出力（〜にアイテムを1個与えました 等）をミュート
@@ -167,8 +167,8 @@ public class DatapackFunctionUtil {
         CommandSourceStack sourceStack = dummyPlayer.createCommandSourceStack()
                 .withPermission(new net.minecraft.server.permissions.LevelBasedPermissionSet() {
                     @Override
-                    public int level() {
-                        return 2;
+                    public net.minecraft.server.permissions.PermissionLevel level() {
+                        return net.minecraft.server.permissions.PermissionLevel.GAMEMASTERS;
                     }
                 })
                 .withSuppressedOutput();
