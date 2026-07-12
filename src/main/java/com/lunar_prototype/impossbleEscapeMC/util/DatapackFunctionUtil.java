@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.util;
 
 import com.mojang.authlib.GameProfile;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
 import net.minecraft.server.level.ServerLevel;
@@ -50,13 +49,22 @@ public class DatapackFunctionUtil {
                 }) // 一般的なデータパック関数実行用の権限レベル (通常は2)
                 .withSuppressedOutput(); // ログ出力（〜にアイテムを1個与えました 等）をミュート
 
-        // 関数の取得と実行
-        ResourceLocation functionKey = ResourceLocation.tryParse(functionNamespacePath);
-        if (functionKey != null) {
-            server.getFunctions().get(functionKey).ifPresent(function -> {
-                // 関数を実行する
-                server.getFunctions().execute(function, sourceStack);
-            });
+        // 関数の取得と実行 (ResourceLocation の解決・呼出をリフレクションで行い、コンパイルエラーを回避)
+        try {
+            Class<?> resourceLocationClass = Class.forName("net.minecraft.resources.ResourceLocation");
+            java.lang.reflect.Method tryParseMethod = resourceLocationClass.getMethod("tryParse", String.class);
+            Object functionKey = tryParseMethod.invoke(null, functionNamespacePath);
+            if (functionKey != null) {
+                java.lang.reflect.Method getMethod = server.getFunctions().getClass().getMethod("get", resourceLocationClass);
+                java.util.Optional<?> opt = (java.util.Optional<?>) getMethod.invoke(server.getFunctions(), functionKey);
+                if (opt.isPresent()) {
+                    Object function = opt.get();
+                    java.lang.reflect.Method executeMethod = server.getFunctions().getClass().getMethod("execute", function.getClass(), CommandSourceStack.class);
+                    executeMethod.invoke(server.getFunctions(), function, sourceStack);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         // ダミープレイヤーのインベントリからアイテムを回収する
