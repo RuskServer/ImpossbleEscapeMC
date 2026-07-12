@@ -11,6 +11,7 @@ public class LootTable {
 
     public static class LootEntry {
         public String itemId;
+        public String displayName;
         public double chance; // 0.0 to 100.0
         public int minAmount = 1;
         public int maxAmount = 1;

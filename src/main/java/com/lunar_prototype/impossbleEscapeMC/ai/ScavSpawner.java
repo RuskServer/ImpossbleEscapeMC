@@ -51,6 +51,10 @@ public class ScavSpawner implements Listener {
     private static final Map<UUID, String> scavRaidMaps = new ConcurrentHashMap<>();
     private static final Map<String, Integer> raidClass4Count = new ConcurrentHashMap<>();
 
+    public static boolean isScav(UUID uuid) {
+        return controllers.containsKey(uuid);
+    }
+
     public ScavSpawner(ImpossbleEscapeMC plugin, GunListener gunListener) {
         this.plugin = plugin;
         this.gunListener = gunListener;
@@ -86,10 +90,18 @@ public class ScavSpawner implements Listener {
         setupScavEquipment(scav, raidSessionId);
 
         // 例: プレイヤー風に偽装（名前は"SCAV"）
-        Disguise disguise = DisguiseAPI.getCustomDisguise("SCAV");
-
-        // 適用
-        DisguiseAPI.disguiseToAll(scav, disguise);
+        try {
+            if (Bukkit.getPluginManager().isPluginEnabled("LibsDisguises")) {
+                Disguise disguise = DisguiseAPI.getCustomDisguise("SCAV");
+                if (disguise != null) {
+                    DisguiseAPI.disguiseToAll(scav, disguise);
+                }
+            } else {
+                plugin.getLogger().warning("LibsDisguises is not enabled. SCAV will spawn without disguise.");
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "Failed to apply LibsDisguises to SCAV. Spawning as normal zombie.", t);
+        }
 
         // PaperのAPIを使用してAIの目標をすべて削除する
         Bukkit.getMobGoals().removeAllGoals(scav);

@@ -55,6 +55,9 @@ public class LootManager {
                     entry.chance = ((Number) itemMap.get("chance")).doubleValue();
                     entry.minAmount = itemMap.containsKey("min") ? ((Number) itemMap.get("min")).intValue() : 1;
                     entry.maxAmount = itemMap.containsKey("max") ? ((Number) itemMap.get("max")).intValue() : 1;
+                    if (itemMap.containsKey("display_name")) {
+                        entry.displayName = (String) itemMap.get("display_name");
+                    }
                     table.items.add(entry);
                 }
                 lootTables.put(tableId, table);
@@ -139,7 +142,7 @@ public class LootManager {
         container.getPersistentDataContainer().remove(searchedKey);
         container.update();
 
-        List<ItemStack> items = LootRoller.roll(tableToRoll);
+        List<ItemStack> items = LootRoller.roll(container.getWorld(), tableToRoll);
         Collections.shuffle(items);
 
         for (int i = 0; i < Math.min(items.size(), inv.getSize()); i++) {
