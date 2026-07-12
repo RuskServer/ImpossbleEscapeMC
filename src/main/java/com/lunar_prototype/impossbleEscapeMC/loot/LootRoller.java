@@ -12,7 +12,7 @@ import java.util.Random;
 public class LootRoller {
     private static final Random random = new Random();
 
-    public static List<ItemStack> roll(LootTable table) {
+    public static List<ItemStack> roll(org.bukkit.World world, LootTable table) {
         List<ItemStack> results = new ArrayList<>();
         if (table.items.isEmpty()) return results;
 
@@ -25,7 +25,13 @@ public class LootRoller {
 
             // Independent chance check (0.0 to 100.0)
             if (random.nextDouble() * 100.0 <= entry.chance) {
-                ItemStack item = ItemFactory.create(entry.itemId);
+                ItemStack item;
+                if (entry.displayName != null && !entry.displayName.isEmpty()) {
+                    item = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(world, entry.itemId, entry.displayName);
+                } else {
+                    item = ItemFactory.create(entry.itemId);
+                }
+                
                 if (item != null) {
                     int amount = entry.minAmount;
                     if (entry.maxAmount > entry.minAmount) {
@@ -46,7 +52,13 @@ public class LootRoller {
             // まだ選ばれていないものから優先的に選ぶ、あるいはランダムに選ぶ
             LootTable.LootEntry entry = pool.get(random.nextInt(pool.size()));
             
-            ItemStack item = ItemFactory.create(entry.itemId);
+            ItemStack item;
+            if (entry.displayName != null && !entry.displayName.isEmpty()) {
+                item = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(world, entry.itemId, entry.displayName);
+            } else {
+                item = ItemFactory.create(entry.itemId);
+            }
+            
             if (item != null) {
                 int amount = entry.minAmount;
                 if (entry.maxAmount > entry.minAmount) {

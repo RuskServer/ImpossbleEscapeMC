@@ -134,7 +134,11 @@ public class GunListener implements Listener {
 
     @EventHandler
     public void onJoin(org.bukkit.event.player.PlayerJoinEvent event) {
-        startStateTask(event.getPlayer());
+        Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
+        startStateTask(player);
     }
 
     private void cleanup(Player player, boolean quit) {
@@ -153,6 +157,9 @@ public class GunListener implements Listener {
             return;
 
         Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
 
         // 【追加】ダッシュ中やリロード中、ボルトアクション中は射撃不可
         if (player.isSprinting() || isReloading(player.getUniqueId()) || isBolting(player.getUniqueId()))
@@ -218,6 +225,9 @@ public class GunListener implements Listener {
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK)
             return;
         Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
         ItemStack item = player.getInventory().getItemInMainHand();
 
         if (!isGun(item))
@@ -233,6 +243,9 @@ public class GunListener implements Listener {
     @EventHandler
     public void onSprint(PlayerToggleSprintEvent event) {
         Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
         
         // ADS解除設定のチェック
         com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
@@ -265,6 +278,9 @@ public class GunListener implements Listener {
     @EventHandler
     public void onItemHeld(PlayerItemHeldEvent event) {
         Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
         UUID uuid = player.getUniqueId();
 
         // 射撃を強制停止
@@ -393,6 +409,9 @@ public class GunListener implements Listener {
     @EventHandler
     public void onDropItem(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
 
         // クリエイティブや他のインベントリ（チェスト等）を開いている時は除外
         if (player.getOpenInventory().getType() != InventoryType.CRAFTING &&
@@ -437,6 +456,9 @@ public class GunListener implements Listener {
     @EventHandler
     public void onSwapHand(PlayerSwapHandItemsEvent event) {
         Player player = event.getPlayer();
+        if (!com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(player.getUniqueId())) {
+            return;
+        }
         ItemStack offHandItem = event.getOffHandItem(); // スワップ後のオフハンド＝元メインハンド
 
         if (!isGun(offHandItem)) return;
