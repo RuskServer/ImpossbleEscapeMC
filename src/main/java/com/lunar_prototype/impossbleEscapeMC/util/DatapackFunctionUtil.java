@@ -12,7 +12,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.CraftWorld;
-import org.bukkit.inventory.ItemStack as BukkitItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +27,8 @@ public class DatapackFunctionUtil {
      * @param functionNamespacePath 実行する関数の名前空間パス (例: "mypack:give_item")
      * @return 関数実行によって得られたBukkitアイテムスタックのリスト
      */
-    public static List<BukkitItemStack> captureItemsFromFunction(World world, String functionNamespacePath) {
-        List<BukkitItemStack> capturedItems = new ArrayList<>();
+    public static List<org.bukkit.inventory.ItemStack> captureItemsFromFunction(World world, String functionNamespacePath) {
+        List<org.bukkit.inventory.ItemStack> capturedItems = new ArrayList<>();
 
         MinecraftServer server = ((CraftServer) Bukkit.getServer()).getServer();
         ServerLevel level = ((CraftWorld) world).getHandle();
@@ -77,9 +76,9 @@ public class DatapackFunctionUtil {
      * @param world 実行するワールドコンテキスト
      * @param gunId 銃のID (例: "m4a1")
      * @param displayName 銃の表示名 (例: "M4A1 Carbine")
-     * @return 生成されたBukkitItemStack（失敗した場合はnull）
+     * @return 生成されたItemStack（失敗した場合はnull）
      */
-    public static BukkitItemStack generateGunItem(World world, String gunId, String displayName) {
+    public static org.bukkit.inventory.ItemStack generateGunItem(World world, String gunId, String displayName) {
         String rawTemplate = "give @s crossbow[\n" +
                 "  piercing_weapon={min_reach:0.0,max_reach:0,hitbox_margin:0,deals_knockback:false,dismounts:false},\n" +
                 "  swing_animation={duration:1,type:\"none\"},\n" +
@@ -168,7 +167,7 @@ public class DatapackFunctionUtil {
         server.getCommands().performPrefixedCommand(sourceStack, command);
 
         // ダミープレイヤーのインベントリからアイテムを取得
-        BukkitItemStack result = null;
+        org.bukkit.inventory.ItemStack result = null;
         for (int i = 0; i < dummyPlayer.getInventory().getContainerSize(); i++) {
             ItemStack nmsItem = dummyPlayer.getInventory().getItem(i);
             if (!nmsItem.isEmpty()) {
