@@ -65,7 +65,11 @@ public class TraderModule implements IModule {
                     int limit = map.containsKey("limit") ? ((Number) map.get("limit")).intValue() : 0;
                     int requiredLevel = map.containsKey("level") ? ((Number) map.get("level")).intValue() : 1;
                     String requiredQuest = (String) map.get("quest");
-                    items.add(new TraderItem(itemId, price, limit, requiredLevel, requiredQuest));
+                    TraderItem traderItem = new TraderItem(itemId, price, limit, requiredLevel, requiredQuest);
+                    if (map.containsKey("display_name")) {
+                        traderItem.displayName = (String) map.get("display_name");
+                    }
+                    items.add(traderItem);
                 }
             }
             
