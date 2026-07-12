@@ -10,6 +10,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
+import org.bukkit.event.EventPriority;
 import org.bukkit.entity.Player;
 
 import java.io.*;
@@ -65,35 +68,28 @@ public class PlayerDataModule implements IModule, Listener {
     }
 
     /**
-     * 非同期でデータをロード
+     * 非同期でデータをロード (プレイヤーがサーバーにログインする直前に実行される)
      */
-    private void loadAsync(Player player) {
-        UUID uuid = player.getUniqueId();
+    @EventHandler
+    public void onAsyncPreLogin(AsyncPlayerPreLoginEvent event) {
+        UUID uuid = event.getUniqueId();
+        File file = new File(dataFolder, uuid + ".json");
+        PlayerData data = null;
 
-        CompletableFuture.runAsync(() -> {
-            File file = new File(dataFolder, uuid + ".json");
-            if (!file.exists()) return;
-
+        if (file.exists()) {
             try (Reader reader = new FileReader(file)) {
-                PlayerData data = gson.fromJson(reader, PlayerData.class);
-                if (data != null) {
-                    dataCache.put(uuid, data);
-                }
+                data = gson.fromJson(reader, PlayerData.class);
             } catch (IOException e) {
                 plugin.getLogger().severe("Failed to load player data for " + uuid);
                 e.printStackTrace();
             }
-        }).thenRun(() -> Bukkit.getScheduler().runTask(plugin, () -> {
-            Player current = Bukkit.getPlayer(uuid);
-            if (current == null || !current.isOnline()) return;
+        }
 
-            PlayerData data = dataCache.get(uuid);
-            if (data == null) {
-                data = getPlayerData(uuid);
-            }
+        if (data == null) {
+            data = new PlayerData(uuid);
+        }
 
-            Bukkit.getPluginManager().callEvent(new PlayerDataLoadedEvent(current, data));
-        }));
+        dataCache.put(uuid, data);
     }
 
     /**
@@ -189,11 +185,27 @@ public class PlayerDataModule implements IModule, Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onLogin(PlayerLoginEvent event) {
+        // もし何らかの理由でログインが拒否された場合はキャッシュから破棄する
+        if (event.getResult() != PlayerLoginEvent.Result.ALLOWED) {
+            dataCache.remove(event.getPlayer().getUniqueId());
+        }
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        getPlayerData(player.getUniqueId()); // イベント発火前にキャッシュエントリを用意
-        loadAsync(player);
+        UUID uuid = player.getUniqueId();
+        
+        // 稀にAsyncPreLoginが呼ばれないプラグインリロード時などのフェイルセーフ
+        PlayerData data = dataCache.get(uuid);
+        if (data == null) {
+            data = new PlayerData(uuid);
+            dataCache.put(uuid, data);
+        }
+        
+        Bukkit.getPluginManager().callEvent(new PlayerDataLoadedEvent(player, data));
     }
 
     @EventHandler
