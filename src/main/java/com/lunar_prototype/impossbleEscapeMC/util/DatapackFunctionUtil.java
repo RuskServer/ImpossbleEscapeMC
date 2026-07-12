@@ -182,7 +182,15 @@ public class DatapackFunctionUtil {
                 .withSuppressedOutput();
 
         // コマンドを実行
-        server.getCommands().performPrefixedCommand(sourceStack, command);
+        try {
+            server.getCommands().getDispatcher().execute(command, sourceStack);
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+            Bukkit.getLogger().severe("[DatapackFunctionUtil] Command syntax error: " + e.getMessage());
+            Bukkit.getLogger().severe("[DatapackFunctionUtil] Failed command: " + command);
+        } catch (Exception e) {
+            Bukkit.getLogger().severe("[DatapackFunctionUtil] Error executing command: " + e.getMessage());
+            e.printStackTrace();
+        }
 
         // ダミープレイヤーのインベントリからアイテムを取得
         org.bukkit.inventory.ItemStack result = null;
