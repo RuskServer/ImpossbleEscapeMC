@@ -102,12 +102,30 @@ public class LootManager {
         String worldName = map.getWorldName();
         if (worldName == null) return;
 
+        org.bukkit.World world = Bukkit.getWorld(worldName);
+        if (world == null) return;
+
         for (RaidMap.LootContainer lc : map.getLootContainers()) {
             Location loc = lc.getLocation(worldName);
             if (loc == null) continue;
-            Block block = loc.getBlock();
-            if (block.getState() instanceof Container container) {
-                refillContainer(container, lc.getTableId());
+
+            // チャンクが未ロードの場合は一時的にロードしてブロックデータを正しく取得する
+            int chunkX = loc.getBlockX() >> 4;
+            int chunkZ = loc.getBlockZ() >> 4;
+            boolean wasLoaded = world.isChunkLoaded(chunkX, chunkZ);
+            if (!wasLoaded) {
+                world.getChunkAt(chunkX, chunkZ).load();
+            }
+
+            try {
+                Block block = loc.getBlock();
+                if (block.getState() instanceof Container container) {
+                    refillContainer(container, lc.getTableId());
+                }
+            } finally {
+                if (!wasLoaded) {
+                    world.getChunkAt(chunkX, chunkZ).unload(true);
+                }
             }
         }
     }
