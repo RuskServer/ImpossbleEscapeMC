@@ -42,7 +42,7 @@ public class DatapackFunctionUtil {
 
         // ダミープレイヤーをベースにしたコマンドソーススタックの作成
         CommandSourceStack sourceStack = dummyPlayer.createCommandSourceStack()
-                .withPermission(2) // 一般的なデータパック関数実行用の権限レベル (通常は2)
+                .withPermission(new net.minecraft.server.permissions.LevelBasedPermissionSet(2)) // 一般的なデータパック関数実行用の権限レベル (通常は2)
                 .withSuppressedOutput(); // ログ出力（〜にアイテムを1個与えました 等）をミュート
 
         // 関数の取得と実行
@@ -160,7 +160,7 @@ public class DatapackFunctionUtil {
         ServerPlayer dummyPlayer = new ServerPlayer(server, level, dummyProfile, ClientInformation.createDefault());
 
         CommandSourceStack sourceStack = dummyPlayer.createCommandSourceStack()
-                .withPermission(2)
+                .withPermission(new net.minecraft.server.permissions.LevelBasedPermissionSet(2))
                 .withSuppressedOutput();
 
         // コマンドを実行
