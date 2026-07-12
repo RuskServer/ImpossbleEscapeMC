@@ -62,6 +62,7 @@ public class LootManager {
                     } else if (itemMap.containsKey("display-name")) {
                         entry.displayName = (String) itemMap.get("display-name");
                     }
+                    plugin.getLogger().info("[LootManager] Parsed item: " + entry.itemId + ", displayName: " + entry.displayName + ", raw: " + itemMap);
                     table.items.add(entry);
                 }
                 lootTables.put(tableId, table);
