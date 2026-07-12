@@ -46,3 +46,6 @@ commands:
   hideout:
     description: 隠れ家システム管理・利用コマンド
     usage: /hideout
+  datapacktest:
+    description: Test datapack function item capturing.
+    permission: op

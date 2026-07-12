@@ -190,6 +190,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("attachment").setExecutor(new AttachmentCommand());
         getCommand("itemreload").setExecutor(new ItemReloadCommand(this));
         
+        DatapackTestCommand datapackTestCommand = new DatapackTestCommand();
+        getCommand("datapacktest").setExecutor(datapackTestCommand);
+        getCommand("datapacktest").setTabCompleter(datapackTestCommand);
+        
         com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCommand traderCmd = new com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCommand(traderModule);
         getCommand("trader").setExecutor(traderCmd);
         getCommand("trader").setTabCompleter(traderCmd);
