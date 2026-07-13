@@ -520,7 +520,14 @@ private void spawnPlayers() {
         String loadout = chosenLoadout.getOrDefault(player.getUniqueId(), "m4a1");
         
         // Weapon
-        ItemStack weapon = ItemFactory.create(loadout);
+        ItemStack weapon;
+        String displayName = getDatapackGunDisplayName(loadout);
+        if (displayName != null) {
+            weapon = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), loadout, displayName);
+        } else {
+            weapon = ItemFactory.create(loadout);
+        }
+
         if (weapon != null) {
             player.getInventory().setItem(0, weapon);
             
@@ -687,5 +694,22 @@ private void spawnPlayers() {
 
     public Set<UUID> getAlivePlayers() {
         return alivePlayers;
+    }
+
+    private String getDatapackGunDisplayName(String loadout) {
+        if (loadout == null) return null;
+        return switch (loadout.toLowerCase()) {
+            case "ak74" -> "AK-74M";
+            case "as_val" -> "AS_VAL";
+            case "m4a1" -> "M4A1";
+            case "m700" -> "M700";
+            case "mossberg_590" -> "Mossberg 590";
+            case "mp5" -> "MP5";
+            case "scar_h" -> "SCAR-H";
+            case "scorpion_evo3" -> "Scorpion Evo 3";
+            case "svd" -> "SVD";
+            case "uzi" -> "UZI";
+            default -> null;
+        };
     }
 }
