@@ -104,7 +104,7 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             } else if (sub.equals("loadout")) {
-                return Arrays.asList("m4a1", "ak74", "m700").stream()
+                return Arrays.asList("m4a1", "ak74", "m700", "as_val", "mossberg_590", "mp5", "scar_h", "scorpion_evo3", "svd", "uzi").stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             }
