@@ -205,6 +205,9 @@ public class TraderQuestGUI implements Listener {
 
                 ItemMeta meta = item.getItemMeta();
                 String itemId = meta != null ? meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+                if (itemId == null && meta != null) {
+                    itemId = getDatapackGunId(item);
+                }
                 if (itemId == null) continue;
 
                 ItemDefinition def = ItemRegistry.get(itemId);
@@ -261,5 +264,27 @@ public class TraderQuestGUI implements Listener {
         if (event.getInventory().equals(inventory)) {
             HandlerList.unregisterAll(this);
         }
+    }
+
+    private String getDatapackGunId(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        ItemMeta meta = item.getItemMeta();
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        
+        for (String namespace : new String[]{"minecraft", "toisarm"}) {
+            NamespacedKey key = new NamespacedKey(namespace, "toisarm");
+            if (pdc.has(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER)) {
+                PersistentDataContainer sub = pdc.get(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER);
+                if (sub != null) {
+                    for (String subNamespace : new String[]{"minecraft", "toisarm"}) {
+                        NamespacedKey idKey = new NamespacedKey(subNamespace, "id");
+                        if (sub.has(idKey, org.bukkit.persistence.PersistentDataType.STRING)) {
+                            return sub.get(idKey, org.bukkit.persistence.PersistentDataType.STRING);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 }
