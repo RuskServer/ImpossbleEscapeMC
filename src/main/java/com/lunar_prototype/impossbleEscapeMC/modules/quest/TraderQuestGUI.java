@@ -269,15 +269,15 @@ public class TraderQuestGUI implements Listener {
     private String getDatapackGunId(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
         ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        org.bukkit.persistence.PersistentDataContainer pdc = meta.getPersistentDataContainer();
         
         for (String namespace : new String[]{"minecraft", "toisarm"}) {
-            NamespacedKey key = new NamespacedKey(namespace, "toisarm");
+            org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(namespace, "toisarm");
             if (pdc.has(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER)) {
-                PersistentDataContainer sub = pdc.get(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER);
+                org.bukkit.persistence.PersistentDataContainer sub = pdc.get(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER);
                 if (sub != null) {
                     for (String subNamespace : new String[]{"minecraft", "toisarm"}) {
-                        NamespacedKey idKey = new NamespacedKey(subNamespace, "id");
+                        org.bukkit.NamespacedKey idKey = new org.bukkit.NamespacedKey(subNamespace, "id");
                         if (sub.has(idKey, org.bukkit.persistence.PersistentDataType.STRING)) {
                             return sub.get(idKey, org.bukkit.persistence.PersistentDataType.STRING);
                         }
