@@ -49,7 +49,12 @@ public class ScavTactics {
     public void updateTimers() {
         if (jumpCooldown > 0) jumpCooldown--;
         if (strafeTicks > 0) strafeTicks--;
-        if (coverStayTicks > 0) coverStayTicks--;
+        if (coverStayTicks > 0) {
+            coverStayTicks--;
+            if (coverStayTicks == 0) {
+                tacticalCoverLoc = null;
+            }
+        }
         if (coverSearchCooldown > 0) coverSearchCooldown--;
     }
 

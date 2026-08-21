@@ -63,6 +63,12 @@ public class GunListener implements Listener {
 
     private static final int MODEL_ADD_SCOPE = 1000;
     private static final int MODEL_ADD_SPRINT = 2000;
+    private static final String DATAPACK_FIRING_OBJECTIVE = "toisarm.timer.firing";
+    private static final int DATAPACK_GUNSHOT_DEDUP_TICKS = 1;
+    private static final double SCAV_GUNSHOT_HEARING_RANGE = 64.0;
+    private static final double SCAV_GUNSHOT_HEARING_RANGE_SQUARED =
+            SCAV_GUNSHOT_HEARING_RANGE * SCAV_GUNSHOT_HEARING_RANGE;
+    private final Map<UUID, Integer> lastDatapackGunshotTick = new HashMap<>();
 
     public GunListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -78,6 +84,7 @@ public class GunListener implements Listener {
             @Override
             public void run() {
                 long now = System.currentTimeMillis();
+                pollDatapackGunshots();
                 for (World world : Bukkit.getWorlds()) {
                     for (LivingEntity entity : world.getLivingEntities()) {
                         if (!(entity instanceof Player) && !(entity instanceof Mob))
@@ -93,8 +100,57 @@ public class GunListener implements Listener {
                 }
                 // クリーンアップ: オンラインでない/存在しないエンティティの履歴を削除
                 entityHistory.entrySet().removeIf(entry -> Bukkit.getEntity(entry.getKey()) == null);
+                lastDatapackGunshotTick.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null);
             }
         }.runTaskTimer(plugin, 0, 1);
+    }
+
+    /**
+     * Toi's Armory marks an actual shot with toisarm.timer.firing (1 -> 0 -> -1).
+     * Polling that score restores the AI gunshot signal without changing the datapack.
+     */
+    private void pollDatapackGunshots() {
+        org.bukkit.scoreboard.ScoreboardManager manager = Bukkit.getScoreboardManager();
+        if (manager == null) return;
+
+        org.bukkit.scoreboard.Objective firingObjective = manager.getMainScoreboard()
+                .getObjective(DATAPACK_FIRING_OBJECTIVE);
+        if (firingObjective == null) return;
+
+        int currentTick = Bukkit.getCurrentTick();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            org.bukkit.scoreboard.Score firingScore = firingObjective.getScore(player.getName());
+            if (!firingScore.isScoreSet() || firingScore.getScore() < 0) continue;
+
+            Integer lastTick = lastDatapackGunshotTick.get(player.getUniqueId());
+            if (lastTick != null && currentTick - lastTick <= DATAPACK_GUNSHOT_DEDUP_TICKS) continue;
+
+            lastDatapackGunshotTick.put(player.getUniqueId(), currentTick);
+            notifyScavsOfPlayerGunshot(player);
+        }
+    }
+
+    private void notifyScavsOfPlayerGunshot(Player player) {
+        player.setMetadata("last_fired_tick",
+                new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
+
+        Location gunshotLocation = player.getLocation();
+        for (Entity entity : player.getNearbyEntities(
+                SCAV_GUNSHOT_HEARING_RANGE,
+                SCAV_GUNSHOT_HEARING_RANGE,
+                SCAV_GUNSHOT_HEARING_RANGE)) {
+            if (!(entity instanceof Mob mob)) continue;
+            if (!entity.getWorld().equals(gunshotLocation.getWorld())
+                    || entity.getLocation().distanceSquared(gunshotLocation)
+                    > SCAV_GUNSHOT_HEARING_RANGE_SQUARED) {
+                continue;
+            }
+
+            ScavController controller = ScavSpawner.getController(mob.getUniqueId());
+            if (controller != null) {
+                controller.onSoundHeard(ScavController.SoundContact.gunshot(gunshotLocation));
+            }
+        }
     }
 
     /**
@@ -730,19 +786,8 @@ public class GunListener implements Listener {
             sm.getContext().startIndependentAnimation();
         }
 
-        // --- 視覚的・音響的メタデータの付与 (AI用) ---
-        player.setMetadata("last_fired_tick",
-                new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
-
-        // --- SCAVへの音響通知 ---
-        for (Entity entity : player.getNearbyEntities(64, 64, 64)) {
-            if (entity instanceof Mob mob) {
-                ScavController controller = ScavSpawner.getController(mob.getUniqueId());
-                if (controller != null) {
-                    controller.onSoundHeard(ScavController.SoundContact.gunshot(player.getLocation()));
-                }
-            }
-        }
+        // --- 視覚的・音響的メタデータの付与とSCAVへの音響通知 (AI用) ---
+        notifyScavsOfPlayerGunshot(player);
 
         String soundName = stats.shotSound;
         float shotPitch = 1.8f + (float) ((Math.random() - 0.5) * 0.1); // 銃声のピッチにノイズを追加
