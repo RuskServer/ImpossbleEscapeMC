@@ -65,6 +65,9 @@ public class GunListener implements Listener {
     private static final int MODEL_ADD_SPRINT = 2000;
     private static final String DATAPACK_FIRING_OBJECTIVE = "toisarm.timer.firing";
     private static final int DATAPACK_GUNSHOT_DEDUP_TICKS = 1;
+    private static final double SCAV_GUNSHOT_HEARING_RANGE = 64.0;
+    private static final double SCAV_GUNSHOT_HEARING_RANGE_SQUARED =
+            SCAV_GUNSHOT_HEARING_RANGE * SCAV_GUNSHOT_HEARING_RANGE;
     private final Map<UUID, Integer> lastDatapackGunshotTick = new HashMap<>();
 
     public GunListener(ImpossbleEscapeMC plugin) {
@@ -131,12 +134,21 @@ public class GunListener implements Listener {
         player.setMetadata("last_fired_tick",
                 new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
 
-        for (Entity entity : player.getNearbyEntities(64, 64, 64)) {
-            if (entity instanceof Mob mob) {
-                ScavController controller = ScavSpawner.getController(mob.getUniqueId());
-                if (controller != null) {
-                    controller.onSoundHeard(ScavController.SoundContact.gunshot(player.getLocation()));
-                }
+        Location gunshotLocation = player.getLocation();
+        for (Entity entity : player.getNearbyEntities(
+                SCAV_GUNSHOT_HEARING_RANGE,
+                SCAV_GUNSHOT_HEARING_RANGE,
+                SCAV_GUNSHOT_HEARING_RANGE)) {
+            if (!(entity instanceof Mob mob)) continue;
+            if (!entity.getWorld().equals(gunshotLocation.getWorld())
+                    || entity.getLocation().distanceSquared(gunshotLocation)
+                    > SCAV_GUNSHOT_HEARING_RANGE_SQUARED) {
+                continue;
+            }
+
+            ScavController controller = ScavSpawner.getController(mob.getUniqueId());
+            if (controller != null) {
+                controller.onSoundHeard(ScavController.SoundContact.gunshot(gunshotLocation));
             }
         }
     }
@@ -774,19 +786,8 @@ public class GunListener implements Listener {
             sm.getContext().startIndependentAnimation();
         }
 
-        // --- 視覚的・音響的メタデータの付与 (AI用) ---
-        player.setMetadata("last_fired_tick",
-                new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
-
-        // --- SCAVへの音響通知 ---
-        for (Entity entity : player.getNearbyEntities(64, 64, 64)) {
-            if (entity instanceof Mob mob) {
-                ScavController controller = ScavSpawner.getController(mob.getUniqueId());
-                if (controller != null) {
-                    controller.onSoundHeard(ScavController.SoundContact.gunshot(player.getLocation()));
-                }
-            }
-        }
+        // --- 視覚的・音響的メタデータの付与とSCAVへの音響通知 (AI用) ---
+        notifyScavsOfPlayerGunshot(player);
 
         String soundName = stats.shotSound;
         float shotPitch = 1.8f + (float) ((Math.random() - 0.5) * 0.1); // 銃声のピッチにノイズを追加
