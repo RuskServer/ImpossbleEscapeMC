@@ -271,7 +271,13 @@ public class ScavController {
             }
         }
 
-        this.isSprinting = brain.getAdrenaline() > 0.6f || brain.getFrustration() > 0.7f || tactics.getPeekPhase() > 0 || tactics.getTacticalCoverLoc() != null;
+        Location tacticalCover = tactics.getTacticalCoverLoc();
+        boolean movingToCover = tacticalCover != null
+                && tactics.getCoverStayTicks() > 0
+                && scav.getLocation().distanceSquared(tacticalCover) > 1.0;
+        // Aggression/fear are decision inputs, not physical sprint state. Treat only
+        // active tactical relocation as sprinting so stationary SCAVs can fire.
+        this.isSprinting = tactics.getPeekPhase() > 0 || movingToCover;
 
         // 5. タクティカルアドバイス
         float tacticalAdvice = 0.0f;

@@ -63,6 +63,9 @@ public class GunListener implements Listener {
 
     private static final int MODEL_ADD_SCOPE = 1000;
     private static final int MODEL_ADD_SPRINT = 2000;
+    private static final String DATAPACK_FIRING_OBJECTIVE = "toisarm.timer.firing";
+    private static final int DATAPACK_GUNSHOT_DEDUP_TICKS = 1;
+    private final Map<UUID, Integer> lastDatapackGunshotTick = new HashMap<>();
 
     public GunListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -78,6 +81,7 @@ public class GunListener implements Listener {
             @Override
             public void run() {
                 long now = System.currentTimeMillis();
+                pollDatapackGunshots();
                 for (World world : Bukkit.getWorlds()) {
                     for (LivingEntity entity : world.getLivingEntities()) {
                         if (!(entity instanceof Player) && !(entity instanceof Mob))
@@ -93,8 +97,48 @@ public class GunListener implements Listener {
                 }
                 // クリーンアップ: オンラインでない/存在しないエンティティの履歴を削除
                 entityHistory.entrySet().removeIf(entry -> Bukkit.getEntity(entry.getKey()) == null);
+                lastDatapackGunshotTick.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null);
             }
         }.runTaskTimer(plugin, 0, 1);
+    }
+
+    /**
+     * Toi's Armory marks an actual shot with toisarm.timer.firing (1 -> 0 -> -1).
+     * Polling that score restores the AI gunshot signal without changing the datapack.
+     */
+    private void pollDatapackGunshots() {
+        org.bukkit.scoreboard.ScoreboardManager manager = Bukkit.getScoreboardManager();
+        if (manager == null) return;
+
+        org.bukkit.scoreboard.Objective firingObjective = manager.getMainScoreboard()
+                .getObjective(DATAPACK_FIRING_OBJECTIVE);
+        if (firingObjective == null) return;
+
+        int currentTick = Bukkit.getCurrentTick();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            org.bukkit.scoreboard.Score firingScore = firingObjective.getScore(player.getName());
+            if (!firingScore.isScoreSet() || firingScore.getScore() < 0) continue;
+
+            Integer lastTick = lastDatapackGunshotTick.get(player.getUniqueId());
+            if (lastTick != null && currentTick - lastTick <= DATAPACK_GUNSHOT_DEDUP_TICKS) continue;
+
+            lastDatapackGunshotTick.put(player.getUniqueId(), currentTick);
+            notifyScavsOfPlayerGunshot(player);
+        }
+    }
+
+    private void notifyScavsOfPlayerGunshot(Player player) {
+        player.setMetadata("last_fired_tick",
+                new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
+
+        for (Entity entity : player.getNearbyEntities(64, 64, 64)) {
+            if (entity instanceof Mob mob) {
+                ScavController controller = ScavSpawner.getController(mob.getUniqueId());
+                if (controller != null) {
+                    controller.onSoundHeard(ScavController.SoundContact.gunshot(player.getLocation()));
+                }
+            }
+        }
     }
 
     /**
