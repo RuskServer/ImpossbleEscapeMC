@@ -137,6 +137,7 @@ public class InventoryListener implements Listener {
     private void startButtonTask() {
         taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
+                if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 // 定期的なコスト更新
                 com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
                 

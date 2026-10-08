@@ -135,11 +135,14 @@ public class GunListener implements Listener {
                 new org.bukkit.metadata.FixedMetadataValue(plugin, Bukkit.getCurrentTick()));
 
         Location gunshotLocation = player.getLocation();
+        // SCAVのデータパック銃のFakePlayerなら、撃ったSCAV自身は自分の銃声に反応させない
+        Entity shooter = com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.resolveShooter(player);
         for (Entity entity : player.getNearbyEntities(
                 SCAV_GUNSHOT_HEARING_RANGE,
                 SCAV_GUNSHOT_HEARING_RANGE,
                 SCAV_GUNSHOT_HEARING_RANGE)) {
             if (!(entity instanceof Mob mob)) continue;
+            if (entity.equals(shooter)) continue;
             if (!entity.getWorld().equals(gunshotLocation.getWorld())
                     || entity.getLocation().distanceSquared(gunshotLocation)
                     > SCAV_GUNSHOT_HEARING_RANGE_SQUARED) {

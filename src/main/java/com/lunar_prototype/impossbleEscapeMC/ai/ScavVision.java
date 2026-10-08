@@ -61,6 +61,7 @@ public class ScavVision {
     public LivingEntity scanForTargets() {
         for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 64, MAX_VISION_DISTANCE)) {
             if (e instanceof org.bukkit.entity.Player p) {
+                if (DatapackGunnerManager.isGunner(p)) continue;
                 if (p.getGameMode() == org.bukkit.GameMode.SURVIVAL && checkVision(p)) return p;
             }
         }

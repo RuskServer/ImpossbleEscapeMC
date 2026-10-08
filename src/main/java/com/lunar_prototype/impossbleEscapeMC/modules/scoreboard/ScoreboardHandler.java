@@ -56,6 +56,7 @@ public class ScoreboardHandler {
         if (hideAll) {
             for (Player other : Bukkit.getOnlinePlayers()) {
                 if (other.equals(player)) continue;
+                if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(other)) continue; // SCAVのデータパック銃用FakePlayer
                 if (!nameTagTeam.hasEntry(other.getName())) {
                     nameTagTeam.addEntry(other.getName());
                 }

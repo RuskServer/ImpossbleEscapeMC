@@ -116,6 +116,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         ItemRegistry.loadAllItems(this);
         gunListener = new GunListener(this);
         scavSpawner = new ScavSpawner(this, gunListener);
+        com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.init(this);
         resourcePackListener = new ResourcePackListener(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
         raidModule = new RaidModule(this);
@@ -275,6 +276,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.save(new java.io.File(getDataFolder(), "heatmap.yml"));
 
         // Plugin shutdown logic
+        // SCAVのデータパック銃用FakePlayerは、サーバー停止時の退出・保存処理に乗らないよう先に取り除く
+        com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
         }

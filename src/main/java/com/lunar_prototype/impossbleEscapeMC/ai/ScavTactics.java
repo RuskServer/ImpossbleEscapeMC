@@ -3,7 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.ai;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalMath;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalVision;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
-import com.lunar_prototype.impossbleEscapeMC.item.GunStats;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.LivingEntity;
@@ -143,16 +143,16 @@ public class ScavTactics {
         return bestCover;
     }
 
-    public void handlePeekManeuver(LivingEntity target, GunStats stats, float suppression, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
+    public void handlePeekManeuver(LivingEntity target, ScavWeapon weapon, float suppression, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
         if (peekPhase == 1) { // Moving out
             scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
             boolean currentLos = target != null && scav.hasLineOfSight(target);
             if (currentLos || peekTicks >= 5) {
                 long now = System.currentTimeMillis();
-                long interval = (long) (60000.0 / stats.rpm);
+                long interval = (long) (60000.0 / weapon.rpm());
                 if (now - lastShotTime >= interval) {
-                    gunListener.executeMobShoot(scav, stats, 1, 0.1 + (suppression * 0.1));
+                    weapon.fire(0.1 + (suppression * 0.1));
                     shotTimeSetter.accept(now);
                     peekPhase = 2;
                     peekTicks = 0;

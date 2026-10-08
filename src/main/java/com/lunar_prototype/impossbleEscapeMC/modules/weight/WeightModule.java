@@ -68,6 +68,7 @@ public class WeightModule implements IModule, Listener {
 
     private void updateAllPlayers() {
         for (Player player : Bukkit.getOnlinePlayers()) {
+            if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
             updatePlayerWeight(player);
         }
     }

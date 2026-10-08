@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
@@ -138,37 +141,40 @@ public class ScavSpawner implements Listener {
         String[] gunPool = { "ak74", "m4a1", "m700", "mossberg_590" };
         String randomGunId = gunPool[new java.util.Random().nextInt(gunPool.length)];
 
-        // 2. ItemFactoryで銃を生成 (ここでPDCにAMMOやITEM_IDが書き込まれる)
-        ItemStack gun = ItemFactory.create(randomGunId);
-        if (gun != null && gun.hasItemMeta()) {
-            var meta = gun.getItemMeta();
-            var pdc = meta.getPersistentDataContainer();
-            var itemId = pdc.get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
-            var def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
+        // 2. Toi's Armoryデータパックに同じ銃があればデータパック銃を持たせる (射撃もデータパック銃で行う)
+        if (!equipDatapackGun(scav, randomGunId)) {
+            // 無ければプラグインの銃。ItemFactoryで生成 (ここでPDCにAMMOやITEM_IDが書き込まれる)
+            ItemStack gun = ItemFactory.create(randomGunId);
+            if (gun != null && gun.hasItemMeta()) {
+                var meta = gun.getItemMeta();
+                var pdc = meta.getPersistentDataContainer();
+                var itemId = pdc.get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
+                var def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
             
-            if (def != null && def.maxDurability > 0) {
-                java.util.Random rand = new java.util.Random();
-                double roll = rand.nextDouble();
-                double durabilityPercentage;
+                if (def != null && def.maxDurability > 0) {
+                    java.util.Random rand = new java.util.Random();
+                    double roll = rand.nextDouble();
+                    double durabilityPercentage;
 
-                if (roll < 0.05) {
-                    // 5%の確率で 75% - 85% (約80%)
-                    durabilityPercentage = 0.75 + (rand.nextDouble() * 0.1);
-                } else {
-                    // 95%の確率で 30% - 50%
-                    durabilityPercentage = 0.3 + (rand.nextDouble() * 0.2);
+                    if (roll < 0.05) {
+                        // 5%の確率で 75% - 85% (約80%)
+                        durabilityPercentage = 0.75 + (rand.nextDouble() * 0.1);
+                    } else {
+                        // 95%の確率で 30% - 50%
+                        durabilityPercentage = 0.3 + (rand.nextDouble() * 0.2);
+                    }
+
+                    int newDurability = (int) (def.maxDurability * durabilityPercentage);
+                    pdc.set(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.DURABILITY, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, newDurability);
+                    gun.setItemMeta(meta);
+                
+                    // バー表示を同期させる
+                    ItemFactory.updateLore(gun);
                 }
 
-                int newDurability = (int) (def.maxDurability * durabilityPercentage);
-                pdc.set(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.DURABILITY, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, newDurability);
-                gun.setItemMeta(meta);
-                
-                // バー表示を同期させる
-                ItemFactory.updateLore(gun);
+                scav.getEquipment().setItemInMainHand(gun);
+                scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
             }
-
-            scav.getEquipment().setItemInMainHand(gun);
-            scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
         }
 
         // 3. 防具のランダム装備
@@ -178,6 +184,19 @@ public class ScavSpawner implements Listener {
         if (RANDOM.nextDouble() < 0.20) {
             setupRandomBackpack(scav);
         }
+    }
+
+    /**
+     * データパック銃を手に持たせる。データパックにその銃が無ければfalse
+     */
+    private boolean equipDatapackGun(Mob scav, String gunId) {
+        DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
+        if (profile == null) return false;
+        ItemStack gun = DatapackGunCatalog.createItem(scav.getWorld(), profile);
+        if (gun == null) return false;
+        scav.getEquipment().setItemInMainHand(gun);
+        scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
+        return true;
     }
 
     private void setupRandomBackpack(Mob scav) {
@@ -422,6 +441,9 @@ public class ScavSpawner implements Listener {
         
         // --- 1. SCAVが誰かを殺したかチェック ---
         LivingEntity killer = victim.getKiller();
+        if (DatapackGunnerManager.isGunner(killer)) {
+            killer = (LivingEntity) DatapackGunnerManager.resolveShooter(killer);
+        }
         if (killer != null) {
             ScavController killerController = controllers.get(killer.getUniqueId());
             if (killerController != null) {
