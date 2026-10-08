@@ -164,6 +164,7 @@ public class CombatHeatmapManager {
     }
 
     public static void save(File file) {
+        cleanup();
         YamlConfiguration config = new YamlConfiguration();
         int i = 0;
         for (Map.Entry<GridKey, GridData> entry : heatmap.entrySet()) {

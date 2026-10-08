@@ -110,6 +110,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
         // ヒートマップ読み込み
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.load(new java.io.File(getDataFolder(), "heatmap.yml"));
+        // 減衰しきった記録を毎分取り除く
+        getServer().getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 1200L, 1200L);
 
         BrainManager.init(this); // 追加
         aiRaidLogger = new AiRaidLogger(this);

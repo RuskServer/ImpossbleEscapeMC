@@ -109,6 +109,14 @@ public class ScavController {
     private int pursuitSteps = 0;
     private int lastSearchTick = -1;
 
+    // --- ヒートマップの「安全」記録 ---
+    /** 記録間隔 (約3秒)。毎ステップ記録すると「危険」(被弾1回 +2) をすぐ打ち消してしまう */
+    private static final int SAFE_RECORD_INTERVAL_STEPS = 20;
+    /** 直近この時間 (tick) 以内に撃たれていたら安全とはみなさない */
+    private static final int SAFE_RECORD_NO_DAMAGE_TICKS = 60;
+    private int safeRecordCooldownSteps = 0;
+    private int lastDamagedTick = Integer.MIN_VALUE / 2;
+
     public boolean isSprinting() {
         return isSprinting;
     }
@@ -187,9 +195,15 @@ public class ScavController {
         decayAlertness();
         vision.setAlertness(alertness);
 
-        // ヒートマップ記録
-        if (tactics.getTacticalCoverLoc() != null && suppression < 0.2f && scav.getLocation().distance(tactics.getTacticalCoverLoc()) < 1.5) {
-            CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.SAFE, 0.1f);
+        // ヒートマップ記録: 敵を認識している最中に、撃たれずに物陰で耐えられた場所を「安全」として記録する
+        if (safeRecordCooldownSteps > 0) safeRecordCooldownSteps--;
+        Location heldCover = tactics.getTacticalCoverLoc();
+        boolean engaged = target != null || lastKnownLocation != null;
+        if (engaged && heldCover != null && safeRecordCooldownSteps == 0 && suppression < 0.2f
+                && Bukkit.getCurrentTick() - lastDamagedTick > SAFE_RECORD_NO_DAMAGE_TICKS
+                && heldCover.getWorld() == scav.getWorld() && scav.getLocation().distance(heldCover) < 1.5) {
+            CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.SAFE, 0.5f);
+            safeRecordCooldownSteps = SAFE_RECORD_INTERVAL_STEPS;
         }
 
         // タイマー更新
@@ -653,6 +667,7 @@ public class ScavController {
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         addAlertness(0.35f, "TOOK_DAMAGE", raidSessionId);
         suppression = Math.min(1.0f, suppression + 0.3f);
+        lastDamagedTick = Bukkit.getCurrentTick();
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
         if (scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() < 0.5) {
             playScavVoice("minecraft:scav3", 1.0f, 1.0f);
