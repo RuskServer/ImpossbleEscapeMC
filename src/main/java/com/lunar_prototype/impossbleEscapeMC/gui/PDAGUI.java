@@ -196,12 +196,43 @@ public class PDAGUI implements Listener {
         market.setItemMeta(marketMeta);
         inventory.setItem(12, market);
         
+        // Partyボタン
+        inventory.setItem(10, createPartyButton());
+
         // 閉じるボタン
         ItemStack close = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = close.getItemMeta();
         closeMeta.displayName(Component.text("閉じる", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         close.setItemMeta(closeMeta);
         inventory.setItem(22, close);
+    }
+
+    private ItemStack createPartyButton() {
+        com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager = ImpossbleEscapeMC.getInstance().getPartyManager();
+        com.lunar_prototype.impossbleEscapeMC.party.Party party = partyManager.getParty(player.getUniqueId());
+        java.util.UUID inviterId = partyManager.getPendingInviter(player.getUniqueId());
+        Player inviter = inviterId != null ? Bukkit.getPlayer(inviterId) : null;
+
+        ItemStack button = new ItemStack(Material.WHITE_BANNER);
+        ItemMeta meta = button.getItemMeta();
+        meta.displayName(Component.text("Party (パーティー)", NamedTextColor.LIGHT_PURPLE).decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.text("パーティーの作成・招待・メンバー管理を行います。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.empty());
+        if (party != null) {
+            String role = party.isLeader(player.getUniqueId()) ? "リーダー" : "メンバー";
+            lore.add(Component.text(party.getSize() + "人パーティー (" + role + ")", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("パーティー未所属", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        }
+        if (inviter != null) {
+            lore.add(Component.text(inviter.getName() + " から招待が届いています", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+        }
+        lore.add(Component.empty());
+        lore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        meta.lore(lore);
+        button.setItemMeta(meta);
+        return button;
     }
 
     @EventHandler
@@ -212,6 +243,9 @@ public class PDAGUI implements Listener {
         int slot = event.getRawSlot();
         if (slot == 22) {
             player.closeInventory();
+        } else if (slot == 10) {
+            player.closeInventory();
+            new PartyGUI(player).open();
         } else if (slot == 11) {
             RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
             if (raidModule.isInRaid(player)) {

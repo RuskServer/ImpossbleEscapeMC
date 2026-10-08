@@ -56,6 +56,27 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
                 }
                 manager.acceptInvite(player, args[1]);
                 break;
+            case "decline":
+                manager.declineInvite(player);
+                break;
+            case "kick":
+            case "leader": {
+                if (args.length < 2) {
+                    player.sendMessage(Component.text("使用法: /party " + args[0].toLowerCase() + " <player>", NamedTextColor.RED));
+                    return true;
+                }
+                Player member = Bukkit.getPlayer(args[1]);
+                if (member == null) {
+                    player.sendMessage(Component.text("プレイヤーが見つかりません。", NamedTextColor.RED));
+                    return true;
+                }
+                if (args[0].equalsIgnoreCase("kick")) {
+                    manager.kickMember(player, member.getUniqueId());
+                } else {
+                    manager.transferLeader(player, member.getUniqueId());
+                }
+                break;
+            }
             case "leave":
                 manager.leaveParty(player);
                 break;
@@ -117,6 +138,9 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(Component.text("/party create", NamedTextColor.WHITE));
         player.sendMessage(Component.text("/party invite <player>", NamedTextColor.WHITE));
         player.sendMessage(Component.text("/party accept <player>", NamedTextColor.WHITE));
+        player.sendMessage(Component.text("/party decline", NamedTextColor.WHITE));
+        player.sendMessage(Component.text("/party kick <player>", NamedTextColor.WHITE));
+        player.sendMessage(Component.text("/party leader <player>", NamedTextColor.WHITE));
         player.sendMessage(Component.text("/party leave", NamedTextColor.WHITE));
         player.sendMessage(Component.text("/party info", NamedTextColor.WHITE));
         player.sendMessage(Component.text("/party chat <message>", NamedTextColor.WHITE));
@@ -125,12 +149,21 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "invite", "accept", "leave", "disband", "info", "chat").stream()
+            return Arrays.asList("create", "invite", "accept", "decline", "kick", "leader", "leave", "disband", "info", "chat").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
 
         if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("kick") || args[0].equalsIgnoreCase("leader")) {
+                Party party = sender instanceof Player p ? manager.getParty(p.getUniqueId()) : null;
+                if (party == null) return new ArrayList<>();
+                return party.getMembers().stream()
+                        .map(uuid -> Bukkit.getOfflinePlayer(uuid).getName())
+                        .filter(name -> name != null && !name.equals(sender.getName()))
+                        .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
             if (args[0].equalsIgnoreCase("invite") || args[0].equalsIgnoreCase("accept")) {
                 return Bukkit.getOnlinePlayers().stream()
                         .filter(p -> !com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(p))
