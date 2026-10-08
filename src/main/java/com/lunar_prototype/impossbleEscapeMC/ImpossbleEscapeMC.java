@@ -176,6 +176,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(lootBackpackOverlayListener, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.map.MapSlotListener(this, raidMapManager), this);
+        // 地図を持っている間はオフハンドを空に見せ、地図を大きく表示させる
+        new com.lunar_prototype.impossbleEscapeMC.map.MapOffhandHider(this, raidMapManager);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidItemListener(this), this);
 
         // PacketEvents リスナーの登録
