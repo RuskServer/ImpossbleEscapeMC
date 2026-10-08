@@ -37,6 +37,7 @@ public class RigModule implements IModule {
         Bukkit.getPluginManager().registerEvents(new RigListener(this, plugin), plugin);
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
+                if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 if (isControlSuppressed(player)) continue;
                 enforceLockedSlots(player);
                 syncLockedSlotPlaceholders(player);

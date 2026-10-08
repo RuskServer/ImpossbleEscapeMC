@@ -15,6 +15,7 @@ public class CrossbowTask extends BukkitRunnable {
     @Override
     public void run() {
         for (Player player : Bukkit.getOnlinePlayers()) {
+            if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
             ItemStack item = player.getInventory().getItemInMainHand();
 
             // クロスボウを持っているか確認

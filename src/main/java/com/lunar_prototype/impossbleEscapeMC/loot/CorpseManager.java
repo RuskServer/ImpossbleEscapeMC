@@ -37,7 +37,7 @@ public class CorpseManager {
     }
 
     public void spawnCorpse(LivingEntity victim) {
-        spawnCorpse(victim, victim.getKiller());
+        spawnCorpse(victim, (LivingEntity) com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.resolveShooter(victim.getKiller()));
     }
 
     public void spawnCorpse(LivingEntity victim, LivingEntity killer) {

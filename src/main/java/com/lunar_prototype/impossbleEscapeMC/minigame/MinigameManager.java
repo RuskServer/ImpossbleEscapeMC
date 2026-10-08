@@ -131,6 +131,7 @@ public class MinigameManager {
     public void splitTeams() {
         List<Player> players = Bukkit.getOnlinePlayers().stream()
                 .filter(p -> p.getGameMode() != GameMode.SPECTATOR)
+                .filter(p -> !com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(p))
                 .collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(players);
         

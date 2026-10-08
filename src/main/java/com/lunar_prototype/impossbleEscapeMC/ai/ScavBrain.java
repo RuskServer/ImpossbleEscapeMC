@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.util.CombatEvaluator;
-import com.lunar_prototype.impossbleEscapeMC.item.GunStats;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -86,7 +86,7 @@ public class ScavBrain {
         }
     }
 
-    public int[] decide(LivingEntity target, Location lastKnownLocation, GunStats stats, float suppression, float tacticalAdvice, boolean isSprinting, float alertness) {
+    public int[] decide(LivingEntity target, Location lastKnownLocation, ScavWeapon weapon, float suppression, float tacticalAdvice, boolean isSprinting, float alertness) {
         boolean canSeeNow = target != null;
 
         // --- 視認状態のデバウンス処理 ---
@@ -120,10 +120,10 @@ public class ScavBrain {
         else presenceTicks++;
 
         // --- 1. Update Internal States ---
-        updateInternalStates(dist, stats, suppression, tacticalAdvice, canSee, healthPercent);
+        updateInternalStates(dist, weapon, suppression, tacticalAdvice, canSee, healthPercent);
 
         // --- 2. Check for Interrupts ---
-        String interruptReason = getInterruptReason(canSee, suppression, healthPercent, stats);
+        String interruptReason = getInterruptReason(canSee, suppression, healthPercent, weapon);
         boolean interrupted = interruptReason != null;
 
         // --- 3. Utility-Based Decision Logic ---
@@ -133,12 +133,7 @@ public class ScavBrain {
             // A. 戦況の評価
             float pressure = (suppression * 0.4f) + (float)((1.0 - healthPercent) * 0.6f);
             
-            ItemStack gun = entity.getEquipment().getItemInMainHand();
-            float ammo = 1.0f;
-            if (gun != null && gun.hasItemMeta() && stats != null) {
-                int currentAmmo = gun.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-                ammo = (float) currentAmmo / stats.magSize;
-            }
+            float ammo = weapon != null ? (float) weapon.ammoRatio() : 1.0f;
 
             float targetHealth = (target != null) ? (float)(target.getHealth() / target.getAttribute(Attribute.MAX_HEALTH).getValue()) : 1.0f;
             float advantage = (1.0f - targetHealth) * 0.4f + (ammo * 0.6f);
@@ -301,7 +296,7 @@ public class ScavBrain {
         return count;
     }
 
-    private String getInterruptReason(boolean canSee, float suppression, double healthPercent, GunStats stats) {
+    private String getInterruptReason(boolean canSee, float suppression, double healthPercent, ScavWeapon weapon) {
         // A. Sudden sight change (Debounced state changed)
         if (canSee != lastCanSee) return "SIGHT_CHANGE";
 
@@ -313,30 +308,21 @@ public class ScavBrain {
         if (fear > 0.8f && lastSuppression < 0.5f) return "PANIC";
 
         // D. Out of ammo while trying to shoot
-        if (currentActions[1] == 0) { 
-            ItemStack gun = entity.getEquipment().getItemInMainHand();
-            if (gun != null && gun.hasItemMeta()) {
-                int ammo = gun.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-                if (ammo <= 0) return "OUT_OF_AMMO";
-            }
+        if (currentActions[1] == 0 && weapon != null && weapon.ammo() <= 0) {
+            return "OUT_OF_AMMO";
         }
 
         return null;
     }
 
-    private boolean shouldInterrupt(boolean canSee, float suppression, double healthPercent, GunStats stats) {
-        return getInterruptReason(canSee, suppression, healthPercent, stats) != null;
+    private boolean shouldInterrupt(boolean canSee, float suppression, double healthPercent, ScavWeapon weapon) {
+        return getInterruptReason(canSee, suppression, healthPercent, weapon) != null;
     }
 
-    private void updateInternalStates(double distance, GunStats stats, float suppression, float tacticalAdvice,
+    private void updateInternalStates(double distance, ScavWeapon weapon, float suppression, float tacticalAdvice,
             boolean canSee, double healthPercent) {
         
-        ItemStack gun = entity.getEquipment().getItemInMainHand();
-        double ammoPercent = 1.0;
-        if (gun != null && gun.hasItemMeta() && stats != null) {
-            int currentAmmo = gun.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-            ammoPercent = (double) currentAmmo / stats.magSize;
-        }
+        double ammoPercent = weapon != null ? weapon.ammoRatio() : 1.0;
 
         // Update Aggression/Fear using Evaluator
         float spikeAgg = CombatEvaluator.calculateAggressionSpike(distance, suppression, healthPercent, canSee);

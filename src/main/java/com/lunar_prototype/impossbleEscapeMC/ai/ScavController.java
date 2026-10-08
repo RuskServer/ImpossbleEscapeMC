@@ -1,6 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackScavWeapon;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.PluginScavWeapon;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
@@ -75,6 +80,8 @@ public class ScavController {
     private final ScavVision vision;
     private final ScavSquad squad;
     private final ScavTactics tactics;
+    private ScavWeapon weapon;
+    private String weaponKey;
 
     private Chunk currentChunk = null;
     private Location lastKnownLocation = null;
@@ -243,17 +250,13 @@ public class ScavController {
         logTargetTransitionIfNeeded(raidSessionId, target);
 
         // 装備チェック
-        ItemStack item = scav.getEquipment().getItemInMainHand();
-        String itemId = (item != null && item.hasItemMeta()) ? 
-            item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-        ItemDefinition def = ItemRegistry.get(itemId);
-        if (def == null || def.gunStats == null) {
+        ScavWeapon weapon = resolveWeapon();
+        if (weapon == null) {
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, 0.0f, new int[] {8, 1});
             return;
         }
 
-        int currentAmmo = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-        boolean needsReload = currentAmmo <= 0;
+        boolean needsReload = weapon.needsReload();
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
 
         // 3. スイッチング
@@ -304,16 +307,16 @@ public class ScavController {
 
         // 6. Peek Maneuver
         if (tactics.getPeekPhase() > 0) {
-            tactics.handlePeekManeuver(target, def.gunStats, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
+            tactics.handlePeekManeuver(target, weapon, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
-            int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting, alertness);
+            int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, peekActions);
             return;
         }
 
         // 7. AI思考 & 移動
         brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
-        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, def.gunStats, suppression, tacticalAdvice, isSprinting, alertness);
+        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
         if (actions.length < 2) {
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
             return;
@@ -341,7 +344,7 @@ public class ScavController {
             }
         } else if (canSeeTarget) {
             isHoldingAngle = false;
-            boolean isAuto = "AUTO".equalsIgnoreCase(def.gunStats.fireMode);
+            boolean isAuto = weapon.isAutomatic();
             tactics.handleCombatMovement(moveAction, target, isAuto, neurons[0], suppression, isSprinting, squad.getNearbyAllies());
         } else if (lastKnownLocation != null) {
             isHoldingAngle = false;
@@ -354,31 +357,31 @@ public class ScavController {
         // 射撃
         if (actions[1] == 0) {
             long now = System.currentTimeMillis();
-            long interval = (long) (60000.0 / def.gunStats.rpm);
+            long interval = (long) (60000.0 / weapon.rpm());
             if (canSeeTarget) {
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
                     // セミオートやポンプアクションの場合は人間らしい「タップ遅延」や「次弾装填待ち」を追加
-                    if ("SEMI".equalsIgnoreCase(def.gunStats.fireMode) || "PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                    if (!weapon.isAutomatic() || weapon.isManualAction()) {
                         long extraDelay = 50 + (long)(Math.random() * 150);
-                        if ("PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                        if (weapon.isManualAction()) {
                             extraDelay += 300 + (long)(Math.random() * 400); // ポンプアクションはコッキング時間を考慮して大幅に遅延
                         }
                         if (now - lastMobShotTime < interval + extraDelay) return;
                     }
 
                     double inacc = 0.04 + (suppression * 0.1) + (scav.getVelocity().length() > 0.1 ? 0.04 : 0);
-                    if ("PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
+                    if (weapon.isManualAction()) {
                         inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
                     }
                     
-                    gunListener.executeMobShoot(scav, def.gunStats, 1, inacc);
+                    weapon.fire(inacc);
                     lastMobShotTime = now;
                 }
             } else if (isPreAiming && Math.random() < 0.05) {
                 applyAimToEntity();
                 if (now - lastMobShotTime >= interval) {
-                    gunListener.executeMobShoot(scav, def.gunStats, 1, 0.3);
+                    weapon.fire(0.3);
                     lastMobShotTime = now;
                 }
             } else if (target != null) {
@@ -561,6 +564,7 @@ public class ScavController {
     }
 
     public void onDamage(Entity attacker) {
+        attacker = DatapackGunnerManager.resolveShooter(attacker);
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         addAlertness(0.35f, "TOOK_DAMAGE", raidSessionId);
         suppression = Math.min(1.0f, suppression + 0.3f);
@@ -619,7 +623,39 @@ public class ScavController {
 
     public void addSuppression(float amount) { this.suppression = Math.min(1.0f, this.suppression + amount); }
     public void onDeath() { brain.onDeath(); releaseChunkTicket(); }
-    public void terminate() { brain.terminate(); releaseChunkTicket(); }
+    public void terminate() { brain.terminate(); releaseChunkTicket(); releaseWeapon(); }
+
+    /**
+     * 手に持っている銃に対応する武器を返す。持ち替えたら作り直す。
+     * データパック銃 (Toi's Armory) を優先し、そうでなければプラグインの銃定義を使う。
+     */
+    private ScavWeapon resolveWeapon() {
+        ItemStack item = scav.getEquipment() != null ? scav.getEquipment().getItemInMainHand() : null;
+        String datapackGunId = DatapackGunCatalog.gunIdOf(item);
+        String pluginItemId = (datapackGunId == null && item != null && item.hasItemMeta())
+                ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+        String key = datapackGunId != null ? "datapack:" + datapackGunId : pluginItemId != null ? "plugin:" + pluginItemId : null;
+        if (java.util.Objects.equals(key, weaponKey)) return weapon;
+
+        releaseWeapon();
+        weaponKey = key;
+        if (datapackGunId != null) {
+            DatapackGunProfile profile = DatapackGunCatalog.get(datapackGunId);
+            if (profile != null) weapon = new DatapackScavWeapon(scav, profile);
+        } else if (pluginItemId != null) {
+            ItemDefinition def = ItemRegistry.get(pluginItemId);
+            if (def != null && def.gunStats != null) weapon = new PluginScavWeapon(scav, def, gunListener);
+        }
+        return weapon;
+    }
+
+    private void releaseWeapon() {
+        if (weapon != null) {
+            weapon.release();
+            weapon = null;
+        }
+        weaponKey = null;
+    }
 
     private void updateChunkTicket() {
         Chunk newChunk = scav.getLocation().getChunk();

@@ -133,6 +133,7 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2) {
             if (args[0].equalsIgnoreCase("invite") || args[0].equalsIgnoreCase("accept")) {
                 return Bukkit.getOnlinePlayers().stream()
+                        .filter(p -> !com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(p))
                         .map(Player::getName)
                         .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
