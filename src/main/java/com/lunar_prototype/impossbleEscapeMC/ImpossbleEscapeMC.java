@@ -117,6 +117,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         gunListener = new GunListener(this);
         scavSpawner = new ScavSpawner(this, gunListener);
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.init(this);
+        // アドレナリン・死亡時の画面演出 (26.3のポストエフェクト)
+        com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.init(this);
         resourcePackListener = new ResourcePackListener(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
         raidModule = new RaidModule(this);
@@ -282,6 +284,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // Plugin shutdown logic
         // SCAVのデータパック銃用FakePlayerは、サーバー停止時の退出・保存処理に乗らないよう先に取り除く
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
         }
