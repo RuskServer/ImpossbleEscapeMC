@@ -28,6 +28,17 @@ public class ScavTactics {
     private Location coverLocation = null;
     private Location peekLocation = null;
     private int peekTicks = 0;
+    /** 前回顔を出した側 (1 / -1、未実施は0) */
+    private int lastPeekSide = 0;
+    private int peekShotsRemaining = 0;
+    private int peekOutLimit = 5;
+    /** 顔出しから戻った後、次に顔を出せるまでの待ち */
+    private int peekRestTicks = 0;
+
+    // 横移動の緩急
+    /** 横移動の区間ごとの回る勢い (回る半径) の倍率 */
+    private double orbitScale = 1.0;
+    private int strafePauseTicks = 0;
 
     // Search/Slicing
     private Location slicingPoint = null;
@@ -56,9 +67,10 @@ public class ScavTactics {
             }
         }
         if (coverSearchCooldown > 0) coverSearchCooldown--;
+        if (peekRestTicks > 0) peekRestTicks--;
     }
 
-    public void handleCombatMovement(int action, LivingEntity target, boolean isAuto, float aggression, float suppression, boolean isSprinting, Iterable<ScavController> nearbyAllies) {
+    public void handleCombatMovement(int action, LivingEntity target, boolean isAuto, float aggression, float suppression, boolean isSprinting, Iterable<ScavController> nearbyAllies, double preferredRange) {
         Location sLoc = scav.getLocation();
         Location tLoc = target.getLocation();
         double dist = sLoc.distance(tLoc);
@@ -70,6 +82,23 @@ public class ScavTactics {
         if (strafeTicks <= 0 || (isCQC && isAuto && strafeTicks > 15)) {
             strafeDir = (Math.random() > 0.5) ? 1 : -1;
             strafeTicks = minTicks + (int) (Math.random() * varTicks);
+            orbitScale = 0.6 + Math.random() * 0.8; // 区間ごとに回る半径・勢いを変える
+        } else if (Math.random() < 0.04) {
+            strafeDir = -strafeDir; // 区間の途中での不意の切り返し
+        }
+
+        // 横移動・距離維持中は、時々立ち止まって狙いを安定させる (止まる長さもばらつかせる)
+        boolean lateral = action == 1 || action == 3 || action == 4;
+        if (strafePauseTicks > 0) {
+            strafePauseTicks--;
+            if (lateral) {
+                scav.getPathfinder().stopPathfinding();
+                return;
+            }
+        } else if (lateral && Math.random() < 0.05) {
+            strafePauseTicks = 2 + (int) (Math.random() * 5);
+            scav.getPathfinder().stopPathfinding();
+            return;
         }
 
         Vector toTarget = tLoc.toVector().subtract(sLoc.toVector()).normalize();
@@ -77,7 +106,7 @@ public class ScavTactics {
 
         switch (action) {
             case 0: moveVec.add(toTarget.clone().multiply(1.0)); break;
-            case 1: moveVec.add(toTarget.clone().multiply((dist - 12.0) * 0.2)); break;
+            case 1: moveVec.add(toTarget.clone().multiply((dist - preferredRange) * 0.2)); break;
             case 2: moveVec.add(toTarget.clone().multiply(-1.2)); break;
             case 5:
                 if (scav.isOnGround() && jumpCooldown <= 0) {
@@ -87,7 +116,7 @@ public class ScavTactics {
                 break;
         }
 
-        double centrifugalWeight = (action == 3 || action == 4) ? 1.5 : 0.8;
+        double centrifugalWeight = ((action == 3 || action == 4) ? 1.5 : 0.8) * orbitScale;
         if (isCQC && isAuto) centrifugalWeight *= 1.8; 
         moveVec.add(TacticalMath.calculateCentrifugalForce(sLoc, tLoc, strafeDir, dist).multiply(centrifugalWeight));
         moveVec.add(TacticalMath.calculateRepulsion(sLoc, tLoc, target.getEyeLocation().getDirection()));
@@ -148,33 +177,56 @@ public class ScavTactics {
         if (peekPhase == 1) { // Moving out
             scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
             boolean currentLos = target != null && scav.hasLineOfSight(target);
-            if (currentLos || peekTicks >= 5) {
+            if (currentLos || peekTicks >= peekOutLimit) {
                 long now = System.currentTimeMillis();
                 long interval = (long) (60000.0 / weapon.rpm());
                 if (now - lastShotTime >= interval) {
                     weapon.fire(0.1 + (suppression * 0.1));
                     shotTimeSetter.accept(now);
-                    peekPhase = 2;
-                    peekTicks = 0;
+                    // 見えていれば決めた回数だけ撃ち、見えなければ1発で引っ込む
+                    if (--peekShotsRemaining <= 0 || !currentLos) {
+                        peekPhase = 2;
+                        peekTicks = 0;
+                    }
                 }
+            }
+            // 連射の遅い銃でも出っぱなしにならないようにする
+            if (peekPhase == 1 && peekTicks > peekOutLimit + 8) {
+                peekPhase = 2;
+                peekTicks = 0;
             }
         } else if (peekPhase == 2) { // Moving back
             scav.getPathfinder().moveTo(coverLocation, isSprinting ? 1.5 : 1.0);
             if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 5) {
                 peekPhase = 0;
+                peekRestTicks = 4 + (int) (Math.random() * 20); // 次に顔を出すまでの間をばらつかせる
             }
         }
     }
 
-    public void startPeek(Location lastKnownLocation, boolean isSprinting) {
+    /**
+     * 物陰から顔を出して撃つ動きを始める。出る側・距離・撃つ回数・出ている時間を毎回ばらつかせる
+     *
+     * @return 始めた場合true。前回の顔出しから間が空いていなければfalse
+     */
+    public boolean startPeek(Location lastKnownLocation, boolean isSprinting) {
+        if (peekRestTicks > 0) return false;
         coverLocation = scav.getLocation().clone();
         Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
         Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX());
-        if (Math.random() > 0.5) tangent.multiply(-1);
-        peekLocation = coverLocation.clone().add(tangent.multiply(2.0));
+        // 前回と逆側から出ることが多いが、同じ側から出直すこともある
+        int side;
+        if (lastPeekSide == 0) side = Math.random() < 0.5 ? 1 : -1;
+        else side = Math.random() < 0.65 ? -lastPeekSide : lastPeekSide;
+        lastPeekSide = side;
+        double offset = 1.0 + Math.random() * 2.0;
+        peekLocation = coverLocation.clone().add(tangent.multiply(side * offset));
+        peekShotsRemaining = 1 + (int) (Math.random() * 3);
+        peekOutLimit = 3 + (int) (Math.random() * 6);
         peekPhase = 1;
         peekTicks = 0;
         scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
+        return true;
     }
 
     public void handleSearching(Location lastKnownLocation, int searchTicks, boolean isSprinting, java.util.function.Consumer<Location> preAimer) {

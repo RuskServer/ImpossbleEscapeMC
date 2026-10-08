@@ -27,6 +27,13 @@ public final class PluginScavWeapon implements ScavWeapon {
     @Override public boolean isReloading() { return false; }
 
     @Override
+    public double preferredRange() {
+        if (def.gunStats.pelletCount > 1 || isManualAction()) return 8.0; // ショットガン・ポンプ
+        if (!isAutomatic()) return 22.0;
+        return def.gunStats.rpm >= 800 ? 10.0 : 16.0;
+    }
+
+    @Override
     public int ammo() {
         ItemStack gun = scav.getEquipment() != null ? scav.getEquipment().getItemInMainHand() : null;
         if (gun == null || !gun.hasItemMeta()) return 0;

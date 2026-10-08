@@ -56,6 +56,19 @@ public class ScavBrain {
     private static final int DEBOUNCE_THRESHOLD_LOST = 5; // 見失い判定までの猶予 (0.25s)
     private boolean debouncedCanSee = false; // デバウンス済みの視認状態
 
+    // --- 予測不能性 ---
+    /** モード選択の揺らぎ (ソフトマックスの温度)。大きいほど点数の低いモードも選ばれやすい */
+    private final float decisionTemperature;
+    /** 交戦距離の好みの個体差 (武器ごとの基準距離に掛ける) */
+    private final double rangeTrait;
+    /** 今の判断で保とうとする交戦距離 */
+    private double engagementRange = 15.0;
+    private static final int MODE_HISTORY_SIZE = 6;
+    private final TacticalMode[] modeHistory = new TacticalMode[MODE_HISTORY_SIZE];
+    private int modeHistoryIdx = 0;
+    /** 同じ動きがこの回数以上直近の履歴にあれば、別の動きに変えることがある */
+    private static final int REPEAT_ACTION_THRESHOLD = 6;
+
     // --- State Tracking for Interrupts ---
     private float lastSuppression = 0.0f;
     private double lastHealthPercent = 1.0;
@@ -84,6 +97,20 @@ public class ScavBrain {
             this.aggression = 0.2f + random.nextFloat() * 0.2f;
             this.tactical = 0.5f + random.nextFloat() * 0.25f;
         }
+
+        // 低ランクほど判断が荒く、高ランクほど合理的。同じランクでも個体差を持たせる
+        float baseTemperature = switch (brainLevel) {
+            case LOW -> 0.22f;
+            case MID -> 0.16f;
+            case HIGH -> 0.11f;
+        };
+        this.decisionTemperature = baseTemperature * (0.8f + random.nextFloat() * 0.45f);
+        this.rangeTrait = 0.75 + random.nextDouble() * 0.55;
+    }
+
+    /** 今の判断で保とうとする交戦距離 (武器の好み × 個体差 × 判断ごとの揺らぎ) */
+    public double getEngagementRange() {
+        return engagementRange;
     }
 
     public int[] decide(LivingEntity target, Location lastKnownLocation, ScavWeapon weapon, float suppression, float tacticalAdvice, boolean isSprinting, float alertness) {
@@ -135,6 +162,8 @@ public class ScavBrain {
             
             float ammo = weapon != null ? (float) weapon.ammoRatio() : 1.0f;
 
+            engagementRange = (weapon != null ? weapon.preferredRange() : 15.0) * rangeTrait * (0.85 + random.nextDouble() * 0.3);
+
             float targetHealth = (target != null) ? (float)(target.getHealth() / target.getAttribute(Attribute.MAX_HEALTH).getValue()) : 1.0f;
             float advantage = (1.0f - targetHealth) * 0.4f + (ammo * 0.6f);
             float presence = Math.max(0, 1.0f - (presenceTicks / 600.0f));
@@ -143,9 +172,10 @@ public class ScavBrain {
             float withdrawScore = (pressure * 0.8f) + ((1.0f - advantage) * 0.4f) + (fear * 0.6f);
             
             // PUSHスコアの強化: 10m以内かつ視認中(遮蔽が少ない)なら強烈なボーナス
-            float pushScore = (advantage * 0.6f) + (aggression * 0.5f) + (float)(Math.max(0, 1.0 - dist/40.0) * 0.3);
-            if (dist < 10.0 && canSee) {
-                pushScore += 0.5f; // 強制的な突撃衝動
+            float pushScore = (advantage * 0.6f) + (aggression * 0.5f) + (float)(Math.max(0, 1.0 - dist / (engagementRange * 2.5)) * 0.3);
+            // 至近距離の突撃衝動。毎回ではなく、攻撃性が高いほど起きやすい
+            if (dist < 10.0 && canSee && random.nextFloat() < 0.35f + aggression * 0.6f) {
+                pushScore += 0.3f + random.nextFloat() * 0.3f;
                 if (healthPercent > 0.4) aggression += 0.1f; // 余裕があればさらに強気に
             }
             
@@ -159,7 +189,7 @@ public class ScavBrain {
             holdScore += (1.0f - alertness) * 0.25f;
 
             if (brainLevel == BrainLevel.LOW) {
-                pushScore += 0.35f;
+                pushScore += 0.15f + random.nextFloat() * 0.25f;
                 holdScore -= 0.25f;
                 flankScore -= 0.15f;
                 peekScore -= 0.1f;
@@ -169,14 +199,16 @@ public class ScavBrain {
                 pushScore -= 0.15f;
             }
 
-            // C. 最高スコアのモードを選択
-            TacticalMode bestMode = TacticalMode.HOLD;
-            float maxScore = holdScore;
-            
-            if (withdrawScore > maxScore) { maxScore = withdrawScore; bestMode = TacticalMode.WITHDRAW; }
-            if (pushScore > maxScore) { maxScore = pushScore; bestMode = TacticalMode.PUSH; }
-            if (peekScore > maxScore) { maxScore = peekScore; bestMode = TacticalMode.PEEK; }
-            if (flankScore > maxScore) { maxScore = flankScore; bestMode = TacticalMode.FLANK; }
+            // C. モードを選択: 最高点を必ず選ぶと同じ状況で毎回同じ動きになるため、点数に応じた確率で選ぶ
+            java.util.EnumMap<TacticalMode, Float> scores = new java.util.EnumMap<>(TacticalMode.class);
+            scores.put(TacticalMode.HOLD, holdScore);
+            scores.put(TacticalMode.WITHDRAW, withdrawScore);
+            scores.put(TacticalMode.PUSH, pushScore);
+            scores.put(TacticalMode.PEEK, peekScore);
+            scores.put(TacticalMode.FLANK, flankScore);
+            // 直近に多用したモードは点数を下げ、同じ戦い方の繰り返しを避ける
+            scores.replaceAll((mode, score) -> score - Math.min(0.3f, 0.08f * recentModeCount(mode)));
+            TacticalMode bestMode = sampleMode(scores);
 
             // 戦術的慣性: 以前のモードと大きな差がなければ維持
             // ただし、緊急の割り込み(interrupted)がある場合は、慣性を無視して即座に遷移させる
@@ -187,8 +219,14 @@ public class ScavBrain {
                 modeInertia = 10 + random.nextInt(20); // 0.5s - 1.5s 維持
             }
 
+            recordModeHistory(currentMode);
+
             // D. モードを具体的なアクションに変換
             int moveAction = determineMoveActionByMode(currentMode, suppression, canSee, tacticalAdvice, dist);
+            // 同じ動きを繰り返していたら、半々で別の動きに変える (狙いを付けるHOLDと距離維持は除く)
+            if (moveAction != 8 && moveAction != 1 && getActionCount(moveAction) >= REPEAT_ACTION_THRESHOLD && random.nextBoolean()) {
+                moveAction = varyAction(moveAction);
+            }
             int shootAction = determineShootAction(canSee, suppression, isSprinting);
             
             // --- AI Analysis Logging ---
@@ -250,9 +288,9 @@ public class ScavBrain {
                 return random.nextBoolean() ? 3 : 4;
 
             case FLANK:
-                // サークルストレイフのロジック: 横移動を基本に、距離の誤差を修正
-                if (dist > 25.0) return 0; // 遠すぎるなら近づきながら
-                if (dist < 12.0) return 2; // 近すぎるなら離れながら
+                // サークルストレイフのロジック: 横移動を基本に、武器と個体ごとの交戦距離に合わせて距離を修正
+                if (dist > engagementRange * 1.5) return 0; // 遠すぎるなら近づきながら
+                if (dist < engagementRange * 0.7) return 2; // 近すぎるなら離れながら
                 return random.nextBoolean() ? 3 : 4; // 適正距離なら純粋に横移動
 
             case HOLD:
@@ -262,6 +300,51 @@ public class ScavBrain {
                 if (lastCanSee && presenceTicks < 40) return 8; 
                 return 1; // それ以外は Maintain
         }
+    }
+
+    /** 点数のソフトマックスでモードを選ぶ */
+    private TacticalMode sampleMode(java.util.EnumMap<TacticalMode, Float> scores) {
+        float max = Float.NEGATIVE_INFINITY;
+        for (float score : scores.values()) max = Math.max(max, score);
+        double total = 0;
+        java.util.EnumMap<TacticalMode, Double> weights = new java.util.EnumMap<>(TacticalMode.class);
+        for (var entry : scores.entrySet()) {
+            double weight = Math.exp((entry.getValue() - max) / decisionTemperature);
+            weights.put(entry.getKey(), weight);
+            total += weight;
+        }
+        double roll = random.nextDouble() * total;
+        for (var entry : weights.entrySet()) {
+            roll -= entry.getValue();
+            if (roll <= 0) return entry.getKey();
+        }
+        return TacticalMode.HOLD;
+    }
+
+    private void recordModeHistory(TacticalMode mode) {
+        modeHistory[modeHistoryIdx] = mode;
+        modeHistoryIdx = (modeHistoryIdx + 1) % MODE_HISTORY_SIZE;
+    }
+
+    private int recentModeCount(TacticalMode mode) {
+        int count = 0;
+        for (TacticalMode recent : modeHistory) {
+            if (recent == mode) count++;
+        }
+        return count;
+    }
+
+    /** 繰り返している動きを、同じ意図の別の動きに置き換える */
+    private int varyAction(int action) {
+        return switch (action) {
+            case 0, 2 -> random.nextBoolean() ? 3 : 4; // 直進・後退 → 横に動きながら
+            case 3 -> 4;                               // 左右の横移動を入れ替え
+            case 4 -> 3;
+            case 5 -> 0;                               // ジャンプ → 前進
+            case 6 -> 7;                               // ピーク ⇔ ジャンプピーク
+            case 7 -> 6;
+            default -> action;
+        };
     }
 
     private void recordHistory(int moveAction) {

@@ -26,6 +26,7 @@ public final class DatapackScavWeapon implements ScavWeapon {
     @Override public boolean isAutomatic() { return profile.automatic(); }
     @Override public boolean isManualAction() { return profile.manualAction(); }
     @Override public int magazineSize() { return profile.magazineSize(); }
+    @Override public double preferredRange() { return profile.preferredRange(); }
 
     @Override
     public int ammo() {
