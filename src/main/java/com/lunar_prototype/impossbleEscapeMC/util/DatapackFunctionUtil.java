@@ -49,30 +49,15 @@ public class DatapackFunctionUtil {
                 }) // 一般的なデータパック関数実行用の権限レベル (通常は2)
                 .withSuppressedOutput(); // ログ出力（〜にアイテムを1個与えました 等）をミュート
 
-        // 関数の取得と実行 (ResourceLocation の解決・呼出をリフレクションで行い、コンパイルエラーを回避)
-        try {
-            Class<?> resourceLocationClass = Class.forName("net.minecraft.resources.ResourceLocation");
-            java.lang.reflect.Method tryParseMethod = resourceLocationClass.getMethod("tryParse", String.class);
-            Object functionKey = tryParseMethod.invoke(null, functionNamespacePath);
-            if (functionKey != null) {
-                java.lang.reflect.Method getMethod = server.getFunctions().getClass().getMethod("get", resourceLocationClass);
-                java.util.Optional<?> opt = (java.util.Optional<?>) getMethod.invoke(server.getFunctions(), functionKey);
-                if (opt.isPresent()) {
-                    Object function = opt.get();
-                    java.lang.reflect.Method executeMethod = server.getFunctions().getClass().getMethod("execute", function.getClass(), CommandSourceStack.class);
-                    executeMethod.invoke(server.getFunctions(), function, sourceStack);
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // 関数の実行 (functionコマンドは実行コンテキストが必要なため Commands#performCommand を使う)
+        runCommand(server, sourceStack, "function " + functionNamespacePath);
 
         // ダミープレイヤーのインベントリからアイテムを回収する
         for (int i = 0; i < dummyPlayer.getInventory().getContainerSize(); i++) {
             ItemStack nmsItem = dummyPlayer.getInventory().getItem(i);
             if (!nmsItem.isEmpty()) {
                 // BukkitのItemStackに変換して追加
-                capturedItems.add(nmsItem.asBukkitMirror());
+                capturedItems.add(org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(nmsItem));
             }
         }
 
@@ -83,8 +68,14 @@ public class DatapackFunctionUtil {
     }
 
     /**
+     * Toi's Armory データパックの銃付与functionを呼び出す (マクロ引数: id, display_name)。
+     * アイテム構造をプラグイン側に持たないことで、データパック/MCバージョン更新時の書式ズレを防ぐ。
+     */
+    private static final String GUN_GIVE_FUNCTION = "toisarm:dialog/get_gun_with_id/with_trigger_count/with_id/with_data/";
+
+    /**
      * 指定した銃IDと表示名を持つ銃のItemStackを生成します。
-     * コマンドテンプレートを実行してダミープレイヤーに付与し、それを回収することでItemStackを取得します。
+     * データパックの銃付与functionをダミープレイヤーとして実行し、付与されたアイテムを回収することでItemStackを取得します。
      *
      * @param world 実行するワールドコンテキスト
      * @param gunId 銃のID (例: "m4a1")
@@ -92,78 +83,10 @@ public class DatapackFunctionUtil {
      * @return 生成されたItemStack（失敗した場合はnull）
      */
     public static org.bukkit.inventory.ItemStack generateGunItem(World world, String gunId, String displayName) {
-        String rawTemplate = "give @s crossbow[\n" +
-                "  piercing_weapon={min_reach:0.0,max_reach:0,hitbox_margin:0,deals_knockback:false,dismounts:false},\n" +
-                "  swing_animation={duration:1,type:\"none\"},\n" +
-                "  minecraft:item_name={\"text\":\"$(display_name)\",\"color\":\"white\"},\n" +
-                "  minecraft:custom_data={\n" +
-                "    toisarm:{\n" +
-                "      type:gun,\n" +
-                "      id:$(id),\n" +
-                "      state:{\n" +
-                "        chamber:0b,\n" +
-                "        ammo_remaining:0,\n" +
-                "        modes_index:0\n" +
-                "      },\n" +
-                "      attachment:[\n" +
-                "      ]\n" +
-                "    }\n" +
-                "  },\n" +
-                "  minecraft:charged_projectiles=[\n" +
-                "    {\n" +
-                "      count:1,\n" +
-                "      id:\"minecraft:arrow\"\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  minecraft:enchantments={\n" +
-                "    \"toisarm:gun\":1\n" +
-                "  },\n" +
-                "  minecraft:item_model=\"toisarm:gun/$(id)/idle\",\n" +
-                "  minecraft:custom_model_data={floats:[0,0,0,0,0,0,0],strings:[\"default\",\"default\",\"default\",\"default\",\"default\",\"default\",\"default\",\"default\",\"default\",\"default\",\"default\",\"default\"]},\n" +
-                "  minecraft:enchantment_glint_override=false,\n" +
-                "  minecraft:rarity=epic,\n" +
-                "  attribute_modifiers=[\n" +
-                "    {\n" +
-                "      id:\"block_break_speed\",\n" +
-                "      type:\"block_break_speed\",\n" +
-                "      amount:-10,\n" +
-                "      operation:\"add_value\",\n" +
-                "    },\n" +
-                "    {\n" +
-                "      id:\"block_interaction_range\",\n" +
-                "      type:\"block_interaction_range\",\n" +
-                "      amount:-10,\n" +
-                "      operation:\"add_value\",\n" +
-                "    },\n" +
-                "    {\n" +
-                "      id:\"entity_interaction_range\",\n" +
-                "      type:\"entity_interaction_range\",\n" +
-                "      amount:-10,\n" +
-                "      operation:\"add_value\",\n" +
-                "    },\n" +
-                "    {\n" +
-                "      id:\"sneaking_speed\",\n" +
-                "      type:\"sneaking_speed\",\n" +
-                "      amount:0.15,\n" +
-                "      operation:\"add_value\"\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  tooltip_display={\n" +
-                "    hidden_components:[\n" +
-                "      \"charged_projectiles\",\n" +
-                "      \"attribute_modifiers\",\n" +
-                "      \"enchantments\"\n" +
-                "    ]\n" +
-                "  }\n" +
-                "]";
-
-        // プレースホルダーの置き換え
-        String command = rawTemplate
-                .replace("$(id)", gunId)
-                .replace("$(display_name)", displayName);
-
-        // コマンド実行のため改行を削除し、1行にする
-        command = command.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+        // display_name はデータパック側で "text":"$(display_name)" にそのまま埋め込まれるため、
+        // その文字列用とマクロ引数(SNBT)用の2回エスケープする
+        String command = "function " + GUN_GIVE_FUNCTION
+                + " {id:\"" + escapeSnbtString(gunId) + "\",display_name:\"" + escapeSnbtString(escapeSnbtString(displayName)) + "\"}";
 
         MinecraftServer server = ((CraftServer) Bukkit.getServer()).getServer();
         ServerLevel level = ((CraftWorld) world).getHandle();
@@ -181,28 +104,50 @@ public class DatapackFunctionUtil {
                 })
                 .withSuppressedOutput();
 
-        // コマンドを実行
-        try {
-            server.getCommands().getDispatcher().execute(command, sourceStack);
-        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
-            Bukkit.getLogger().severe("[DatapackFunctionUtil] Command syntax error: " + e.getMessage());
-            Bukkit.getLogger().severe("[DatapackFunctionUtil] Failed command: " + command);
-        } catch (Exception e) {
-            Bukkit.getLogger().severe("[DatapackFunctionUtil] Error executing command: " + e.getMessage());
-            e.printStackTrace();
-        }
+        runCommand(server, sourceStack, command);
 
         // ダミープレイヤーのインベントリからアイテムを取得
         org.bukkit.inventory.ItemStack result = null;
         for (int i = 0; i < dummyPlayer.getInventory().getContainerSize(); i++) {
             ItemStack nmsItem = dummyPlayer.getInventory().getItem(i);
             if (!nmsItem.isEmpty()) {
-                result = nmsItem.asBukkitMirror();
+                result = org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(nmsItem);
                 break;
             }
         }
 
         dummyPlayer.getInventory().clearContent();
+
+        if (result == null) {
+            Bukkit.getLogger().warning("[DatapackFunctionUtil] No item was given by " + command
+                    + " (datapack missing, unknown gun id, or the datapack's give command failed)");
+        }
         return result;
+    }
+
+    /**
+     * コマンドをバニラと同じ実行コンテキストで実行する。構文エラー・実行時エラーはログに出す。
+     * (dispatcher.execute ではfunctionコマンドが正しく動かないため Commands#performCommand を使う)
+     */
+    private static void runCommand(MinecraftServer server, CommandSourceStack sourceStack, String command) {
+        try {
+            net.minecraft.commands.Commands commands = server.getCommands();
+            com.mojang.brigadier.ParseResults<CommandSourceStack> parse = commands.getDispatcher().parse(command, sourceStack);
+            com.mojang.brigadier.exceptions.CommandSyntaxException parseError = net.minecraft.commands.Commands.getParseException(parse);
+            if (parseError != null) {
+                Bukkit.getLogger().severe("[DatapackFunctionUtil] Command syntax error: " + parseError.getMessage());
+                Bukkit.getLogger().severe("[DatapackFunctionUtil] Failed command: " + command);
+                return;
+            }
+            commands.performCommand(parse, command, true);
+        } catch (Throwable e) {
+            Bukkit.getLogger().severe("[DatapackFunctionUtil] Error executing command: " + e.getMessage());
+            Bukkit.getLogger().severe("[DatapackFunctionUtil] Failed command: " + command);
+            e.printStackTrace();
+        }
+    }
+
+    private static String escapeSnbtString(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
