@@ -147,6 +147,32 @@ public final class DatapackGunnerManager implements Listener {
         }
     }
 
+    /**
+     * データパック銃の命中を、プラグイン銃の命中 (BulletHitEvent) と同じくSCAVのAIとレイドのAIログに伝える
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGunnerHit(EntityDamageByEntityEvent event) {
+        DatapackGunner gunner = byGunner.get(event.getDamager().getUniqueId());
+        if (gunner == null || !(event.getEntity() instanceof org.bukkit.entity.LivingEntity victim)) return;
+        if (victim.equals(gunner.getOwner()) || byGunner.containsKey(victim.getUniqueId())) return;
+
+        UUID ownerId = gunner.getOwner().getUniqueId();
+        ScavController controller = ScavSpawner.getController(ownerId);
+        // データパック銃は部位・貫通の情報を持たないため、胴体への貫通弾として扱う
+        if (controller != null) {
+            controller.onBulletHitDealt(victim, event.getFinalDamage(), true, "BODY");
+        }
+        String raidSessionId = ScavSpawner.getRaidSessionId(ownerId);
+        AiRaidLogger logger = com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC.getInstance().getAiRaidLogger();
+        if (raidSessionId != null && logger != null && logger.isEnabled()) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("victimId", victim.getUniqueId().toString());
+            payload.put("damage", event.getFinalDamage());
+            payload.put("datapack", true);
+            logger.logEvent(raidSessionId, ownerId, "SHOT_HIT", payload);
+        }
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         for (DatapackGunner gunner : byOwner.values()) {

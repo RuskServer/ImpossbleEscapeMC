@@ -177,18 +177,21 @@ public class ScavTactics {
         if (peekPhase == 1) { // Moving out
             scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
             boolean currentLos = target != null && scav.hasLineOfSight(target);
-            if (currentLos || peekTicks >= peekOutLimit) {
+            if (currentLos) {
                 long now = System.currentTimeMillis();
                 long interval = (long) (60000.0 / weapon.rpm());
                 if (now - lastShotTime >= interval) {
                     weapon.fire(0.1 + (suppression * 0.1));
                     shotTimeSetter.accept(now);
-                    // 見えていれば決めた回数だけ撃ち、見えなければ1発で引っ込む
-                    if (--peekShotsRemaining <= 0 || !currentLos) {
+                    if (--peekShotsRemaining <= 0) {
                         peekPhase = 2;
                         peekTicks = 0;
                     }
                 }
+            } else if (peekTicks >= peekOutLimit) {
+                // 見えないまま時間切れなら撃たずに引っ込む (誰もいない方向への空撃ちを防ぐ)
+                peekPhase = 2;
+                peekTicks = 0;
             }
             // 連射の遅い銃でも出っぱなしにならないようにする
             if (peekPhase == 1 && peekTicks > peekOutLimit + 8) {
