@@ -1,8 +1,14 @@
 package com.lunar_prototype.impossbleEscapeMC.ai.weapon;
 
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunner;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import org.bukkit.entity.Mob;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Toi's Armoryのデータパック銃。射撃はSCAV専用のFakePlayer ({@link DatapackGunner}) が行い、
@@ -43,7 +49,19 @@ public final class DatapackScavWeapon implements ScavWeapon {
 
     @Override
     public void fire(double inaccuracy) {
-        DatapackGunnerManager.getOrCreate(scav, profile).pullTrigger(inaccuracy);
+        if (!DatapackGunnerManager.getOrCreate(scav, profile).pullTrigger(inaccuracy)) return;
+
+        // プラグイン銃 (GunListener#executeMobShoot) と同じくレイドのAIログに射撃を記録する
+        String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
+        AiRaidLogger logger = ImpossbleEscapeMC.getInstance().getAiRaidLogger();
+        if (raidSessionId != null && logger != null && logger.isEnabled()) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("weapon", profile.id());
+            payload.put("inaccuracy", inaccuracy);
+            payload.put("pellets", profile.projectilesPerShot());
+            payload.put("datapack", true);
+            logger.logEvent(raidSessionId, scav.getUniqueId(), "SHOT_FIRED", payload);
+        }
     }
 
     @Override

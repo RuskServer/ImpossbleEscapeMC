@@ -103,7 +103,8 @@ public class PlayerListener implements Listener {
             continuousNoiseTicks.put(entity.getUniqueId(), ticks);
 
             // 2秒(40ticks)以上音を出している場合
-            if (ticks >= 40) {
+            // SCAV自身の足音で仲間のSCAVを警戒させない (足音の効果音はプレイヤー向けにこの後も鳴らす)
+            if (ticks >= 40 && !ScavSpawner.isScav(entity.getUniqueId())) {
                 alertNearbyScavsOfFootsteps(entity, data, movementDirection, movementSpeed, ticks, totalWalked, isSprinting, isSneaking);
             }
         } else {

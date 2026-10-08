@@ -177,9 +177,13 @@ public final class DatapackGunner {
         return Math.max(0, score("toisarm.ammo_remaining")) + Math.max(0, score("toisarm.chamber"));
     }
 
-    /** 引き金を引く。実際の発射レート・セミ/フルオートの扱いはデータパック側の銃設定に従う */
-    public void pullTrigger(double inaccuracy) {
-        if (!isReady()) return;
+    /**
+     * 引き金を引く。実際の発射レート・セミ/フルオートの扱いはデータパック側の銃設定に従う
+     *
+     * @return 引き金を引けた場合true (準備中・リロード中はfalse)
+     */
+    public boolean pullTrigger(double inaccuracy) {
+        if (!isReady()) return false;
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double spread = inaccuracy * INACCURACY_TO_DEGREES;
         aimJitterYaw = (float) ((random.nextDouble() * 2 - 1) * spread);
@@ -190,6 +194,7 @@ public final class DatapackGunner {
         if (objective != null) {
             objective.getScore(handle.getScoreboardName()).setScore(TRIGGER_PULL_VALUE);
         }
+        return true;
     }
 
     /** SCAVの目の位置・向きにFakePlayerの目の位置・向きを合わせる */
