@@ -113,6 +113,7 @@ public class StatusEffectManager implements Listener {
             data.setLastPainkillerTrigger(now);
             victim.sendMessage(Component.text("アドレナリン放出！ (5秒間の鎮痛効果)", NamedTextColor.AQUA));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.0f, 0.5f);
+            com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playAdrenaline(victim, 5000);
         }
 
         // 2. 負傷判定
