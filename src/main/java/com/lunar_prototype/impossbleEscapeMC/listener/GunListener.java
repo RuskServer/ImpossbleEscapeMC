@@ -65,6 +65,7 @@ public class GunListener implements Listener {
     private static final int MODEL_ADD_SPRINT = 2000;
     private static final String DATAPACK_FIRING_OBJECTIVE = "toisarm.timer.firing";
     private static final int DATAPACK_GUNSHOT_DEDUP_TICKS = 1;
+    private static final double HEATMAP_SHOT_LINE_RANGE = 64.0;
     private static final double SCAV_GUNSHOT_HEARING_RANGE = 64.0;
     private static final double SCAV_GUNSHOT_HEARING_RANGE_SQUARED =
             SCAV_GUNSHOT_HEARING_RANGE * SCAV_GUNSHOT_HEARING_RANGE;
@@ -127,7 +128,24 @@ public class GunListener implements Listener {
 
             lastDatapackGunshotTick.put(player.getUniqueId(), currentTick);
             notifyScavsOfPlayerGunshot(player);
+            if (!com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) {
+                recordDatapackShotLine(player);
+            }
         }
+    }
+
+    /**
+     * プレイヤーのデータパック銃の射線を、遮蔽物に当たるまでヒートマップに「制圧」として記録する。
+     * データパック銃はBulletTaskを通らないため、ここで記録しないとプレイヤーの射撃がヒートマップに残らない
+     */
+    private void recordDatapackShotLine(Player player) {
+        Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection();
+        var hit = eye.getWorld().rayTraceBlocks(eye, direction, HEATMAP_SHOT_LINE_RANGE, FluidCollisionMode.NEVER, true);
+        double distance = (hit != null && hit.getHitPosition() != null)
+                ? hit.getHitPosition().distance(eye.toVector())
+                : HEATMAP_SHOT_LINE_RANGE;
+        com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.recordLine(eye, direction, distance, 1.0f);
     }
 
     private void notifyScavsOfPlayerGunshot(Player player) {
