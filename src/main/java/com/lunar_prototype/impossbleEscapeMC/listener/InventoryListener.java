@@ -38,59 +38,27 @@ public class InventoryListener implements Listener {
         this.plugin = plugin;
         startButtonTask();
 
-        PacketEvents.getAPI().getEventManager().registerListener(new PacketListenerAbstract() {
-            @Override
-            public void onPacketReceive(PacketReceiveEvent event) {
-                if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
-                    WrapperPlayClientClickWindow packet = new WrapperPlayClientClickWindow(event);
-                    if (packet.getWindowId() == 0 && (packet.getSlot() == 4 || packet.getSlot() == 1)) {
-                        event.setCancelled(true); // パケット握り潰し
-
-                        int stateId = packet.getStateId().orElse(0);
-                        Player player = (Player) event.getPlayer();
-                        if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
-                            player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
-
-                        final int slot = packet.getSlot();
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            syncClientTriggerState(player, stateId, slot);
-                            if (slot == 4) {
-                                ItemStack mainHand = player.getInventory().getItemInMainHand();
-                                String itemId = mainHand.hasItemMeta() ?
-                                        mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-                                ItemDefinition def = ItemRegistry.get(itemId);
-
-                                if (def != null && "GUN".equals(def.type)) {
-                                    new AttachmentGUI(player, mainHand).open();
-                                } else {
-                                    player.sendMessage("§cメインハンドに有効な銃を持っていません");
-                                }
-                            } else if (slot == 1) {
-                                new PDAGUI(player).open();
-                            }
-                        });
-                    }
-                }
-            }
-        });
+        // クラフトグリッドのボタンはサーバー上には置かず、パケットで見せる (閉じた時などにドロップしない)
+        CraftingGridButtons buttons = CraftingGridButtons.get();
+        buttons.register(new CraftingGridButtons.Button(4, getGuiTriggerButton(), this::isPlayableMode, this::openAttachmentGui));
+        buttons.register(new CraftingGridButtons.Button(1, getPdaButton(), this::isPlayableMode, player -> new PDAGUI(player).open()));
     }
 
-    private void syncClientTriggerState(Player player, int stateId, int clickedSlot) {
-        InventoryView view = player.getOpenInventory();
-        if (!isPlayerCraftingGrid(view)) return;
-
-        sendSlotUpdate(player, stateId, clickedSlot, view.getItem(clickedSlot));
-        sendSlotUpdate(player, stateId, 0, view.getItem(0));
-        sendSlotUpdate(player, stateId, -1, player.getItemOnCursor());
+    private boolean isPlayableMode(Player player) {
+        return player.getGameMode() == org.bukkit.GameMode.SURVIVAL || player.getGameMode() == org.bukkit.GameMode.ADVENTURE;
     }
 
-    private void sendSlotUpdate(Player player, int stateId, int slot, ItemStack item) {
-        PacketEvents.getAPI().getPlayerManager().sendPacket(player, new WrapperPlayServerSetSlot(
-                slot == -1 ? -1 : 0,
-                stateId,
-                slot,
-                SpigotConversionUtil.fromBukkitItemStack(item == null ? new ItemStack(Material.AIR) : item)
-        ));
+    private void openAttachmentGui(Player player) {
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        String itemId = mainHand.hasItemMeta() ?
+                mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+        ItemDefinition def = ItemRegistry.get(itemId);
+
+        if (def != null && "GUN".equals(def.type)) {
+            new AttachmentGUI(player, mainHand).open();
+        } else {
+            player.sendMessage("§cメインハンドに有効な銃を持っていません");
+        }
     }
 
     private ItemStack getGuiTriggerButton() {
@@ -140,32 +108,6 @@ public class InventoryListener implements Listener {
                 if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 // 定期的なコスト更新
                 com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
-                
-                InventoryView view = player.getOpenInventory();
-                if (isPlayerCraftingGrid(view)) {
-                    // サバイバルとアドベンチャーのみに限定
-                    boolean shouldHaveButton = (player.getGameMode() == org.bukkit.GameMode.SURVIVAL || 
-                                               player.getGameMode() == org.bukkit.GameMode.ADVENTURE);
-                    
-                    ItemStack current4 = view.getItem(4);
-                    ItemStack current1 = view.getItem(1);
-                    if (shouldHaveButton) {
-                        if (!isGuiTrigger(current4)) {
-                            view.setItem(4, getGuiTriggerButton());
-                        }
-                        if (!isGuiTrigger(current1)) {
-                            view.setItem(1, getPdaButton());
-                        }
-                    } else {
-                        // もし既にボタンがあれば消去する
-                        if (isGuiTrigger(current4)) {
-                            view.setItem(4, null);
-                        }
-                        if (isGuiTrigger(current1)) {
-                            view.setItem(1, null);
-                        }
-                    }
-                }
             }
         }, 0L, 5L).getTaskId();
     }
@@ -212,7 +154,7 @@ public class InventoryListener implements Listener {
         if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL && 
             player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
 
-        // クラフトグリッドのトリガーボタン押下自体は PacketEvents 側で処理する。
+        // ボタンのスロットにはアイテムを置かせない (ボタン押下自体は CraftingGridButtons がパケットで処理する)
         if (event.getRawSlot() == 4 || event.getRawSlot() == 1) {
             event.setCancelled(true);
             return;
@@ -265,9 +207,10 @@ public class InventoryListener implements Listener {
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
+        // 以前のバージョンでサーバー上のグリッドに置いていたボタンが残っていれば消す
         if (isPlayerCraftingGrid(event.getView())) {
-            event.getView().setItem(4, null);
-            event.getView().setItem(1, null);
+            if (isGuiTrigger(event.getView().getItem(4))) event.getView().setItem(4, null);
+            if (isGuiTrigger(event.getView().getItem(1))) event.getView().setItem(1, null);
         }
         
         Player player = (Player) event.getPlayer();

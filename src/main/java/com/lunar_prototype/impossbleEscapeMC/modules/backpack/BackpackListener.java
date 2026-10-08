@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.listener.CraftingGridButtons;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
@@ -40,57 +41,19 @@ public class BackpackListener implements Listener {
     public BackpackListener(BackpackModule backpackModule) {
         this.backpackModule = backpackModule;
         this.plugin = ImpossbleEscapeMC.getInstance();
-        startButtonTask();
-
-        PacketEvents.getAPI().getEventManager().registerListener(new PacketListenerAbstract() {
-            @Override
-            public void onPacketReceive(PacketReceiveEvent event) {
-                if (event.getPacketType() == PacketType.Play.Client.CLICK_WINDOW) {
-                    WrapperPlayClientClickWindow packet = new WrapperPlayClientClickWindow(event);
-                    // ウィンドウID 0 (インベントリ) かつ スロット 2 (バックパックボタン)
-                    if (packet.getWindowId() == 0 && packet.getSlot() == BACKPACK_BUTTON_SLOT) {
-                        event.setCancelled(true); // パケットを握り潰す
-
-                        Player player = (Player) event.getPlayer();
-                        if (!isPlayableMode(player)) return;
-
-                        int stateId = packet.getStateId().orElse(0);
-
-                        // メインロジックは同期スレッドで実行
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            syncClientTriggerState(player, stateId, BACKPACK_BUTTON_SLOT);
-                            backpackModule.openBackpackFromOffhand(player);
-                        });
-                    }
-                }
-            }
-        });
-    }
-
-    private void syncClientTriggerState(Player player, int stateId, int clickedSlot) {
-        InventoryView view = player.getOpenInventory();
-        if (!isPlayerCraftingGrid(view)) return;
-
-        sendSlotUpdate(player, stateId, clickedSlot, view.getItem(clickedSlot));
-        sendSlotUpdate(player, stateId, 0, view.getItem(0));
-        sendSlotUpdate(player, stateId, -1, player.getItemOnCursor());
-    }
-
-    private void sendSlotUpdate(Player player, int stateId, int slot, ItemStack item) {
-        PacketEvents.getAPI().getPlayerManager().sendPacket(player, new WrapperPlayServerSetSlot(
-                slot == -1 ? -1 : 0,
-                stateId,
-                slot,
-                SpigotConversionUtil.fromBukkitItemStack(item == null ? new ItemStack(Material.AIR) : item)
-        ));
+        // クラフトグリッドのボタンはサーバー上には置かず、パケットで見せる (閉じた時などにドロップしない)
+        CraftingGridButtons.get().register(new CraftingGridButtons.Button(
+                BACKPACK_BUTTON_SLOT,
+                getBackpackTriggerButton(),
+                player -> isPlayableMode(player) && backpackModule.isBackpackItem(player.getInventory().getItemInOffHand()),
+                backpackModule::openBackpackFromOffhand));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         InventoryView view = event.getView();
 
-        // クラフトグリッドのボタンクリック検知は PacketEvents で処理済みのため、
-        // ここではボタンそのものへのクリックをキャンセルする最低限の処理のみ行う
+        // ボタンのスロットにはアイテムを置かせない (ボタン押下自体は CraftingGridButtons がパケットで処理する)
         if (isPlayerCraftingGrid(view) && event.getRawSlot() == BACKPACK_BUTTON_SLOT) {
             event.setCancelled(true);
             return;
@@ -216,7 +179,10 @@ public class BackpackListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (isPlayerCraftingGrid(event.getView())) {
-            event.getView().setItem(BACKPACK_BUTTON_SLOT, null);
+            // 以前のバージョンでサーバー上のグリッドに置いていたボタンが残っていれば消す
+            if (isBackpackTrigger(event.getView().getItem(BACKPACK_BUTTON_SLOT))) {
+                event.getView().setItem(BACKPACK_BUTTON_SLOT, null);
+            }
             Player player = (Player) event.getPlayer();
             for (int i = 0; i < player.getInventory().getSize(); i++) {
                 ItemStack item = player.getInventory().getItem(i);
@@ -264,25 +230,6 @@ public class BackpackListener implements Listener {
                 return;
             }
         }
-    }
-
-    private void startButtonTask() {
-        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                InventoryView view = player.getOpenInventory();
-                if (!isPlayerCraftingGrid(view)) continue;
-
-                ItemStack current = view.getItem(BACKPACK_BUTTON_SLOT);
-                boolean shouldHave = isPlayableMode(player) && backpackModule.isBackpackItem(player.getInventory().getItemInOffHand());
-                if (shouldHave) {
-                    if (!isBackpackTrigger(current)) {
-                        view.setItem(BACKPACK_BUTTON_SLOT, getBackpackTriggerButton());
-                    }
-                } else if (isBackpackTrigger(current)) {
-                    view.setItem(BACKPACK_BUTTON_SLOT, null);
-                }
-            }
-        }, 0L, 5L);
     }
 
     private ItemStack getBackpackTriggerButton() {
