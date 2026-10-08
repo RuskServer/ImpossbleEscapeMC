@@ -93,6 +93,22 @@ public class ScavController {
     private int lastSquadUpdate = 0;
     private int lostTargetSteps = 0;
 
+    // --- 追跡 (AIは3tickごとに1ステップ) ---
+    /** 見失ってからターゲットを手放すまでのステップ数 (約3秒) */
+    private static final int TARGET_MEMORY_STEPS = 20;
+    /** 見失った時、観測した移動速度から何tick先の位置を予測するか */
+    private static final int LOSS_PREDICTION_TICKS = 20;
+    private static final double LOSS_PREDICTION_MAX_DISTANCE = 6.0;
+    /** 見失った直後に予測地点へ走って追うステップ数 (約6秒)。到着したら慎重な捜索に切り替える */
+    private static final int PURSUIT_STEPS = 40;
+    private static final double PURSUIT_SPEED = 1.5;
+    private UUID lastSeenTargetId = null;
+    private Location lastSeenLocation = null;
+    private int lastSeenTick = 0;
+    private Vector observedVelocity = new Vector();
+    private int pursuitSteps = 0;
+    private int lastSearchTick = -1;
+
     public boolean isSprinting() {
         return isSprinting;
     }
@@ -203,9 +219,11 @@ public class ScavController {
         }
 
         if (target != null) {
-            canSeeTarget = vision.checkVision(target);
+            canSeeTarget = vision.checkTrackingVision(target);
             if (canSeeTarget) {
+                recordSighting(target);
                 lostTargetSteps = 0;
+                pursuitSteps = 0;
                 addAlertness(0.08f, "VISUAL_CONTACT", raidSessionId);
                 lastKnownLocation = target.getLocation();
                 searchTicks = 0;
@@ -219,7 +237,10 @@ public class ScavController {
                 }
             } else {
                 lostTargetSteps++;
-                if (lostTargetSteps >= 4 && lastKnownLocation != null) {
+                if (lostTargetSteps == 1) {
+                    beginPursuit();
+                }
+                if (lostTargetSteps >= TARGET_MEMORY_STEPS && lastKnownLocation != null) {
                     scav.setTarget(null);
                     target = null;
                     canSeeTarget = false;
@@ -392,7 +413,71 @@ public class ScavController {
         logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
     }
 
+    /** 見えている間、ターゲットの水平移動速度 (ブロック/tick) を観測しておく */
+    private void recordSighting(LivingEntity target) {
+        Location now = target.getLocation();
+        int tick = Bukkit.getCurrentTick();
+        if (!target.getUniqueId().equals(lastSeenTargetId)) {
+            // 別の相手に切り替わったら、前の相手の移動速度は使わない
+            lastSeenTargetId = target.getUniqueId();
+            lastSeenLocation = null;
+            observedVelocity = new Vector();
+        }
+        if (lastSeenLocation != null && lastSeenLocation.getWorld() == now.getWorld()) {
+            int elapsed = tick - lastSeenTick;
+            if (elapsed > 0 && elapsed <= 20) {
+                Vector velocity = now.toVector().subtract(lastSeenLocation.toVector()).multiply(1.0 / elapsed).setY(0);
+                observedVelocity = observedVelocity.multiply(0.5).add(velocity.multiply(0.5));
+            } else {
+                observedVelocity = new Vector();
+            }
+        }
+        lastSeenLocation = now.clone();
+        lastSeenTick = tick;
+    }
+
+    /**
+     * 見失った瞬間に、観測した移動方向へ先読みした地点 (壁があれば手前) を最後の位置とし、そこへ走って追う
+     */
+    private void beginPursuit() {
+        if (lastSeenLocation == null || lastSeenLocation.getWorld() != scav.getWorld()) return;
+        Vector lead = observedVelocity.clone().multiply(LOSS_PREDICTION_TICKS);
+        if (lead.length() > LOSS_PREDICTION_MAX_DISTANCE) {
+            lead.normalize().multiply(LOSS_PREDICTION_MAX_DISTANCE);
+        }
+        Location predicted = lastSeenLocation.clone();
+        if (lead.lengthSquared() > 0.01) {
+            Location from = lastSeenLocation.clone().add(0, 1.0, 0);
+            Vector dir = lead.clone().normalize();
+            org.bukkit.util.RayTraceResult hit = from.getWorld().rayTraceBlocks(from, dir, lead.length(), org.bukkit.FluidCollisionMode.NEVER, true);
+            double reach = (hit != null && hit.getHitPosition() != null)
+                    ? Math.max(0.0, hit.getHitPosition().distance(from.toVector()) - 0.5)
+                    : lead.length();
+            predicted.add(dir.multiply(reach));
+        }
+        lastKnownLocation = predicted;
+        pursuitSteps = PURSUIT_STEPS;
+        searchTicks = 0;
+        cornerCheckTicks = 0;
+        tactics.resetSlicing();
+    }
+
     private void handleSearching() {
+        // 見失い処理と移動処理の両方から呼ばれるため、1tickに1回だけ進める
+        int tick = Bukkit.getCurrentTick();
+        if (tick == lastSearchTick) return;
+        lastSearchTick = tick;
+
+        if (lastKnownLocation != null && pursuitSteps > 0) {
+            pursuitSteps--;
+            if (lastKnownLocation.getWorld() == scav.getWorld() && scav.getLocation().distance(lastKnownLocation) > 2.5) {
+                scav.getPathfinder().moveTo(lastKnownLocation, PURSUIT_SPEED);
+                updatePreAim(lastKnownLocation);
+                return;
+            }
+            pursuitSteps = 0; // 予測地点に着いた: ここからは角を確認しながら捜索する
+        }
+
         if (lastKnownLocation == null) {
             if (isAlerted && Math.random() < 0.05) {
                 scav.setRotation(scav.getLocation().getYaw() + (float)(Math.random()-0.5)*90f, (float)(Math.random()-0.5)*40f);

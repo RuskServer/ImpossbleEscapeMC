@@ -62,12 +62,36 @@ public class ScavVision {
         for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 64, MAX_VISION_DISTANCE)) {
             if (e instanceof org.bukkit.entity.Player p) {
                 if (DatapackGunnerManager.isGunner(p)) continue;
-                if (p.getGameMode() == org.bukkit.GameMode.SURVIVAL && checkVision(p)) return p;
+                if (isTargetable(p) && checkVision(p)) return p;
             }
         }
         return null;
     }
 
+    /**
+     * 狙う対象になるプレイヤーか。レイド中のプレイヤーはアドベンチャーモードに固定されるため、
+     * サバイバルだけでなくアドベンチャーも対象にする
+     */
+    private static boolean isTargetable(org.bukkit.entity.Player player) {
+        org.bukkit.GameMode mode = player.getGameMode();
+        return mode == org.bukkit.GameMode.SURVIVAL || mode == org.bukkit.GameMode.ADVENTURE;
+    }
+
+    /**
+     * 追跡中のターゲットが見えているか。
+     * 一度捉えた相手は視野角・明るさに関係なく、視認距離内で遮蔽物が無ければ見えているとみなす
+     * (移動中は頭が進行方向を向くため、視野角で判定すると目の前の相手でも見失ってしまう)
+     */
+    public boolean checkTrackingVision(LivingEntity target) {
+        Location eye = scav.getEyeLocation();
+        Location targetLoc = target.getEyeLocation();
+        if (eye.getWorld() != targetLoc.getWorld()) return false;
+        double effectiveMaxVisionDistance = MAX_VISION_DISTANCE * (0.85 + (0.35 * alertness));
+        if (eye.distanceSquared(targetLoc) > effectiveMaxVisionDistance * effectiveMaxVisionDistance) return false;
+        return hasAdvancedLoS(target);
+    }
+
+    /** 新しくターゲットを見つける時の視認判定。視野角・明るさ・しゃがみ・発砲を考慮する */
     public boolean checkVision(LivingEntity target) {
         Location eye = scav.getEyeLocation();
         Location targetLoc = target.getEyeLocation();
