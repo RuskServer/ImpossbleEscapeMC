@@ -73,6 +73,7 @@ public final class DatapackGunCatalog {
                 state.getIntOr("ammo_capacity", 30),
                 reloadTicks,
                 state.getIntOr("empty_reload_time", reloadTicks),
-                state.getDoubleOr("max_range", 100));
+                state.getDoubleOr("max_range", 100),
+                state.getIntOr("projectiles_per_shot", 1));
     }
 }

@@ -109,6 +109,13 @@ public class ScavController {
     private int pursuitSteps = 0;
     private int lastSearchTick = -1;
 
+    // --- 撃ち方のばらつき ---
+    /** この時刻 (ms) までは撃たない (発見直後の反応時間・指切りの間・ためらい) */
+    private long fireHoldUntil = 0;
+    /** フルオートで今のバーストに残っている引き金の回数 */
+    private int burstPullsRemaining = 0;
+    private boolean sawTargetLastStep = false;
+
     // --- ヒートマップの「安全」記録 ---
     /** 記録間隔 (約3秒)。毎ステップ記録すると「危険」(被弾1回 +2) をすぐ打ち消してしまう */
     private static final int SAFE_RECORD_INTERVAL_STEPS = 20;
@@ -234,6 +241,11 @@ public class ScavController {
 
         if (target != null) {
             canSeeTarget = vision.checkTrackingVision(target);
+            if (canSeeTarget && !sawTargetLastStep) {
+                // 見つけた直後は反応時間をおいてから撃ち始める
+                fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + rollReactionDelayMs());
+            }
+            sawTargetLastStep = canSeeTarget;
             if (canSeeTarget) {
                 recordSighting(target);
                 lostTargetSteps = 0;
@@ -273,6 +285,7 @@ public class ScavController {
             }
         } else {
             lostTargetSteps = 0;
+            sawTargetLastStep = false;
             isPreAiming = false;
             handleSearching();
         }
@@ -380,11 +393,11 @@ public class ScavController {
         } else if (canSeeTarget) {
             isHoldingAngle = false;
             boolean isAuto = weapon.isAutomatic();
-            tactics.handleCombatMovement(moveAction, target, isAuto, neurons[0], suppression, isSprinting, squad.getNearbyAllies());
+            tactics.handleCombatMovement(moveAction, target, isAuto, neurons[0], suppression, isSprinting, squad.getNearbyAllies(), brain.getEngagementRange());
         } else if (lastKnownLocation != null) {
             isHoldingAngle = false;
-            if (moveAction == 7) tactics.startPeek(lastKnownLocation, isSprinting);
-            else handleSearching();
+            // 顔出しは前回から間が空いていなければ行わず、捜索を続ける
+            if (moveAction != 7 || !tactics.startPeek(lastKnownLocation, isSprinting)) handleSearching();
         }
 
         checkAndInteractWithDoors();
@@ -395,7 +408,7 @@ public class ScavController {
             long interval = (long) (60000.0 / weapon.rpm());
             if (canSeeTarget) {
                 applyAimToEntity();
-                if (now - lastMobShotTime >= interval) {
+                if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
                     // セミオートやポンプアクションの場合は人間らしい「タップ遅延」や「次弾装填待ち」を追加
                     if (!weapon.isAutomatic() || weapon.isManualAction()) {
                         long extraDelay = 50 + (long)(Math.random() * 150);
@@ -412,12 +425,14 @@ public class ScavController {
                     
                     weapon.fire(inacc);
                     lastMobShotTime = now;
+                    afterTriggerPull(weapon, now);
                 }
             } else if (isPreAiming && Math.random() < 0.05) {
                 applyAimToEntity();
-                if (now - lastMobShotTime >= interval) {
+                if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
                     weapon.fire(0.3);
                     lastMobShotTime = now;
+                    afterTriggerPull(weapon, now);
                 }
             } else if (target != null) {
                 tactics.handleJumpShot(target);
@@ -425,6 +440,36 @@ public class ScavController {
         }
 
         logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
+    }
+
+    /** 発見から撃ち始めるまでの反応時間 (ms)。ランクが高いほど速いが、毎回ばらつく */
+    private long rollReactionDelayMs() {
+        return switch (brainLevel) {
+            case LOW -> 250 + (long) (Math.random() * 300);
+            case MID -> 170 + (long) (Math.random() * 250);
+            case HIGH -> 120 + (long) (Math.random() * 200);
+        };
+    }
+
+    /**
+     * 引き金を引いた後の間を決める。フルオートは数回で指を離し (指切り)、単発の銃は時々ためらう。
+     * データパック銃は引き金を引いてから数tick撃ち続けるため、間はそれより長めに取る
+     */
+    private void afterTriggerPull(ScavWeapon weapon, long now) {
+        if (weapon.isAutomatic()) {
+            if (burstPullsRemaining <= 0) {
+                burstPullsRemaining = switch (brainLevel) {
+                    case LOW -> 5 + (int) (Math.random() * 6);
+                    case MID -> 3 + (int) (Math.random() * 5);
+                    case HIGH -> 2 + (int) (Math.random() * 4);
+                };
+            }
+            if (--burstPullsRemaining <= 0) {
+                fireHoldUntil = now + 300 + (long) (Math.random() * 500);
+            }
+        } else if (Math.random() < 0.12) {
+            fireHoldUntil = now + 250 + (long) (Math.random() * 450);
+        }
     }
 
     /** 見えている間、ターゲットの水平移動速度 (ブロック/tick) を観測しておく */

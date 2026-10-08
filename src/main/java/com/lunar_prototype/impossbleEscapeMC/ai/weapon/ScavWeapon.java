@@ -21,6 +21,9 @@ public interface ScavWeapon {
     /** 装弾数 */
     int magazineSize();
 
+    /** この銃で戦いやすい距離 (ブロック)。SCAVはこれに個体差を掛けた距離を保とうとする */
+    double preferredRange();
+
     /** 現在撃てる弾数 (薬室を含む) */
     int ammo();
 
