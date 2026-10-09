@@ -81,6 +81,8 @@ public final class DatapackGunner {
     private float aimYaw;
     private float aimPitch;
     private int aimHoldTicks;
+    /** 最後に装填してから引き金を引いたか (弾数0が撃ち切りか、データパックによる上書きかの区別) */
+    private boolean firedSinceFill;
 
     private DatapackGunner(Mob owner, DatapackGunProfile profile, int slot, ServerPlayer handle) {
         this.owner = owner;
@@ -153,25 +155,42 @@ public final class DatapackGunner {
         if (!armed) {
             // 銃データの読み込み (装弾数スコアの設定) を待ってから装填する
             if (score("toisarm.state.ammo_capacity") > 0) {
-                runSilently("execute as " + handle.getUUID() + " run function " + FILL_MAGAZINE_FUNCTION);
+                fillMagazine();
                 armed = true;
             }
             return;
         }
 
         if (reloadTicks > 0) {
-            if (--reloadTicks == 0) {
-                runSilently("execute as " + handle.getUUID() + " run function " + FILL_MAGAZINE_FUNCTION);
+            if (--reloadTicks == 0) fillMagazine();
+        } else if (scoreAmmo() <= 0) {
+            if (firedSinceFill) {
+                // 撃ち切った: データパックの弾切れリロード時間の後に再装填する
+                reloadTicks = Math.max(1, profile.emptyReloadTicks());
+            } else {
+                // 撃っていないのに0: 装填直後にデータパックが銃のデータ (弾数0で配られた銃) を読み直して上書きした。
+                // 弾切れとして扱うと数秒撃てなくなるため、すぐ装填し直す
+                fillMagazine();
             }
-        } else if (ammo() <= 0) {
-            // 弾切れ: データパックの弾切れリロード時間の後に再装填する
-            reloadTicks = Math.max(1, profile.emptyReloadTicks());
         }
     }
 
-    /** 撃てる状態 (銃の受け取りと装填が済み、リロード中でない) か */
+    private void fillMagazine() {
+        runSilently("execute as " + handle.getUUID() + " run function " + FILL_MAGAZINE_FUNCTION);
+        firedSinceFill = false;
+    }
+
+    /** 撃てる状態 (銃の受け取りと装填が済み、リロード中でなく、弾がある) か */
     public boolean isReady() {
-        return armed && reloadTicks == 0;
+        // データパックの弾数が0の間に引き金を引くと、データパック側のリロードが始まってしまうため実際のスコアで見る。
+        // また、データパックが撃たない状態 (銃を受け取った直後の構え動作・ボルト操作・リロード) の間は引き金を引かない
+        // (引いても弾が出ず、AIが連射を1回分無駄にする)。条件は toisarm:player/gun の SHOOTABLE と同じ
+        return armed && reloadTicks == 0 && scoreAmmo() > 0
+                && scoreOr("toisarm.timer.swap", -1) == -1
+                && scoreOr("toisarm.timer.reload", -1) == -1
+                && scoreOr("toisarm.timer.empty_reload", -1) == -1
+                && scoreOr("toisarm.timer.bolt_action", -1) == -1
+                && scoreOr("toisarm.timer.bolt_action_delay", -1) == -1;
     }
 
     /** 弾切れからの再装填待ちか (生成直後の準備中は含めない) */
@@ -179,9 +198,16 @@ public final class DatapackGunner {
         return reloadTicks > 0;
     }
 
-    /** 撃てる弾数 (マガジン + 薬室)。装填前は装弾数を返す */
+    /**
+     * 撃てる弾数 (マガジン + 薬室)。装填前と、装填してからまだ撃っていない間は装弾数を返す
+     * (装填直後にデータパックが一瞬0で上書きすることがあり、AIが弾切れと誤解して物陰へ走るため)
+     */
     public int ammo() {
-        if (!armed) return profile.magazineSize();
+        if (!armed || !firedSinceFill) return profile.magazineSize();
+        return scoreAmmo();
+    }
+
+    private int scoreAmmo() {
         return Math.max(0, score("toisarm.ammo_remaining")) + Math.max(0, score("toisarm.chamber"));
     }
 
@@ -199,6 +225,7 @@ public final class DatapackGunner {
         aimYaw = eye.getYaw() + (float) ((random.nextDouble() * 2 - 1) * spread);
         aimPitch = Math.max(-90f, Math.min(90f, eye.getPitch() + (float) ((random.nextDouble() * 2 - 1) * spread * 0.6)));
         aimHoldTicks = AIM_HOLD_TICKS;
+        firedSinceFill = true;
         syncToOwner();
 
         Objective objective = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(TRIGGER_OBJECTIVE);
@@ -240,10 +267,14 @@ public final class DatapackGunner {
     }
 
     private int score(String objectiveName) {
+        return scoreOr(objectiveName, 0);
+    }
+
+    private int scoreOr(String objectiveName, int fallback) {
         Objective objective = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(objectiveName);
-        if (objective == null) return 0;
+        if (objective == null) return fallback;
         Score score = objective.getScore(handle.getScoreboardName());
-        return score.isScoreSet() ? score.getScore() : 0;
+        return score.isScoreSet() ? score.getScore() : fallback;
     }
 
     static void runSilently(String command) {

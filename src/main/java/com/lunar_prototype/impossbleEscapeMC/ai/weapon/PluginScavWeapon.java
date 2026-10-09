@@ -41,8 +41,9 @@ public final class PluginScavWeapon implements ScavWeapon {
     }
 
     @Override
-    public void fire(double inaccuracy) {
+    public boolean fire(double inaccuracy) {
         gunListener.executeMobShoot(scav, def.gunStats, 1, inaccuracy);
+        return true;
     }
 
     @Override

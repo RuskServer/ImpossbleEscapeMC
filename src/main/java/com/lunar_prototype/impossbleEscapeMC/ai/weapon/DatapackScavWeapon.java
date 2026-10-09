@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * Toi's Armoryのデータパック銃。射撃はSCAV専用のFakePlayer ({@link DatapackGunner}) が行い、
  * 弾道・ダメージ・発射エフェクト・弾数はデータパックが管理する。
- * FakePlayerは最初に引き金を引いた時に作る (戦闘しないSCAVの分はデータパックのプレイヤー処理を走らせない)。
+ * FakePlayerは敵を認識した時に作る (戦闘しないSCAVの分はデータパックのプレイヤー処理を走らせない)。
  */
 public final class DatapackScavWeapon implements ScavWeapon {
 
@@ -47,9 +47,15 @@ public final class DatapackScavWeapon implements ScavWeapon {
         return gunner != null && gunner.isReloading();
     }
 
+    /** FakePlayerの生成・銃の受け取り・装填には数tickかかるため、敵を見つけた時点で始めておく */
     @Override
-    public void fire(double inaccuracy) {
-        if (!DatapackGunnerManager.getOrCreate(scav, profile).pullTrigger(inaccuracy)) return;
+    public void prepare() {
+        DatapackGunnerManager.getOrCreate(scav, profile);
+    }
+
+    @Override
+    public boolean fire(double inaccuracy) {
+        if (!DatapackGunnerManager.getOrCreate(scav, profile).pullTrigger(inaccuracy)) return false;
 
         // プラグイン銃 (GunListener#executeMobShoot) と同じくレイドのAIログに射撃を記録する
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
@@ -62,6 +68,7 @@ public final class DatapackScavWeapon implements ScavWeapon {
             payload.put("datapack", true);
             logger.logEvent(raidSessionId, scav.getUniqueId(), "SHOT_FIRED", payload);
         }
+        return true;
     }
 
     @Override

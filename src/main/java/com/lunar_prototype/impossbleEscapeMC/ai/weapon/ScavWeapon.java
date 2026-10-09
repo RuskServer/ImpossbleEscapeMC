@@ -30,8 +30,16 @@ public interface ScavWeapon {
     /** リロード中・準備中で撃てないか */
     boolean isReloading();
 
-    /** 引き金を1回引く。inaccuracy はBulletTaskの拡散量と同じ尺度 */
-    void fire(double inaccuracy);
+    /**
+     * 引き金を1回引く。inaccuracy はBulletTaskの拡散量と同じ尺度
+     *
+     * @return 引き金を引けた場合true (構え直し中・リロード中などで撃てなかった場合false)
+     */
+    boolean fire(double inaccuracy);
+
+    /** 敵を認識している間に呼ぶ。撃つ前の準備に時間がかかる銃は、ここで準備を始めておく */
+    default void prepare() {
+    }
 
     /** SCAVの終了時・持ち替え時に呼ぶ */
     void release();

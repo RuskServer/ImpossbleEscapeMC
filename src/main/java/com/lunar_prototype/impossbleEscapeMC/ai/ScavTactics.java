@@ -195,9 +195,11 @@ public class ScavTactics {
                 long interval = (long) (60000.0 / weapon.rpm());
                 if (fireAllowed && now - lastShotTime >= interval) {
                     aim.run();
-                    weapon.fire(0.1 + (suppression * 0.1));
-                    shotTimeSetter.accept(now);
-                    if (--peekShotsRemaining <= 0) {
+                    if (weapon.fire(0.1 + (suppression * 0.1))) {
+                        shotTimeSetter.accept(now);
+                        peekShotsRemaining--;
+                    }
+                    if (peekShotsRemaining <= 0) {
                         peekPhase = 2;
                         peekTicks = 0;
                     }
