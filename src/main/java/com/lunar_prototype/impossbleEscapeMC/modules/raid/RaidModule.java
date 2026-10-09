@@ -250,8 +250,10 @@ public class RaidModule implements IModule {
             for (UUID uuid : playerUuids) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null) {
-                    participants.add(p);
                     if (bar != null) p.hideBossBar(bar);
+                    if (!isInRaid(p)) {
+                        participants.add(p);
+                    }
                 }
             }
 
@@ -303,6 +305,7 @@ public class RaidModule implements IModule {
             }
             
             if (active != null) {
+                leaveQueue(player);
                 active.joinInProgress(player);
                 player.sendMessage(Component.text(mapId + " のレイドに途中参加しました。", NamedTextColor.GREEN));
                 return true;
