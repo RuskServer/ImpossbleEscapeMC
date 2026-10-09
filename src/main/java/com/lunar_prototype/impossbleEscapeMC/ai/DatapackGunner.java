@@ -49,6 +49,11 @@ public final class DatapackGunner {
     /** 射撃入力。データパックはクロスボウ発射時にこの値を4にし、毎tick減らしながら0以上の間を引き金を引いている状態とみなす */
     private static final String TRIGGER_OBJECTIVE = "toisarm.timer.trigger";
     private static final int TRIGGER_PULL_VALUE = 4;
+    /**
+     * フルオートの銃で1発だけ撃つ時の値。データパックのフルオートは値を毎tick減らしながら0以上の間撃つため、1なら1tickだけ撃つ。
+     * セミオートの銃は値が3になった tick に1発撃つため、常に TRIGGER_PULL_VALUE で引く
+     */
+    private static final int SINGLE_SHOT_PULL_VALUE = 1;
     private static final int GIVE_GUN_DELAY_TICKS = 2;
     /** inaccuracy (BulletTaskの拡散量) を照準のブレ角度 (度) に換算する係数 */
     private static final double INACCURACY_TO_DEGREES = 45.0;
@@ -212,11 +217,12 @@ public final class DatapackGunner {
     }
 
     /**
-     * 引き金を引く。実際の発射レート・セミ/フルオートの扱いはデータパック側の銃設定に従う
+     * 引き金を引く。実際の発射レートはデータパック側の銃設定に従う
      *
+     * @param fullAuto フルオートの銃で撃ち続けるか。false ならフルオートの銃でも1発だけ撃つ
      * @return 引き金を引けた場合true (準備中・リロード中はfalse)
      */
-    public boolean pullTrigger(double inaccuracy) {
+    public boolean pullTrigger(double inaccuracy, boolean fullAuto) {
         if (!isReady()) return false;
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double spread = inaccuracy * INACCURACY_TO_DEGREES;
@@ -230,7 +236,8 @@ public final class DatapackGunner {
 
         Objective objective = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(TRIGGER_OBJECTIVE);
         if (objective != null) {
-            objective.getScore(handle.getScoreboardName()).setScore(TRIGGER_PULL_VALUE);
+            boolean singleShot = profile.automatic() && !fullAuto;
+            objective.getScore(handle.getScoreboardName()).setScore(singleShot ? SINGLE_SHOT_PULL_VALUE : TRIGGER_PULL_VALUE);
         }
         return true;
     }

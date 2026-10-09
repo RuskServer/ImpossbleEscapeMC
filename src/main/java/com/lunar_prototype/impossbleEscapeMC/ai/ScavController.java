@@ -114,12 +114,16 @@ public class ScavController {
     private long fireHoldUntil = 0;
     /** フルオートで今のバーストに残っている引き金の回数 */
     private int burstPullsRemaining = 0;
+    /** 通常のSCAVがフルオートに切り替える距離 (ブロック)。これより遠くでは単発で撃つ */
+    private static final double CLOSE_RANGE_FULL_AUTO = 10.0;
 
     // --- 命中精度 ---
     /** 制圧値1.0あたりのばらつきの増加。撃ち返されるほど狙いが乱れる */
     private static final double SUPPRESSION_SPREAD = 0.2;
     /** 連射中、引き金を引くたびに増えるばらつき (反動で照準が上ずる) と、その上限 */
     private static final double RECOIL_SPREAD_PER_PULL = 0.03;
+    /** 単発で撃つ時の1発あたりの反動。単発の間隔は反動が収まる時間より短いため、小さくしないと単発でも散り続ける */
+    private static final double RECOIL_SPREAD_PER_SINGLE_SHOT = 0.01;
     private static final double RECOIL_SPREAD_MAX = 0.24;
     /** 前に引き金を引いてからこれだけ空いたら、反動は収まったとみなす (ms) */
     private static final long RECOIL_RESET_MS = 350;
@@ -489,8 +493,9 @@ public class ScavController {
             if (canSeeTarget) {
                 applyAimToEntity();
                 if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
-                    // セミオートやポンプアクションの場合は人間らしい「タップ遅延」や「次弾装填待ち」を追加
-                    if (!weapon.isAutomatic() || weapon.isManualAction()) {
+                    boolean fullAuto = useFullAuto(weapon, target);
+                    // 単発で撃つ時やポンプアクションの場合は人間らしい「タップ遅延」や「次弾装填待ち」を追加
+                    if (!fullAuto || weapon.isManualAction()) {
                         long extraDelay = 50 + (long)(Math.random() * 150);
                         if (weapon.isManualAction()) {
                             extraDelay += 300 + (long)(Math.random() * 400); // ポンプアクションはコッキング時間を考慮して大幅に遅延
@@ -503,24 +508,24 @@ public class ScavController {
                     double inacc = baseSpread()
                             + (suppression * SUPPRESSION_SPREAD)
                             + (scav.getVelocity().length() > 0.1 ? 0.04 : 0)
-                            + Math.min(RECOIL_SPREAD_MAX, consecutivePulls * RECOIL_SPREAD_PER_PULL);
+                            + Math.min(RECOIL_SPREAD_MAX, consecutivePulls * (fullAuto ? RECOIL_SPREAD_PER_PULL : RECOIL_SPREAD_PER_SINGLE_SHOT));
                     if (weapon.isManualAction()) {
                         inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
                     }
 
                     // 構え直し中などで引き金を引けなかった時は、連射数・射撃間隔に数えない
-                    if (weapon.fire(inacc)) {
+                    if (weapon.fire(inacc, fullAuto)) {
                         consecutivePulls++;
                         lastMobShotTime = now;
-                        afterTriggerPull(weapon, now);
+                        afterTriggerPull(fullAuto, now);
                     }
                 }
             } else if (isPreAiming && Math.random() < 0.05) {
                 applyAimToEntity();
                 if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
-                    if (weapon.fire(0.3)) {
+                    if (weapon.fire(0.3, false)) {
                         lastMobShotTime = now;
-                        afterTriggerPull(weapon, now);
+                        afterTriggerPull(false, now);
                     }
                 }
             } else if (target != null) {
@@ -553,12 +558,23 @@ public class ScavController {
      * 引き金を引いた後の間を決める。フルオートは数回で指を離し (指切り)、単発の銃は時々ためらう。
      * データパック銃は引き金を引いてから数tick撃ち続けるため、間はそれより長めに取る
      */
-    private void afterTriggerPull(ScavWeapon weapon, long now) {
-        if (weapon.isAutomatic()) {
+    /**
+     * フルオートで撃つか。通常のSCAV (LOW/MID) は単発で撃ち、近くまで詰められた時だけ短く連射する。HIGHは常にフルオート
+     */
+    private boolean useFullAuto(ScavWeapon weapon, LivingEntity target) {
+        if (!weapon.isAutomatic()) return false;
+        if (brainLevel == ScavBrain.BrainLevel.HIGH) return true;
+        return target != null && target.getWorld() == scav.getWorld()
+                && scav.getLocation().distanceSquared(target.getLocation()) <= CLOSE_RANGE_FULL_AUTO * CLOSE_RANGE_FULL_AUTO;
+    }
+
+    private void afterTriggerPull(boolean fullAuto, long now) {
+        if (fullAuto) {
             if (burstPullsRemaining <= 0) {
-                // 引き金1回でデータパック銃は約5tick撃ち続けるため、回数は少なめ (LOW/MID 2〜4回、HIGH 1〜3回)
+                // 引き金1回でデータパック銃は約5tick撃ち続けるため、回数は少なめ。
+                // 通常のSCAVの近距離での連射は1〜2回、HIGHは1〜3回
                 burstPullsRemaining = switch (brainLevel) {
-                    case LOW, MID -> 2 + (int) (Math.random() * 3);
+                    case LOW, MID -> 1 + (int) (Math.random() * 2);
                     case HIGH -> 1 + (int) (Math.random() * 3);
                 };
             }

@@ -41,7 +41,8 @@ public final class PluginScavWeapon implements ScavWeapon {
     }
 
     @Override
-    public boolean fire(double inaccuracy) {
+    public boolean fire(double inaccuracy, boolean fullAuto) {
+        // プラグイン銃は呼び出し1回につき1発 (連射はAIが引き金を引く間隔で表す)
         gunListener.executeMobShoot(scav, def.gunStats, 1, inaccuracy);
         return true;
     }
