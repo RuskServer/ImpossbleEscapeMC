@@ -197,14 +197,14 @@ public class BulletTask extends BukkitRunnable {
         int armorClass = 0;
         if (isHeadshot) {
             finalDamage *= 1.2;
-            armorClass = getArmorClassFromSlot(victim, EquipmentSlot.HEAD);
+            armorClass = BulletDamageModel.armorClassFromSlot(victim, EquipmentSlot.HEAD);
         } else if (isLegShot) {
             finalDamage *= 0.6;
         } else {
-            armorClass = getArmorClassFromSlot(victim, EquipmentSlot.CHEST);
+            armorClass = BulletDamageModel.armorClassFromSlot(victim, EquipmentSlot.CHEST);
         }
 
-        boolean isPenetrated = calculatePenetration(ammoClass, armorClass);
+        boolean isPenetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
         Player shooterPlayer = (shooter instanceof Player p) ? p : null;
 
         if (!isPenetrated) {
@@ -224,7 +224,10 @@ public class BulletTask extends BukkitRunnable {
         }
 
         // 独自イベント発行
-        String hitLocation = isHeadshot ? "head" : (isLegShot ? "legs" : (hitY > (footY + (height * 0.45)) && hitY < (headY - 0.25) ? "arms" : "body"));
+        // 胴の高さは、体の中心から左右に離れていれば腕 (以前は胴の高さがすべて腕になっていた)
+        String hitLocation = isHeadshot ? BulletDamageModel.HEAD
+                : isLegShot ? BulletDamageModel.LEGS
+                : BulletDamageModel.isArm(victim, hitLoc.toVector()) ? BulletDamageModel.ARMS : BulletDamageModel.BODY;
         BulletHitEvent bulletEvent = new BulletHitEvent(victim, shooter, finalDamage, hitLocation, isPenetrated, ammoClass);
         Bukkit.getPluginManager().callEvent(bulletEvent);
 
@@ -232,18 +235,6 @@ public class BulletTask extends BukkitRunnable {
         victim.setMetadata("bypass_armor", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
         victim.setNoDamageTicks(0);
         victim.damage(finalDamage, shooter);
-    }
-
-    private boolean calculatePenetration(int ammo, int armor) {
-        if (armor <= 0) return true;
-        double chance = (ammo > armor) ? 0.95 : (ammo == armor ? 0.70 : 0.15);
-        return Math.random() < chance;
-    }
-
-    private int getArmorClassFromSlot(LivingEntity entity, EquipmentSlot slot) {
-        ItemStack item = entity.getEquipment().getItem(slot);
-        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return 0;
-        return item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
     }
 
     private void playHitSound(Player player, Location loc, String configKey, String defaultSound, float vol, float pitch) {
