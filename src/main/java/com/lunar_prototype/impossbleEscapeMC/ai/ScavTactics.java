@@ -92,12 +92,12 @@ public class ScavTactics {
         if (strafePauseTicks > 0) {
             strafePauseTicks--;
             if (lateral) {
-                scav.getPathfinder().stopPathfinding();
+                stopMoving();
                 return;
             }
         } else if (lateral && Math.random() < 0.05) {
             strafePauseTicks = 2 + (int) (Math.random() * 5);
-            scav.getPathfinder().stopPathfinding();
+            stopMoving();
             return;
         }
 
@@ -131,8 +131,65 @@ public class ScavTactics {
         if (moveVec.lengthSquared() > 0) {
             Vector finalMove = moveVec.normalize();
             Location dest = sLoc.clone().add(finalMove.multiply(2.0));
-            scav.getPathfinder().moveTo(dest, isSprinting ? 1.5 : 1.0);
+            moveDirect(dest, isSprinting ? 1.5 : 1.0);
         }
+    }
+
+    // --- 直接移動 ---
+    // 撃ち合い中の横移動や顔出しは短い距離を素早く切り返すため、毎回の経路探索 (止まっては動く) を通さず、
+    // 移動の制御 (MoveControl) に行き先を直接与える。足元が抜けている・壁の時だけ経路探索に任せる
+
+    /** 顔出しの出入りの速さ (移動速度に対する倍率) */
+    private static final double PEEK_SPEED = 1.8;
+
+    /** 直接移動の行き先。MoveControl は行き先を与えた次の1tickしか動かないため、毎tick与え直す (tickDirectMove) */
+    private Location directTarget;
+    private double directSpeed;
+    /** 判断 (3tickごと) で更新されなくなったら直接移動をやめる tick */
+    private int directUntilTick;
+    private static final double DIRECT_ARRIVE_DISTANCE = 0.3;
+
+    private void moveDirect(Location dest, double speed) {
+        if (!isSafeStep(dest)) {
+            directTarget = null;
+            scav.getPathfinder().moveTo(dest, speed);
+            return;
+        }
+        scav.getPathfinder().stopPathfinding();
+        directTarget = dest.clone();
+        directSpeed = speed;
+        directUntilTick = org.bukkit.Bukkit.getCurrentTick() + ScavController.STEP_TICKS + 1;
+        tickDirectMove();
+    }
+
+    /** 毎tick呼ぶ。直接移動中なら MoveControl に行き先を与え直す */
+    public void tickDirectMove() {
+        if (directTarget == null) return;
+        if (org.bukkit.Bukkit.getCurrentTick() > directUntilTick || directTarget.getWorld() != scav.getWorld()
+                || scav.getLocation().distanceSquared(directTarget) < DIRECT_ARRIVE_DISTANCE * DIRECT_ARRIVE_DISTANCE) {
+            directTarget = null;
+            return;
+        }
+        ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle().getMoveControl()
+                .setWantedPosition(directTarget.getX(), directTarget.getY(), directTarget.getZ(), directSpeed);
+    }
+
+    /** 経路探索と直接移動の両方を止める */
+    public void stopMoving() {
+        directTarget = null;
+        scav.getPathfinder().stopPathfinding();
+        Location here = scav.getLocation();
+        ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle().getMoveControl()
+                .setWantedPosition(here.getX(), here.getY(), here.getZ(), 0.0);
+    }
+
+    /** 足と頭の高さが通れて、1段下までに立てる床がある (崖から落ちない・壁に突っ込まない) */
+    private boolean isSafeStep(Location dest) {
+        if (dest.getWorld() != scav.getWorld()) return false;
+        org.bukkit.block.Block feet = dest.getBlock();
+        if (!feet.isPassable() || !feet.getRelative(org.bukkit.block.BlockFace.UP).isPassable()) return false;
+        org.bukkit.block.Block below = feet.getRelative(org.bukkit.block.BlockFace.DOWN);
+        return below.getType().isSolid() || below.getRelative(org.bukkit.block.BlockFace.DOWN).getType().isSolid();
     }
 
     /** 物陰の候補のうち、経路を確認する数 (近い順・安全な順) */
@@ -189,7 +246,7 @@ public class ScavTactics {
     public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, float suppression, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
         if (peekPhase == 1) { // Moving out
-            scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
+            moveDirect(peekLocation, PEEK_SPEED);
             if (targetVisible) {
                 long now = System.currentTimeMillis();
                 long interval = (long) (60000.0 / weapon.rpm());
@@ -216,7 +273,7 @@ public class ScavTactics {
                 peekTicks = 0;
             }
         } else if (peekPhase == 2) { // Moving back
-            scav.getPathfinder().moveTo(coverLocation, isSprinting ? 1.5 : 1.0);
+            moveDirect(coverLocation, PEEK_SPEED);
             if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 5) {
                 peekPhase = 0;
                 peekRestTicks = 4 + (int) (Math.random() * 20); // 次に顔を出すまでの間をばらつかせる
@@ -246,7 +303,7 @@ public class ScavTactics {
         peekOutLimit = 3 + (int) (Math.random() * 6);
         peekPhase = 1;
         peekTicks = 0;
-        scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
+        moveDirect(peekLocation, PEEK_SPEED);
         if (jump && scav.isOnGround() && jumpCooldown <= 0) {
             scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
             jumpCooldown = 20;
