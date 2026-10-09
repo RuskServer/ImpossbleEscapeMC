@@ -114,6 +114,17 @@ public class ScavController {
     private long fireHoldUntil = 0;
     /** フルオートで今のバーストに残っている引き金の回数 */
     private int burstPullsRemaining = 0;
+
+    // --- 命中精度 ---
+    /** 制圧値1.0あたりのばらつきの増加。撃ち返されるほど狙いが乱れる */
+    private static final double SUPPRESSION_SPREAD = 0.2;
+    /** 連射中、引き金を引くたびに増えるばらつき (反動で照準が上ずる) と、その上限 */
+    private static final double RECOIL_SPREAD_PER_PULL = 0.03;
+    private static final double RECOIL_SPREAD_MAX = 0.24;
+    /** 前に引き金を引いてからこれだけ空いたら、反動は収まったとみなす (ms) */
+    private static final long RECOIL_RESET_MS = 350;
+    /** 反動が収まってから続けて引き金を引いた回数 */
+    private int consecutivePulls = 0;
     private boolean sawTargetLastStep = false;
     /** 最後にターゲットが見えていたtickと、その相手 */
     private int lastTargetVisibleTick = Integer.MIN_VALUE / 2;
@@ -487,13 +498,19 @@ public class ScavController {
                         if (now - lastMobShotTime < interval + extraDelay) return;
                     }
 
-                    double inacc = 0.04 + (suppression * 0.1) + (scav.getVelocity().length() > 0.1 ? 0.04 : 0);
+                    // 間が空いたら反動は収まっている
+                    if (now - lastMobShotTime > RECOIL_RESET_MS) consecutivePulls = 0;
+                    double inacc = baseSpread()
+                            + (suppression * SUPPRESSION_SPREAD)
+                            + (scav.getVelocity().length() > 0.1 ? 0.04 : 0)
+                            + Math.min(RECOIL_SPREAD_MAX, consecutivePulls * RECOIL_SPREAD_PER_PULL);
                     if (weapon.isManualAction()) {
                         inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
                     }
-                    
+
                     // 構え直し中などで引き金を引けなかった時は、連射数・射撃間隔に数えない
                     if (weapon.fire(inacc)) {
+                        consecutivePulls++;
                         lastMobShotTime = now;
                         afterTriggerPull(weapon, now);
                     }
@@ -514,6 +531,15 @@ public class ScavController {
         logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
     }
 
+    /** ランクごとの基本の弾のばらつき (BulletTaskの拡散量と同じ尺度)。高ランクほど正確 */
+    private double baseSpread() {
+        return switch (brainLevel) {
+            case LOW -> 0.10;
+            case MID -> 0.07;
+            case HIGH -> 0.04;
+        };
+    }
+
     /** 発見から撃ち始めるまでの反応時間 (ms)。ランクが高いほど速いが、毎回ばらつく */
     private long rollReactionDelayMs() {
         return switch (brainLevel) {
@@ -530,10 +556,10 @@ public class ScavController {
     private void afterTriggerPull(ScavWeapon weapon, long now) {
         if (weapon.isAutomatic()) {
             if (burstPullsRemaining <= 0) {
+                // 引き金1回でデータパック銃は約5tick撃ち続けるため、回数は少なめ (LOW/MID 2〜4回、HIGH 1〜3回)
                 burstPullsRemaining = switch (brainLevel) {
-                    case LOW -> 5 + (int) (Math.random() * 6);
-                    case MID -> 3 + (int) (Math.random() * 5);
-                    case HIGH -> 2 + (int) (Math.random() * 4);
+                    case LOW, MID -> 2 + (int) (Math.random() * 3);
+                    case HIGH -> 1 + (int) (Math.random() * 3);
                 };
             }
             if (--burstPullsRemaining <= 0) {
