@@ -195,7 +195,8 @@ public class ScavTactics {
                 long interval = (long) (60000.0 / weapon.rpm());
                 if (fireAllowed && now - lastShotTime >= interval) {
                     aim.run();
-                    if (weapon.fire(0.1 + (suppression * 0.2))) { // 撃ち返されるほど狙いが乱れる (通常の射撃と同じ係数)
+                    // 顔出しは単発で撃つ。撃ち返されるほど狙いが乱れる (通常の射撃と同じ係数)
+                    if (weapon.fire(0.1 + (suppression * 0.2), false)) {
                         shotTimeSetter.accept(now);
                         peekShotsRemaining--;
                     }
