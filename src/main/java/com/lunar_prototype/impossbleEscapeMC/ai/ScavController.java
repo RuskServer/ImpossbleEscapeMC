@@ -115,6 +115,11 @@ public class ScavController {
     /** フルオートで今のバーストに残っている引き金の回数 */
     private int burstPullsRemaining = 0;
     private boolean sawTargetLastStep = false;
+    /** 最後にターゲットが見えていたtickと、その相手 */
+    private int lastTargetVisibleTick = Integer.MIN_VALUE / 2;
+    private UUID lastVisibleTargetId = null;
+    /** これより長く見えていなかった相手が見えた時だけ、反応時間をおく (tick) */
+    private static final int REACQUIRE_TICKS = 30;
 
     // --- ヒートマップの「安全」記録 ---
     /** 記録間隔 (約3秒)。毎ステップ記録すると「危険」(被弾1回 +2) をすぐ打ち消してしまう */
@@ -268,9 +273,17 @@ public class ScavController {
 
         if (target != null) {
             canSeeTarget = vision.checkTrackingVision(target);
-            if (canSeeTarget && !sawTargetLastStep) {
-                // 見つけた直後は反応時間をおいてから撃ち始める
+            int nowTick = Bukkit.getCurrentTick();
+            boolean freshSighting = !target.getUniqueId().equals(lastVisibleTargetId)
+                    || nowTick - lastTargetVisibleTick > REACQUIRE_TICKS;
+            if (canSeeTarget && !sawTargetLastStep && freshSighting) {
+                // 見つけた直後は反応時間をおいてから撃ち始める。
+                // 撃ち合い中に遮蔽物の端で見え隠れしただけの時は、反応し直さない
                 fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + rollReactionDelayMs());
+            }
+            if (canSeeTarget) {
+                lastTargetVisibleTick = nowTick;
+                lastVisibleTargetId = target.getUniqueId();
             }
             sawTargetLastStep = canSeeTarget;
             if (canSeeTarget) {
@@ -332,6 +345,8 @@ public class ScavController {
             return;
         }
 
+        if (target != null || lastKnownLocation != null) weapon.prepare();
+
         boolean needsReload = weapon.needsReload();
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
 
@@ -343,7 +358,8 @@ public class ScavController {
 
         // 4. カバー検索
         if (target != null && tactics.getCoverSearchCooldown() <= 0) {
-            if (suppression > 0.6f || healthPercent < 0.4 || needsReload) {
+            // 撃ってくる相手が見えている時は、制圧されていても物陰へ走らずに撃ち返す (移動中は撃たないため)
+            if ((suppression > 0.6f && !canSeeTarget) || healthPercent < 0.4 || needsReload) {
                 Location cover = tactics.findCover(target);
                 tactics.setTacticalCoverLoc(cover);
                 tactics.setCoverSearchCooldown(60);
@@ -436,8 +452,11 @@ public class ScavController {
             isHoldingAngle = false;
             double dist = scav.getLocation().distance(tactics.getTacticalCoverLoc());
             if (dist > 1.0) scav.getPathfinder().moveTo(tactics.getTacticalCoverLoc(), isSprinting ? 1.5 : 1.0);
-            else {
-                if (!needsReload && canSeeTarget) applyAimToEntity();
+            else if (!needsReload && canSeeTarget) {
+                applyAimToEntity();
+            } else if (!needsReload && lastKnownLocation != null && (moveAction == 6 || moveAction == 7)) {
+                // 物陰に着いたら、隠れたままにならないよう顔を出して撃ち返す
+                tactics.startPeek(lastKnownLocation, isSprinting, moveAction == 7);
             }
         } else if (canSeeTarget) {
             isHoldingAngle = false;
@@ -473,16 +492,19 @@ public class ScavController {
                         inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
                     }
                     
-                    weapon.fire(inacc);
-                    lastMobShotTime = now;
-                    afterTriggerPull(weapon, now);
+                    // 構え直し中などで引き金を引けなかった時は、連射数・射撃間隔に数えない
+                    if (weapon.fire(inacc)) {
+                        lastMobShotTime = now;
+                        afterTriggerPull(weapon, now);
+                    }
                 }
             } else if (isPreAiming && Math.random() < 0.05) {
                 applyAimToEntity();
                 if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
-                    weapon.fire(0.3);
-                    lastMobShotTime = now;
-                    afterTriggerPull(weapon, now);
+                    if (weapon.fire(0.3)) {
+                        lastMobShotTime = now;
+                        afterTriggerPull(weapon, now);
+                    }
                 }
             } else if (target != null) {
                 tactics.handleJumpShot(target);
