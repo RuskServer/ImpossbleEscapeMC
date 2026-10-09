@@ -1,5 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
+import com.github.retrooper.packetevents.event.PacketReceiveEvent;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import io.papermc.paper.event.player.PlayerClientLoadedWorldEvent;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Bukkit;
@@ -35,6 +40,8 @@ import java.util.UUID;
  * ポストエフェクトはプレイヤーデータに保存されリスポーン後も引き継がれるため、参加・退出・停止時に掃除する。
  * また、リスポーンやワールド移動の読み込み中に演出が終わってしまわないよう、
  * クライアントがワールドを読み込み終わるまで時間割を進めない。
+ * 読み込み完了はクライアントの PLAYER_LOADED パケットで判断する。Paperの PlayerClientLoadedWorldEvent は
+ * 60tickで打ち切られ (タイムアウト)、その後に読み込みが終わっても再び呼ばれないため、重いワールドでは早すぎる。
  */
 public final class ScreenEffectService implements Listener {
 
@@ -43,16 +50,24 @@ public final class ScreenEffectService implements Listener {
     private static final Key ADRENALINE = Key.key(NAMESPACE, "adrenaline");
     private static final Key ADRENALINE_FADE = Key.key(NAMESPACE, "adrenaline_fade");
     private static final Key DEATH_IMPACT = Key.key(NAMESPACE, "death_impact");
+    private static final Key DEATH_BLACKOUT = Key.key(NAMESPACE, "death_blackout");
     private static final Key DEATH_FADE = Key.key(NAMESPACE, "death_fade");
+    private static final Key DEATH_RECOVER = Key.key(NAMESPACE, "death_recover");
 
     private static final int ADRENALINE_ONSET_TICKS = 4;
     private static final int ADRENALINE_FADE_TICKS = 12;
+    // 死亡演出は合計4秒: 衝撃 → 暗転 → 薄れる → 回復。
+    // 即時リスポーンで死んだ瞬間にロビーへ戻るため、ロビーに着いてから死んだことを受け止める間を取る
     private static final int DEATH_IMPACT_TICKS = 6;
-    private static final int DEATH_FADE_TICKS = 34;
+    private static final int DEATH_BLACKOUT_TICKS = 28;
+    private static final int DEATH_FADE_TICKS = 26;
+    private static final int DEATH_RECOVER_TICKS = 20;
     /** 心拍の周期。adrenaline.fsh の BEAT_TICKS と同じ値にして、心音と画面の脈動を揃える */
     private static final int HEARTBEAT_TICKS = 10;
-    /** クライアントの読み込み完了の通知が来ない場合に待つのをやめるまで (Paperの読み込みタイムアウトと同じ) */
-    private static final int LOAD_WAIT_TIMEOUT_TICKS = 60;
+    /** クライアントの読み込み完了の通知が来ない場合に待つのをやめるまで */
+    private static final int LOAD_WAIT_TIMEOUT_TICKS = 400;
+    /** 読み込み完了から演出を始めるまでの間。読み込み画面が閉じた直後は周りの描画が追いついていない */
+    private static final int START_DELAY_AFTER_LOAD_TICKS = 10;
 
     /** 時間割の1段。effect が null の段はエフェクト無し */
     private record Step(Key effect, int ticks, boolean heartbeat) {
@@ -79,12 +94,38 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Playback> playing = new HashMap<>();
     /** ワールドの読み込み待ちのプレイヤーと、待ち始めたtick */
     private final Map<UUID, Integer> awaitingLoad = new HashMap<>();
+    /** 読み込みが終わったプレイヤーと、演出を進めてよくなるtick */
+    private final Map<UUID, Integer> settlingUntil = new HashMap<>();
     /** 死亡してまだリスポーンしていないプレイヤー */
     private final Set<UUID> awaitingRespawn = new HashSet<>();
     private final BukkitTask tickTask;
+    private final PlayerLoadedListener playerLoadedListener;
 
     private ScreenEffectService(Plugin plugin) {
         this.tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
+        this.playerLoadedListener = new PlayerLoadedListener(plugin);
+        PacketEvents.getAPI().getEventManager().registerListener(playerLoadedListener);
+    }
+
+    /** クライアントがワールドを読み込み終えた時に送るパケット (参加・リスポーン・ワールド移動のたび) を見る */
+    private final class PlayerLoadedListener extends PacketListenerAbstract {
+        private final Plugin plugin;
+
+        private PlayerLoadedListener(Plugin plugin) {
+            super(PacketListenerPriority.MONITOR);
+            this.plugin = plugin;
+        }
+
+        @Override
+        public void onPacketReceive(PacketReceiveEvent event) {
+            if (event.getPacketType() != PacketType.Play.Client.PLAYER_LOADED) return;
+            UUID playerId = event.getUser().getUUID();
+            if (playerId == null) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                Player player = Bukkit.getPlayer(playerId);
+                if (player != null) onWorldLoaded(player);
+            });
+        }
     }
 
     public static void init(Plugin plugin) {
@@ -97,6 +138,7 @@ public final class ScreenEffectService implements Listener {
     public static void shutdown() {
         if (instance == null) return;
         instance.tickTask.cancel();
+        PacketEvents.getAPI().getEventManager().unregisterListener(instance.playerLoadedListener);
         Bukkit.getOnlinePlayers().forEach(player -> apply(player, null));
         instance = null;
     }
@@ -127,12 +169,14 @@ public final class ScreenEffectService implements Listener {
     }
 
     private boolean canAdvance(UUID playerId) {
-        return !awaitingRespawn.contains(playerId) && !awaitingLoad.containsKey(playerId);
+        return !awaitingRespawn.contains(playerId) && !awaitingLoad.containsKey(playerId)
+                && Bukkit.getCurrentTick() >= settlingUntil.getOrDefault(playerId, 0);
     }
 
     private void tick() {
         int now = Bukkit.getCurrentTick();
         awaitingLoad.values().removeIf(since -> now - since >= LOAD_WAIT_TIMEOUT_TICKS);
+        settlingUntil.values().removeIf(until -> now >= until);
 
         for (Map.Entry<UUID, Playback> entry : new ArrayList<>(playing.entrySet())) {
             Player player = Bukkit.getPlayer(entry.getKey());
@@ -192,7 +236,9 @@ public final class ScreenEffectService implements Listener {
         apply(player, null);
         playing.put(player.getUniqueId(), new Playback(List.of(
                 new Step(DEATH_IMPACT, DEATH_IMPACT_TICKS, false),
-                new Step(DEATH_FADE, DEATH_FADE_TICKS, false))));
+                new Step(DEATH_BLACKOUT, DEATH_BLACKOUT_TICKS, false),
+                new Step(DEATH_FADE, DEATH_FADE_TICKS, false),
+                new Step(DEATH_RECOVER, DEATH_RECOVER_TICKS, false))));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -209,8 +255,15 @@ public final class ScreenEffectService implements Listener {
 
     @EventHandler
     public void onClientLoaded(PlayerClientLoadedWorldEvent event) {
-        Player player = event.getPlayer();
-        awaitingLoad.remove(player.getUniqueId());
+        // タイムアウトは読み込み完了ではない (重いワールドではまだ読み込み画面のまま)。PLAYER_LOADED パケットを待つ
+        if (event.isTimeout()) return;
+        onWorldLoaded(event.getPlayer());
+    }
+
+    private void onWorldLoaded(Player player) {
+        // 読み込み完了の通知はイベントとパケットの両方から届くため、1回だけ扱う
+        if (awaitingLoad.remove(player.getUniqueId()) == null) return;
+        settlingUntil.put(player.getUniqueId(), Bukkit.getCurrentTick() + START_DELAY_AFTER_LOAD_TICKS);
         // ワールドの切り替えでクライアントの表示がリセットされていても、今の段のエフェクトを確実に送り直す
         Playback playback = playing.get(player.getUniqueId());
         if (playback != null && playback.started) {
@@ -231,6 +284,7 @@ public final class ScreenEffectService implements Listener {
         UUID playerId = event.getPlayer().getUniqueId();
         playing.remove(playerId);
         awaitingLoad.remove(playerId);
+        settlingUntil.remove(playerId);
         awaitingRespawn.remove(playerId);
         // 保存されて次回の参加時に残らないよう、保存前に外しておく
         apply(event.getPlayer(), null);
