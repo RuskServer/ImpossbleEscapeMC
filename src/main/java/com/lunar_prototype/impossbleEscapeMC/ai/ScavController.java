@@ -122,6 +122,15 @@ public class ScavController {
     /** 直近この時間 (tick) 以内に撃たれていたら安全とはみなさない */
     private static final int SAFE_RECORD_NO_DAMAGE_TICKS = 60;
     private int safeRecordCooldownSteps = 0;
+
+    // --- 物陰への移動 ---
+    /** この距離以上近づいたら「進んでいる」とみなす */
+    private static final double COVER_PROGRESS_MIN = 0.3;
+    /** 物陰へ近づけないまま、このステップ数 (約1.5秒) が過ぎたら諦める */
+    private static final int COVER_STUCK_STEPS = 10;
+    private double coverBestDistance = Double.MAX_VALUE;
+    private int coverStuckSteps = 0;
+    private int lastRetargetTick = Integer.MIN_VALUE / 2;
     private int lastDamagedTick = Integer.MIN_VALUE / 2;
 
     public boolean isSprinting() {
@@ -136,9 +145,28 @@ public class ScavController {
     private double aimErrorPitch = 0;
     private long lastMobShotTime = 0;
 
-    private int voiceLineCooldown = 0;
+    /** AIの1ステップのtick数 (AIは3tickごとに1回動く) */
+    public static final int STEP_TICKS = 3;
+
+    /** 次に喋れるtick */
+    private int voiceAvailableTick = 0;
+    /** 最後に喋り出したtick */
+    private int lastVoiceTick = Integer.MIN_VALUE / 2;
     private static final int VOICE_LINE_COOLDOWN_TICKS = 100;
+    /** 周りの味方がこの時間 (tick) 以内に喋り出していたら喋らない */
+    private static final int ALLY_VOICE_GAP_TICKS = 40;
+    /** 視認中に味方へ位置を伝える間隔 (tick) */
+    private static final int SHARE_INTERVAL_TICKS = 10;
+    private int lastShareTick = Integer.MIN_VALUE / 2;
     private static final double LOW_EFFECTIVE_DAMAGE_THRESHOLD = 4.0;
+    /** 壁越しの足音が聞こえる距離 */
+    private static final double FOOTSTEP_MUFFLED_RANGE = 12.0;
+    /** 足音から推定する位置の誤差の上限 (ブロック) */
+    private static final double FOOTSTEP_MAX_LOCATION_ERROR = 6.0;
+    /** 平常時でも、これだけ (移動イベント数) 音を出し続けている相手は位置を追う */
+    private static final int FOOTSTEP_TRACKING_NOISE_TICKS = 120;
+    /** 防具で元のダメージの6割未満まで減らされたら「効きにくい」 */
+    private static final double LOW_EFFECTIVE_DAMAGE_RATIO = 0.6;
     private static final int TARGET_MEMORY_EXPIRE_TICKS = 20 * 60;
     private static final float ALERTNESS_RELAXED_THRESHOLD = 0.30f;
     private static final float ALERTNESS_COMBAT_THRESHOLD = 0.65f;
@@ -215,7 +243,6 @@ public class ScavController {
 
         // タイマー更新
         if (suppression > 0) suppression = Math.max(0, suppression - 0.02f);
-        if (voiceLineCooldown > 0) voiceLineCooldown--;
         tactics.updateTimers();
 
         // 1. 分隊更新
@@ -225,15 +252,15 @@ public class ScavController {
             squad.handleSquadRoles();
             lastSquadUpdate = 0;
         }
+        brain.setSquadRole(squad.getMyRole());
 
         // 2. 索敵 & 情報共有
         if (target == null) {
             target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
-                if (!intelFromShared) {
-                    markDirectIntelSource();
-                }
+                // 味方から聞いた情報で動いていても、自分の目で見つけたら自分が発信元になる
+                markDirectIntelSource();
                 playScavVoice("minecraft:scav1", 1.0f, 1.0f);
                 squad.shareTargetWithAllies(target.getLocation());
             }
@@ -257,7 +284,8 @@ public class ScavController {
                 isPreAiming = false;
                 updateHumanAim(target);
 
-                if (Bukkit.getCurrentTick() % 10 == 0) {
+                if (Bukkit.getCurrentTick() - lastShareTick >= SHARE_INTERVAL_TICKS) {
+                    lastShareTick = Bukkit.getCurrentTick();
                     if (Math.random() < 0.2) playScavVoice("minecraft:scav2", 1.0f, 1.0f);
                     squad.shareTargetWithAllies(lastKnownLocation);
                 }
@@ -309,7 +337,8 @@ public class ScavController {
 
         // 3. スイッチング
         if (squad.getMyRole() == ScavSquad.SquadRole.POINTMAN && (suppression > 0.8f || needsReload || healthPercent < 0.4)) {
-            squad.requestRoleSwitch();
+            // 前衛を味方に任せたら、すぐに物陰へ下がる
+            if (squad.requestRoleSwitch()) tactics.setCoverSearchCooldown(0);
         }
 
         // 4. カバー検索
@@ -319,6 +348,8 @@ public class ScavController {
                 tactics.setTacticalCoverLoc(cover);
                 tactics.setCoverSearchCooldown(60);
                 if (cover != null) tactics.setCoverStayTicks(100);
+                coverBestDistance = Double.MAX_VALUE;
+                coverStuckSteps = 0;
             }
         }
 
@@ -326,6 +357,18 @@ public class ScavController {
         boolean movingToCover = tacticalCover != null
                 && tactics.getCoverStayTicks() > 0
                 && scav.getLocation().distanceSquared(tacticalCover) > 1.0;
+        // 物陰へ近づけなくなったら諦める (移動中は撃たないため、引っかかったまま撃たなくなるのを防ぐ)
+        if (movingToCover) {
+            double coverDistance = scav.getLocation().distance(tacticalCover);
+            if (coverDistance < coverBestDistance - COVER_PROGRESS_MIN) {
+                coverBestDistance = coverDistance;
+                coverStuckSteps = 0;
+            } else if (++coverStuckSteps >= COVER_STUCK_STEPS) {
+                tactics.setTacticalCoverLoc(null);
+                tactics.setCoverStayTicks(0);
+                movingToCover = false;
+            }
+        }
         // Aggression/fear are decision inputs, not physical sprint state. Treat only
         // active tactical relocation as sprinting so stationary SCAVs can fire.
         this.isSprinting = tactics.getPeekPhase() > 0 || movingToCover;
@@ -340,8 +383,9 @@ public class ScavController {
             float lowEffectRatio = getLowEffectiveRatio(target.getUniqueId());
             if (brainLevel == ScavBrain.BrainLevel.MID && lowEffectRatio >= 0.55f) {
                 tacticalAdvice = Math.max(tacticalAdvice, 0.85f);
-                // 通りにくい相手を見続けないよう、MIDだけ周期的にターゲット再評価
-                if (Bukkit.getCurrentTick() % 20 == 0) {
+                // 通りにくい相手を見続けないよう、MIDだけ周期的にターゲット再評価 (約1秒ごと)
+                if (Bukkit.getCurrentTick() - lastRetargetTick >= 20) {
+                    lastRetargetTick = Bukkit.getCurrentTick();
                     LivingEntity alt = vision.scanForTargets();
                     if (alt != null && !alt.getUniqueId().equals(target.getUniqueId())) {
                         scav.setTarget(alt);
@@ -355,7 +399,8 @@ public class ScavController {
 
         // 6. Peek Maneuver
         if (tactics.getPeekPhase() > 0) {
-            tactics.handlePeekManeuver(target, weapon, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
+            tactics.handlePeekManeuver(canSeeTarget, System.currentTimeMillis() >= fireHoldUntil, this::applyAimToEntity,
+                    weapon, suppression, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             checkAndInteractWithDoors();
             int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, peekActions);
@@ -373,10 +418,14 @@ public class ScavController {
         int moveAction = actions[0];
         // 特殊移動判定
         float[] neurons = brain.getNeuronStates();
-        if (neurons[1] > 0.7f) moveAction = (Math.random() > 0.5) ? 3 : 4; // Retreat
+        // 行動番号は ScavBrain の定義 (2: 後退, 3/4: 横移動, 6: ピーク, 7: ジャンプピーク) に合わせる
+        if (neurons[1] > 0.7f) {
+            // 怖い時は下がる。強い制圧下では横に動いて弾を避ける
+            moveAction = (suppression > 0.5f && Math.random() < 0.6) ? ((Math.random() > 0.5) ? 3 : 4) : 2;
+        }
         if (neurons[2] > 0.7f && !hasLos && lastKnownLocation != null) {
-            if (neurons[0] > 0.6f && Math.random() > 0.6) moveAction = 7; // Peek
-            else if (Math.random() > 0.8) moveAction = 6; // Search
+            if (neurons[0] > 0.6f && Math.random() > 0.6) moveAction = 6; // Peek
+            else if (Math.random() > 0.8) moveAction = 1; // 見えていない時のピーク以外の動きは捜索になる
         }
 
         if (moveAction == 8) {
@@ -397,7 +446,8 @@ public class ScavController {
         } else if (lastKnownLocation != null) {
             isHoldingAngle = false;
             // 顔出しは前回から間が空いていなければ行わず、捜索を続ける
-            if (moveAction != 7 || !tactics.startPeek(lastKnownLocation, isSprinting)) handleSearching();
+            boolean peek = moveAction == 6 || moveAction == 7;
+            if (!peek || !tactics.startPeek(lastKnownLocation, isSprinting, moveAction == 7)) handleSearching();
         }
 
         checkAndInteractWithDoors();
@@ -597,8 +647,17 @@ public class ScavController {
         }
 
         Location source = sound.sourceLocation.clone();
+        if (source.getWorld() != scav.getWorld()) return;
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         double dist = scav.getLocation().distance(source);
+
+        // 足音は壁越しだとこもって遠くまで届かない。聞こえても、位置はおおまかにしか分からない
+        if (sound.kind == SoundContact.Kind.FOOTSTEP) {
+            boolean muffled = !hasClearSoundPath(source);
+            if (muffled && dist > FOOTSTEP_MUFFLED_RANGE) return;
+            double error = Math.min(FOOTSTEP_MAX_LOCATION_ERROR, dist * (muffled ? 0.2 : 0.08));
+            source.add((Math.random() - 0.5) * 2.0 * error, 0, (Math.random() - 0.5) * 2.0 * error);
+        }
 
         float hearingBoost = (float) Math.max(0.08, 0.28 - (dist / 180.0));
         double movementSpeed = Math.max(0.0, sound.movementSpeed);
@@ -628,10 +687,11 @@ public class ScavController {
         }
         investigateTicks = baseInvestigate;
 
+        // 足音の通知は2秒以上歩き続けてから来るため、「長く音を出し続けている」はそれより長い時間で判断する
         if (sound.kind == SoundContact.Kind.GUNSHOT
                 || arc != SoundArc.FRONT
                 || sound.sprinting
-                || sound.continuousNoiseTicks >= 40
+                || sound.continuousNoiseTicks >= FOOTSTEP_TRACKING_NOISE_TICKS
                 || behaviorState != BehaviorState.RELAXED) {
             Location inferred = source.clone();
             if (sound.kind == SoundContact.Kind.FOOTSTEP && sound.movementDirection != null && sound.movementSpeed > 0.05) {
@@ -660,6 +720,16 @@ public class ScavController {
             payload.put("walkedDistance", sound.walkedDistance);
             plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "SOUND_INVESTIGATE_START", payload);
         }
+    }
+
+    /** 音源との間に壁が無いか (足音が直接届くか) */
+    private boolean hasClearSoundPath(Location source) {
+        Location eye = scav.getEyeLocation();
+        Vector toSource = source.clone().add(0, 1.0, 0).toVector().subtract(eye.toVector());
+        double length = toSource.length();
+        if (length < 0.01) return true;
+        var hit = scav.getWorld().rayTraceBlocks(eye, toSource.multiply(1.0 / length), length, org.bukkit.FluidCollisionMode.NEVER, true);
+        return hit == null || hit.getHitBlock() == null;
     }
 
     private enum SoundArc {
@@ -692,15 +762,17 @@ public class ScavController {
     }
 
     public void playScavVoice(String sound, float volume, float pitch) {
-        if (voiceLineCooldown > 0) return;
-        
+        int now = Bukkit.getCurrentTick();
+        if (now < voiceAvailableTick) return;
+
         // 周囲の味方が最近喋ったかチェック
         for (ScavController ally : squad.getNearbyAllies()) {
-            if (ally.voiceLineCooldown > VOICE_LINE_COOLDOWN_TICKS - 40) return; // 誰かが2秒以内に喋り出していたらキャンセル
+            if (now - ally.lastVoiceTick < ALLY_VOICE_GAP_TICKS) return; // 誰かが2秒以内に喋り出していたらキャンセル
         }
 
         scav.getWorld().playSound(scav.getLocation(), sound, volume, pitch);
-        voiceLineCooldown = VOICE_LINE_COOLDOWN_TICKS + (int)(Math.random() * 40); // 5〜7秒のクールダウン
+        lastVoiceTick = now;
+        voiceAvailableTick = now + VOICE_LINE_COOLDOWN_TICKS + (int)(Math.random() * 40); // 5〜7秒のクールダウン
     }
 
     public void onKill(LivingEntity victim) {
@@ -739,7 +811,8 @@ public class ScavController {
     public void receiveSharedTarget(Location loc, UUID originScavId, int relayDepth) {
         if (loc == null) return;
 
-        if (intelFromShared && Objects.equals(this.intelOriginScavId, originScavId) && this.intelRelayDepth <= relayDepth) {
+        // 同じ発信元の情報でも、今持っているものより遠回りに伝わってきたもの (中継が多い) は使わない
+        if (intelFromShared && Objects.equals(this.intelOriginScavId, originScavId) && relayDepth > this.intelRelayDepth) {
             if (lastKnownLocation == null) {
                 lastKnownLocation = loc.clone();
             }
@@ -752,6 +825,8 @@ public class ScavController {
         intelFromShared = true;
         intelOriginScavId = (originScavId != null) ? originScavId : scav.getUniqueId();
         intelRelayDepth = Math.max(0, relayDepth);
+        // 聞いた位置をさらに近くの味方へ伝える (中継数の上限は ScavSquad が見る)
+        squad.shareTargetWithAllies(lastKnownLocation);
     }
 
     private void markDirectIntelSource() {
@@ -839,13 +914,19 @@ public class ScavController {
         return false;
     }
 
-    public void onBulletHitDealt(LivingEntity victim, double finalDamage, boolean penetrated, String hitLocation) {
+    /**
+     * @param rawDamage 防具で軽減される前のダメージ。分かる場合 (データパック銃) は軽減の割合で効きにくさを判断する。
+     *                  データパック銃は元のダメージが小さい銃が多く、絶対値で判断すると防具が無くても「効きにくい」になるため
+     */
+    public void onBulletHitDealt(LivingEntity victim, double finalDamage, double rawDamage, boolean penetrated, String hitLocation) {
         if (victim == null) return;
         TargetCombatMemory memory = targetMemories.computeIfAbsent(victim.getUniqueId(), id -> new TargetCombatMemory());
         memory.hits++;
         memory.lastUpdateTick = Bukkit.getCurrentTick();
 
-        boolean lowEffective = !penetrated || finalDamage < LOW_EFFECTIVE_DAMAGE_THRESHOLD;
+        boolean lowEffective = !penetrated || (Double.isNaN(rawDamage) || rawDamage <= 0
+                ? finalDamage < LOW_EFFECTIVE_DAMAGE_THRESHOLD
+                : finalDamage < rawDamage * LOW_EFFECTIVE_DAMAGE_RATIO);
         if (lowEffective) {
             memory.lowEffectiveHits++;
         } else if (memory.lowEffectiveHits > 0 && Math.random() < 0.35) {

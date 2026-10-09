@@ -1,11 +1,14 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -16,7 +19,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
  *
  * データパック銃は {@link BulletTask} を通らないため、これが無いと被弾時の負傷・アドレナリン・
  * SCAVの命中フィードバックが一切動かない。データパック銃は部位・貫通の情報を持たないため、
- * 胴体への貫通弾として扱う。
+ * 胴体への貫通弾として扱う。防具による軽減の度合いは、軽減前のダメージとして渡す。
  */
 public class DatapackBulletHitBridge implements Listener {
 
@@ -24,6 +27,8 @@ public class DatapackBulletHitBridge implements Listener {
     private static final String HIT_LOCATION = "body";
     /** データパック銃は弾薬クラスを持たない */
     private static final int UNKNOWN_AMMO_CLASS = 0;
+    /** プレイヤーの弾がSCAVに当たった時の制圧 (プラグイン銃の BulletTask と同じ値) */
+    private static final float HIT_SUPPRESSION = 0.5f;
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(EntityDamageByEntityEvent event) {
@@ -34,7 +39,12 @@ public class DatapackBulletHitBridge implements Listener {
         Entity shooter = DatapackGunnerManager.resolveShooter(event.getDamager());
         if (!(shooter instanceof LivingEntity livingShooter)) return;
 
+        if (shooter instanceof Player) {
+            ScavController controller = ScavSpawner.getController(victim.getUniqueId());
+            if (controller != null) controller.addSuppression(HIT_SUPPRESSION);
+        }
+
         Bukkit.getPluginManager().callEvent(new BulletHitEvent(
-                victim, livingShooter, event.getFinalDamage(), HIT_LOCATION, true, UNKNOWN_AMMO_CLASS));
+                victim, livingShooter, event.getFinalDamage(), HIT_LOCATION, true, UNKNOWN_AMMO_CLASS, event.getDamage()));
     }
 }

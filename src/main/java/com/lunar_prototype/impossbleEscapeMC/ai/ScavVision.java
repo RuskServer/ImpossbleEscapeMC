@@ -59,13 +59,50 @@ public class ScavVision {
     }
 
     public LivingEntity scanForTargets() {
-        for (Entity e : scav.getNearbyEntities(MAX_VISION_DISTANCE, 64, MAX_VISION_DISTANCE)) {
-            if (e instanceof org.bukkit.entity.Player p) {
-                if (DatapackGunnerManager.isGunner(p)) continue;
-                if (isTargetable(p) && checkVision(p)) return p;
-            }
+        // 対象はプレイヤーだけなので、周囲の全エンティティではなくワールドのプレイヤーから探す
+        Location eye = scav.getEyeLocation();
+        double maxDistanceSquared = MAX_VISION_DISTANCE * MAX_VISION_DISTANCE;
+        for (org.bukkit.entity.Player p : scav.getWorld().getPlayers()) {
+            if (DatapackGunnerManager.isGunner(p)) continue;
+            if (!isTargetable(p)) continue;
+            if (p.getEyeLocation().distanceSquared(eye) > maxDistanceSquared) continue;
+            if (checkVision(p)) return p;
         }
         return null;
+    }
+
+    // --- プレイヤーの移動速度 ---
+    // サーバー側のプレイヤーの getVelocity() は歩いても変わらない (移動はクライアントが決めて位置だけ届く) ため、
+    // 位置の変化から速度を求める。全SCAVで共有する
+    private static final java.util.Map<UUID, double[]> motionSamples = new java.util.HashMap<>();
+    private static final int MOTION_SAMPLE_INTERVAL_TICKS = 5;
+    private static final int MOTION_SAMPLE_EXPIRE_TICKS = 200;
+
+    /** 相手の水平移動速度 (ブロック/tick) */
+    static double horizontalSpeed(LivingEntity target) {
+        if (!(target instanceof org.bukkit.entity.Player)) {
+            Vector velocity = target.getVelocity();
+            return Math.hypot(velocity.getX(), velocity.getZ());
+        }
+        int now = Bukkit.getCurrentTick();
+        Location loc = target.getLocation();
+        // {x, z, 計測tick, 速度}
+        double[] sample = motionSamples.get(target.getUniqueId());
+        if (sample == null || now - (int) sample[2] > MOTION_SAMPLE_EXPIRE_TICKS) {
+            if (motionSamples.size() > 256) {
+                motionSamples.values().removeIf(old -> now - (int) old[2] > MOTION_SAMPLE_EXPIRE_TICKS);
+            }
+            motionSamples.put(target.getUniqueId(), new double[] { loc.getX(), loc.getZ(), now, 0.0 });
+            return 0.0;
+        }
+        int elapsed = now - (int) sample[2];
+        if (elapsed >= MOTION_SAMPLE_INTERVAL_TICKS) {
+            sample[3] = Math.hypot(loc.getX() - sample[0], loc.getZ() - sample[1]) / elapsed;
+            sample[0] = loc.getX();
+            sample[1] = loc.getZ();
+            sample[2] = now;
+        }
+        return sample[3];
     }
 
     /**
@@ -122,7 +159,7 @@ public class ScavVision {
         else if (light < 12) visibility *= 0.8;
 
         if (target instanceof org.bukkit.entity.Player p && p.isSneaking()) visibility *= 0.6;
-        if (target.getVelocity().lengthSquared() > 0.05) visibility *= 1.2;
+        if (horizontalSpeed(target) > 0.1) visibility *= 1.2; // 歩き (約0.22ブロック/tick) 以上で動いている相手は目立つ
         if (isFiring) visibility = 5.0; 
 
         double effectiveRange = effectiveMaxVisionDistance * visibility;

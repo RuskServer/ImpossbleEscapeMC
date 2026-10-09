@@ -28,7 +28,8 @@ public class ScavBrain {
     private float tactical;
 
     // --- Action Types ---
-    // 0: Approach, 1: Maintain, 2: Retreat, 3: Strafe L, 4: Strafe R, 5: Jump, 6: Peek, 7: Jump Peek, 8: HOLD
+    // 0: Approach, 1: Maintain, 2: Retreat, 3/4: Strafe (向きは ScavTactics が区間ごとに決める), 5: Jump, 6: Peek, 7: Jump Peek, 8: HOLD
+    // decide() はAIの1ステップ (ScavController.STEP_TICKS tick) ごとに1回呼ばれる。カウンターはステップ数
     private int[] currentActions; // [Movement, Shooting]
     private int decisionTimer = 0;
 
@@ -52,8 +53,10 @@ public class ScavBrain {
     // --- Situational Awareness ---
     private int presenceTicks = 0; // ターゲットを見失ってからの時間
     private int sightDebounceTicks = 0; // 視認変化のデバウンス用カウンター
-    private static final int DEBOUNCE_THRESHOLD_SEE = 2;  // 発見判定までの猶予 (0.1s)
-    private static final int DEBOUNCE_THRESHOLD_LOST = 5; // 見失い判定までの猶予 (0.25s)
+    private static final int DEBOUNCE_THRESHOLD_SEE = 1;  // 発見判定までの猶予 (1ステップ = 0.15s)
+    private static final int DEBOUNCE_THRESHOLD_LOST = 2; // 見失い判定までの猶予 (2ステップ = 0.3s)
+    /** 見失った直後に角待ちを続ける時間 (tick) */
+    private static final int HOLD_AFTER_LOST_TICKS = 40;
     private boolean debouncedCanSee = false; // デバウンス済みの視認状態
 
     // --- 予測不能性 ---
@@ -73,6 +76,17 @@ public class ScavBrain {
     private float lastSuppression = 0.0f;
     private double lastHealthPercent = 1.0;
     private boolean lastCanSee = false;
+    private float lastFear = 0.0f;
+    private boolean lastOutOfAmmo = false;
+
+    // --- 個体の性格 ---
+    /** 生成時の攻撃性・戦術性。感情は時間とともにこの値へ戻る (0へ戻すと、数秒でランクごとの性格差が消えるため) */
+    private final float baseAggression;
+    private final float baseTactical;
+    private static final float BASE_FEAR = 0.1f;
+
+    /** 分隊での役割 (前衛は詰め、援護は角を押さえる) */
+    private ScavSquad.SquadRole squadRole = ScavSquad.SquadRole.NONE;
 
     public ScavBrain(Mob entity) {
         this(entity, BrainLevel.MID);
@@ -105,7 +119,13 @@ public class ScavBrain {
             case HIGH -> 0.11f;
         };
         this.decisionTemperature = baseTemperature * (0.8f + random.nextFloat() * 0.45f);
+        this.baseAggression = this.aggression;
+        this.baseTactical = this.tactical;
         this.rangeTrait = 0.75 + random.nextDouble() * 0.55;
+    }
+
+    public void setSquadRole(ScavSquad.SquadRole role) {
+        this.squadRole = role != null ? role : ScavSquad.SquadRole.NONE;
     }
 
     /** 今の判断で保とうとする交戦距離 (武器の好み × 個体差 × 判断ごとの揺らぎ) */
@@ -188,6 +208,17 @@ public class ScavBrain {
             peekScore *= (0.8f + (0.4f * alertness));
             holdScore += (1.0f - alertness) * 0.25f;
 
+            // 分隊の役割: 前衛は詰める・回り込む、援護は角を押さえて顔出しで撃つ
+            if (squadRole == ScavSquad.SquadRole.POINTMAN) {
+                pushScore += 0.2f;
+                flankScore += 0.05f;
+                holdScore -= 0.1f;
+            } else if (squadRole == ScavSquad.SquadRole.COVERMAN) {
+                holdScore += 0.15f;
+                peekScore += 0.15f;
+                pushScore -= 0.2f;
+            }
+
             if (brainLevel == BrainLevel.LOW) {
                 pushScore += 0.15f + random.nextFloat() * 0.25f;
                 holdScore -= 0.25f;
@@ -216,7 +247,7 @@ public class ScavBrain {
                 // 維持
             } else {
                 currentMode = bestMode;
-                modeInertia = 10 + random.nextInt(20); // 0.5s - 1.5s 維持
+                modeInertia = 3 + random.nextInt(7); // 3〜9ステップ (約0.5〜1.5秒) 維持
             }
 
             recordModeHistory(currentMode);
@@ -252,6 +283,8 @@ public class ScavBrain {
         this.lastCanSee = canSee;
         this.lastSuppression = suppression;
         this.lastHealthPercent = healthPercent;
+        this.lastFear = fear;
+        this.lastOutOfAmmo = weapon != null && weapon.ammo() <= 0;
 
         return currentActions;
     }
@@ -297,7 +330,7 @@ public class ScavBrain {
             default:
                 if (canSee) return 8; // 視認中は HOLD でエイムに集中
                 // 見失った直後の 2秒間(40ticks) は角待ちを維持
-                if (lastCanSee && presenceTicks < 40) return 8; 
+                if (lastCanSee && presenceTicks * ScavController.STEP_TICKS < HOLD_AFTER_LOST_TICKS) return 8;
                 return 1; // それ以外は Maintain
         }
     }
@@ -338,8 +371,7 @@ public class ScavBrain {
     private int varyAction(int action) {
         return switch (action) {
             case 0, 2 -> random.nextBoolean() ? 3 : 4; // 直進・後退 → 横に動きながら
-            case 3 -> 4;                               // 左右の横移動を入れ替え
-            case 4 -> 3;
+            case 3, 4 -> 1;                            // 横移動 → 距離を保つ動き (横移動の左右は ScavTactics が切り替える)
             case 5 -> 0;                               // ジャンプ → 前進
             case 6 -> 7;                               // ピーク ⇔ ジャンプピーク
             case 7 -> 6;
@@ -387,11 +419,11 @@ public class ScavBrain {
         if (healthPercent < lastHealthPercent - 0.1) return "DAMAGE"; 
         if (suppression > lastSuppression + 0.3f) return "SUPPRESSION_SPIKE";
 
-        // C. Panic state (Fear spikes)
-        if (fear > 0.8f && lastSuppression < 0.5f) return "PANIC";
+        // C. Panic state (Fear spikes): 恐怖が閾値を超えた瞬間だけ (超えている間ずっと割り込むと毎ステップ判断し直してしまう)
+        if (fear > 0.8f && lastFear <= 0.8f && lastSuppression < 0.5f) return "PANIC";
 
-        // D. Out of ammo while trying to shoot
-        if (currentActions[1] == 0 && weapon != null && weapon.ammo() <= 0) {
+        // D. Out of ammo while trying to shoot: 弾が切れた瞬間だけ (リロード中ずっと割り込まない)
+        if (currentActions[1] == 0 && weapon != null && weapon.ammo() <= 0 && !lastOutOfAmmo) {
             return "OUT_OF_AMMO";
         }
 
@@ -430,17 +462,17 @@ public class ScavBrain {
         fear *= (1.0f - tacticalSuppression);
 
         if (tacticalAdvice > 0.5f) {
-            tactical += 0.1f;
+            tactical += 0.03f;
         }
         // 冷静な時 (fear < 0.3) のみ、視認ロスト時に戦術的分析が進む
         if (!canSee && fear < 0.3f) {
             tactical += 0.02f;
         }
 
-        // Decay
-        aggression = clamp(aggression * 0.96f - 0.005f);
-        fear = clamp(fear * 0.94f - 0.01f);
-        tactical = clamp(tactical * 0.95f - 0.01f);
+        // Decay: 0ではなく個体の性格 (生成時の値) へ戻す
+        aggression = clamp(baseAggression + (aggression - baseAggression) * 0.9f);
+        fear = clamp(BASE_FEAR + (fear - BASE_FEAR) * 0.88f);
+        tactical = clamp(baseTactical + (tactical - baseTactical) * 0.9f);
     }
 
     private int determineShootAction(boolean canSee, float suppression, boolean isSprinting) {
@@ -472,14 +504,14 @@ public class ScavBrain {
     public void updateConditions(boolean lowHealth, boolean lowAmmo, boolean suppressed, boolean tacticalFlag) {
         // Conditions are already handled in updateInternalStates based on parameters,
         // but can add immediate spikes here if needed.
+        // 毎ステップ呼ばれるため、上げ幅は小さくする (大きいと数ステップで張り付き、リロードのたびにパニックになる)
         if (lowHealth)
-            fear = clamp(fear + 0.2f);
+            fear = clamp(fear + 0.05f);
         if (lowAmmo)
-            fear = clamp(fear + 0.1f);
+            fear = clamp(fear + 0.01f);
         if (suppressed)
-            fear = clamp(fear + 0.1f);
-        if (tacticalFlag)
-            tactical = clamp(tactical + 0.2f);
+            fear = clamp(fear + 0.03f);
+        // tacticalFlag (見えない相手がいる) は updateInternalStates の tacticalAdvice で反映済み
     }
 
     public float[] getNeuronStates() {

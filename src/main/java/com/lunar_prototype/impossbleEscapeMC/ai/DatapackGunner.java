@@ -52,6 +52,11 @@ public final class DatapackGunner {
     private static final int GIVE_GUN_DELAY_TICKS = 2;
     /** inaccuracy (BulletTaskの拡散量) を照準のブレ角度 (度) に換算する係数 */
     private static final double INACCURACY_TO_DEGREES = 45.0;
+    /**
+     * 引き金を引いた時の照準を保つtick数。データパックは引き金を引いてから (TRIGGER_PULL_VALUE + 1) tick撃ち続けるが、
+     * その間にSCAVの体と頭は移動方向へ向き直るため、SCAVの向きをそのまま写すと2発目以降が横に逸れる
+     */
+    private static final int AIM_HOLD_TICKS = TRIGGER_PULL_VALUE + 2;
 
     /** 送信パケットをすべて捨てる接続 */
     private static final class DiscardingConnection extends Connection {
@@ -72,8 +77,10 @@ public final class DatapackGunner {
     private int age;
     private boolean armed;
     private int reloadTicks;
-    private float aimJitterYaw;
-    private float aimJitterPitch;
+    /** 引き金を引いた時の照準 (ブレ込み)。aimHoldTicks の間はSCAVの向きの代わりにこれを使う */
+    private float aimYaw;
+    private float aimPitch;
+    private int aimHoldTicks;
 
     private DatapackGunner(Mob owner, DatapackGunProfile profile, int slot, ServerPlayer handle) {
         this.owner = owner;
@@ -132,6 +139,7 @@ public final class DatapackGunner {
     /** 毎tick呼ぶ。位置同期・銃の受け取り・再装填を行う */
     void tick() {
         age++;
+        if (aimHoldTicks > 0) aimHoldTicks--;
         syncToOwner();
 
         if (age == GIVE_GUN_DELAY_TICKS) {
@@ -186,8 +194,11 @@ public final class DatapackGunner {
         if (!isReady()) return false;
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double spread = inaccuracy * INACCURACY_TO_DEGREES;
-        aimJitterYaw = (float) ((random.nextDouble() * 2 - 1) * spread);
-        aimJitterPitch = (float) ((random.nextDouble() * 2 - 1) * spread * 0.6);
+        // SCAVのAIは引き金を引く直前に照準を合わせているので、その向きを撃ち終わるまで保つ
+        Location eye = owner.getEyeLocation();
+        aimYaw = eye.getYaw() + (float) ((random.nextDouble() * 2 - 1) * spread);
+        aimPitch = Math.max(-90f, Math.min(90f, eye.getPitch() + (float) ((random.nextDouble() * 2 - 1) * spread * 0.6)));
+        aimHoldTicks = AIM_HOLD_TICKS;
         syncToOwner();
 
         Objective objective = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(TRIGGER_OBJECTIVE);
@@ -197,11 +208,12 @@ public final class DatapackGunner {
         return true;
     }
 
-    /** SCAVの目の位置・向きにFakePlayerの目の位置・向きを合わせる */
+    /** SCAVの目の位置にFakePlayerの目の位置を合わせる。向きは撃っている間は引き金を引いた時の照準、それ以外はSCAVの向き */
     private void syncToOwner() {
         Location eye = owner.getEyeLocation();
-        float yaw = eye.getYaw() + aimJitterYaw;
-        float pitch = Math.max(-90f, Math.min(90f, eye.getPitch() + aimJitterPitch));
+        boolean holdingAim = aimHoldTicks > 0;
+        float yaw = holdingAim ? aimYaw : eye.getYaw();
+        float pitch = holdingAim ? aimPitch : eye.getPitch();
         handle.snapTo(eye.getX(), eye.getY() - handle.getEyeHeight(), eye.getZ(), yaw, pitch);
         handle.setYHeadRot(yaw);
         if (handle.level() instanceof ServerLevel level && handle.connection != null && level.players().contains(handle)) {

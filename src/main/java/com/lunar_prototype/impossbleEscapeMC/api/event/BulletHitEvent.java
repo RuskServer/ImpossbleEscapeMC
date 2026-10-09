@@ -18,8 +18,15 @@ public class BulletHitEvent extends Event {
     private final String hitLocation; // head, arms, legs, body
     private final boolean penetrated;
     private final int ammoClass;
+    /** 防具などで軽減される前のダメージ。不明な場合はNaN */
+    private final double rawDamage;
 
     public BulletHitEvent(LivingEntity victim, LivingEntity shooter, double damage, String hitLocation, boolean penetrated, int ammoClass) {
+        this(victim, shooter, damage, hitLocation, penetrated, ammoClass, Double.NaN);
+    }
+
+    public BulletHitEvent(LivingEntity victim, LivingEntity shooter, double damage, String hitLocation, boolean penetrated, int ammoClass, double rawDamage) {
+        this.rawDamage = rawDamage;
         this.victim = victim;
         this.shooter = shooter;
         this.damage = damage;
@@ -50,6 +57,11 @@ public class BulletHitEvent extends Event {
 
     public int getAmmoClass() {
         return ammoClass;
+    }
+
+    /** 防具などで軽減される前のダメージ。不明な場合はNaN */
+    public double getRawDamage() {
+        return rawDamage;
     }
 
     @Override
