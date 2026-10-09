@@ -53,6 +53,10 @@ public final class ScreenEffectService implements Listener {
     private static final Key DEATH_BLACKOUT = Key.key(NAMESPACE, "death_blackout");
     private static final Key DEATH_FADE = Key.key(NAMESPACE, "death_fade");
     private static final Key DEATH_RECOVER = Key.key(NAMESPACE, "death_recover");
+    /** レイド開始の演出。intro_0 (真っ黒) から intro_6 (ほぼ素の画面) へ順に明るくする */
+    private static final int INTRO_STAGES = 7;
+    private static final int INTRO_BLACK_TICKS = 20;
+    private static final int INTRO_STAGE_TICKS = 8;
 
     private static final int ADRENALINE_ONSET_TICKS = 4;
     private static final int ADRENALINE_FADE_TICKS = 12;
@@ -75,12 +79,19 @@ public final class ScreenEffectService implements Listener {
 
     private static final class Playback {
         private final List<Step> steps;
+        /** 読み込み待ちの間も最初の段を表示しておくか (時間割は読み込みが終わってから進める) */
+        private final boolean showWhileWaiting;
         private int index;
         private int remaining;
         private boolean started;
 
         private Playback(List<Step> steps) {
+            this(steps, false);
+        }
+
+        private Playback(List<Step> steps, boolean showWhileWaiting) {
             this.steps = steps;
+            this.showWhileWaiting = showWhileWaiting;
             this.remaining = steps.getFirst().ticks();
         }
 
@@ -154,11 +165,31 @@ public final class ScreenEffectService implements Listener {
                 new Step(ADRENALINE_FADE, ADRENALINE_FADE_TICKS, true)));
     }
 
+    /**
+     * レイド開始の演出 (暗転から、白黒・ぼかし・フィルムグレイン・上下の黒帯が薄れていく)。
+     * レイドワールドへテレポートした後に呼ぶ。読み込み画面が閉じた瞬間に素の画面が見えないよう、読み込み中から真っ黒にしておく
+     */
+    public static void playRaidIntro(Player player) {
+        if (instance == null) return;
+        List<Step> steps = new ArrayList<>();
+        steps.add(new Step(Key.key(NAMESPACE, "intro_0"), INTRO_BLACK_TICKS, false));
+        for (int i = 1; i < INTRO_STAGES; i++) {
+            steps.add(new Step(Key.key(NAMESPACE, "intro_" + i), INTRO_STAGE_TICKS, false));
+        }
+        instance.start(player, steps, true);
+    }
+
     private void start(Player player, List<Step> steps) {
-        Playback playback = new Playback(steps);
+        start(player, steps, false);
+    }
+
+    private void start(Player player, List<Step> steps, boolean showWhileWaiting) {
+        Playback playback = new Playback(steps, showWhileWaiting);
         playing.put(player.getUniqueId(), playback);
         if (canAdvance(player.getUniqueId())) {
             begin(player, playback);
+        } else if (showWhileWaiting) {
+            apply(player, playback.current().effect());
         }
     }
 
@@ -266,7 +297,7 @@ public final class ScreenEffectService implements Listener {
         settlingUntil.put(player.getUniqueId(), Bukkit.getCurrentTick() + START_DELAY_AFTER_LOAD_TICKS);
         // ワールドの切り替えでクライアントの表示がリセットされていても、今の段のエフェクトを確実に送り直す
         Playback playback = playing.get(player.getUniqueId());
-        if (playback != null && playback.started) {
+        if (playback != null && (playback.started || playback.showWhileWaiting)) {
             apply(player, playback.current().effect());
             player.postEffects().update();
         }
