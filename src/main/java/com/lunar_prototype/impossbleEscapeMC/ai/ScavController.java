@@ -183,6 +183,8 @@ public class ScavController {
     private static final double FOOTSTEP_MUFFLED_RANGE = 12.0;
     /** 足音から推定する位置の誤差の上限 (ブロック) */
     private static final double FOOTSTEP_MAX_LOCATION_ERROR = 6.0;
+    /** 銃声から推定する位置の誤差の上限 (ブロック) */
+    private static final double GUNSHOT_MAX_LOCATION_ERROR = 8.0;
     /** 平常時でも、これだけ (移動イベント数) 音を出し続けている相手は位置を追う */
     private static final int FOOTSTEP_TRACKING_NOISE_TICKS = 120;
     /** 防具で元のダメージの6割未満まで減らされたら「効きにくい」 */
@@ -207,9 +209,28 @@ public class ScavController {
     private BehaviorState behaviorState = BehaviorState.RELAXED;
     private float alertness;
     private boolean returningHome = false;
-    private UUID intelOriginScavId;
-    private int intelRelayDepth = 0;
-    private boolean intelFromShared = false;
+
+    // --- 味方の救援 ---
+    // 味方に伝えるのは「自分がどこで戦っているか」と「どちらを向いているか」だけで、敵の位置は伝えない。
+    // 呼ばれた側は味方の後ろへ向かい、敵は自分の目と耳で見つける (敵の位置を共有するとウォールハックになるため)
+    /** 敵を見ている・撃たれてから、この間 (tick) は交戦中とみなす */
+    private static final int COMBAT_MEMORY_TICKS = 200;
+    /** 救援に向かい続ける時間 (tick)。呼ばれ直すと延びる */
+    private static final int ASSIST_DURATION_TICKS = 600;
+    /** 味方のどれだけ後ろ・横に着くか (ブロック) */
+    private static final double ASSIST_BEHIND = 2.5;
+    private static final double ASSIST_SIDE = 1.5;
+    /** この距離まで来たら着いたとみなす */
+    private static final double ASSIST_ARRIVE_DISTANCE = 1.5;
+    private static final double ASSIST_SPEED = 1.3;
+    /** 着いた後、味方が向いている方向のどこを見張るか (ブロック先) */
+    private static final double ASSIST_WATCH_DISTANCE = 12.0;
+    private int lastCombatTick = Integer.MIN_VALUE / 2;
+    /** 救援に向かっている味方 */
+    private UUID assistCallerId;
+    private int assistUntilTick;
+    /** 味方の左右どちらに着くか (1 / -1) */
+    private int assistSide = 1;
 
     public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
         this(plugin, scav, listener, ScavBrain.BrainLevel.MID);
@@ -227,7 +248,6 @@ public class ScavController {
         this.currentAimVector = scav.getEyeLocation().getDirection();
         this.homeLocation = scav.getLocation().clone();
         this.alertness = (brainLevel == ScavBrain.BrainLevel.LOW) ? 0.15f : 0.25f;
-        this.intelOriginScavId = scav.getUniqueId();
         updateChunkTicket();
     }
 
@@ -279,10 +299,7 @@ public class ScavController {
             target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
-                // 味方から聞いた情報で動いていても、自分の目で見つけたら自分が発信元になる
-                markDirectIntelSource();
                 playScavVoice("minecraft:scav1", 1.0f, 1.0f);
-                squad.shareTargetWithAllies(target.getLocation());
             }
         }
 
@@ -312,10 +329,10 @@ public class ScavController {
                 isPreAiming = false;
                 updateHumanAim(target);
 
+                enterCombat();
                 if (Bukkit.getCurrentTick() - lastShareTick >= SHARE_INTERVAL_TICKS) {
                     lastShareTick = Bukkit.getCurrentTick();
                     if (Math.random() < 0.2) playScavVoice("minecraft:scav2", 1.0f, 1.0f);
-                    squad.shareTargetWithAllies(lastKnownLocation);
                 }
             } else {
                 lostTargetSteps++;
@@ -347,7 +364,9 @@ public class ScavController {
         }
 
         updateBehaviorState();
-        if (target == null && lastKnownLocation == null) {
+        // 自分で敵を捉えていない時は、呼ばれていれば味方の救援に向かう
+        boolean assisting = target == null && lastKnownLocation == null && handleAssist();
+        if (target == null && lastKnownLocation == null && !assisting) {
             handleIdleOrReturnHome(raidSessionId);
         }
 
@@ -459,7 +478,7 @@ public class ScavController {
             else if (Math.random() > 0.8) moveAction = 1; // 見えていない時のピーク以外の動きは捜索になる
         }
 
-        if (moveAction == 8) {
+        if (moveAction == 8 && !assisting) {
             isHoldingAngle = true;
             if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
             scav.getPathfinder().stopPathfinding();
@@ -666,14 +685,12 @@ public class ScavController {
                 tactics.resetSlicing();
                 cornerCheckTicks = 0;
                 isAlerted = false;
-                clearSharedIntel();
             }
         }
         searchTicks++;
         if (searchTicks > 600) {
             lastKnownLocation = null;
             isAlerted = false;
-            clearSharedIntel();
         }
     }
 
@@ -715,13 +732,13 @@ public class ScavController {
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         double dist = scav.getLocation().distance(source);
 
-        // 足音は壁越しだとこもって遠くまで届かない。聞こえても、位置はおおまかにしか分からない
-        if (sound.kind == SoundContact.Kind.FOOTSTEP) {
-            boolean muffled = !hasClearSoundPath(source);
-            if (muffled && dist > FOOTSTEP_MUFFLED_RANGE) return;
-            double error = Math.min(FOOTSTEP_MAX_LOCATION_ERROR, dist * (muffled ? 0.2 : 0.08));
-            source.add((Math.random() - 0.5) * 2.0 * error, 0, (Math.random() - 0.5) * 2.0 * error);
-        }
+        // 音から分かる位置はおおまか (遠いほど・壁越しほどずれる)。足音は壁越しだとこもって遠くまで届かない
+        boolean muffled = !hasClearSoundPath(source);
+        if (sound.kind == SoundContact.Kind.FOOTSTEP && muffled && dist > FOOTSTEP_MUFFLED_RANGE) return;
+        double error = sound.kind == SoundContact.Kind.GUNSHOT
+                ? Math.min(GUNSHOT_MAX_LOCATION_ERROR, dist * (muffled ? 0.15 : 0.08))
+                : Math.min(FOOTSTEP_MAX_LOCATION_ERROR, dist * (muffled ? 0.2 : 0.08));
+        source.add((Math.random() - 0.5) * 2.0 * error, 0, (Math.random() - 0.5) * 2.0 * error);
 
         float hearingBoost = (float) Math.max(0.08, 0.28 - (dist / 180.0));
         double movementSpeed = Math.max(0.0, sound.movementSpeed);
@@ -858,51 +875,83 @@ public class ScavController {
             if (scav.getTarget() == null) {
                 scav.setTarget(living);
                 lastKnownLocation = living.getLocation();
-                markDirectIntelSource();
-                squad.shareTargetWithAllies(lastKnownLocation);
             }
         }
+        enterCombat();
     }
 
-    public UUID getIntelOriginScavId() {
-        return intelOriginScavId != null ? intelOriginScavId : scav.getUniqueId();
+    /** 交戦を始めた・続けている時に呼ぶ。救援に向かうのをやめ、周りの味方を呼ぶ */
+    private void enterCombat() {
+        lastCombatTick = Bukkit.getCurrentTick();
+        assistCallerId = null;
+        squad.callForHelp();
     }
 
-    public int getIntelRelayDepth() {
-        return intelRelayDepth;
+    /** 敵を見ているか撃たれてから間もないか */
+    public boolean isInCombat() {
+        return Bukkit.getCurrentTick() - lastCombatTick < COMBAT_MEMORY_TICKS;
     }
 
-    public void receiveSharedTarget(Location loc, UUID originScavId, int relayDepth) {
-        if (loc == null) return;
+    public UUID getAssistCallerId() {
+        return assistCallerId;
+    }
 
-        // 同じ発信元の情報でも、今持っているものより遠回りに伝わってきたもの (中継が多い) は使わない
-        if (intelFromShared && Objects.equals(this.intelOriginScavId, originScavId) && relayDepth > this.intelRelayDepth) {
-            if (lastKnownLocation == null) {
-                lastKnownLocation = loc.clone();
-            }
-            isAlerted = true;
-            return;
+    /** 今向いている水平方向 (救援に来た味方は、この方向を見張る) */
+    public Vector getFacing() {
+        Vector facing = (currentAimVector != null ? currentAimVector : scav.getEyeLocation().getDirection()).clone().setY(0);
+        return facing.lengthSquared() > 1.0E-6 ? facing.normalize() : new Vector(0, 0, 1);
+    }
+
+    /**
+     * 味方から救援を頼まれた。交戦中や、別の味方の救援中なら断る
+     *
+     * @return 引き受けた場合true
+     */
+    public boolean receiveHelpCall(ScavController caller) {
+        if (caller == this || isInCombat()) return false;
+        UUID callerId = caller.getScav().getUniqueId();
+        if (assistCallerId != null && !assistCallerId.equals(callerId) && ScavSpawner.getController(assistCallerId) != null) return false;
+        if (!callerId.equals(assistCallerId)) {
+            assistSide = Math.random() < 0.5 ? 1 : -1;
+            addAlertness(0.2f, "HELP_CALL", ScavSpawner.getRaidSessionId(scav.getUniqueId()));
         }
-
-        lastKnownLocation = loc.clone();
+        assistCallerId = callerId;
+        assistUntilTick = Bukkit.getCurrentTick() + ASSIST_DURATION_TICKS;
         isAlerted = true;
-        intelFromShared = true;
-        intelOriginScavId = (originScavId != null) ? originScavId : scav.getUniqueId();
-        intelRelayDepth = Math.max(0, relayDepth);
-        // 聞いた位置をさらに近くの味方へ伝える (中継数の上限は ScavSquad が見る)
-        squad.shareTargetWithAllies(lastKnownLocation);
+        return true;
     }
 
-    private void markDirectIntelSource() {
-        intelOriginScavId = scav.getUniqueId();
-        intelRelayDepth = 0;
-        intelFromShared = false;
+    /** 味方の後ろ・横へ向かい、着いたら味方が向いている方向を見張る。救援中でなければfalse */
+    private boolean handleAssist() {
+        if (assistCallerId == null) return false;
+        ScavController caller = ScavSpawner.getController(assistCallerId);
+        if (caller == null || !caller.getScav().isValid() || caller.getScav().getWorld() != scav.getWorld()
+                || Bukkit.getCurrentTick() > assistUntilTick || !caller.isInCombat()) {
+            assistCallerId = null;
+            return false;
+        }
+
+        Location callerLoc = caller.getScav().getLocation();
+        Vector facing = caller.getFacing();
+        Vector side = new Vector(-facing.getZ(), 0, facing.getX()).multiply(assistSide * ASSIST_SIDE);
+        Location post = callerLoc.clone().subtract(facing.clone().multiply(ASSIST_BEHIND)).add(side);
+
+        if (scav.getLocation().distanceSquared(post) > ASSIST_ARRIVE_DISTANCE * ASSIST_ARRIVE_DISTANCE) {
+            // 着く場所が壁の中などで経路が無ければ、味方のところへ向かう
+            if (!scav.getPathfinder().moveTo(post, ASSIST_SPEED)) {
+                scav.getPathfinder().moveTo(callerLoc, ASSIST_SPEED);
+            }
+        } else {
+            scav.getPathfinder().stopPathfinding();
+            updatePreAim(caller.getScav().getLocation().add(facing.clone().multiply(ASSIST_WATCH_DISTANCE)));
+        }
+        return true;
     }
 
-    private void clearSharedIntel() {
-        intelOriginScavId = scav.getUniqueId();
-        intelRelayDepth = 0;
-        intelFromShared = false;
+    /** 味方の銃声を聞いた。戦闘が近くで起きていることだけ分かる (撃っている味方の位置を敵の位置とは扱わない) */
+    public void onAllyGunfire() {
+        addAlertness(0.1f, "ALLY_GUNFIRE", ScavSpawner.getRaidSessionId(scav.getUniqueId()));
+        isAlerted = true;
     }
 
     public void addSuppression(float amount) { this.suppression = Math.min(1.0f, this.suppression + amount); }

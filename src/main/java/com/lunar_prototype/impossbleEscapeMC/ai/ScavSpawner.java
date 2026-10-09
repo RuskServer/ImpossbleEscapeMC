@@ -96,6 +96,13 @@ public class ScavSpawner implements Listener {
             scav.setHealth(40.0);
         }
 
+        // 経路探索の届く距離。バニラは歩く距離がこれを超える経路を探さないため、
+        // 階段を回り込んで別の階の味方の救援に向かえるよう、ゾンビの既定 (35) より伸ばす
+        var followRangeAttr = scav.getAttribute(org.bukkit.attribute.Attribute.FOLLOW_RANGE);
+        if (followRangeAttr != null) {
+            followRangeAttr.setBaseValue(64.0);
+        }
+
         var speedAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED);
         if (speedAttr != null) {
             speedAttr.setBaseValue(0.15);

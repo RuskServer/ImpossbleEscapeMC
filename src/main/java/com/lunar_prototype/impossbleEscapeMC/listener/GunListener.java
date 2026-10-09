@@ -194,7 +194,9 @@ public class GunListener implements Listener {
 
             ScavController controller = ScavSpawner.getController(mob.getUniqueId());
             if (controller != null) {
-                controller.onSoundHeard(ScavController.SoundContact.gunshot(gunshotLocation));
+                // 味方のSCAVの銃声は「近くで戦闘が起きている」ことだけ伝わる (撃っている味方の位置を敵の位置とは扱わない)
+                if (shooter != null && ScavSpawner.isScav(shooter.getUniqueId())) controller.onAllyGunfire();
+                else controller.onSoundHeard(ScavController.SoundContact.gunshot(gunshotLocation));
             }
         }
     }

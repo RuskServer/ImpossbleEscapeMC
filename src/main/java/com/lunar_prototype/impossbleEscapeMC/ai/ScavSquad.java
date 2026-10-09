@@ -9,8 +9,12 @@ import java.util.List;
 import java.util.UUID;
 
 public class ScavSquad {
-    private static final double MAX_INFO_SHARE_RANGE_FROM_ORIGIN = 28.0;
-    private static final int MAX_INFO_SHARE_HOPS = 2;
+    /** 助けを呼ぶ声が届く距離 (ブロック)。壁や床を挟むと半分 */
+    private static final double HELP_CALL_RANGE = 24.0;
+    /** 1回の交戦で救援に来る味方の数 */
+    private static final int MAX_RESPONDERS = 2;
+    /** 助けを呼び直す間隔 (tick)。呼び直すたびに救援の時間が延び、来られなくなった味方の代わりを呼ぶ */
+    private static final int HELP_CALL_INTERVAL_TICKS = 40;
 
     private final ScavController owner;
     private final Mob scav;
@@ -19,6 +23,9 @@ public class ScavSquad {
     /** POINTMAN: 前に出て詰める役。COVERMAN: 後ろで角を押さえ、顔出しで援護する役 (ScavBrainの戦術選択に反映) */
     public enum SquadRole { NONE, POINTMAN, COVERMAN }
     private SquadRole myRole = SquadRole.NONE;
+    /** 救援に向かってくれている味方 */
+    private final java.util.Set<UUID> responders = new java.util.HashSet<>();
+    private int lastHelpCallTick = Integer.MIN_VALUE / 2;
 
     public ScavSquad(ScavController owner) {
         this.owner = owner;
@@ -82,50 +89,39 @@ public class ScavSquad {
         }
     }
 
-    public void shareTargetWithAllies(Location loc) {
-        if (nearbyAllies.isEmpty()) return;
+    /**
+     * 戦っていることを周りの味方に知らせ、近い味方を救援に呼ぶ。伝わるのは自分の位置と向きだけで、敵の位置は伝えない。
+     * 声は HELP_CALL_RANGE まで届き、壁や床を挟むと半分の距離までしか届かない。
+     */
+    public void callForHelp() {
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        if (now - lastHelpCallTick < HELP_CALL_INTERVAL_TICKS) return;
+        lastHelpCallTick = now;
 
-        UUID originScavId = owner.getIntelOriginScavId();
-        ScavController originController = ScavSpawner.getController(originScavId);
-        Location originLocation = (originController != null) ? originController.getScav().getLocation() : scav.getLocation();
-        int nextRelayDepth = owner.getIntelRelayDepth() + 1;
+        UUID myId = scav.getUniqueId();
+        responders.removeIf(id -> {
+            ScavController responder = ScavSpawner.getController(id);
+            return responder == null || !myId.equals(responder.getAssistCallerId());
+        });
+        int needed = MAX_RESPONDERS - responders.size();
+        if (needed <= 0) return;
 
-        if (nextRelayDepth > MAX_INFO_SHARE_HOPS) return;
-        
-        double distToTarget = scav.getLocation().distance(loc);
-        for (ScavController ally : nearbyAllies) {
-            double distToAlly = scav.getLocation().distance(ally.getScav().getLocation());
-
-            if (ally.getScav().getUniqueId().equals(originScavId)) continue;
-
-            double distFromOrigin = originLocation.distance(ally.getScav().getLocation());
-            if (distFromOrigin > MAX_INFO_SHARE_RANGE_FROM_ORIGIN) continue;
-            
-            // 1. 物理的距離制限 (15m以上は叫び声が届かない)
-            if (distToAlly > 15.0) continue;
-
-            // 2. 遮蔽物の考慮 (視線が通っていない場合、6m以上離れていると声が届かない)
-            boolean hasLosToAlly = scav.hasLineOfSight(ally.getScav());
-            if (!hasLosToAlly && distToAlly > 6.0) continue;
-
-            // 既に自力でターゲットを視認している味方は情報を上書きしない
-            if (ally.getScav().getTarget() != null && ally.getScav().hasLineOfSight(ally.getScav().getTarget())) continue;
-
-            // 3. 情報の不確実性の向上 (伝言ゲームによる誤差)
-            double baseError = Math.min(8.0, distToTarget * 0.15);
-            double multiplier = 1.0;
-            if (!hasLosToAlly) multiplier *= 2.0; // 壁越しなら聞き取りにくい
-            if (distToAlly > 10.0) multiplier *= 1.5; // 距離があるなら不正確
-            
-            double errorRange = baseError * multiplier;
-            double offsetX = (Math.random() - 0.5) * 2.0 * errorRange;
-            double offsetZ = (Math.random() - 0.5) * 2.0 * errorRange;
-            
-            ally.receiveSharedTarget(loc.clone().add(offsetX, 0, offsetZ), originScavId, nextRelayDepth);
-            
-            // 不確実な情報（壁越しや遠距離）の場合は索敵をあきらめるのも早くする
-            int searchThreshold = (multiplier > 1.0) ? 100 : 200;
-            if (ally.getSearchTicks() > searchThreshold) ally.setSearchTicks(searchThreshold); 
+        List<ScavController> candidates = new ArrayList<>();
+        for (Entity e : scav.getNearbyEntities(HELP_CALL_RANGE, HELP_CALL_RANGE / 2, HELP_CALL_RANGE)) {
+            if (!(e instanceof Mob)) continue;
+            ScavController ally = ScavSpawner.getController(e.getUniqueId());
+            if (ally == null || ally == owner || responders.contains(e.getUniqueId())) continue;
+            double distance = scav.getLocation().distance(e.getLocation());
+            if (distance > HELP_CALL_RANGE) continue;
+            if (distance > HELP_CALL_RANGE / 2 && !scav.hasLineOfSight(e)) continue;
+            candidates.add(ally);
+        }
+        candidates.sort(java.util.Comparator.comparingDouble(ally -> ally.getScav().getLocation().distanceSquared(scav.getLocation())));
+        for (ScavController ally : candidates) {
+            if (ally.receiveHelpCall(owner)) {
+                responders.add(ally.getScav().getUniqueId());
+                if (--needed <= 0) break;
+            }
         }
     }
 
