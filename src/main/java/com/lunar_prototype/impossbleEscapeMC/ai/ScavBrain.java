@@ -77,6 +77,8 @@ public class ScavBrain {
     private double lastHealthPercent = 1.0;
     private boolean lastCanSee = false;
     private float lastFear = 0.0f;
+    /** 次の判断を割り込みとしてやり直させる理由 (撃たれた時など、判断の外で起きたこと) */
+    private String requestedInterrupt;
     private boolean lastOutOfAmmo = false;
 
     // --- 個体の性格 ---
@@ -122,6 +124,11 @@ public class ScavBrain {
         this.baseAggression = this.aggression;
         this.baseTactical = this.tactical;
         this.rangeTrait = 0.75 + random.nextDouble() * 0.55;
+    }
+
+    /** 次の判断を、モードの維持時間を無視してすぐやり直させる */
+    public void requestDecision(String reason) {
+        this.requestedInterrupt = reason;
     }
 
     public void setSquadRole(ScavSquad.SquadRole role) {
@@ -170,7 +177,8 @@ public class ScavBrain {
         updateInternalStates(dist, weapon, suppression, tacticalAdvice, canSee, healthPercent);
 
         // --- 2. Check for Interrupts ---
-        String interruptReason = getInterruptReason(canSee, suppression, healthPercent, weapon);
+        String interruptReason = requestedInterrupt != null ? requestedInterrupt : getInterruptReason(canSee, suppression, healthPercent, weapon);
+        requestedInterrupt = null;
         boolean interrupted = interruptReason != null;
 
         // --- 3. Utility-Based Decision Logic ---
@@ -247,7 +255,8 @@ public class ScavBrain {
                 // 維持
             } else {
                 currentMode = bestMode;
-                modeInertia = 3 + random.nextInt(7); // 3〜9ステップ (約0.5〜1.5秒) 維持
+                // 相手が見えている間は素早く切り替える (2〜5ステップ)。それ以外は3〜9ステップ (約0.5〜1.5秒) 維持
+                modeInertia = canSee ? 2 + random.nextInt(4) : 3 + random.nextInt(7);
             }
 
             recordModeHistory(currentMode);
@@ -274,7 +283,8 @@ public class ScavBrain {
             
             this.currentActions = new int[] { moveAction, shootAction };
             recordHistory(moveAction);
-            this.decisionTimer = 3 + random.nextInt(3);
+            // 相手が見えている間は判断の間隔を短く (1〜2ステップ)
+            this.decisionTimer = canSee ? 1 + random.nextInt(2) : 3 + random.nextInt(3);
         } else {
             decisionTimer--;
             modeInertia--;

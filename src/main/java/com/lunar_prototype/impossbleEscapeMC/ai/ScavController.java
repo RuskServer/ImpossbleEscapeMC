@@ -161,6 +161,10 @@ public class ScavController {
     private boolean isPreAiming = false;
 
     private Vector currentAimVector = null;
+    /** 照準を向けておく場所と、その期限 (毎ステップ更新されなくなったら向けるのをやめる) */
+    private Location preAimPoint = null;
+    private int preAimUntilTick = 0;
+    private static final int PRE_AIM_HOLD_TICKS = ScavController.STEP_TICKS * 2;
     private double aimErrorYaw = 0;
     private double aimErrorPitch = 0;
     private long lastMobShotTime = 0;
@@ -481,7 +485,7 @@ public class ScavController {
         if (moveAction == 8 && !assisting) {
             isHoldingAngle = true;
             if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
-            scav.getPathfinder().stopPathfinding();
+            tactics.stopMoving();
         } else if (tactics.getTacticalCoverLoc() != null && tactics.getCoverStayTicks() > 0) {
             isHoldingAngle = false;
             double dist = scav.getLocation().distance(tactics.getTacticalCoverLoc());
@@ -694,20 +698,46 @@ public class ScavController {
         }
     }
 
+    /** 照準のブレを更新する。照準そのものは tickAim が毎tick相手へ寄せる */
     private void updateHumanAim(LivingEntity target) {
         Location eye = scav.getEyeLocation();
         Vector idealDir = target.getEyeLocation().toVector().subtract(eye.toVector()).normalize();
         if (currentAimVector == null) currentAimVector = idealDir.clone();
-        double lerp = 0.7 - (suppression * 0.2);
-        currentAimVector = currentAimVector.clone().add(idealDir.clone().subtract(currentAimVector).multiply(lerp)).normalize();
         aimErrorYaw = (aimErrorYaw + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
         aimErrorPitch = (aimErrorPitch + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
     }
 
+    /** 見えていない相手がいそうな場所へ照準を向けておく。照準は tickAim が毎tick寄せる */
     private void updatePreAim(Location loc) {
-        Vector ideal = loc.clone().add(0, 1.5, 0).toVector().subtract(scav.getEyeLocation().toVector()).normalize();
+        preAimPoint = loc.clone().add(0, 1.5, 0);
+        preAimUntilTick = Bukkit.getCurrentTick() + PRE_AIM_HOLD_TICKS;
+    }
+
+    /**
+     * 毎tick呼ぶ。見えている相手 (なければ照準を向けておく場所) へ照準を滑らかに寄せ、SCAVの向きに反映する。
+     * 判断 (onTick) は3tickごとだが、向きをその間隔で変えると、間に移動の向きへ引き戻されて首が暴れる
+     */
+    public void tickAim() {
+        if (!scav.isValid()) return;
+        tactics.tickDirectMove();
+        LivingEntity target = scav.getTarget();
+        Vector ideal = null;
+        double stepLerp;
+        if (sawTargetLastStep && target != null && target.isValid() && target.getWorld() == scav.getWorld()) {
+            ideal = target.getEyeLocation().toVector().subtract(scav.getEyeLocation().toVector());
+            stepLerp = 0.7 - (suppression * 0.2);
+        } else if (preAimPoint != null && Bukkit.getCurrentTick() <= preAimUntilTick && preAimPoint.getWorld() == scav.getWorld()) {
+            ideal = preAimPoint.toVector().subtract(scav.getEyeLocation().toVector());
+            stepLerp = 0.3;
+        } else {
+            return;
+        }
+        if (ideal.lengthSquared() < 1.0E-6) return;
+        ideal.normalize();
         if (currentAimVector == null) currentAimVector = ideal.clone();
-        currentAimVector = currentAimVector.clone().add(ideal.clone().subtract(currentAimVector).multiply(0.3)).normalize();
+        // 1ステップ (STEP_TICKS tick) で stepLerp だけ寄るよう、1tickあたりの割合に直す
+        double tickLerp = 1.0 - Math.pow(1.0 - stepLerp, 1.0 / STEP_TICKS);
+        currentAimVector = currentAimVector.clone().add(ideal.subtract(currentAimVector).multiply(tickLerp)).normalize();
         applyAimToEntity();
     }
 
@@ -866,6 +896,7 @@ public class ScavController {
         addAlertness(0.35f, "TOOK_DAMAGE", raidSessionId);
         suppression = Math.min(1.0f, suppression + 0.3f);
         lastDamagedTick = Bukkit.getCurrentTick();
+        brain.requestDecision("DAMAGE_EVENT");
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
         if (scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() < 0.5) {
             playScavVoice("minecraft:scav3", 1.0f, 1.0f);

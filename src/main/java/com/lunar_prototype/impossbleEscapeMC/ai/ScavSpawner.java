@@ -430,6 +430,23 @@ public class ScavSpawner implements Listener {
                 failedControllers.removeIf(id -> !controllers.containsKey(id));
             }
         }.runTaskTimer(plugin, 1L, ScavController.STEP_TICKS);
+
+        // 照準は毎tick寄せる (判断は3tickごと)
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (ScavController controller : controllers.values()) {
+                    try {
+                        controller.tickAim();
+                    } catch (Throwable t) {
+                        if (failedControllers.add(controller.getScav().getUniqueId())) {
+                            plugin.getLogger().log(java.util.logging.Level.WARNING,
+                                    "SCAV aim tick failed: " + controller.getScav().getUniqueId(), t);
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
     }
 
     /**
