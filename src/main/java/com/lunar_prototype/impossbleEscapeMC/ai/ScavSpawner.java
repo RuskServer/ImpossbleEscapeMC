@@ -16,8 +16,13 @@ import org.bukkit.Location;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import io.papermc.paper.event.entity.EntityDamageItemEvent;
+import org.bukkit.event.entity.EntityCombustByBlockEvent;
+import org.bukkit.event.entity.EntityCombustByEntityEvent;
+import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
@@ -53,6 +58,8 @@ public class ScavSpawner implements Listener {
     private static final Map<UUID, String> scavRaidSessions = new ConcurrentHashMap<>();
     private static final Map<UUID, String> scavRaidMaps = new ConcurrentHashMap<>();
     private static final Map<String, Integer> raidClass4Count = new ConcurrentHashMap<>();
+    /** AIの更新で例外を出したSCAV (ログを1回に抑える) */
+    private final java.util.Set<UUID> failedControllers = new java.util.HashSet<>();
 
     public static boolean isScav(UUID uuid) {
         return controllers.containsKey(uuid);
@@ -75,7 +82,12 @@ public class ScavSpawner implements Listener {
     }
 
     public UUID spawnScav(Location loc, String raidSessionId, String mapId) {
-        Mob scav = (Mob) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
+        // バニラのランダム初期化 (ベビー化・アイテム拾い・援軍召喚の確率など) は通さない。
+        // 日光で燃えるのは onScavSunCombust で止める
+        Mob scav = loc.getWorld().spawn(loc, Zombie.class, false, zombie -> {
+            zombie.setAdult();
+            zombie.setCanPickupItems(false);
+        });
 
         // 体力を40 (バニラの2倍) に固定、移動速度を 0.1 に設定
         var healthAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
@@ -397,11 +409,20 @@ public class ScavSpawner implements Listener {
                         controller.terminate(); // メモリ解放 & チャンク解放
                         return true;
                     }
-                    controller.onTick();
+                    // 1体の例外で、それ以降のSCAVのAIが止まらないようにする
+                    try {
+                        controller.onTick();
+                    } catch (Throwable t) {
+                        if (failedControllers.add(controller.getScav().getUniqueId())) {
+                            plugin.getLogger().log(java.util.logging.Level.WARNING,
+                                    "SCAV AI tick failed: " + controller.getScav().getUniqueId() + " (以降この個体の同じ失敗はログに出しません)", t);
+                        }
+                    }
                     return false;
                 });
+                failedControllers.removeIf(id -> !controllers.containsKey(id));
             }
-        }.runTaskTimer(plugin, 1L, 3L);
+        }.runTaskTimer(plugin, 1L, ScavController.STEP_TICKS);
     }
 
     /**
@@ -435,6 +456,26 @@ public class ScavSpawner implements Listener {
      *
      * @param event 死亡したエンティティに関するイベント
      */
+    /**
+     * SCAVを日光で燃やさない (ヘルメットを持たないSCAVが昼間に燃え死ぬため)。
+     * 26.3では日光で燃えるかをエンティティの種類のタグで決めており、Paperの Zombie#setShouldBurnInDay が効かない。
+     * 日光での着火はブロック・エンティティ由来ではない素の EntityCombustEvent になる
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onScavSunCombust(EntityCombustEvent event) {
+        if (event instanceof EntityCombustByBlockEvent || event instanceof EntityCombustByEntityEvent) return;
+        if (isScav(event.getEntity().getUniqueId())) event.setCancelled(true);
+    }
+
+    /**
+     * SCAVの装備のバニラの耐久値を減らさない。日光を浴びるとヘルメットが削れ、
+     * プラグインの耐久値 (PDC) とは別にバニラの耐久値で壊れて消えてしまうため
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onScavItemDamage(EntityDamageItemEvent event) {
+        if (isScav(event.getEntity().getUniqueId())) event.setCancelled(true);
+    }
+
     @EventHandler
     public void onScavDeath(EntityDeathEvent event) {
         LivingEntity victim = event.getEntity();

@@ -66,6 +66,9 @@ public class GunListener implements Listener {
     private static final String DATAPACK_FIRING_OBJECTIVE = "toisarm.timer.firing";
     private static final int DATAPACK_GUNSHOT_DEDUP_TICKS = 1;
     private static final double HEATMAP_SHOT_LINE_RANGE = 64.0;
+    /** 弾がこの距離以内を通ったSCAVは至近弾として制圧される (BulletTaskのニアミス判定と同じ範囲) */
+    private static final double NEAR_MISS_RADIUS = 2.0;
+    private static final float NEAR_MISS_SUPPRESSION = 0.1f;
     private static final double SCAV_GUNSHOT_HEARING_RANGE = 64.0;
     private static final double SCAV_GUNSHOT_HEARING_RANGE_SQUARED =
             SCAV_GUNSHOT_HEARING_RANGE * SCAV_GUNSHOT_HEARING_RANGE;
@@ -129,16 +132,17 @@ public class GunListener implements Listener {
             lastDatapackGunshotTick.put(player.getUniqueId(), currentTick);
             notifyScavsOfPlayerGunshot(player);
             if (!com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) {
-                recordDatapackShotLine(player);
+                handleDatapackShotLine(player);
             }
         }
     }
 
     /**
-     * プレイヤーのデータパック銃の射線を、遮蔽物に当たるまでヒートマップに「制圧」として記録する。
-     * データパック銃はBulletTaskを通らないため、ここで記録しないとプレイヤーの射撃がヒートマップに残らない
+     * プレイヤーのデータパック銃の射線 (遮蔽物に当たるまで) を、ヒートマップに「制圧」として記録し、
+     * 射線のそばにいたSCAVに至近弾の制圧を与える。
+     * データパック銃はBulletTaskを通らないため、ここで扱わないとプレイヤーの射撃がヒートマップにも制圧にも反映されない
      */
-    private void recordDatapackShotLine(Player player) {
+    private void handleDatapackShotLine(Player player) {
         Location eye = player.getEyeLocation();
         Vector direction = eye.getDirection();
         var hit = eye.getWorld().rayTraceBlocks(eye, direction, HEATMAP_SHOT_LINE_RANGE, FluidCollisionMode.NEVER, true);
@@ -146,6 +150,27 @@ public class GunListener implements Listener {
                 ? hit.getHitPosition().distance(eye.toVector())
                 : HEATMAP_SHOT_LINE_RANGE;
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.recordLine(eye, direction, distance, 1.0f);
+        suppressScavsNearShotLine(eye, direction, distance);
+    }
+
+    /** 射線から NEAR_MISS_RADIUS 以内を弾が通ったSCAVに、プラグイン銃の弾 (BulletTask) と同じ制圧を与える */
+    private void suppressScavsNearShotLine(Location eye, Vector direction, double distance) {
+        Vector start = eye.toVector();
+        Vector dir = direction.clone().normalize();
+        Vector end = start.clone().add(dir.clone().multiply(distance));
+        BoundingBox area = BoundingBox.of(start, end).expand(NEAR_MISS_RADIUS);
+        for (Entity entity : eye.getWorld().getNearbyEntities(area)) {
+            if (!(entity instanceof Mob mob)) continue;
+            com.lunar_prototype.impossbleEscapeMC.ai.ScavController controller =
+                    com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.getController(mob.getUniqueId());
+            if (controller == null) continue;
+            Vector body = mob.getLocation().toVector().add(new Vector(0, mob.getHeight() / 2.0, 0));
+            double along = Math.max(0.0, Math.min(distance, body.clone().subtract(start).dot(dir)));
+            Vector closest = start.clone().add(dir.clone().multiply(along));
+            if (closest.distanceSquared(body) <= NEAR_MISS_RADIUS * NEAR_MISS_RADIUS) {
+                controller.addSuppression(NEAR_MISS_SUPPRESSION);
+            }
+        }
     }
 
     private void notifyScavsOfPlayerGunshot(Player player) {

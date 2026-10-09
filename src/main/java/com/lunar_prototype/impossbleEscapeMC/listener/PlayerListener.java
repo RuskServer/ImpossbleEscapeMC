@@ -34,6 +34,9 @@ public class PlayerListener implements Listener {
     private final PlayerDataModule dataModule;
     private final Map<UUID, Double> walkDistanceMap = new HashMap<>();
     private final Map<UUID, Integer> continuousNoiseTicks = new HashMap<>();
+    /** 足音をSCAVに最後に知らせたtick。移動イベントは毎tick来るため、知らせる間隔を空ける */
+    private final Map<UUID, Integer> lastFootstepAlertTick = new HashMap<>();
+    private static final int FOOTSTEP_ALERT_INTERVAL_TICKS = 10;
     private final java.util.Random random = new java.util.Random();
 
     public PlayerListener(com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin) {
@@ -105,7 +108,12 @@ public class PlayerListener implements Listener {
             // 2秒(40ticks)以上音を出している場合
             // SCAV自身の足音で仲間のSCAVを警戒させない (足音の効果音はプレイヤー向けにこの後も鳴らす)
             if (ticks >= 40 && !ScavSpawner.isScav(entity.getUniqueId())) {
-                alertNearbyScavsOfFootsteps(entity, data, movementDirection, movementSpeed, ticks, totalWalked, isSprinting, isSneaking);
+                int now = org.bukkit.Bukkit.getCurrentTick();
+                Integer last = lastFootstepAlertTick.get(entity.getUniqueId());
+                if (last == null || now - last >= FOOTSTEP_ALERT_INTERVAL_TICKS) {
+                    lastFootstepAlertTick.put(entity.getUniqueId(), now);
+                    alertNearbyScavsOfFootsteps(entity, data, movementDirection, movementSpeed, ticks, totalWalked, isSprinting, isSneaking);
+                }
             }
         } else {
             continuousNoiseTicks.put(entity.getUniqueId(), 0);
@@ -285,6 +293,7 @@ public class PlayerListener implements Listener {
         shooterController.onBulletHitDealt(
                 event.getVictim(),
                 event.getDamage(),
+                event.getRawDamage(),
                 event.isPenetrated(),
                 event.getHitLocation()
         );
@@ -331,5 +340,6 @@ public class PlayerListener implements Listener {
     private void clearMovementState(UUID uuid) {
         walkDistanceMap.remove(uuid);
         continuousNoiseTicks.remove(uuid);
+        lastFootstepAlertTick.remove(uuid);
     }
 }

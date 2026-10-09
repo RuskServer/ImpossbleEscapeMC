@@ -16,6 +16,7 @@ public class ScavSquad {
     private final Mob scav;
     private final List<ScavController> nearbyAllies = new ArrayList<>();
     
+    /** POINTMAN: 前に出て詰める役。COVERMAN: 後ろで角を押さえ、顔出しで援護する役 (ScavBrainの戦術選択に反映) */
     public enum SquadRole { NONE, POINTMAN, COVERMAN }
     private SquadRole myRole = SquadRole.NONE;
 
@@ -63,7 +64,8 @@ public class ScavSquad {
         }
 
         if (closestAlly != null && minDist < 6.0) {
-            if (myRole == SquadRole.NONE) {
+            // 未割り当てか、組んでいる味方と役割が重なっていたら (相手が別の味方と組み直した等) 割り振り直す
+            if (myRole == SquadRole.NONE || closestAlly.getSquad().getMyRole() == myRole) {
                 double myDistToTarget = (scav.getTarget() != null) ? scav.getLocation().distance(scav.getTarget().getLocation()) : 100;
                 double allyDistToTarget = (closestAlly.getScav().getTarget() != null) ? closestAlly.getScav().getLocation().distance(closestAlly.getScav().getTarget().getLocation()) : 100;
                 
@@ -127,14 +129,19 @@ public class ScavSquad {
         }
     }
 
-    public void requestRoleSwitch() {
+    /**
+     * 前衛を近くの援護役と交代する
+     *
+     * @return 交代した場合true (呼び出し側で物陰探しを始める)
+     */
+    public boolean requestRoleSwitch() {
         for (ScavController ally : nearbyAllies) {
             if (scav.getLocation().distance(ally.getScav().getLocation()) < 8.0 && ally.getSquad().getMyRole() == SquadRole.COVERMAN) {
                 this.myRole = SquadRole.COVERMAN;
                 ally.getSquad().setMyRole(SquadRole.POINTMAN);
-                // コントローラー側でカバー検索をトリガーさせる
-                break;
+                return true;
             }
         }
+        return false;
     }
 }

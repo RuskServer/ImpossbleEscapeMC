@@ -135,52 +135,66 @@ public class ScavTactics {
         }
     }
 
+    /** 物陰の候補のうち、経路を確認する数 (近い順・安全な順) */
+    private static final int COVER_PATH_CHECKS = 4;
+
     public Location findCover(LivingEntity target) {
         if (target == null) return null;
         Location sLoc = scav.getLocation();
         Location tLoc = target.getEyeLocation();
         World world = scav.getWorld();
 
-        Location bestCover = null;
-        float bestScore = Float.MAX_VALUE;
+        java.util.List<Location> candidates = new java.util.ArrayList<>();
+        java.util.Map<Location, Float> scores = new java.util.HashMap<>();
 
         for (int x = -8; x <= 8; x += 2) {
             for (int z = -8; z <= 8; z += 2) {
                 for (int y = -1; y <= 2; y++) {
                     Location checkLoc = sLoc.clone().add(x, y, z);
-                    if (checkLoc.getBlock().getType().isSolid()) continue;
+                    // 足元・頭の高さが通れて、下に立てるブロックがある場所だけ (天井が低い所は目がブロックの中に入る)
+                    if (!checkLoc.getBlock().isPassable()) continue;
+                    if (!checkLoc.clone().add(0, 1, 0).getBlock().isPassable()) continue;
                     if (!checkLoc.clone().add(0, -1, 0).getBlock().getType().isSolid()) continue;
 
                     Location eyeAtCheck = checkLoc.clone().add(0, 1.6, 0);
                     Vector toTarget = tLoc.toVector().subtract(eyeAtCheck.toVector());
-                    var result = world.rayTraceBlocks(eyeAtCheck, toTarget.normalize(), toTarget.length(), 
+                    var result = world.rayTraceBlocks(eyeAtCheck, toTarget.normalize(), toTarget.length(),
                         org.bukkit.FluidCollisionMode.NEVER, true);
-                    
+
                     if (result != null && result.getHitBlock() != null) {
                         float dangerScore = CombatHeatmapManager.getScore(checkLoc);
                         double dist = checkLoc.distance(sLoc);
-                        float finalScore = dangerScore + (float)(dist * 0.2); 
-
-                        if (finalScore < bestScore) {
-                            bestScore = finalScore;
-                            bestCover = checkLoc;
-                        }
+                        candidates.add(checkLoc);
+                        scores.put(checkLoc, dangerScore + (float)(dist * 0.2));
                     }
                 }
             }
         }
-        return bestCover;
+
+        // たどり着けない物陰を選ぶと、撃たずにそこを目指し続けてしまうため経路を確かめる
+        candidates.sort(java.util.Comparator.comparingDouble(scores::get));
+        for (int i = 0; i < Math.min(COVER_PATH_CHECKS, candidates.size()); i++) {
+            Location candidate = candidates.get(i);
+            var path = scav.getPathfinder().findPath(candidate);
+            if (path != null && path.canReachFinalPoint()) return candidate;
+        }
+        return null;
     }
 
-    public void handlePeekManeuver(LivingEntity target, ScavWeapon weapon, float suppression, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
+    /**
+     * @param targetVisible 相手が見えているか (SCAVの視覚判定の結果)
+     * @param fireAllowed   撃ってよいか (発見直後の反応時間などで撃てない時はfalse)
+     * @param aim           撃つ直前に照準を相手へ合わせる処理。移動中は頭が進行方向を向くため、撃つ前に必ず合わせる
+     */
+    public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, float suppression, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
         if (peekPhase == 1) { // Moving out
             scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
-            boolean currentLos = target != null && scav.hasLineOfSight(target);
-            if (currentLos) {
+            if (targetVisible) {
                 long now = System.currentTimeMillis();
                 long interval = (long) (60000.0 / weapon.rpm());
-                if (now - lastShotTime >= interval) {
+                if (fireAllowed && now - lastShotTime >= interval) {
+                    aim.run();
                     weapon.fire(0.1 + (suppression * 0.1));
                     shotTimeSetter.accept(now);
                     if (--peekShotsRemaining <= 0) {
@@ -210,9 +224,10 @@ public class ScavTactics {
     /**
      * 物陰から顔を出して撃つ動きを始める。出る側・距離・撃つ回数・出ている時間を毎回ばらつかせる
      *
+     * @param jump 顔を出す時に跳ぶ (ジャンプピーク)
      * @return 始めた場合true。前回の顔出しから間が空いていなければfalse
      */
-    public boolean startPeek(Location lastKnownLocation, boolean isSprinting) {
+    public boolean startPeek(Location lastKnownLocation, boolean isSprinting, boolean jump) {
         if (peekRestTicks > 0) return false;
         coverLocation = scav.getLocation().clone();
         Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
@@ -229,6 +244,10 @@ public class ScavTactics {
         peekPhase = 1;
         peekTicks = 0;
         scav.getPathfinder().moveTo(peekLocation, isSprinting ? 1.5 : 1.0);
+        if (jump && scav.isOnGround() && jumpCooldown <= 0) {
+            scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
+            jumpCooldown = 20;
+        }
         return true;
     }
 
