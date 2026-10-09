@@ -759,6 +759,7 @@ public class RaidInstance {
                 applySpawnProtection(player);
             }
 
+            com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playRaidIntro(player);
             playStartEffect(player);
             showExtractions(player);
             setRaidCameraDistance(player);
