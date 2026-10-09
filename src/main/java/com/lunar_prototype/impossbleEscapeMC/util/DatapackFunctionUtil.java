@@ -49,7 +49,7 @@ public class DatapackFunctionUtil {
                 }) // 一般的なデータパック関数実行用の権限レベル (通常は2)
                 .withSuppressedOutput(); // ログ出力（〜にアイテムを1個与えました 等）をミュート
 
-        // 関数の実行 (functionコマンドは実行コンテキストが必要なため Commands#performCommand を使う)
+        // 関数の実行 (functionコマンドは実行キューが必要なため runCommand を使う)
         runCommand(server, sourceStack, "function " + functionNamespacePath);
 
         // ダミープレイヤーのインベントリからアイテムを回収する
@@ -126,20 +126,36 @@ public class DatapackFunctionUtil {
     }
 
     /**
-     * コマンドをバニラと同じ実行コンテキストで実行する。構文エラー・実行時エラーはログに出す。
-     * (dispatcher.execute ではfunctionコマンドが正しく動かないため Commands#performCommand を使う)
+     * コマンドをバニラと同じ実行キューでその場で実行する。構文エラー・実行時エラーはログに出す。
+     * (dispatcher.execute ではfunctionコマンドが正しく動かないため、バニラの実行キューを使う)
+     *
+     * Commands#performCommand は、別のコマンドの実行中 (/scavspawn など) に呼ぶと
+     * 実行中のキューの末尾に積むだけで、そのコマンドが終わるまで実行されない。
+     * 実行直後に結果 (付与されたアイテム) を読むため、常に専用のキューを作って即座に実行する。
      */
     private static void runCommand(MinecraftServer server, CommandSourceStack sourceStack, String command) {
         try {
             net.minecraft.commands.Commands commands = server.getCommands();
             com.mojang.brigadier.ParseResults<CommandSourceStack> parse = commands.getDispatcher().parse(command, sourceStack);
             com.mojang.brigadier.exceptions.CommandSyntaxException parseError = net.minecraft.commands.Commands.getParseException(parse);
-            if (parseError != null) {
-                Bukkit.getLogger().severe("[DatapackFunctionUtil] Command syntax error: " + parseError.getMessage());
+            com.mojang.brigadier.context.ContextChain<CommandSourceStack> chain = parseError != null ? null
+                    : com.mojang.brigadier.context.ContextChain.tryFlatten(parse.getContext().build(command)).orElse(null);
+            if (chain == null) {
+                Bukkit.getLogger().severe("[DatapackFunctionUtil] Command syntax error: "
+                        + (parseError != null ? parseError.getMessage() : "incomplete command"));
                 Bukkit.getLogger().severe("[DatapackFunctionUtil] Failed command: " + command);
                 return;
             }
-            commands.performCommand(parse, command, true);
+
+            net.minecraft.world.level.gamerules.GameRules rules = sourceStack.getLevel().getGameRules();
+            int maxCommands = Math.max(1, rules.get(net.minecraft.world.level.gamerules.GameRules.MAX_COMMAND_SEQUENCE_LENGTH));
+            int maxForks = rules.get(net.minecraft.world.level.gamerules.GameRules.MAX_COMMAND_FORKS);
+            try (net.minecraft.commands.execution.ExecutionContext<CommandSourceStack> context =
+                         new net.minecraft.commands.execution.ExecutionContext<>(maxCommands, maxForks, net.minecraft.util.profiling.Profiler.get())) {
+                net.minecraft.commands.execution.ExecutionContext.queueInitialCommandExecution(
+                        context, command, chain, sourceStack, net.minecraft.commands.CommandResultCallback.EMPTY);
+                context.runCommandQueue();
+            }
         } catch (Throwable e) {
             Bukkit.getLogger().severe("[DatapackFunctionUtil] Error executing command: " + e.getMessage());
             Bukkit.getLogger().severe("[DatapackFunctionUtil] Failed command: " + command);
