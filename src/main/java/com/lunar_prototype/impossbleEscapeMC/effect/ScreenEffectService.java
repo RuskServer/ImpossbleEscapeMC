@@ -5,11 +5,17 @@ import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import io.papermc.paper.event.player.PlayerClientLoadedWorldEvent;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -19,7 +25,6 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
@@ -31,10 +36,16 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 26.3のポストエフェクト ({@code player.postEffects()}) で、アドレナリン放出時・死亡時の画面演出を流す。
+ * 26.3のポストエフェクト ({@code player.postEffects()}) で画面効果をかける。
  *
  * エフェクト本体 (assets/iem/post_effect/*.json と shaders/post/*.fsh) はサーバーのリソースパックで配る。
- * ポストエフェクトはパラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替えて演出する。
+ * クライアントは送られた順にポストエフェクトを重ねて描くため、次の層を下から順に重ねる。
+ * <ol>
+ *   <li>色味: レイド中は常に iem:raid_grade</li>
+ *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
+ *   <li>演出: アドレナリン放出・死亡・レイド開始。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
+ *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
+ * </ol>
  * 付け外しするのは iem 名前空間のエフェクトだけで、他のポストエフェクトには触れない。
  *
  * ポストエフェクトはプレイヤーデータに保存されリスポーン後も引き継がれるため、参加・退出・停止時に掃除する。
@@ -53,6 +64,11 @@ public final class ScreenEffectService implements Listener {
     private static final Key DEATH_BLACKOUT = Key.key(NAMESPACE, "death_blackout");
     private static final Key DEATH_FADE = Key.key(NAMESPACE, "death_fade");
     private static final Key DEATH_RECOVER = Key.key(NAMESPACE, "death_recover");
+    private static final Key RAID_GRADE = Key.key(NAMESPACE, "raid_grade");
+    private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
+    private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
+    private static final Key HIT = Key.key(NAMESPACE, "hit");
+    private static final Key HIT_FADE = Key.key(NAMESPACE, "hit_fade");
     /** レイド開始の演出。intro_0 (真っ黒) から intro_6 (ほぼ素の画面) へ順に明るくする */
     private static final int INTRO_STAGES = 7;
     private static final int INTRO_BLACK_TICKS = 20;
@@ -66,8 +82,16 @@ public final class ScreenEffectService implements Listener {
     private static final int DEATH_BLACKOUT_TICKS = 28;
     private static final int DEATH_FADE_TICKS = 26;
     private static final int DEATH_RECOVER_TICKS = 20;
+    private static final int HIT_TICKS = 2;
+    private static final int HIT_FADE_TICKS = 3;
     /** 心拍の周期。adrenaline.fsh の BEAT_TICKS と同じ値にして、心音と画面の脈動を揃える */
     private static final int HEARTBEAT_TICKS = 10;
+    /** 瀕死の心拍の周期。bleeding_critical.json の BeatTicks と同じ値にして、心音と画面の脈動を揃える */
+    private static final int CRITICAL_HEARTBEAT_TICKS = 24;
+    /** 出血中にこの割合を下回る体力を瀕死とみなす */
+    private static final double CRITICAL_HEALTH_RATIO = 0.3;
+    /** 色味・負傷の層を見直す間隔 (tick) */
+    private static final int STATE_UPDATE_INTERVAL_TICKS = 5;
     /** クライアントの読み込み完了の通知が来ない場合に待つのをやめるまで */
     private static final int LOAD_WAIT_TIMEOUT_TICKS = 400;
     /** 読み込み完了から演出を始めるまでの間。読み込み画面が閉じた直後は周りの描画が追いついていない */
@@ -102,7 +126,14 @@ public final class ScreenEffectService implements Listener {
 
     private static ScreenEffectService instance;
 
+    private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Playback> playing = new HashMap<>();
+    /** 色味の層をかけているプレイヤー (レイド中) */
+    private final Set<UUID> graded = new HashSet<>();
+    /** 負傷の層のエフェクト (出血中・瀕死) */
+    private final Map<UUID, Key> wound = new HashMap<>();
+    /** 被弾した tick */
+    private final Map<UUID, Integer> hitTick = new HashMap<>();
     /** ワールドの読み込み待ちのプレイヤーと、待ち始めたtick */
     private final Map<UUID, Integer> awaitingLoad = new HashMap<>();
     /** 読み込みが終わったプレイヤーと、演出を進めてよくなるtick */
@@ -112,19 +143,17 @@ public final class ScreenEffectService implements Listener {
     private final BukkitTask tickTask;
     private final PlayerLoadedListener playerLoadedListener;
 
-    private ScreenEffectService(Plugin plugin) {
+    private ScreenEffectService(ImpossbleEscapeMC plugin) {
+        this.plugin = plugin;
         this.tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
-        this.playerLoadedListener = new PlayerLoadedListener(plugin);
+        this.playerLoadedListener = new PlayerLoadedListener();
         PacketEvents.getAPI().getEventManager().registerListener(playerLoadedListener);
     }
 
     /** クライアントがワールドを読み込み終えた時に送るパケット (参加・リスポーン・ワールド移動のたび) を見る */
     private final class PlayerLoadedListener extends PacketListenerAbstract {
-        private final Plugin plugin;
-
-        private PlayerLoadedListener(Plugin plugin) {
+        private PlayerLoadedListener() {
             super(PacketListenerPriority.MONITOR);
-            this.plugin = plugin;
         }
 
         @Override
@@ -139,7 +168,7 @@ public final class ScreenEffectService implements Listener {
         }
     }
 
-    public static void init(Plugin plugin) {
+    public static void init(ImpossbleEscapeMC plugin) {
         if (instance != null) return;
         instance = new ScreenEffectService(plugin);
         Bukkit.getPluginManager().registerEvents(instance, plugin);
@@ -150,7 +179,7 @@ public final class ScreenEffectService implements Listener {
         if (instance == null) return;
         instance.tickTask.cancel();
         PacketEvents.getAPI().getEventManager().unregisterListener(instance.playerLoadedListener);
-        Bukkit.getOnlinePlayers().forEach(player -> apply(player, null));
+        Bukkit.getOnlinePlayers().forEach(ScreenEffectService::clearIem);
         instance = null;
     }
 
@@ -188,14 +217,14 @@ public final class ScreenEffectService implements Listener {
         playing.put(player.getUniqueId(), playback);
         if (canAdvance(player.getUniqueId())) {
             begin(player, playback);
-        } else if (showWhileWaiting) {
-            apply(player, playback.current().effect());
+        } else {
+            refresh(player);
         }
     }
 
     private void begin(Player player, Playback playback) {
         playback.started = true;
-        apply(player, playback.current().effect());
+        refresh(player);
         onStepStart(player, playback.current());
     }
 
@@ -208,6 +237,14 @@ public final class ScreenEffectService implements Listener {
         int now = Bukkit.getCurrentTick();
         awaitingLoad.values().removeIf(since -> now - since >= LOAD_WAIT_TIMEOUT_TICKS);
         settlingUntil.values().removeIf(until -> now >= until);
+
+        if (now % STATE_UPDATE_INTERVAL_TICKS == 0) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                updateGradeAndWound(player);
+            }
+        }
+        tickHits(now);
+        tickCriticalHeartbeat();
 
         for (Map.Entry<UUID, Playback> entry : new ArrayList<>(playing.entrySet())) {
             Player player = Bukkit.getPlayer(entry.getKey());
@@ -230,12 +267,11 @@ public final class ScreenEffectService implements Listener {
             playback.index++;
             if (playback.index >= playback.steps.size()) {
                 playing.remove(entry.getKey());
-                apply(player, null);
             } else {
                 playback.remaining = playback.current().ticks();
-                apply(player, playback.current().effect());
                 onStepStart(player, playback.current());
             }
+            refresh(player);
         }
     }
 
@@ -247,14 +283,106 @@ public final class ScreenEffectService implements Listener {
         }
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを effect だけにする (null なら外す) */
-    private static void apply(Player player, Key effect) {
+    // --- 色味・負傷・被弾の層 ---
+
+    /** レイド中なら色味、出血中なら負傷の層をかける */
+    private void updateGradeAndWound(Player player) {
+        UUID playerId = player.getUniqueId();
+        boolean alive = !player.isDead() && !awaitingRespawn.contains(playerId)
+                && player.getGameMode() != GameMode.SPECTATOR && player.getGameMode() != GameMode.CREATIVE;
+
+        boolean grade = alive && plugin.getRaidModule() != null && plugin.getRaidModule().isInRaid(player);
+        Key woundEffect = alive ? woundEffectOf(player) : null;
+
+        boolean changed = grade ? graded.add(playerId) : graded.remove(playerId);
+        Key previous = woundEffect != null ? wound.put(playerId, woundEffect) : wound.remove(playerId);
+        changed |= previous != woundEffect;
+        if (changed) refresh(player);
+    }
+
+    private Key woundEffectOf(Player player) {
+        PlayerDataModule dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
+        PlayerData data = dataModule != null ? dataModule.getPlayerData(player.getUniqueId()) : null;
+        if (data == null || data.getBleedingLevel() <= 0) return null;
+        var maxHealth = player.getAttribute(Attribute.MAX_HEALTH);
+        double ratio = maxHealth != null ? player.getHealth() / maxHealth.getValue() : 1.0;
+        return ratio < CRITICAL_HEALTH_RATIO ? BLEEDING_CRITICAL : BLEEDING;
+    }
+
+    /** 被弾の層を、撃たれてからの経過に合わせて hit → hit_fade → 無し と進める */
+    private void tickHits(int now) {
+        for (Map.Entry<UUID, Integer> entry : new ArrayList<>(hitTick.entrySet())) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            int elapsed = now - entry.getValue();
+            if (player == null || elapsed >= HIT_TICKS + HIT_FADE_TICKS) hitTick.remove(entry.getKey());
+            if (player != null && (elapsed == HIT_TICKS || elapsed >= HIT_TICKS + HIT_FADE_TICKS)) refresh(player);
+        }
+    }
+
+    private Key hitEffectOf(UUID playerId) {
+        Integer tick = hitTick.get(playerId);
+        if (tick == null) return null;
+        return Bukkit.getCurrentTick() - tick < HIT_TICKS ? HIT : HIT_FADE;
+    }
+
+    /** 瀕死の間は、画面の脈動に合わせて遅い心音を鳴らす (アドレナリンの心音が鳴っている間は鳴らさない) */
+    private void tickCriticalHeartbeat() {
+        for (Map.Entry<UUID, Key> entry : wound.entrySet()) {
+            if (!BLEEDING_CRITICAL.equals(entry.getValue())) continue;
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player == null || player.getWorld().getGameTime() % CRITICAL_HEARTBEAT_TICKS != 0) continue;
+            Playback playback = playing.get(entry.getKey());
+            if (playback != null && playback.started && playback.current().heartbeat()) continue;
+            player.playSound(player, Sound.ENTITY_WARDEN_HEARTBEAT, SoundCategory.PLAYERS, 0.8f, 0.8f);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBulletHit(BulletHitEvent event) {
+        if (!(event.getVictim() instanceof Player player)) return;
+        if (player.getGameMode() == GameMode.SPECTATOR || player.getGameMode() == GameMode.CREATIVE) return;
+        hitTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+        refresh(player);
+    }
+
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (色味 → 負傷 → 演出 → 被弾) にする */
+    private void refresh(Player player) {
+        UUID playerId = player.getUniqueId();
+        List<Key> current = new ArrayList<>(player.postEffects().values());
+        List<Key> effects = new ArrayList<>();
+        for (Key existing : current) {
+            if (!NAMESPACE.equals(existing.namespace())) effects.add(existing);
+        }
+        if (graded.contains(playerId)) effects.add(RAID_GRADE);
+        Key woundEffect = wound.get(playerId);
+        if (woundEffect != null) effects.add(woundEffect);
+        Playback playback = playing.get(playerId);
+        if (playback != null && (playback.started || playback.showWhileWaiting) && playback.current().effect() != null) {
+            effects.add(playback.current().effect());
+        }
+        Key hitEffect = hitEffectOf(playerId);
+        if (hitEffect != null) effects.add(hitEffect);
+
+        if (!effects.equals(current)) player.postEffects().set(effects);
+    }
+
+    /** iem のエフェクトをすべて外す (他のポストエフェクトは残す) */
+    private static void clearIem(Player player) {
         List<Key> effects = new ArrayList<>();
         for (Key existing : player.postEffects().values()) {
             if (!NAMESPACE.equals(existing.namespace())) effects.add(existing);
         }
-        if (effect != null) effects.add(effect);
         player.postEffects().set(effects);
+    }
+
+    private void forget(UUID playerId) {
+        playing.remove(playerId);
+        graded.remove(playerId);
+        wound.remove(playerId);
+        hitTick.remove(playerId);
+        awaitingLoad.remove(playerId);
+        settlingUntil.remove(playerId);
+        awaitingRespawn.remove(playerId);
     }
 
     // --- 死亡・リスポーン・ワールド移動 ---
@@ -263,13 +391,17 @@ public final class ScreenEffectService implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
-        awaitingRespawn.add(player.getUniqueId());
-        apply(player, null);
-        playing.put(player.getUniqueId(), new Playback(List.of(
+        UUID playerId = player.getUniqueId();
+        awaitingRespawn.add(playerId);
+        graded.remove(playerId);
+        wound.remove(playerId);
+        hitTick.remove(playerId);
+        playing.put(playerId, new Playback(List.of(
                 new Step(DEATH_IMPACT, DEATH_IMPACT_TICKS, false),
                 new Step(DEATH_BLACKOUT, DEATH_BLACKOUT_TICKS, false),
                 new Step(DEATH_FADE, DEATH_FADE_TICKS, false),
                 new Step(DEATH_RECOVER, DEATH_RECOVER_TICKS, false))));
+        refresh(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -295,29 +427,23 @@ public final class ScreenEffectService implements Listener {
         // 読み込み完了の通知はイベントとパケットの両方から届くため、1回だけ扱う
         if (awaitingLoad.remove(player.getUniqueId()) == null) return;
         settlingUntil.put(player.getUniqueId(), Bukkit.getCurrentTick() + START_DELAY_AFTER_LOAD_TICKS);
-        // ワールドの切り替えでクライアントの表示がリセットされていても、今の段のエフェクトを確実に送り直す
-        Playback playback = playing.get(player.getUniqueId());
-        if (playback != null && (playback.started || playback.showWhileWaiting)) {
-            apply(player, playback.current().effect());
-            player.postEffects().update();
-        }
+        // ワールドの切り替えでクライアントの表示がリセットされていても、今の層を確実に送り直す
+        refresh(player);
+        player.postEffects().update();
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         // 前回の演出の途中で抜けていた場合など、保存されて残ったエフェクトを外す
-        apply(event.getPlayer(), null);
+        forget(event.getPlayer().getUniqueId());
+        clearIem(event.getPlayer());
         awaitingLoad.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        UUID playerId = event.getPlayer().getUniqueId();
-        playing.remove(playerId);
-        awaitingLoad.remove(playerId);
-        settlingUntil.remove(playerId);
-        awaitingRespawn.remove(playerId);
+        forget(event.getPlayer().getUniqueId());
         // 保存されて次回の参加時に残らないよう、保存前に外しておく
-        apply(event.getPlayer(), null);
+        clearIem(event.getPlayer());
     }
 }
