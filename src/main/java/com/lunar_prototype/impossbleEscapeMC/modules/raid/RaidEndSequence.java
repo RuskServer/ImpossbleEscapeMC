@@ -69,6 +69,12 @@ public final class RaidEndSequence {
     private static final double SIREN_DISTANCE = 24.0;
     private static final double SIREN_HEIGHT = 12.0;
     private static final float SIREN_VOLUME = 4.0f;
+    /**
+     * 国連軍の放送は、サイレンと同じ方向のもっと近い拡声器から流す (音量4なら約8割で聞こえる距離)。
+     * 同じ距離だとサイレンと同じくらい遠く、帯域の狭い拡声器の声が聞き取れない
+     */
+    private static final double LOUDSPEAKER_DISTANCE = 10.0;
+    private static final double LOUDSPEAKER_HEIGHT = 5.0;
     /** 照明弾はプレイヤーからこの範囲の距離で打ち上げ、爆発に巻き込まないよう全員からこれ以上離す */
     private static final double FLARE_MIN_DISTANCE = 48.0;
     private static final double FLARE_MAX_DISTANCE = 72.0;
@@ -76,6 +82,8 @@ public final class RaidEndSequence {
     private static final int FLARE_ATTEMPTS = 4;
     /** サイレンが鳴り始めてから、国連軍の放送を流すまで (tick) */
     private static final int UN_BROADCAST_DELAY_TICKS = 60;
+    /** 放送の長さ (voice_un_broadcast の約13.3秒)。放送の間はサイレンを止め、終わったら鳴らし直す */
+    private static final int UN_BROADCAST_TICKS = 270;
     /** 起爆の後、ショート音・クライアントの無線・環境音を鳴らし始めるまで (tick) */
     private static final int ELECTRIC_SHORT_DELAY_TICKS = 12;
     private static final int EMP_VOICE_DELAY_TICKS = 8;
@@ -177,16 +185,25 @@ public final class RaidEndSequence {
         audible.add(player.getUniqueId());
     }
 
-    /** 外周の方向からサイレンが鳴り、少し遅れて同じ方向の拡声器から国連軍の放送が流れる */
+    /**
+     * 外周の方向からサイレンが鳴り、少し遅れて同じ方向の拡声器から国連軍の放送が流れる。
+     * 実際の防災無線と同じく放送の間はサイレンを止め、放送が終わったら (起爆前なら) 鳴らし直す
+     */
     private void startPrecursor(Player player) {
-        Location loudspeaker = sirenLocation(player);
-        player.playSound(loudspeaker, SOUND_SIREN, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
+        Vector direction = outwardDirection(player);
+        Location siren = offset(player.getLocation(), direction, SIREN_DISTANCE, SIREN_HEIGHT);
+        player.playSound(siren, SOUND_SIREN, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
         audible.add(player.getUniqueId());
         later(player, UN_BROADCAST_DELAY_TICKS, p -> {
+            p.stopSound(SOUND_SIREN);
+            Location loudspeaker = offset(p.getLocation(), direction, LOUDSPEAKER_DISTANCE, LOUDSPEAKER_HEIGHT);
             p.playSound(loudspeaker, VOICE_UN_BROADCAST, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
             p.sendMessage(Component.text("[国連軍 放送] ", NamedTextColor.GOLD)
                     .append(Component.text("当該セクターで未登録の活動を検知した。監視網の復旧後、区域内の全熱源を敵性と判定する。直ちに退去せよ。",
                             NamedTextColor.YELLOW)));
+        });
+        later(player, UN_BROADCAST_DELAY_TICKS + UN_BROADCAST_TICKS, p -> {
+            if (!detonated) p.playSound(siren, SOUND_SIREN, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
         });
     }
 
@@ -250,12 +267,15 @@ public final class RaidEndSequence {
         }
     }
 
-    /** プレイヤーから見て外周 (マップの中心と反対) の方向の空にサイレンを置く */
-    private Location sirenLocation(Player player) {
-        Location location = player.getLocation();
-        Vector outward = location.toVector().subtract(center()).setY(0);
-        if (outward.lengthSquared() < 1.0) outward = randomHorizontal();
-        return location.clone().add(outward.normalize().multiply(SIREN_DISTANCE)).add(0, SIREN_HEIGHT, 0);
+    /** プレイヤーから見て外周 (マップの中心と反対) の水平な向き */
+    private Vector outwardDirection(Player player) {
+        Vector outward = player.getLocation().toVector().subtract(center()).setY(0);
+        return outward.lengthSquared() < 1.0 ? randomHorizontal() : outward.normalize();
+    }
+
+    /** from から direction の向きに distance 進み、height 上げた位置 */
+    private static Location offset(Location from, Vector direction, double distance, double height) {
+        return from.clone().add(direction.clone().multiply(distance)).add(0, height, 0);
     }
 
     /** 外周の方向に照明弾を1発打ち上げる。読み込まれていない場所や、誰かの近くには打たない */
