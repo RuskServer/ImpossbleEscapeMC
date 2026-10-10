@@ -97,6 +97,11 @@ public class ScavController {
     private TacticalPositioning.Spot arrivedSpot;
     /** 相手が見えている時、相手を向いたまま横歩きで向かう立ち位置の距離の上限 (ブロック) */
     private static final double DIRECT_MOVE_MAX = 10.0;
+    /**
+     * 見えている相手がこれより近ければ、まっすぐ行けない立ち位置へ経路探索で回り込まず、その場で撃ち合う (ブロック)。
+     * 経路探索中は進む方向を向いて撃たないため、近くの相手に背中を見せたまま歩き続けてしまう
+     */
+    private static final double CLOSE_FIGHT_DISTANCE = 10.0;
     /** 相手から見えていない時に、経路探索で立ち位置を移る速さ */
     private static final double RELOCATE_SPEED = 1.8;
     /** 立ち位置へ経路探索で歩いている (照準で向きを上書きしない) */
@@ -384,6 +389,18 @@ public class ScavController {
             target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
+                playScavVoice(ScavVoice.SPOTTED);
+            }
+        } else if (!sawTargetLastStep) {
+            // 見失った相手を追っている間も、見えている別の相手がいればそちらに切り替える
+            // (追跡中の相手の予測ばかり見て、目の前に来た別のプレイヤーに反応しないのを防ぐ)
+            LivingEntity other = vision.scanForTargets();
+            if (other != null && !other.getUniqueId().equals(target.getUniqueId())) {
+                target = other;
+                scav.setTarget(target);
+                lostTargetSteps = 0;
+                pursuitSteps = 0;
+                belief.clear();
                 playScavVoice(ScavVoice.SPOTTED);
             }
         }
@@ -1149,8 +1166,14 @@ public class ScavController {
         if (!arrived) {
             // 相手が見えていてまっすぐ行けるなら相手を向いたまま横歩きで、それ以外は経路探索で回り込む
             // (経路探索は進む方向を向くため、撃ち合いの最中に背中を向けてしまう)
+            boolean closeFight = canSeeTarget && target != null
+                    && here.distanceSquared(target.getLocation()) <= CLOSE_FIGHT_DISTANCE * CLOSE_FIGHT_DISTANCE;
             if (canSeeTarget && distance <= DIRECT_MOVE_MAX && TacticalPositioning.walkableStraight(here, spot.stand())) {
                 tactics.moveDirectTo(spot.stand(), 1.2);
+            } else if (closeFight) {
+                // 近くで見えている相手に背中を向けて回り込むと撃ち返せないので、立ち位置へ向かうのをやめてその場で撃ち合う
+                scav.getPathfinder().stopPathfinding();
+                tactics.stopMoving();
             } else {
                 // 見えていない間の移動は小走りにする (撃たれない場所を移るのに時間をかけると、待っているだけに見える)
                 scav.getPathfinder().moveTo(spot.stand(), canSeeTarget ? 1.3 : RELOCATE_SPEED);
