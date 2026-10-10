@@ -44,8 +44,14 @@ public final class RaidEndSequence {
     private static final String SOUND_EAR_RINGING = "iem:raid_end.ear_ringing";
     private static final String SOUND_ELECTRIC_SHORT = "iem:raid_end.electric_short";
     private static final String SOUND_AMBIENCE = "iem:raid_end.ambience";
+    // セリフ: クライアントは英語の無線、国連軍はロシア語 (拡声器の放送と、傍受した無線)。チャットに日本語の字幕を出す
+    private static final String VOICE_CLIENT_WARNING = "iem:raid_end.voice.client_warning";
+    private static final String VOICE_CLIENT_EMP_CUT = "iem:raid_end.voice.client_emp_cut";
+    private static final String VOICE_UN_BROADCAST = "iem:raid_end.voice.un_broadcast";
+    private static final String VOICE_UN_MISSILE_LAUNCH = "iem:raid_end.voice.un_missile_launch";
     private static final List<String> SOUNDS = List.of(
-            SOUND_SIREN, SOUND_HUM, SOUND_EMP_BLAST, SOUND_EAR_RINGING, SOUND_ELECTRIC_SHORT, SOUND_AMBIENCE);
+            SOUND_SIREN, SOUND_HUM, SOUND_EMP_BLAST, SOUND_EAR_RINGING, SOUND_ELECTRIC_SHORT, SOUND_AMBIENCE,
+            VOICE_CLIENT_WARNING, VOICE_CLIENT_EMP_CUT, VOICE_UN_BROADCAST, VOICE_UN_MISSILE_LAUNCH);
 
     private static final Key PRECURSOR_1 = Key.key("iem", "emp_precursor_1");
     private static final Key PRECURSOR_2 = Key.key("iem", "emp_precursor_2");
@@ -68,10 +74,14 @@ public final class RaidEndSequence {
     private static final double FLARE_MAX_DISTANCE = 72.0;
     private static final double FLARE_CLEARANCE = 16.0;
     private static final int FLARE_ATTEMPTS = 4;
-    /** 起爆の後、ショート音と環境音を鳴らし始めるまで (tick) */
+    /** サイレンが鳴り始めてから、国連軍の放送を流すまで (tick) */
+    private static final int UN_BROADCAST_DELAY_TICKS = 60;
+    /** 起爆の後、ショート音・クライアントの無線・環境音を鳴らし始めるまで (tick) */
     private static final int ELECTRIC_SHORT_DELAY_TICKS = 12;
+    private static final int EMP_VOICE_DELAY_TICKS = 8;
     private static final int AMBIENCE_DELAY_TICKS = 50;
-    private static final int STATIC_MESSAGE_DELAY_TICKS = 30;
+    /** クライアントの無線が EMP で途切れる位置 (voice_client_emp_cut の約4.0秒) に、雑音の字幕を合わせる */
+    private static final int STATIC_MESSAGE_DELAY_TICKS = EMP_VOICE_DELAY_TICKS + 80;
 
     private final ImpossbleEscapeMC plugin;
     private final RaidMap map;
@@ -163,24 +173,31 @@ public final class RaidEndSequence {
         player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
                 .append(Component.text("監視網の妨害はあと" + formatDuration(warningSeconds)
                         + "で切れる。回収したものを持って撤収しろ。", NamedTextColor.WHITE)));
-        playRadioClick(player);
-    }
-
-    private void startPrecursor(Player player) {
-        player.sendMessage(Component.text("[国連軍 放送] ", NamedTextColor.GOLD)
-                .append(Component.text("当該セクターで未登録の活動を検知した。監視網の復旧後、区域内の全熱源を敵性と判定する。直ちに退去せよ。",
-                        NamedTextColor.YELLOW)));
-        player.playSound(sirenLocation(player), SOUND_SIREN, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
+        player.playSound(player, VOICE_CLIENT_WARNING, SoundCategory.MASTER, 1.0f, 1.0f);
         audible.add(player.getUniqueId());
     }
 
-    /** ミサイル2発が地平線から飛来する。空の演出はここから始まり、飛行時間の後に起爆する */
+    /** 外周の方向からサイレンが鳴り、少し遅れて同じ方向の拡声器から国連軍の放送が流れる */
+    private void startPrecursor(Player player) {
+        Location loudspeaker = sirenLocation(player);
+        player.playSound(loudspeaker, SOUND_SIREN, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
+        audible.add(player.getUniqueId());
+        later(player, UN_BROADCAST_DELAY_TICKS, p -> {
+            p.playSound(loudspeaker, VOICE_UN_BROADCAST, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
+            p.sendMessage(Component.text("[国連軍 放送] ", NamedTextColor.GOLD)
+                    .append(Component.text("当該セクターで未登録の活動を検知した。監視網の復旧後、区域内の全熱源を敵性と判定する。直ちに退去せよ。",
+                            NamedTextColor.YELLOW)));
+        });
+    }
+
+    /** ミサイル2発が地平線から飛来する (国連軍の無線を傍受)。空の演出はここから始まり、飛行時間の後に起爆する */
     private void launchMissiles(Player player) {
         EmpSkySignal.start(player);
         audible.add(player.getUniqueId());
         player.playSound(player, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, SoundCategory.MASTER, 0.8f, 0.5f);
-        player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
-                .append(Component.text("何か上がった――ミサイルだ、2発!", NamedTextColor.WHITE)));
+        player.playSound(player, VOICE_UN_MISSILE_LAUNCH, SoundCategory.MASTER, 1.0f, 1.0f);
+        player.sendMessage(Component.text("[国連軍 無線・傍受] ", NamedTextColor.GOLD)
+                .append(Component.text("発射! ミサイル2発、上昇中!", NamedTextColor.YELLOW)));
         later(player, MISSILE_FLIGHT_TICKS, this::detonate);
     }
 
@@ -194,8 +211,11 @@ public final class RaidEndSequence {
         later(player, SECOND_BLAST_DELAY_TICKS,
                 p -> p.playSound(p, SOUND_EMP_BLAST, SoundCategory.MASTER, 0.7f, 0.9f));
 
-        player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
-                .append(Component.text("上空で閃光――EMPだ、急いで脱出し――", NamedTextColor.WHITE)));
+        later(player, EMP_VOICE_DELAY_TICKS, p -> {
+            p.playSound(p, VOICE_CLIENT_EMP_CUT, SoundCategory.MASTER, 1.0f, 1.0f);
+            p.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
+                    .append(Component.text("上空で閃光――EMPだ、急いで脱出し――", NamedTextColor.WHITE)));
+        });
         later(player, ELECTRIC_SHORT_DELAY_TICKS,
                 p -> p.playSound(p, SOUND_ELECTRIC_SHORT, SoundCategory.MASTER, 0.8f, 1.0f));
         later(player, STATIC_MESSAGE_DELAY_TICKS,
@@ -211,11 +231,6 @@ public final class RaidEndSequence {
             Player current = Bukkit.getPlayer(id);
             if (current != null && audible.contains(id)) action.accept(current);
         }, delayTicks);
-    }
-
-    // TODO: 無線の効果音を用意したら差し替える
-    private void playRadioClick(Player player) {
-        player.playSound(player, Sound.UI_BUTTON_CLICK, SoundCategory.MASTER, 0.6f, 1.6f);
     }
 
     /** レイドを抜けた (脱出・死亡・切断) プレイヤーの終盤の音と空の演出を止める */
