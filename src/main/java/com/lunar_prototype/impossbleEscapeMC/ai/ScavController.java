@@ -84,10 +84,12 @@ public class ScavController {
     /** 撃てる位置に着いたのに相手が見えないステップ数 (続いたら立ち位置を選び直す) */
     private int positionNoSightSteps = 0;
     private static final int POSITION_NO_SIGHT_STEPS = 7;
-    /** 弾切れ・負傷の時に、立ち位置を「下がる」で選ぶ時間 (tick) */
+    /** 負傷の時 (とリロードの上限) に、立ち位置を「下がる」で選ぶ時間 (tick) */
     private static final int WITHDRAW_TICKS = 100;
     /** 制圧された時の「下がる」時間 (tick)。制圧はすぐ引くため短くし、隠れたまま撃ち返さなくなるのを防ぐ */
     private static final int SUPPRESSED_WITHDRAW_TICKS = 40;
+    /** リロードで下がる時、撃てるようになってから顔を出し直すまでの余裕 (tick) */
+    private static final int RELOAD_WITHDRAW_MARGIN_TICKS = 10;
     private int withdrawUntilTick = 0;
     /** 立ち位置に着いたか。着いたのは1ブロック以内、離れたのは2ブロックより外 (境目で行き来しないように) */
     private static final double SPOT_ARRIVE = 1.0;
@@ -101,6 +103,14 @@ public class ScavController {
     private boolean followingPath = false;
     private ScavWeapon weapon;
     private String weaponKey;
+    /** 銃があと何tickで撃てるか (この判断ステップの時点)。撃てない間は顔を出さない */
+    private int weaponReadyInTicks = 0;
+    /** これ以下の待ちなら顔を出す (出るまでの間に撃てるようになる) */
+    static final int PEEK_READY_TICKS = 4;
+    /** これ以上撃てない (リロード・持ち替えなど) なら、弾切れと同じく隠れられる場所へ下がる */
+    private static final int LONG_UNREADY_TICKS = 20;
+    /** 相手から隠れている時、弾がこの割合を切っていればリロードしておく (相手が分からない時は減っていれば) */
+    private static final double TACTICAL_RELOAD_RATIO = 0.5;
 
     private Chunk currentChunk = null;
     private Location lastKnownLocation = null;
@@ -409,7 +419,15 @@ public class ScavController {
 
         if (target != null || lastKnownLocation != null) weapon.prepare();
 
-        boolean needsReload = weapon.needsReload();
+        // 撃てない時間を自分で作るなら、相手から見られていない時に。隠れている間に弾を補充しておく
+        boolean knowsEnemy = target != null || lastKnownLocation != null;
+        boolean exposedToTarget = target != null && scav.hasLineOfSight(target);
+        if (!exposedToTarget && tactics.getPeekPhase() == 0
+                && weapon.ammoRatio() < (knowsEnemy ? TACTICAL_RELOAD_RATIO : 1.0)) {
+            weapon.startReload();
+        }
+        weaponReadyInTicks = weapon.ticksUntilReady();
+        boolean needsReload = weapon.needsReload() || weaponReadyInTicks >= LONG_UNREADY_TICKS;
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
 
         // 3. スイッチング
@@ -424,8 +442,11 @@ public class ScavController {
             if ((suppression > 0.6f && !canSeeTarget) || healthPercent < 0.4 || needsReload) {
               if (!assisting && pursuitSteps == 0 && (canSeeTarget || lastKnownLocation != null)) {
                 // 相手の位置が分かっている間は、立ち位置の仕組みで隠れられる場所へ下がる
-                boolean onlySuppressed = healthPercent >= 0.4 && !needsReload;
-                withdrawUntilTick = Bukkit.getCurrentTick() + (onlySuppressed ? SUPPRESSED_WITHDRAW_TICKS : WITHDRAW_TICKS);
+                // 負傷なら長く、リロードなら撃てるようになるまで、制圧だけなら短く下がる
+                int withdrawTicks = SUPPRESSED_WITHDRAW_TICKS;
+                if (needsReload) withdrawTicks = Math.max(withdrawTicks, Math.min(WITHDRAW_TICKS, weaponReadyInTicks + RELOAD_WITHDRAW_MARGIN_TICKS));
+                if (healthPercent < 0.4) withdrawTicks = WITHDRAW_TICKS;
+                withdrawUntilTick = Bukkit.getCurrentTick() + withdrawTicks;
                 positioning.invalidate();
                 tactics.setCoverSearchCooldown(60);
               } else {
@@ -531,7 +552,7 @@ public class ScavController {
             if (dist > 1.0) scav.getPathfinder().moveTo(tactics.getTacticalCoverLoc(), isSprinting ? 1.5 : 1.0);
             else if (!needsReload && canSeeTarget) {
                 applyAimToEntity();
-            } else if (!needsReload && lastKnownLocation != null && (moveAction == 6 || moveAction == 7)) {
+            } else if (weaponReadyInTicks <= PEEK_READY_TICKS && lastKnownLocation != null && (moveAction == 6 || moveAction == 7)) {
                 // 物陰に着いたら、隠れたままにならないよう顔を出して撃ち返す
                 tactics.startPeek(lastKnownLocation, isSprinting, moveAction == 7);
             }
@@ -542,7 +563,7 @@ public class ScavController {
         } else if (lastKnownLocation != null) {
             isHoldingAngle = false;
             // 顔出しは前回から間が空いていなければ行わず、捜索を続ける
-            boolean peek = moveAction == 6 || moveAction == 7;
+            boolean peek = (moveAction == 6 || moveAction == 7) && weaponReadyInTicks <= PEEK_READY_TICKS;
             if (!peek || !tactics.startPeek(lastKnownLocation, isSprinting, moveAction == 7)) handleSearching();
         }
 
@@ -1017,7 +1038,8 @@ public class ScavController {
                 tactics.stopMoving();
                 if (!canSeeTarget) {
                     if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
-                    tactics.startPeekTo(spot.peek());
+                    // 撃てない間 (リロード・ボルト操作など) は顔を出さずに待つ
+                    if (weaponReadyInTicks <= PEEK_READY_TICKS) tactics.startPeekTo(spot.peek());
                 }
             }
             case HIDE -> {

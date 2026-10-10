@@ -47,6 +47,19 @@ public final class DatapackScavWeapon implements ScavWeapon {
         return gunner != null && gunner.isReloading();
     }
 
+    @Override
+    public int ticksUntilReady() {
+        DatapackGunner gunner = DatapackGunnerManager.get(scav.getUniqueId());
+        // FakePlayerがまだなければ、生成から装填まで数tickかかる
+        return gunner != null ? gunner.ticksUntilReady() : DatapackGunner.ARMING_TICKS;
+    }
+
+    @Override
+    public boolean startReload() {
+        DatapackGunner gunner = DatapackGunnerManager.get(scav.getUniqueId());
+        return gunner != null && gunner.startReload();
+    }
+
     /** FakePlayerの生成・銃の受け取り・装填には数tickかかるため、敵を見つけた時点で始めておく */
     @Override
     public void prepare() {
