@@ -32,8 +32,19 @@ public class ScavTactics {
     private int lastPeekSide = 0;
     private int peekShotsRemaining = 0;
     private int peekOutLimit = 5;
-    /** 顔出しから戻った後、次に顔を出せるまでの待ち */
+    /** 顔出しから戻った後、次に顔を出せるまでの待ち (判断ステップ数) */
     private int peekRestTicks = 0;
+    /** 今回の顔出しで相手が見えたか (見えなかった時は次の顔出しまで長めに待つ) */
+    private boolean peekSawTarget = false;
+    /** 次の顔出しまでの待ち (tick)。相手が見えた後は短め、空振りの後は長め */
+    private static final int PEEK_REST_AFTER_CONTACT_MIN = 60;
+    private static final int PEEK_REST_AFTER_CONTACT_JITTER = 60;
+    private static final int PEEK_REST_AFTER_EMPTY_MIN = 100;
+    private static final int PEEK_REST_AFTER_EMPTY_JITTER = 80;
+    /** 出るのにかかる分、見えないまま出ていられる時間に足す (判断ステップ数) */
+    private static final int PEEK_TRAVEL_STEPS = 4;
+    /** 戻りにかける時間の上限 (判断ステップ数) */
+    private static final int PEEK_RETURN_STEPS = 8;
 
     // 横移動の緩急
     /** 横移動の区間ごとの回る勢い (回る半径) の倍率 */
@@ -146,8 +157,8 @@ public class ScavTactics {
     // 行き先へ向かう指示 (setWantedPosition) は体を移動方向へ回すため、照準を合わせた向きと毎tick取り合って体が揺れる。
     // そこでスケルトンが弓を構えたまま横移動するのと同じストレイフ (向いている方向を基準に前後左右へ動く) を使う
 
-    /** 顔出しの出入りの速さ (移動速度に対する倍率) */
-    private static final double PEEK_SPEED = 1.8;
+    /** 顔出しの出入りの速さ (移動速度に対する倍率)。約3ブロック/秒 (銃を構えたまま歩いて出る程度。1.8 では約6ブロック/秒で、走るより速く不自然だった) */
+    private static final double PEEK_SPEED = 0.5;
     /** 顔出し位置にこの距離まで来たら止まったとみなして撃つ */
     private static final double PEEK_SETTLED_DISTANCE = 0.6;
 
@@ -321,6 +332,7 @@ public class ScavTactics {
      */
     public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, double spread, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
+        if (targetVisible) peekSawTarget = true;
         if (peekPhase == 1) { // Moving out
             if (!moveDirect(peekLocation, PEEK_SPEED)) {
                 // 出る途中で行けなくなった (押された・相手の位置が変わったなど): 引っ込む
@@ -363,9 +375,13 @@ public class ScavTactics {
         } else if (peekPhase == 2) { // Moving back
             // 戻りは来た道をまっすぐ戻る。押されてまっすぐ戻れない時だけ経路探索で遮蔽へ戻る
             if (!moveDirect(coverLocation, PEEK_SPEED)) scav.getPathfinder().moveTo(coverLocation, PEEK_SPEED);
-            if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 5) {
+            if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= PEEK_RETURN_STEPS) {
                 peekPhase = 0;
-                peekRestTicks = 4 + (int) (Math.random() * 20); // 次に顔を出すまでの間をばらつかせる
+                // 次に顔を出すまでの間をばらつかせる。誰も見えなかった時は、すぐ出直さずに長めに待つ
+                int restTicks = peekSawTarget
+                        ? PEEK_REST_AFTER_CONTACT_MIN + (int) (Math.random() * PEEK_REST_AFTER_CONTACT_JITTER)
+                        : PEEK_REST_AFTER_EMPTY_MIN + (int) (Math.random() * PEEK_REST_AFTER_EMPTY_JITTER);
+                peekRestTicks = restTicks / ScavController.STEP_TICKS;
             }
         }
     }
@@ -388,7 +404,8 @@ public class ScavTactics {
         coverLocation = scav.getLocation().clone();
         peekLocation = peek.clone();
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
-        peekOutLimit = 4 + (int) (Math.random() * 6);
+        peekOutLimit = PEEK_TRAVEL_STEPS + 4 + (int) (Math.random() * 6);
+        peekSawTarget = false;
         peekPhase = 1;
         peekTicks = 0;
         moveDirect(peekLocation, PEEK_SPEED);
@@ -424,7 +441,8 @@ public class ScavTactics {
         }
         if (peekLocation == null) return false;
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
-        peekOutLimit = 3 + (int) (Math.random() * 6);
+        peekOutLimit = PEEK_TRAVEL_STEPS + 3 + (int) (Math.random() * 6);
+        peekSawTarget = false;
         peekPhase = 1;
         peekTicks = 0;
         moveDirect(peekLocation, PEEK_SPEED);
