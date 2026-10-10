@@ -4,6 +4,8 @@ import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
+import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
@@ -46,14 +48,14 @@ public class DatapackBulletHitBridge implements Listener {
     private static final double BULLET_SEARCH_RADIUS = 64.0;
     /** データパックの当たり判定は当たり判定の箱を0.1広げた範囲 */
     private static final double HITBOX_MARGIN = 0.1;
-    /** データパック銃は弾薬の種類を持たないため、種類が入るまではクラス1の弾として扱う */
+    /** 込めた弾が分からない時 (SCAV・弾を込めていない銃) の貫通クラス */
     private static final int DATAPACK_AMMO_CLASS = 1;
     private static final double LEGS_DAMAGE_MULTIPLIER = 0.6;
     private static final double NOT_PENETRATED_DAMAGE_MULTIPLIER = 0.15;
     /** プレイヤーの弾がSCAVに当たった時の制圧 (プラグイン銃の BulletTask と同じ値) */
     private static final float HIT_SUPPRESSION = 0.5f;
 
-    private record HitResult(String hitLocation, boolean penetrated, double rawDamage) {
+    private record HitResult(String hitLocation, boolean penetrated, double rawDamage, int ammoClass) {
     }
 
     /** LOW で決めた部位・貫通を MONITOR の通知で使う (ダメージイベントは入れ子にならないため1件で足りる) */
@@ -65,10 +67,14 @@ public class DatapackBulletHitBridge implements Listener {
         if (!(event.getEntity() instanceof LivingEntity victim)) return;
         if (!isDatapackBullet(event)) return;
 
-        double rawDamage = event.getDamage();
+        // プレイヤーの弾は、撃った時に銃に込めていた弾の貫通クラスと威力 (同じ口径のいちばん弱い弾に対する比)。
+        // 分からない時 (SCAV・弾を込めていない銃) は貫通クラス1
+        AmmoDefinition ammo = playerAmmo(event.getDamager());
+        int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
+        double rawDamage = event.getDamage() * DatapackAmmo.damageMultiplier(ammo);
         String hitLocation = hitLocation(victim);
         int armorClass = BulletDamageModel.armorClass(victim, hitLocation);
-        boolean penetrated = BulletDamageModel.penetrates(DATAPACK_AMMO_CLASS, armorClass);
+        boolean penetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
 
         double damage = rawDamage;
         if (BulletDamageModel.LEGS.equals(hitLocation)) damage *= LEGS_DAMAGE_MULTIPLIER;
@@ -83,7 +89,7 @@ public class DatapackBulletHitBridge implements Listener {
         }
 
         pendingEvent = event;
-        pendingResult = new HitResult(hitLocation, penetrated, rawDamage);
+        pendingResult = new HitResult(hitLocation, penetrated, rawDamage, ammoClass);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -106,7 +112,13 @@ public class DatapackBulletHitBridge implements Listener {
 
         Bukkit.getPluginManager().callEvent(new BulletHitEvent(
                 victim, livingShooter, event.getFinalDamage(), result.hitLocation(), result.penetrated(),
-                DATAPACK_AMMO_CLASS, result.rawDamage()));
+                result.ammoClass(), result.rawDamage()));
+    }
+
+    private static AmmoDefinition playerAmmo(Entity damager) {
+        Entity shooter = DatapackGunnerManager.resolveShooter(damager);
+        return shooter instanceof Player player && !DatapackGunnerManager.isGunner(player)
+                ? DatapackAmmo.lastShotAmmo(player.getUniqueId()) : null;
     }
 
     private static boolean isDatapackBullet(EntityDamageEvent event) {
