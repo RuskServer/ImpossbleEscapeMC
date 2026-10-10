@@ -282,6 +282,12 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // 開いている画面を閉じる。納品・売却・修理の欄に入れていたアイテムは、各画面の閉じる処理が持ち主に返す
+        // (リスナーが外れる前に閉じないと、欄の中身が消える)
+        for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
+            player.closeInventory();
+        }
+
         // モジュールの無効化
         if (moduleBootstrap != null) {
             moduleBootstrap.disableModules();

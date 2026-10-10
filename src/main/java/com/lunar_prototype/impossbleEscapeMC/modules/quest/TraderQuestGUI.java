@@ -1,13 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.HandInObjective;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
@@ -114,7 +110,7 @@ public class TraderQuestGUI implements Listener {
             if (questModule.isAllObjectivesMet(q, active)) {
                 lore.add(Component.text("▶ [左クリック] で報酬を受け取って完了", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
             } else {
-                lore.add(Component.text("▶ [右クリック] で納品 (対象アイテムを一括納品)", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("▶ [右クリック] で納品画面を開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             }
         } else if (questModule.canStart(data, q)) {
             lore.add(Component.text("▶ [左クリック] でクエストを受領する", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
@@ -181,82 +177,14 @@ public class TraderQuestGUI implements Listener {
                 questModule.completeQuest(player, data, q);
                 setupGUI();
             } else if (event.isRightClick()) {
-                // 納品処理
-                handleHandIn(q, active, data);
+                // 納品画面を開く (納品する物はプレイヤーが選んで入れる)
+                if (!QuestHandInGUI.hasOpenHandIn(q, active)) {
+                    player.sendMessage(Component.text("このクエストに納品する目標はありません。", NamedTextColor.RED));
+                    return;
+                }
+                player.closeInventory();
+                new QuestHandInGUI(player, trader, questModule, q).open();
             }
-        }
-    }
-
-    private void handleHandIn(QuestDefinition q, ActiveQuest active, PlayerData data) {
-        boolean anyHandedIn = false;
-        Map<String, Integer> totalHandedIn = new HashMap<>();
-
-        for (int i = 0; i < q.getObjectives().size(); i++) {
-            QuestObjective obj = q.getObjectives().get(i);
-            if (!(obj instanceof HandInObjective)) continue;
-            if (obj.isCompleted(active, i)) continue;
-
-            HandInObjective hio = (HandInObjective) obj;
-            
-            // Scan inventory for this objective
-            for (ItemStack item : player.getInventory().getContents()) {
-                if (item == null || item.getType() == org.bukkit.Material.AIR) continue;
-                if (obj.isCompleted(active, i)) break;
-
-                ItemMeta meta = item.getItemMeta();
-                String itemId = com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attachmentIdOf(item);
-                if (itemId == null && meta != null) itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-                if (itemId == null && meta != null) {
-                    itemId = getDatapackGunId(item);
-                }
-                if (itemId == null) continue;
-
-                QuestItems.Definition def = QuestItems.resolve(itemId);
-                if (def == null) continue;
-
-                boolean isFIR = meta.getPersistentDataContainer().getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1;
-                
-                // Match check
-                if (hio.isRequireFIR() && !isFIR) continue;
-                
-                boolean match = false;
-                if (hio.getItemId() != null) {
-                    match = hio.getItemId().equalsIgnoreCase(itemId);
-                } else if (hio.getItemType() != null) {
-                    match = hio.getItemType().equalsIgnoreCase(def.type());
-                }
-
-                if (match) {
-                    int current = active.getProgress(i);
-                    int needed = hio.getTargetAmount() - current;
-                    if (needed <= 0) break;
-
-                    int toTake = Math.min(item.getAmount(), needed);
-                    
-                    Map<String, Object> params = new HashMap<>();
-                    params.put("itemId", itemId);
-                    params.put("itemType", def.type());
-                    params.put("isFIR", isFIR);
-                    params.put("amount", toTake);
-
-                    if (hio.updateProgress(player, data, active, i, QuestTrigger.HAND_IN, params)) {
-                        item.setAmount(item.getAmount() - toTake);
-                        totalHandedIn.put(def.name(), totalHandedIn.getOrDefault(def.name(), 0) + toTake);
-                        anyHandedIn = true;
-                        data.setDirty(true);
-                    }
-                }
-            }
-        }
-
-        if (anyHandedIn) {
-            totalHandedIn.forEach((name, amount) -> {
-                player.sendMessage(Component.text("納品しました: " + name + " x" + amount, NamedTextColor.GREEN));
-            });
-            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.5f);
-            setupGUI();
-        } else {
-            player.sendMessage(Component.text("納品可能なアイテムをインベントリに持っていません。", NamedTextColor.RED));
         }
     }
 
@@ -265,27 +193,5 @@ public class TraderQuestGUI implements Listener {
         if (event.getInventory().equals(inventory)) {
             HandlerList.unregisterAll(this);
         }
-    }
-
-    private String getDatapackGunId(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) return null;
-        ItemMeta meta = item.getItemMeta();
-        org.bukkit.persistence.PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        
-        for (String namespace : new String[]{"minecraft", "toisarm"}) {
-            org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(namespace, "toisarm");
-            if (pdc.has(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER)) {
-                org.bukkit.persistence.PersistentDataContainer sub = pdc.get(key, org.bukkit.persistence.PersistentDataType.TAG_CONTAINER);
-                if (sub != null) {
-                    for (String subNamespace : new String[]{"minecraft", "toisarm"}) {
-                        org.bukkit.NamespacedKey idKey = new org.bukkit.NamespacedKey(subNamespace, "id");
-                        if (sub.has(idKey, org.bukkit.persistence.PersistentDataType.STRING)) {
-                            return sub.get(idKey, org.bukkit.persistence.PersistentDataType.STRING);
-                        }
-                    }
-                }
-            }
-        }
-        return null;
     }
 }
