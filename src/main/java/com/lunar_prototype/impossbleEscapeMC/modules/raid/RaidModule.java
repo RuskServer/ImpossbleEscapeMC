@@ -417,10 +417,15 @@ public class RaidModule implements IModule {
     }
 
     public boolean isInRaid(Player player) {
+        return getRaidOf(player) != null;
+    }
+
+    /** プレイヤーが参加中のレイド。参加していなければ null */
+    public RaidInstance getRaidOf(Player player) {
         for (RaidInstance raid : activeRaids.values()) {
-            if (raid.isParticipant(player.getUniqueId())) return true;
+            if (raid.isParticipant(player.getUniqueId())) return raid;
         }
-        return false;
+        return null;
     }
 
     public String getQueuedMap(Player player) {

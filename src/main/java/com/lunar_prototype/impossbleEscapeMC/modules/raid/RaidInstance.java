@@ -31,6 +31,7 @@ public class RaidInstance {
     private final Map<UUID, Integer> extractionTimer = new HashMap<>();
     private final List<VirtualScav> virtualScavs = new ArrayList<>();
     private final Map<UUID, RaidResult> raidResults = new HashMap<>();
+    private final RaidEndSequence endSequence;
 
     private final long startTime;
     private final String raidSessionId;
@@ -83,6 +84,7 @@ public class RaidInstance {
         this.map = map;
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
+        this.endSequence = new RaidEndSequence(plugin, map);
 
         if (plugin.getAiRaidLogger() != null) {
             plugin.getAiRaidLogger().startRaidSession(
@@ -227,6 +229,7 @@ public class RaidInstance {
                 updateBossBar();
                 enforceRaidGamemode();
                 checkExtractions();
+                endSequence.tick(getTimeLeft(), players);
                 updateScavs();
                 logPlayerSnapshots();
 
@@ -562,6 +565,7 @@ public class RaidInstance {
         ended = true;
 
         if (task != null) task.cancel();
+        endSequence.stop();
 
         // Cleanup all spawned SCAVs
         for (VirtualScav vs : virtualScavs) {
@@ -773,6 +777,10 @@ public class RaidInstance {
 
     public int getTimeLeft() {
         return plugin.getRaidModule().getMapTimeLeft(map.getMapId());
+    }
+
+    public RaidEndSequence getEndSequence() {
+        return endSequence;
     }
 
     public boolean isParticipant(UUID uuid) {
