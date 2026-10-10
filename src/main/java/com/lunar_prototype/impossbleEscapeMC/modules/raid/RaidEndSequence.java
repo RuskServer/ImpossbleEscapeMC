@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -27,12 +28,13 @@ import java.util.function.Consumer;
 
 /**
  * レイド終盤の演出。クライアントが買った監視網の空白時間 (侵入ウィンドウ) が閉じるまでを、
- * 予告 → 予兆 (サイレン・うなり・照明弾・空が赤く色づく) → 上空で EMP 起爆 → 人工オーロラ と進める。
- * 時間切れで国連軍の掃討となり、残っていた参加者は今まで通り MIA になる。
+ * 予告 → 予兆 (サイレン・うなり・照明弾・空が赤く色づく) → ミサイル2発が飛来して上空で EMP 起爆
+ * (青白い火球・広がり続ける衝撃波・オーロラ) と進める。時間切れで国連軍の掃討となり、残っていた参加者は今まで通り MIA になる。
  *
  * 段階はマップの残り時間で決める。サイレンと照明弾の位置は、既存のマップデータ (スポーン・脱出・Scav・コンテナ) の
  * 範囲の外側に向けて求めるので、マップごとの追加設定はいらない。
- * 音はリソースパックの iem:raid_end.*、空の色と閃光は {@link ScreenEffectService} がこのクラスを見てかける。
+ * 音はリソースパックの iem:raid_end.*、予兆の空の色と起爆の閃光は {@link ScreenEffectService} がこのクラスを見てかける。
+ * ミサイルから先の空と雲はリソースパックのシェーダーが描き、{@link EmpSkySignal} がその開始を伝える。
  */
 public final class RaidEndSequence {
 
@@ -48,7 +50,11 @@ public final class RaidEndSequence {
     private static final Key PRECURSOR_1 = Key.key("iem", "emp_precursor_1");
     private static final Key PRECURSOR_2 = Key.key("iem", "emp_precursor_2");
     private static final Key PRECURSOR_3 = Key.key("iem", "emp_precursor_3");
-    private static final Key AURORA = Key.key("iem", "emp_aurora");
+
+    /** ミサイルの発射から1発目の起爆まで。iem_emp_sky.glsl の EMP_FLIGHT (3秒) と同じにする */
+    private static final int MISSILE_FLIGHT_TICKS = 60;
+    /** 2発目の起爆の遅れ。iem_emp_sky.glsl の EMP_SECOND_DELAY (0.6秒) と同じにする */
+    private static final int SECOND_BLAST_DELAY_TICKS = 12;
 
     /** うなりの音の長さ (10.2秒) に合わせて鳴らし直す間隔 */
     private static final int HUM_INTERVAL_SECONDS = 10;
@@ -80,6 +86,7 @@ public final class RaidEndSequence {
     private int timeLeft = Integer.MAX_VALUE;
     private boolean warned;
     private boolean precursorStarted;
+    private boolean launched;
     private boolean detonated;
 
     public RaidEndSequence(ImpossbleEscapeMC plugin, RaidMap map) {
@@ -104,10 +111,10 @@ public final class RaidEndSequence {
             warned = true;
             online.forEach(this::sendWarning);
         }
-        if (!detonated && timeLeft <= empSeconds) {
-            detonated = true;
-            online.forEach(this::detonate);
-            return;
+        // ミサイルの飛行時間だけ前に発射し、残り empSeconds で起爆させる
+        if (!launched && timeLeft <= empSeconds + MISSILE_FLIGHT_TICKS / 20) {
+            launched = true;
+            online.forEach(this::launchMissiles);
         }
         if (detonated || timeLeft > precursorSeconds) return;
 
@@ -128,18 +135,18 @@ public final class RaidEndSequence {
         }
     }
 
-    /** 今の段階で空にかけるポストエフェクト。予兆は3段階でだんだん濃くし、起爆後はオーロラ */
+    /** 今の段階で空にかけるポストエフェクト。予兆は3段階でだんだん濃くする。起爆後の空はシェーダーが描くのでかけない */
     public Key skyEffect() {
-        if (timeLeft <= empSeconds) return AURORA;
-        if (timeLeft > precursorSeconds) return null;
+        if (detonated || timeLeft > precursorSeconds) return null;
         double progress = precursorProgress();
         if (progress < 1.0 / 3.0) return PRECURSOR_1;
         return progress < 2.0 / 3.0 ? PRECURSOR_2 : PRECURSOR_3;
     }
 
-    /** レイドの終了時に、終盤の音を全員分止める */
+    /** レイドの終了時に、終盤の音と空の演出を全員分止める */
     public void stop() {
         for (UUID id : audible) {
+            EmpSkySignal.stop(id);
             Player player = Bukkit.getPlayer(id);
             if (player != null) stopSounds(player);
         }
@@ -167,13 +174,25 @@ public final class RaidEndSequence {
         audible.add(player.getUniqueId());
     }
 
+    /** ミサイル2発が地平線から飛来する。空の演出はここから始まり、飛行時間の後に起爆する */
+    private void launchMissiles(Player player) {
+        EmpSkySignal.start(player);
+        audible.add(player.getUniqueId());
+        player.playSound(player, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, SoundCategory.MASTER, 0.8f, 0.5f);
+        player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
+                .append(Component.text("何か上がった――ミサイルだ、2発!", NamedTextColor.WHITE)));
+        later(player, MISSILE_FLIGHT_TICKS, this::detonate);
+    }
+
     private void detonate(Player player) {
+        detonated = true;
         player.stopSound(SOUND_SIREN);
         player.stopSound(SOUND_HUM);
         player.playSound(player, SOUND_EMP_BLAST, SoundCategory.MASTER, 1.0f, 1.0f);
         player.playSound(player, SOUND_EAR_RINGING, SoundCategory.MASTER, 0.9f, 1.0f);
-        audible.add(player.getUniqueId());
         ScreenEffectService.playEmpFlash(player);
+        later(player, SECOND_BLAST_DELAY_TICKS,
+                p -> p.playSound(p, SOUND_EMP_BLAST, SoundCategory.MASTER, 0.7f, 0.9f));
 
         player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
                 .append(Component.text("上空で閃光――EMPだ、急いで脱出し――", NamedTextColor.WHITE)));
@@ -199,11 +218,12 @@ public final class RaidEndSequence {
         player.playSound(player, Sound.UI_BUTTON_CLICK, SoundCategory.MASTER, 0.6f, 1.6f);
     }
 
-    /** レイドを抜けた (脱出・死亡・切断) プレイヤーの終盤の音を止める */
+    /** レイドを抜けた (脱出・死亡・切断) プレイヤーの終盤の音と空の演出を止める */
     private void stopForDeparted(Set<UUID> players) {
         for (UUID id : new ArrayList<>(audible)) {
             if (players.contains(id)) continue;
             audible.remove(id);
+            EmpSkySignal.stop(id);
             Player player = Bukkit.getPlayer(id);
             if (player != null) stopSounds(player);
         }

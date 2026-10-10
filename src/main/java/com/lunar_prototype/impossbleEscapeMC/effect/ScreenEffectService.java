@@ -43,7 +43,7 @@ import java.util.UUID;
  * エフェクト本体 (assets/iem/post_effect/*.json と shaders/post/*.fsh) はサーバーのリソースパックで配る。
  * クライアントは送られた順にポストエフェクトを重ねて描くため、次の層を下から順に重ねる。
  * <ol>
- *   <li>空: レイド終盤は空だけを染める iem:emp_precursor_* → iem:emp_aurora ({@link RaidEndSequence} が段階を決める)</li>
+ *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
  *   <li>色味: レイド中は常に iem:raid_grade</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
