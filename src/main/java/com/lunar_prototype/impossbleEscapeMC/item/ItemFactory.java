@@ -68,8 +68,8 @@ public class ItemFactory {
             meta.setLore(lore);
 
             meta.setMaxStackSize(1);
+            TooltipStyle.forRarity(attDef.rarity).applyTo(meta);
             item.setItemMeta(meta);
-            applyTooltipStyle(item, attDef.rarity);
             return item;
         }
 
@@ -89,8 +89,8 @@ public class ItemFactory {
             if (ammoDef.customModelData != 0) {
                 meta.setCustomModelData(ammoDef.customModelData);
             }
+            TooltipStyle.forRarity(ammoDef.rarity).applyTo(meta);
             item.setItemMeta(meta);
-            applyTooltipStyle(item, ammoDef.rarity);
         } else {
             Material mat = Material.matchMaterial(def.material);
             if (mat == null)
@@ -221,8 +221,8 @@ public class ItemFactory {
             String finalName = rarityColor + ChatColor.translateAlternateColorCodes('&', def.displayName);
             meta.setDisplayName(finalName);
 
+            TooltipStyle.forRarity(def.rarity).applyTo(meta);
             item.setItemMeta(meta);
-            applyTooltipStyle(item, def.rarity);
         }
 
         item.setItemMeta(meta);
@@ -469,6 +469,7 @@ public class ItemFactory {
         }
 
         meta.setLore(lore);
+        TooltipStyle.forRarity(rarity).applyTo(meta);
         item.setItemMeta(meta);
 
         // --- 耐久値バー同期 ---
@@ -497,17 +498,6 @@ public class ItemFactory {
         return color + "★".repeat(Math.max(1, rarity)) + "§8" + "☆".repeat(Math.max(0, 5 - rarity));
     }
 
-    private static void applyTooltipStyle(ItemStack item, int rarity) {
-        String styleId = switch (rarity) {
-            case 2 -> "green_frame.png";
-            case 3 -> "blue_frame.png";
-            case 4 -> "purple_frame.png";
-            case 5 -> "gold_frame.png";
-            default -> "white_frame.png";
-        };
-        item.setData(DataComponentTypes.TOOLTIP_STYLE, Key.key("minecraft", styleId));
-    }
-
     public static ItemStack createCostSlotPlaceholder() {
         ItemStack item = new ItemStack(Material.BARRIER);
         ItemMeta meta = item.getItemMeta();
@@ -516,6 +506,7 @@ public class ItemFactory {
             List<String> lore = new ArrayList<>();
             lore.add("§7他のアイテムのサイズによって占有されています");
             meta.setLore(lore);
+            TooltipStyle.RED.applyTo(meta);
             meta.getPersistentDataContainer().set(PDCKeys.COST_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN, (byte) 1);
             meta.setMaxStackSize(1);
             item.setItemMeta(meta);
