@@ -138,8 +138,7 @@ public class BackpackModule implements IModule {
             if (item == null || item.getType().isAir() || !item.hasItemMeta()) continue;
             if (isBackpackItem(item)) continue; // バックパックinバックパック禁止ポリシー
 
-            int per = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, 0);
-            raw += per * item.getAmount();
+            raw += com.lunar_prototype.impossbleEscapeMC.item.ItemWeights.totalWeightOf(item);
         }
 
         double reduction = getBackpackReduction(backpackItem);
