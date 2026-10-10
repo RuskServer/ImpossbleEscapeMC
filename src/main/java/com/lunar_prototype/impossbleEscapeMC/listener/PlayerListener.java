@@ -37,6 +37,12 @@ public class PlayerListener implements Listener {
     /** 足音をSCAVに最後に知らせたtick。移動イベントは毎tick来るため、知らせる間隔を空ける */
     private final Map<UUID, Integer> lastFootstepAlertTick = new HashMap<>();
     private static final int FOOTSTEP_ALERT_INTERVAL_TICKS = 10;
+    /**
+     * 足音をSCAVに知らせ始めるまで音を出し続ける時間 (tick)。歩きは2秒続けて初めて気付かれるが、
+     * 走る音は大きいので短くする (走って一気に詰めてくる相手に、足音でも気付けないのを防ぐ)
+     */
+    private static final int FOOTSTEP_ALERT_WALK_TICKS = 40;
+    private static final int FOOTSTEP_ALERT_SPRINT_TICKS = 10;
     private final java.util.Random random = new java.util.Random();
 
     public PlayerListener(com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin) {
@@ -105,9 +111,10 @@ public class PlayerListener implements Listener {
             int ticks = continuousNoiseTicks.getOrDefault(entity.getUniqueId(), 0) + 1;
             continuousNoiseTicks.put(entity.getUniqueId(), ticks);
 
-            // 2秒(40ticks)以上音を出している場合
+            // 歩きは2秒、走りは0.5秒以上音を出している場合
             // SCAV自身の足音で仲間のSCAVを警戒させない (足音の効果音はプレイヤー向けにこの後も鳴らす)
-            if (ticks >= 40 && !ScavSpawner.isScav(entity.getUniqueId())) {
+            int alertTicks = isSprinting ? FOOTSTEP_ALERT_SPRINT_TICKS : FOOTSTEP_ALERT_WALK_TICKS;
+            if (ticks >= alertTicks && !ScavSpawner.isScav(entity.getUniqueId())) {
                 int now = org.bukkit.Bukkit.getCurrentTick();
                 Integer last = lastFootstepAlertTick.get(entity.getUniqueId());
                 if (last == null || now - last >= FOOTSTEP_ALERT_INTERVAL_TICKS) {

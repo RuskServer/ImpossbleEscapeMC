@@ -21,6 +21,8 @@ public class ScavVision {
     private static final double FOV_ANGLE = 120.0;
     /** これより近い相手には、視野の外でも気付く (ブロック) */
     private static final double CLOSE_AWARENESS_DISTANCE = 4.0;
+    /** しゃがまずに動いている相手には、視野の外でもこの距離まで気付く (動きと物音は視界の端でも分かる) */
+    private static final double MOVING_AWARENESS_DISTANCE = 8.0;
     private LosSnapshot lastLosSnapshot = null;
     private float alertness = 0.25f;
 
@@ -162,8 +164,11 @@ public class ScavVision {
         double angle = direction.angle(toTarget) * 180 / Math.PI;
         double relaxedFovScale = 0.8 + (0.25 * alertness);
         double currentFov = isFiring ? 200.0 : (FOV_ANGLE * relaxedFovScale);
-        // すぐ近く (足音や気配が分かる距離) なら、視野の外でも気付く (壁越しは下の射線判定で弾く)
-        if (angle > currentFov / 2.0 && dist > CLOSE_AWARENESS_DISTANCE) return false;
+        // すぐ近く (足音や気配が分かる距離) なら、視野の外でも気付く (壁越しは下の射線判定で弾く)。
+        // しゃがまずに動いている相手は、もう少し遠くまで気付く
+        boolean sneaking = target instanceof org.bukkit.entity.Player p && p.isSneaking();
+        double awareness = !sneaking && horizontalSpeed(target) > 0.1 ? MOVING_AWARENESS_DISTANCE : CLOSE_AWARENESS_DISTANCE;
+        if (angle > currentFov / 2.0 && dist > awareness) return false;
 
         double visibility = 1.0;
         int light = targetLoc.getBlock().getLightLevel();
@@ -171,7 +176,7 @@ public class ScavVision {
         else if (light < 8) visibility *= 0.5;
         else if (light < 12) visibility *= 0.8;
 
-        if (target instanceof org.bukkit.entity.Player p && p.isSneaking()) visibility *= 0.6;
+        if (sneaking) visibility *= 0.6;
         if (horizontalSpeed(target) > 0.1) visibility *= 1.2; // 歩き (約0.22ブロック/tick) 以上で動いている相手は目立つ
         if (isFiring) visibility = 5.0; 
 
