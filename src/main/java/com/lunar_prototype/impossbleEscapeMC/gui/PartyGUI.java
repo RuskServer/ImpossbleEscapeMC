@@ -17,6 +17,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -55,7 +56,7 @@ public class PartyGUI implements Listener {
     public PartyGUI(Player player) {
         this.player = player;
         this.manager = ImpossbleEscapeMC.getInstance().getPartyManager();
-        this.inventory = Bukkit.createInventory(null, SIZE, Component.text("PDA - Party").decoration(TextDecoration.ITALIC, false));
+        this.inventory = Bukkit.createInventory(null, SIZE, GuiBackground.PARTY.title());
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }
 
@@ -67,8 +68,6 @@ public class PartyGUI implements Listener {
     private void setupGUI() {
         inventory.clear();
         memberBySlot.clear();
-        ItemStack bg = item(Material.GRAY_STAINED_GLASS_PANE, Component.empty());
-        for (int i = 0; i < SIZE; i++) inventory.setItem(i, bg);
 
         Party party = manager.getParty(player.getUniqueId());
         if (party == null) {
@@ -234,6 +233,15 @@ public class PartyGUI implements Listener {
     private void refresh() {
         setupGUI();
         player.updateInventory();
+    }
+
+    /** 背景の画像を見せるため空きスロットを残しているので、ドラッグで物を置けないようにする */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().equals(inventory)
+                && event.getRawSlots().stream().anyMatch(slot -> slot < inventory.getSize())) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler

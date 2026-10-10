@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -13,6 +14,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -31,7 +33,7 @@ public class MarketSellGUI implements Listener {
     public MarketSellGUI(Player player, MarketModule marketModule) {
         this.player = player;
         this.marketModule = marketModule;
-        this.inventory = Bukkit.createInventory(null, 45, Component.text("Market - Select Item to Sell").decoration(TextDecoration.ITALIC, false));
+        this.inventory = Bukkit.createInventory(null, 45, GuiBackground.MARKET_SELL.title());
     }
 
     public void open() {
@@ -43,11 +45,11 @@ public class MarketSellGUI implements Listener {
     private void setupGUI() {
         inventory.clear();
 
+        // メインインベントリ (0-35) を同じ位置に並べる。クリックしたスロットの番号で元のアイテムを引くため、詰めて並べない
         ItemStack[] contents = player.getInventory().getContents();
-        int slot = 0;
-        for (ItemStack item : contents) {
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack item = contents[slot];
             if (item == null || item.getType() == Material.AIR) continue;
-            if (slot >= 36) break; // メインインベントリのみ
 
             ItemStack icon = item.clone();
             boolean isFir = marketModule.isFir(item);
@@ -75,7 +77,7 @@ public class MarketSellGUI implements Listener {
             
             meta.lore(lore);
             icon.setItemMeta(meta);
-            inventory.setItem(slot++, icon);
+            inventory.setItem(slot, icon);
         }
 
         // 戻るボタン
@@ -114,6 +116,15 @@ public class MarketSellGUI implements Listener {
 
             // 価格設定画面へ
             new MarketPriceGUI(player, marketModule, original, slot).open();
+        }
+    }
+
+    /** 背景の画像を見せるため空きスロットを残しているので、ドラッグで物を置けないようにする */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().equals(inventory)
+                && event.getRawSlots().stream().anyMatch(slot -> slot < inventory.getSize())) {
+            event.setCancelled(true);
         }
     }
 

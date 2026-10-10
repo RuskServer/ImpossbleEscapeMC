@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stash;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import net.kyori.adventure.text.Component;
@@ -14,6 +15,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -30,7 +32,7 @@ public class StashPageSelectorGUI implements Listener {
     public StashPageSelectorGUI(Player player, StashModule stashModule) {
         this.player = player;
         this.stashModule = stashModule;
-        this.inventory = Bukkit.createInventory(null, 27, Component.text("Stash - Page Selection").decoration(TextDecoration.ITALIC, false));
+        this.inventory = Bukkit.createInventory(null, 27, GuiBackground.STASH_SELECT.title());
         
         PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
         this.data = dataModule.getPlayerData(player.getUniqueId());
@@ -44,16 +46,8 @@ public class StashPageSelectorGUI implements Listener {
     }
 
     private void setupGUI() {
+        // 背景はタイトルの画像で描くので、空きスロットは空のままにする
         inventory.clear();
-        
-        // 背景
-        ItemStack bg = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta bgMeta = bg.getItemMeta();
-        bgMeta.displayName(Component.empty());
-        bg.setItemMeta(bgMeta);
-        for (int i = 0; i < 27; i++) {
-            inventory.setItem(i, bg);
-        }
 
         int maxPage = stashModule.getMaxUnlockedPage(data.getStashLevel());
 
@@ -107,6 +101,15 @@ public class StashPageSelectorGUI implements Listener {
         } else if (slot == 22) {
             player.closeInventory();
             new com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI(player).open();
+        }
+    }
+
+    /** 背景の画像を見せるため空きスロットを残しているので、ドラッグで物を置けないようにする */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().equals(inventory)
+                && event.getRawSlots().stream().anyMatch(slot -> slot < inventory.getSize())) {
+            event.setCancelled(true);
         }
     }
 

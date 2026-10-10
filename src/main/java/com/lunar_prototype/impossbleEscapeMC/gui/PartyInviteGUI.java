@@ -5,7 +5,6 @@ import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.party.PartyManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -14,8 +13,8 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,7 +39,8 @@ public class PartyInviteGUI implements Listener {
 
     private final Player player;
     private final PartyManager manager;
-    private final Inventory inventory;
+    /** タイトルにページ数を出すので、開くときに作る */
+    private Inventory inventory;
     private final Map<Integer, UUID> targetBySlot = new HashMap<>();
     private int page;
     private int pageCount = 1;
@@ -49,11 +49,12 @@ public class PartyInviteGUI implements Listener {
         this.player = player;
         this.manager = ImpossbleEscapeMC.getInstance().getPartyManager();
         this.page = page;
-        this.inventory = Bukkit.createInventory(null, SIZE, Component.text("PDA - Party 招待").decoration(TextDecoration.ITALIC, false));
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }
 
     public void open() {
+        updatePages(candidates());
+        this.inventory = Bukkit.createInventory(null, SIZE, GuiBackground.PARTY_INVITE.pagedTitle(page, pageCount));
         setupGUI();
         player.openInventory(inventory);
     }
@@ -73,8 +74,7 @@ public class PartyInviteGUI implements Listener {
         targetBySlot.clear();
 
         List<Player> candidates = candidates();
-        pageCount = Math.max(1, (candidates.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-        page = Math.max(0, Math.min(page, pageCount - 1));
+        updatePages(candidates);
 
         int start = page * PAGE_SIZE;
         for (int i = 0; i < PAGE_SIZE && start + i < candidates.size(); i++) {
@@ -89,12 +89,15 @@ public class PartyInviteGUI implements Listener {
                     text("プレイヤーを招待できます。", NamedTextColor.GRAY)));
         }
 
-        ItemStack bar = item(Material.BLACK_STAINED_GLASS_PANE, Component.empty());
-        for (int i = PAGE_SIZE; i < SIZE; i++) inventory.setItem(i, bar);
         if (page > 0) inventory.setItem(PREV_SLOT, item(Material.ARROW, text("前のページ", NamedTextColor.WHITE)));
         if (page < pageCount - 1) inventory.setItem(NEXT_SLOT, item(Material.ARROW, text("次のページ", NamedTextColor.WHITE)));
         inventory.setItem(BACK_SLOT, item(Material.BARRIER, text("パーティー画面に戻る", NamedTextColor.RED),
                 text((page + 1) + " / " + pageCount + " ページ", NamedTextColor.GRAY)));
+    }
+
+    private void updatePages(List<Player> candidates) {
+        pageCount = Math.max(1, (candidates.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+        page = Math.max(0, Math.min(page, pageCount - 1));
     }
 
     @EventHandler
@@ -107,11 +110,10 @@ public class PartyInviteGUI implements Listener {
             player.closeInventory();
             new PartyGUI(player).open();
         } else if (slot == PREV_SLOT && page > 0) {
-            page--;
-            setupGUI();
+            // ページ数はタイトルに出ているので、開き直して更新する
+            new PartyInviteGUI(player, page - 1).open();
         } else if (slot == NEXT_SLOT && page < pageCount - 1) {
-            page++;
-            setupGUI();
+            new PartyInviteGUI(player, page + 1).open();
         } else if (targetBySlot.containsKey(slot)) {
             Player target = Bukkit.getPlayer(targetBySlot.get(slot));
             if (target == null) {
@@ -123,6 +125,15 @@ public class PartyInviteGUI implements Listener {
             manager.invitePlayer(player, target);
             player.closeInventory();
             new PartyGUI(player).open();
+        }
+    }
+
+    /** 背景の画像を見せるため空きスロットを残しているので、ドラッグで物を置けないようにする */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().equals(inventory)
+                && event.getRawSlots().stream().anyMatch(slot -> slot < inventory.getSize())) {
+            event.setCancelled(true);
         }
     }
 

@@ -1,30 +1,38 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentLayout;
+
+import java.util.Locale;
+
 public enum AttachmentSlot {
-    RECEIVER(0, 10),
-    SIGHT(1, 11),
-    BARREL(2, 12),
-    MAGAZINE(3, 14),
-    SPARE_MAGAZINE(4, 15),
-    REAR_GRIP(5, 16),
-    STOCK(6, 19);
+    RECEIVER(0),
+    SIGHT(1),
+    BARREL(2),
+    MAGAZINE(3),
+    SPARE_MAGAZINE(4),
+    REAR_GRIP(5),
+    STOCK(6);
 
     // 拡張用: UNDER_BARREL, LIGHT, LASER etc.
 
     private final int id;
-    private final int guiSlot;
 
-    AttachmentSlot(int id, int guiSlot) {
+    AttachmentSlot(int id) {
         this.id = id;
-        this.guiSlot = guiSlot;
     }
 
     public int getId() {
         return id;
     }
 
+    /** アタッチメント画面での位置 (銃の形に合わせた並び。{@link AttachmentLayout}) */
     public int getGuiSlot() {
-        return guiSlot;
+        return AttachmentLayout.position(key());
+    }
+
+    /** データパックのスロット名と同じ形の名前 (sight, rear_grip など) */
+    public String key() {
+        return name().toLowerCase(Locale.ROOT);
     }
 
     public static AttachmentSlot fromName(String name) {

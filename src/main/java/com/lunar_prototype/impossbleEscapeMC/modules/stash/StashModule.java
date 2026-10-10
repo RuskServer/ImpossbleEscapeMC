@@ -2,6 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.stash;
 
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
+import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
@@ -35,7 +36,9 @@ public class StashModule implements IModule {
 
         String serialized = data.getStashPages().get(page);
         Inventory inv;
-        Component title = Component.text("Stash - Page " + page);
+        // 背景は段数ごとに別の画像。帯の液晶にページ番号を出す
+        GuiBackground background = rows == 6 ? GuiBackground.STASH_6 : GuiBackground.STASH_3;
+        Component title = background.title(page + "/" + getMaxUnlockedPage(data.getStashLevel()));
         
         try {
             if (serialized != null) {
