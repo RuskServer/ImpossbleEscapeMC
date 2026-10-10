@@ -114,6 +114,38 @@ public class ScavController {
 
     private Chunk currentChunk = null;
     private Location lastKnownLocation = null;
+    /** 見失った相手の居場所の推定。lastKnownLocation は見えていない間、この推定の一番ありそうな場所になる */
+    private final OpponentBelief belief = new OpponentBelief();
+
+    // --- 制圧射撃 (見えない相手が出てきそうな所へ単発を撃ち込む) ---
+    /** 最後に見えてからこのtick以内の相手だけ制圧する (古い推定へ撃ち続けない) */
+    private static final int SUPPRESS_MEMORY_TICKS = 100;
+    /** 出てきそうな所への集まりがこれ以上の時だけ撃つ */
+    private static final double SUPPRESS_MIN_SHARE = 0.4;
+    /** 弾がこの割合を切ったら撃たない (顔を出された時のために残す) */
+    private static final double SUPPRESS_MIN_AMMO_RATIO = 0.4;
+    /** 交戦距離の何倍までの所を撃つか */
+    private static final double SUPPRESS_RANGE_FACTOR = 1.5;
+    private static final double SUPPRESS_AIM_TOLERANCE_DEGREES = 4.0;
+    /** 単発の間隔 (ms)。毎秒2〜3発 */
+    private static final long SUPPRESS_INTERVAL_MS = 330;
+    private static final long SUPPRESS_INTERVAL_JITTER_MS = 170;
+    /** 人を狙っていないぶんの追加のばらつき */
+    private static final double SUPPRESS_EXTRA_SPREAD = 0.04;
+    /** 何発撃ったら間を置くか、置く時間 (tick) */
+    private static final int SUPPRESS_BURST_MIN = 3;
+    private static final int SUPPRESS_BURST_MAX = 5;
+    private static final int SUPPRESS_PAUSE_TICKS = 30;
+    private static final int SUPPRESS_PAUSE_JITTER_TICKS = 40;
+    private int suppressShots = 0;
+    /** 最後に制圧射撃をしたtick (味方はこれを見て、援護を受けて動く) */
+    private int lastSuppressTick = Integer.MIN_VALUE / 2;
+    /** 制圧射撃をしたとみなす時間 (tick) */
+    private static final int SUPPRESSING_TICKS = 30;
+    /** 味方が動いている時は、集まりが薄くても制圧して援護する */
+    private static final double SUPPRESS_COVER_MIN_SHARE = 0.25;
+    private int suppressBurst = SUPPRESS_BURST_MIN;
+    private int suppressPauseUntilTick = 0;
     private int searchTicks = 0;
     private float suppression = 0.0f;
     private boolean isAlerted = false;
@@ -130,6 +162,8 @@ public class ScavController {
     private static final double LOSS_PREDICTION_MAX_DISTANCE = 6.0;
     /** 見失った直後に予測地点へ走って追うステップ数 (約6秒)。到着したら慎重な捜索に切り替える */
     private static final int PURSUIT_STEPS = 40;
+    /** 撃たれた方向から推す、撃った相手の位置の誤差 (ブロック) */
+    private static final double ATTACKER_LOCATION_SIGMA = 1.5;
     private static final double PURSUIT_SPEED = 1.5;
     private UUID lastSeenTargetId = null;
     private Location lastSeenLocation = null;
@@ -290,7 +324,10 @@ public class ScavController {
     public TacticalPositioning getPositioning() { return positioning; }
     public ScavBrain getBrain() { return brain; }
     public ScavBrain.BrainLevel getBrainLevel() { return brainLevel; }
-    public void setLastKnownLocation(Location loc) { this.lastKnownLocation = loc; }
+    public void setLastKnownLocation(Location loc) {
+        this.lastKnownLocation = loc;
+        if (loc != null) belief.reset(loc, null); else belief.clear();
+    }
     public void setAlerted(boolean alerted) { this.isAlerted = alerted; }
     public int getSearchTicks() { return searchTicks; }
     public void setSearchTicks(int ticks) { this.searchTicks = ticks; }
@@ -388,7 +425,7 @@ public class ScavController {
                     handleSearching();
                     if (lastKnownLocation != null && !isSprinting) {
                         isPreAiming = true;
-                        updatePreAim(lastKnownLocation);
+                        preAimAtThreat();
                     } else {
                         isPreAiming = false;
                     }
@@ -401,6 +438,7 @@ public class ScavController {
             handleSearching();
         }
 
+        updateBelief(target, canSeeTarget);
         updateBehaviorState();
         // 自分で敵を捉えていない時は、呼ばれていれば味方の救援に向かう
         boolean assisting = target == null && lastKnownLocation == null && handleAssist();
@@ -544,7 +582,7 @@ public class ScavController {
             isHoldingAngle = false;
         } else if (moveAction == 8 && !assisting) {
             isHoldingAngle = true;
-            if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
+            preAimAtThreat();
             tactics.stopMoving();
         } else if (tactics.getTacticalCoverLoc() != null && tactics.getCoverStayTicks() > 0) {
             isHoldingAngle = false;
@@ -570,10 +608,10 @@ public class ScavController {
         checkAndInteractWithDoors();
 
         // 射撃 (経路探索で回り込んでいる間は進む方向を向いているため撃たない)
-        if (actions[1] == 0 && !followingPath) {
+        if (!followingPath) {
             long now = System.currentTimeMillis();
             long interval = (long) (60000.0 / weapon.rpm());
-            if (canSeeTarget) {
+            if (canSeeTarget && actions[1] == 0) {
                 applyAimToEntity();
                 if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
                     boolean fullAuto = useFullAuto(weapon, target);
@@ -603,20 +641,72 @@ public class ScavController {
                         afterTriggerPull(fullAuto, now);
                     }
                 }
-            } else if (isPreAiming && Math.random() < 0.05) {
-                applyAimToEntity();
-                if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
-                    if (weapon.fire(0.3, false)) {
-                        lastMobShotTime = now;
-                        afterTriggerPull(false, now);
-                    }
-                }
-            } else if (target != null) {
+            } else if (!canSeeTarget && suppressiveFire(weapon, now)) {
+                // 見えない相手が出てきそうな所へ撃ち込んだ
+            } else if (actions[1] == 0 && target != null) {
                 tactics.handleJumpShot(target);
             }
         }
 
         logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
+    }
+
+    /**
+     * 制圧射撃: 見失って間もない相手が出てきそうな所 (遮蔽の端) へ、単発を間隔を空けて撃ち込み、顔を出させない。
+     * 撃ち込む所は自分の推定 (見た・聞いた・撃たれたことだけから作る) で決め、射線の通る所にだけ撃つ。
+     * 数発撃ったら間を置き、顔を出された時のために弾を残す
+     *
+     * @return 撃った場合true
+     */
+    private boolean suppressiveFire(ScavWeapon weapon, long now) {
+        int tick = Bukkit.getCurrentTick();
+        if (tick - lastTargetVisibleTick > SUPPRESS_MEMORY_TICKS) return false;
+        if (weaponReadyInTicks > 0 || weapon.ammoRatio() < SUPPRESS_MIN_AMMO_RATIO || tactics.getPeekPhase() > 0) return false;
+        // 味方が立ち位置を移っている間は、その援護として撃つ (間を置かず、出てきそうな所が多少ばらけていても撃つ)
+        boolean coveringAlly = false;
+        for (ScavController ally : squad.getNearbyAllies()) {
+            if (ally.isRelocating()) {
+                coveringAlly = true;
+                break;
+            }
+        }
+        if (tick < suppressPauseUntilTick && !coveringAlly) return false;
+        OpponentBelief.Estimate emergence = belief.emergence(tick);
+        if (emergence == null || emergence.mass() < (coveringAlly ? SUPPRESS_COVER_MIN_SHARE : SUPPRESS_MIN_SHARE)) return false;
+        Location point = emergence.location().clone().add(0, 1.5, 0);
+        Location eye = scav.getEyeLocation();
+        if (point.getWorld() != eye.getWorld() || eye.distance(point) > brain.getEngagementRange() * SUPPRESS_RANGE_FACTOR) return false;
+        Vector toPoint = point.toVector().subtract(eye.toVector());
+        double distance = toPoint.length();
+        if (distance < 1.0E-3) return false;
+        toPoint.multiply(1.0 / distance);
+        org.bukkit.util.RayTraceResult blocked = eye.getWorld().rayTraceBlocks(eye, toPoint, distance, org.bukkit.FluidCollisionMode.NEVER, true);
+        if (blocked != null && blocked.getHitBlock() != null) return false; // 壁に撃ち込まない
+        updatePreAim(emergence.location());
+        // 照準がその所へ向いてから撃つ
+        if (currentAimVector == null || Math.toDegrees(currentAimVector.angle(toPoint)) > SUPPRESS_AIM_TOLERANCE_DEGREES) return false;
+        long gap = SUPPRESS_INTERVAL_MS + (long) (Math.random() * SUPPRESS_INTERVAL_JITTER_MS);
+        if (now < fireHoldUntil || now - lastMobShotTime < gap) return false;
+        applyAimToEntity();
+        if (!weapon.fire(baseSpread() + suppression * SUPPRESSION_SPREAD + SUPPRESS_EXTRA_SPREAD, false)) return false;
+        lastMobShotTime = now;
+        lastSuppressTick = tick;
+        if (++suppressShots >= suppressBurst) {
+            suppressShots = 0;
+            suppressBurst = SUPPRESS_BURST_MIN + (int) (Math.random() * (SUPPRESS_BURST_MAX - SUPPRESS_BURST_MIN + 1));
+            suppressPauseUntilTick = tick + SUPPRESS_PAUSE_TICKS + (int) (Math.random() * SUPPRESS_PAUSE_JITTER_TICKS);
+        }
+        return true;
+    }
+
+    /** 最近、見えない相手へ制圧射撃をしたか */
+    public boolean isSuppressing() {
+        return Bukkit.getCurrentTick() - lastSuppressTick <= SUPPRESSING_TICKS;
+    }
+
+    /** 選んだ立ち位置へ移っている途中か (味方はこれを見て制圧射撃で援護する) */
+    public boolean isRelocating() {
+        return positioning.current() != null && arrivedSpot == null;
     }
 
     /** ランクごとの基本の弾のばらつき (BulletTaskの拡散量と同じ尺度)。高ランクほど正確 */
@@ -712,6 +802,7 @@ public class ScavController {
             predicted.add(dir.multiply(reach));
         }
         lastKnownLocation = predicted;
+        belief.reset(lastSeenLocation, observedVelocity);
         // 立ち位置を選んで戦っている間は、見失った (多くは自分から遮蔽に引っ込んだ) 位置へ走って追わない。
         // 最後に分かった位置は立ち位置の選び直しに使う
         pursuitSteps = positioning.current() != null ? 0 : PURSUIT_STEPS;
@@ -730,7 +821,7 @@ public class ScavController {
             pursuitSteps--;
             if (lastKnownLocation.getWorld() == scav.getWorld() && scav.getLocation().distance(lastKnownLocation) > 2.5) {
                 scav.getPathfinder().moveTo(lastKnownLocation, PURSUIT_SPEED);
-                updatePreAim(lastKnownLocation);
+                preAimAtThreat();
                 return;
             }
             pursuitSteps = 0; // 予測地点に着いた: ここからは角を確認しながら捜索する
@@ -769,6 +860,13 @@ public class ScavController {
         if (currentAimVector == null) currentAimVector = idealDir.clone();
         aimErrorYaw = (aimErrorYaw + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
         aimErrorPitch = (aimErrorPitch + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
+    }
+
+    /** 見えていない相手へ照準を向けておく。出てきそうな所 (遮蔽の端) が分かればそこへ、なければ一番ありそうな場所へ */
+    private void preAimAtThreat() {
+        OpponentBelief.Estimate emergence = belief.emergence(Bukkit.getCurrentTick());
+        if (emergence != null) updatePreAim(emergence.location());
+        else if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
     }
 
     /** 見えていない相手がいそうな場所へ照準を向けておく。照準は tickAim が毎tick寄せる */
@@ -881,7 +979,10 @@ public class ScavController {
                 double lead = Math.min(5.0, 1.0 + (sound.movementSpeed * 0.35) + (arc == SoundArc.BACK ? 1.25 : 0.0));
                 inferred.add(sound.movementDirection.clone().normalize().multiply(lead));
             }
-            lastKnownLocation = inferred;
+            // 音の位置は誤差込みの手がかりとして推定に入れる (前の推定と合わせて、一番ありそうな場所を使う)
+            belief.observeNear(inferred, Math.max(1.0, error * 0.6));
+            OpponentBelief.Estimate estimate = belief.estimate();
+            lastKnownLocation = estimate != null ? estimate.location() : inferred;
         }
 
         Vector toSource = source.toVector().subtract(scav.getEyeLocation().toVector());
@@ -978,6 +1079,8 @@ public class ScavController {
             Vector toAttacker = living.getLocation().toVector().subtract(scav.getLocation().toVector());
             // 同じ位置からの被弾 (向きが決まらない) では振り向かない
             if (toAttacker.lengthSquared() > 1.0E-6) scav.teleport(scav.getLocation().setDirection(toAttacker.normalize()));
+            // 撃たれた方向から、撃った相手のおおよその位置が分かる
+            belief.observeNear(living.getLocation(), ATTACKER_LOCATION_SIGMA);
             if (scav.getTarget() == null) {
                 scav.setTarget(living);
                 lastKnownLocation = living.getLocation();
@@ -1027,7 +1130,7 @@ public class ScavController {
                 } else {
                     // 撃てるはずの位置から見えない (相手が動いた): しばらく待って選び直す
                     tactics.stopMoving();
-                    if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
+                    preAimAtThreat();
                     if (++positionNoSightSteps >= POSITION_NO_SIGHT_STEPS) {
                         positionNoSightSteps = 0;
                         positioning.invalidate();
@@ -1037,17 +1140,35 @@ public class ScavController {
             case COVER_PEEK -> {
                 tactics.stopMoving();
                 if (!canSeeTarget) {
-                    if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
+                    preAimAtThreat();
                     // 撃てない間 (リロード・ボルト操作など) は顔を出さずに待つ
                     if (weaponReadyInTicks <= PEEK_READY_TICKS) tactics.startPeekTo(spot.peek());
                 }
             }
             case HIDE -> {
                 tactics.stopMoving();
-                if (lastKnownLocation != null) updatePreAim(lastKnownLocation);
+                preAimAtThreat();
             }
         }
         return true;
+    }
+
+    /**
+     * 見えていない相手の居場所の推定を1ステップ進め、一番ありそうな場所を lastKnownLocation にする。
+     * 自分の視界で「見ているのに見えない」場所を消していく (追跡中は視野角なし、手放した後は視野角の内側だけ)
+     */
+    private void updateBelief(LivingEntity target, boolean canSeeTarget) {
+        if (lastKnownLocation == null) {
+            belief.clear();
+            return;
+        }
+        if (canSeeTarget || lastKnownLocation.getWorld() != scav.getWorld()) return;
+        if (!belief.isActive()) belief.reset(lastKnownLocation, null);
+        belief.predict(STEP_TICKS);
+        Location eye = scav.getEyeLocation();
+        belief.observeNotVisible(eye, eye.getDirection(), target != null ? 360.0 : vision.fovDegrees(), vision.maxVisionDistance());
+        OpponentBelief.Estimate estimate = belief.estimate();
+        if (estimate != null) lastKnownLocation = estimate.location();
     }
 
     /** 交戦を始めた・続けている時に呼ぶ。救援に向かうのをやめ、周りの味方を呼ぶ */

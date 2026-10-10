@@ -15,7 +15,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 戦闘記録に基づき、座標ごとの「危険度」と「有利度」を管理するマネージャー。
+ * 戦闘記録に基づく、座標 (2ブロック格子) ごとの戦術影響マップ (Tactical Influence Map)。
+ * 意味と寿命の違う3つの層を持つ。
+ * <ul>
+ *   <li>長期: どこで戦闘が起きやすいか (撃たれた・撃ち込まれた・耐えられた)。数分かけて薄れ、保存される</li>
+ *   <li>危険: SCAVが撃たれた場所。半減期30秒</li>
+ *   <li>射線: プレイヤーの弾が通った所 (相手が狙っている通り道)。半減期8秒</li>
+ * </ul>
+ * 危険・射線は周りのマスへも半分の重みで広げて読む (格子の境目で急に安全にならないように)。
  */
 public class CombatHeatmapManager {
     private static final int GRID_SIZE = 2;
@@ -76,8 +83,18 @@ public class CombatHeatmapManager {
         }
     }
 
+    /** 危険・射線の層の半減期 (秒) と上限 */
+    private static final double DANGER_HALF_LIFE_SECONDS = 30.0;
+    private static final double LANE_HALF_LIFE_SECONDS = 8.0;
+    private static final float SHORT_LAYER_MAX = 10.0f;
+    /** 周りのマスへ広げる重み */
+    private static final float NEIGHBOR_WEIGHT = 0.5f;
+
     private static class GridData {
+        /** 長期の層 (以前のヒートマップの点数) */
         float score = 0;
+        float danger = 0;
+        float lane = 0;
         long lastUpdate;
 
         GridData(float score) {
@@ -85,10 +102,12 @@ public class CombatHeatmapManager {
             this.lastUpdate = System.currentTimeMillis();
         }
 
-        void add(float amount) {
+        void add(TraceType type, float intensity) {
             decay();
-            score += amount;
+            score += type.weight * intensity;
             score = Math.max(-20.0f, Math.min(50.0f, score)); // 上限を50に引き上げ、下限も拡張
+            if (type == TraceType.DANGER) danger = Math.min(SHORT_LAYER_MAX, danger + intensity);
+            if (type == TraceType.SUPPRESSION) lane = Math.min(SHORT_LAYER_MAX, lane + intensity);
             lastUpdate = System.currentTimeMillis();
         }
 
@@ -96,10 +115,11 @@ public class CombatHeatmapManager {
             long now = System.currentTimeMillis();
             long elapsed = now - lastUpdate;
             if (elapsed > 1000) {
-                // 減衰を大幅に緩やかに (0.98 -> 0.998)
-                // 0.998^300 (5分) ≒ 0.54 (半分残る)
-                float decayFactor = (float) Math.pow(0.998, elapsed / 1000.0);
-                score *= decayFactor;
+                double seconds = elapsed / 1000.0;
+                // 長期: 0.998^300 (5分) ≒ 0.54 (半分残る)
+                score *= (float) Math.pow(0.998, seconds);
+                danger *= (float) Math.pow(0.5, seconds / DANGER_HALF_LIFE_SECONDS);
+                lane *= (float) Math.pow(0.5, seconds / LANE_HALF_LIFE_SECONDS);
                 lastUpdate = now;
             }
         }
@@ -107,10 +127,44 @@ public class CombatHeatmapManager {
 
     private static final Map<GridKey, GridData> heatmap = new ConcurrentHashMap<>();
 
+    /** この回数記録するごとに、薄れ切ったマスを捨てる (射線は1発で数十マス増えるため) */
+    private static final int CLEANUP_INTERVAL_RECORDS = 4096;
+    private static int recordsSinceCleanup = 0;
+
     public static void record(Location loc, TraceType type, float intensity) {
         if (loc == null) return;
+        if (++recordsSinceCleanup >= CLEANUP_INTERVAL_RECORDS) {
+            recordsSinceCleanup = 0;
+            cleanup();
+        }
         GridKey key = new GridKey(loc);
-        heatmap.computeIfAbsent(key, k -> new GridData(0)).add(type.weight * intensity);
+        heatmap.computeIfAbsent(key, k -> new GridData(0)).add(type, intensity);
+    }
+
+    /** 最近SCAVが撃たれた場所の近さ (周りのマスへ広げて読む) */
+    public static float danger(Location loc) {
+        return spread(loc, true);
+    }
+
+    /** 最近プレイヤーの弾が通った所の近さ (周りのマスへ広げて読む)。目の高さの位置で読む */
+    public static float fireLane(Location loc) {
+        return spread(loc, false);
+    }
+
+    private static float spread(Location loc, boolean danger) {
+        if (loc == null || loc.getWorld() == null) return 0;
+        GridKey center = new GridKey(loc);
+        float total = 0;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                GridData data = heatmap.get(new GridKey(center.world, center.x + dx, center.y, center.z + dz));
+                if (data == null) continue;
+                data.decay();
+                float value = danger ? data.danger : data.lane;
+                total += (dx == 0 && dz == 0) ? value : value * NEIGHBOR_WEIGHT;
+            }
+        }
+        return total;
     }
 
     public static float getScore(Location loc) {
@@ -159,7 +213,8 @@ public class CombatHeatmapManager {
     public static void cleanup() {
         heatmap.entrySet().removeIf(entry -> {
             entry.getValue().decay();
-            return Math.abs(entry.getValue().score) < 0.01f; // 閾値を下げて維持しやすくする
+            GridData data = entry.getValue();
+            return Math.abs(data.score) < 0.01f && data.danger < 0.01f && data.lane < 0.01f; // 閾値を下げて維持しやすくする
         });
     }
 

@@ -54,6 +54,16 @@ public class ScavVision {
         return lastLosSnapshot;
     }
 
+    /** 新しく見つける時の視野角 (度、全幅)。警戒しているほど広い */
+    public double fovDegrees() {
+        return FOV_ANGLE * (0.8 + (0.25 * alertness));
+    }
+
+    /** 見える最大距離 (ブロック)。警戒しているほど遠い */
+    public double maxVisionDistance() {
+        return MAX_VISION_DISTANCE * (0.85 + (0.35 * alertness));
+    }
+
     public void setAlertness(float alertness) {
         this.alertness = Math.max(0.0f, Math.min(1.0f, alertness));
     }

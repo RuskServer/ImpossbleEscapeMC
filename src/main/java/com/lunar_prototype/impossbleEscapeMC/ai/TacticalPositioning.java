@@ -63,6 +63,10 @@ public final class TacticalPositioning {
     private static final int HIT_MEMORY_TICKS = 100;
     private static final double HIT_RADIUS = 2.0;
     private static final double HIT_PENALTY = 0.7;
+    /** 影響マップ: 味方が撃たれた所・相手の射線の減点 */
+    private static final double DANGER_WEIGHT = 0.4;
+    private static final double LANE_WEIGHT = 0.6;
+    private static final double LANE_PENALTY_MAX = 2.0;
 
     private record Hit(Location location, int tick) {
     }
@@ -161,11 +165,11 @@ public final class TacticalPositioning {
             peek = findPeek(world, stand, threat);
             type = peek != null ? SpotType.COVER_PEEK : SpotType.HIDE;
         }
-        candidates.add(new Candidate(stand, peek, type, score(stand, type, threat, threatDistance, mode, range, allies)));
+        candidates.add(new Candidate(stand, peek, type, score(stand, peek, type, threat, threatDistance, mode, range, allies)));
     }
 
     /** 立ち位置の点数 (高いほど良い) */
-    private double score(Location stand, SpotType type, Location threat, double threatDistance,
+    private double score(Location stand, Location peek, SpotType type, Location threat, double threatDistance,
                          String mode, double range, List<ScavController> allies) {
         double score = switch (mode) {
             // 詰める: 撃てる位置も嫌がらず、近めの距離を取る
@@ -189,12 +193,28 @@ public final class TacticalPositioning {
         };
         score -= 0.15 * Math.abs(threatDistance - desired);
 
-        score -= 0.12 * horizontal(stand, here);
+        // 味方が相手を制圧している間は、動くのも射線に出るのも安全になる (援護を受けて動く)
+        boolean covered = false;
+        for (ScavController ally : allies) {
+            if (ally.isSuppressing()) {
+                covered = true;
+                break;
+            }
+        }
+        score -= (covered ? 0.07 : 0.12) * horizontal(stand, here);
         // 今いる場所・今選んでいる場所に留まりやすくする (選び直しのたびに動き回らないように)
         if (horizontal(stand, here) < 1.5) score += 0.6;
         if (current != null && current.stand().getWorld() == stand.getWorld() && horizontal(current.stand(), stand) < 1.5) score += 0.6;
 
-        score -= 0.3 * Math.max(0.0, CombatHeatmapManager.getScore(stand));
+        // 影響マップ: 長期 (戦闘が起きやすい所) は少しだけ、最近味方が撃たれた所と、相手が撃ち込んでいる射線は強く避ける。
+        // 射線は、撃てる位置ならその場所、遮蔽+顔出しなら顔を出す所で読む (隠れている場所に弾が来ても遮蔽が止める)
+        score -= 0.1 * Math.max(0.0, CombatHeatmapManager.getScore(stand));
+        score -= DANGER_WEIGHT * CombatHeatmapManager.danger(stand);
+        Location exposedAt = type == SpotType.FIRE ? stand : type == SpotType.COVER_PEEK ? peek : null;
+        if (exposedAt != null) {
+            double lane = CombatHeatmapManager.fireLane(exposedAt.clone().add(0, EYE_HEIGHT, 0));
+            score -= Math.min(LANE_PENALTY_MAX, (covered ? 0.5 : 1.0) * LANE_WEIGHT * lane);
+        }
         // 撃たれたばかりの場所は避ける (撃たれても同じ場所に立ち続けないように)
         int now = Bukkit.getCurrentTick();
         for (Hit hit : recentHits) {
