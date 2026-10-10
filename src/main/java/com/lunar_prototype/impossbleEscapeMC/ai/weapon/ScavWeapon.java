@@ -53,4 +53,24 @@ public interface ScavWeapon {
     default boolean needsReload() {
         return isReloading() || ammo() <= 0;
     }
+
+    /** 弾切れ・リロード中で、残り時間が分からない銃の待ち時間の目安 (tick) */
+    int UNKNOWN_RELOAD_TICKS = 40;
+
+    /**
+     * あと何tickで引き金を引けるか (0なら今撃てる)。リロード・構え直し・ボルト操作などの残り時間で、
+     * AIはこれを見て、撃てない間に顔を出さない・撃てない時間が長ければ下がる
+     */
+    default int ticksUntilReady() {
+        return needsReload() ? UNKNOWN_RELOAD_TICKS : 0;
+    }
+
+    /**
+     * 弾が減っていればリロードを始める (相手から隠れている時に呼ぶ)
+     *
+     * @return 始めた場合true
+     */
+    default boolean startReload() {
+        return false;
+    }
 }

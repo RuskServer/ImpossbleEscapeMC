@@ -55,6 +55,12 @@ public final class DatapackGunner {
      */
     private static final int SINGLE_SHOT_PULL_VALUE = 1;
     private static final int GIVE_GUN_DELAY_TICKS = 2;
+    /** 生成から撃てるようになるまでの目安 (銃の受け取りと銃データの読み込み・装填) */
+    public static final int ARMING_TICKS = GIVE_GUN_DELAY_TICKS + 5;
+    /** データパックが引き金を受け付けない間のタイマー (toisarm:player/gun の SHOOTABLE と同じ)。-1 で終わり、値は残りtick */
+    private static final String[] BLOCKING_TIMERS = {
+            "toisarm.timer.swap", "toisarm.timer.reload", "toisarm.timer.empty_reload",
+            "toisarm.timer.bolt_action", "toisarm.timer.bolt_action_delay"};
     /** inaccuracy (BulletTaskの拡散量) を照準のブレ角度 (度) に換算する係数 */
     private static final double INACCURACY_TO_DEGREES = 45.0;
     /**
@@ -187,15 +193,33 @@ public final class DatapackGunner {
 
     /** 撃てる状態 (銃の受け取りと装填が済み、リロード中でなく、弾がある) か */
     public boolean isReady() {
-        // データパックの弾数が0の間に引き金を引くと、データパック側のリロードが始まってしまうため実際のスコアで見る。
-        // また、データパックが撃たない状態 (銃を受け取った直後の構え動作・ボルト操作・リロード) の間は引き金を引かない
-        // (引いても弾が出ず、AIが連射を1回分無駄にする)。条件は toisarm:player/gun の SHOOTABLE と同じ
-        return armed && reloadTicks == 0 && scoreAmmo() > 0
-                && scoreOr("toisarm.timer.swap", -1) == -1
-                && scoreOr("toisarm.timer.reload", -1) == -1
-                && scoreOr("toisarm.timer.empty_reload", -1) == -1
-                && scoreOr("toisarm.timer.bolt_action", -1) == -1
-                && scoreOr("toisarm.timer.bolt_action_delay", -1) == -1;
+        return ticksUntilReady() == 0;
+    }
+
+    /**
+     * あと何tickで引き金を引けるか (0なら今撃てる)。
+     * データパックの弾数が0の間に引き金を引くと、データパック側のリロードが始まってしまうため実際のスコアで見る。
+     * また、データパックが撃たない状態 (銃を受け取った直後の構え動作・ボルト操作・リロード) の間は撃てないとみなす
+     * (引いても弾が出ず、AIが連射を1回分無駄にする)
+     */
+    public int ticksUntilReady() {
+        if (!armed) return Math.max(1, ARMING_TICKS - age);
+        if (reloadTicks > 0) return reloadTicks;
+        if (scoreAmmo() <= 0) return Math.max(1, profile.emptyReloadTicks());
+        int wait = 0;
+        for (String timer : BLOCKING_TIMERS) wait = Math.max(wait, scoreOr(timer, -1) + 1);
+        return wait;
+    }
+
+    /**
+     * 弾が残っているうちにリロードを始める (通常リロードの時間の後に満タンにする)
+     *
+     * @return 始めた場合true (準備中・リロード中・撃っていない・弾切れの時はfalse。弾切れは tick で再装填する)
+     */
+    public boolean startReload() {
+        if (!armed || reloadTicks > 0 || !firedSinceFill || scoreAmmo() <= 0) return false;
+        reloadTicks = Math.max(1, profile.reloadTicks());
+        return true;
     }
 
     /** 弾切れからの再装填待ちか (生成直後の準備中は含めない) */

@@ -320,6 +320,11 @@ public class ScavTactics {
                 peekPhase = 2;
                 peekTicks = 0;
             }
+            // 撃てなくなった (撃ち切った・ボルト操作・リロード) なら、出たままにせず引っ込む
+            if (peekPhase == 1 && weapon.ticksUntilReady() > ScavController.PEEK_READY_TICKS) {
+                peekPhase = 2;
+                peekTicks = 0;
+            }
             // 連射の遅い銃でも出っぱなしにならないようにする
             if (peekPhase == 1 && peekTicks > peekOutLimit + 8) {
                 peekPhase = 2;
