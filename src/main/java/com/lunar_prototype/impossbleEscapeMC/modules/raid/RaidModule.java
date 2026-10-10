@@ -284,6 +284,12 @@ public class RaidModule implements IModule {
             }
         }
 
+        // 持ち物が容量を超えたままでは出撃させない (レイド中にあふれると足元に落とすことになるため、ロビーで整理してもらう)
+        if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(player)) {
+            player.sendMessage(Component.text("持ち物が容量を超えています。整理してから出撃してください。", NamedTextColor.RED));
+            return false;
+        }
+
         // 途中参加のチェック (レイド開始1-2分以内)
         long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(mapId, 0L)) / 1000;
         if (age < LATE_JOIN_WINDOW) {
