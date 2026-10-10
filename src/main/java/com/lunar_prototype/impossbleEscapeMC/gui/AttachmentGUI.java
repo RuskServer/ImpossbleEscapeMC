@@ -31,20 +31,19 @@ public class AttachmentGUI implements InventoryHolder {
     public AttachmentGUI(Player player, ItemStack gunItem) {
         this.player = player;
         this.gunItem = gunItem;
-        this.inventory = Bukkit.createInventory(this, 27, "§8アタッチメント");
+        // 背景と、銃から各スロットへの線 (プラグイン銃はスロットがいつも全部ある)
+        List<Integer> positions = new ArrayList<>();
+        for (AttachmentSlot slot : AttachmentSlot.values()) positions.add(slot.getGuiSlot());
+        this.inventory = Bukkit.createInventory(this, AttachmentLayout.SIZE, AttachmentLayout.title(positions));
 
         initializeGUI();
     }
 
     private void initializeGUI() {
-        // 背景をグレーガラスで埋める
-        ItemStack filler = createFiller();
-        for (int i = 0; i < inventory.getSize(); i++) {
-            inventory.setItem(i, filler);
-        }
+        // 背景 (作業台の整備マット) はタイトルの画像で描くので、空きスロットは空のままにする
 
         // 中央に銃アイテムを表示 (クリック不可の表示用)
-        inventory.setItem(13, gunItem.clone());
+        inventory.setItem(AttachmentLayout.GUN_SLOT, gunItem.clone());
 
         // 各スロットにプレースホルダーまたは装着済みアタッチメントを配置
         List<String> attachments = getAttachmentList();
@@ -97,18 +96,12 @@ public class AttachmentGUI implements InventoryHolder {
         return new ArrayList<>(Arrays.asList(joined.split(",")));
     }
 
-    private ItemStack createFiller() {
-        ItemStack filler = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta meta = filler.getItemMeta();
-        meta.setDisplayName(" ");
-        filler.setItemMeta(meta);
-        return filler;
-    }
-
     private ItemStack createSlotPlaceholder(AttachmentSlot slot) {
         ItemStack placeholder = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = placeholder.getItemMeta();
-        meta.setDisplayName("§7" + slot.name());
+        // 見た目はパーツの絵文字 (リソースパック)
+        meta.setItemModel(AttachmentLayout.slotIcon(slot.key()));
+        meta.setDisplayName("§7" + AttachmentLayout.label(slot.key()));
         List<String> lore = new ArrayList<>();
         lore.add("§8空きスロット");
         lore.add("");

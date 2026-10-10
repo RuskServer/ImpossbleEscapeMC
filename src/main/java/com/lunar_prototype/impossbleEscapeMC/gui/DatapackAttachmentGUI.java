@@ -26,9 +26,8 @@ import java.util.Map;
  */
 public class DatapackAttachmentGUI implements InventoryHolder {
 
-    /** 銃を置く場所と、スロットを並べる場所 (スロットの並び順に使う) */
-    static final int GUN_SLOT = 13;
-    private static final int[] SLOT_POSITIONS = {10, 11, 12, 14, 15, 16, 19, 20, 21, 23, 24, 25};
+    /** 銃を置く場所。スロットは銃の形に合わせて銃のまわりに並べる ({@link AttachmentLayout}) */
+    static final int GUN_SLOT = AttachmentLayout.GUN_SLOT;
 
     private final Player player;
     private final int heldSlot;
@@ -36,11 +35,13 @@ public class DatapackAttachmentGUI implements InventoryHolder {
     private final Inventory inventory;
     private final Map<Integer, String> slotByPosition = new HashMap<>();
 
-    private DatapackAttachmentGUI(Player player, int heldSlot, String gunId) {
+    private DatapackAttachmentGUI(Player player, int heldSlot, String gunId, ItemStack gun) {
         this.player = player;
         this.heldSlot = heldSlot;
         this.gunId = gunId;
-        this.inventory = Bukkit.createInventory(this, 27, Component.text("アタッチメント", NamedTextColor.DARK_GRAY));
+        arrange(gun);
+        // 背景と、銃から並べたスロットへの線 (タイトルに描くので、並べる場所は開く前に決める)
+        this.inventory = Bukkit.createInventory(this, AttachmentLayout.SIZE, AttachmentLayout.title(slotByPosition.keySet()));
     }
 
     /** 手に持っているデータパック銃の画面を開く。データパック銃でなければfalse */
@@ -48,7 +49,7 @@ public class DatapackAttachmentGUI implements InventoryHolder {
         ItemStack held = player.getInventory().getItemInMainHand();
         String gunId = DatapackGunCatalog.gunIdOf(held);
         if (gunId == null) return false;
-        DatapackAttachmentGUI gui = new DatapackAttachmentGUI(player, player.getInventory().getHeldItemSlot(), gunId);
+        DatapackAttachmentGUI gui = new DatapackAttachmentGUI(player, player.getInventory().getHeldItemSlot(), gunId, held);
         if (!gui.refresh()) {
             player.sendMessage(Component.text("この銃に付けられるアタッチメントはありません", NamedTextColor.RED));
             return true;
@@ -57,27 +58,44 @@ public class DatapackAttachmentGUI implements InventoryHolder {
         return true;
     }
 
-    /** 今の銃を読み直して並べ直す。並べるスロットが1つも無ければfalse */
+    /**
+     * 並べるスロット (付けられるアタッチメントがあるか、何か付いているもの) と場所を決める。
+     * 場所は銃の形に合わせた位置 ({@link AttachmentLayout})、位置の決まっていない種類は空いている場所
+     */
+    private void arrange(ItemStack gun) {
+        Map<String, ItemStack> attached = DatapackAttachments.attached(gun);
+        int[] spare = AttachmentLayout.sparePositions();
+        int nextSpare = 0;
+        for (DatapackAttachments.SlotDef slot : DatapackAttachments.slotsOf(gunId)) {
+            if (slot.options().isEmpty() && attached.get(slot.slot()) == null) continue;
+            int position = AttachmentLayout.position(slot.slot());
+            if (position < 0 || slotByPosition.containsKey(position)) {
+                while (nextSpare < spare.length && slotByPosition.containsKey(spare[nextSpare])) nextSpare++;
+                if (nextSpare >= spare.length) continue;
+                position = spare[nextSpare++];
+            }
+            slotByPosition.put(position, slot.slot());
+        }
+    }
+
+    /** 今の銃を読み直して並べ直す (場所は開いた時のまま)。並べるスロットが1つも無ければfalse */
     boolean refresh() {
         ItemStack gun = currentGun();
-        if (gun == null) return false;
+        if (gun == null || slotByPosition.isEmpty()) return false;
+        // 背景 (作業台の整備マット) はタイトルの画像で描くので、空きスロットは空のままにする
         inventory.clear();
-        slotByPosition.clear();
-        ItemStack filler = pane(Material.GRAY_STAINED_GLASS_PANE, Component.text(" "), List.of());
-        for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, filler);
         inventory.setItem(GUN_SLOT, gun.clone());
 
         Map<String, ItemStack> attached = DatapackAttachments.attached(gun);
-        int next = 0;
-        for (DatapackAttachments.SlotDef slot : DatapackAttachments.slotsOf(gunId)) {
-            ItemStack current = attached.get(slot.slot());
-            if (slot.options().isEmpty() && current == null) continue;
-            if (next >= SLOT_POSITIONS.length) break;
-            int position = SLOT_POSITIONS[next++];
-            slotByPosition.put(position, slot.slot());
+        Map<String, DatapackAttachments.SlotDef> defs = new HashMap<>();
+        for (DatapackAttachments.SlotDef slot : DatapackAttachments.slotsOf(gunId)) defs.put(slot.slot(), slot);
+        slotByPosition.forEach((position, name) -> {
+            DatapackAttachments.SlotDef slot = defs.get(name);
+            if (slot == null) return;
+            ItemStack current = attached.get(name);
             inventory.setItem(position, current != null ? attachedIcon(slot, current) : emptyIcon(slot));
-        }
-        return !slotByPosition.isEmpty();
+        });
+        return true;
     }
 
     /** 編集中の銃 (開いた時のホットバーの場所にある、同じ種類のデータパック銃)。無くなっていればnull */
@@ -141,7 +159,12 @@ public class DatapackAttachmentGUI implements InventoryHolder {
         lore.add(Component.empty());
         lore.add(line("アタッチメントをカーソルに持ってクリックで装着", NamedTextColor.YELLOW));
         lore.add(line("(インベントリからシフトクリックでも装着)", NamedTextColor.YELLOW));
-        return pane(Material.LIGHT_GRAY_STAINED_GLASS_PANE, line(slotLabel(slot.slot()), NamedTextColor.WHITE), lore);
+        ItemStack icon = pane(Material.LIGHT_GRAY_STAINED_GLASS_PANE, line(slotLabel(slot.slot()), NamedTextColor.WHITE), lore);
+        // 見た目はパーツの絵文字 (リソースパック)
+        ItemMeta meta = icon.getItemMeta();
+        meta.setItemModel(AttachmentLayout.slotIcon(slot.slot()));
+        icon.setItemMeta(meta);
+        return icon;
     }
 
     /** アタッチメントの名前 (データパックの翻訳キー。リソースパックに翻訳が無ければデータパックの英名) */
@@ -151,21 +174,7 @@ public class DatapackAttachmentGUI implements InventoryHolder {
     }
 
     static String slotLabel(String slot) {
-        return switch (slot) {
-            case "sight" -> "サイト";
-            case "barrel" -> "バレル";
-            case "muzzle" -> "マズル";
-            case "magazine" -> "マガジン";
-            case "rear_grip" -> "グリップ";
-            case "stock" -> "ストック";
-            case "underbarrel" -> "アンダーバレル";
-            case "handguard" -> "ハンドガード";
-            case "receiver" -> "レシーバー";
-            case "accessory" -> "アクセサリー";
-            case "slide" -> "スライド";
-            case "shell" -> "シェル";
-            default -> slot;
-        };
+        return AttachmentLayout.label(slot);
     }
 
     private static Component line(String text, NamedTextColor color) {

@@ -8,7 +8,6 @@ import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketMainGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI;
-import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -20,6 +19,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -33,20 +33,14 @@ public class PDAGUI implements Listener {
     /** Toi's Armoryのダイアログ入力。2で設定ダイアログを開く */
     private static final String DATAPACK_DIALOG_INPUT_OBJECTIVE = "toisarm.trigger.input";
     private static final int DATAPACK_SETTINGS_INPUT = 2;
-    /**
-     * タイトルに出す背景 (リソースパックの iem:gui フォント)。-8 の空白でタイトルの位置 (8, 6) を打ち消し、
-     * 画面の上半分 (176x72) を覆う背景の1文字を描く。白にしないとタイトルの色 (暗い灰色) で暗く染まる
-     */
-    private static final Component BACKGROUND_TITLE = Component.text("\uE001\uE000")
-            .font(Key.key("iem", "gui"))
-            .color(NamedTextColor.WHITE);
 
     private final Player player;
     private final Inventory inventory;
 
     public PDAGUI(Player player) {
         this.player = player;
-        this.inventory = Bukkit.createInventory(null, 27, BACKGROUND_TITLE);
+        // 背景 (くたびれた携帯端末) はタイトルの文字として描く
+        this.inventory = Bukkit.createInventory(null, 27, GuiBackground.PDA.title());
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }
 
@@ -313,6 +307,15 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             MarketModule marketModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(MarketModule.class);
             new MarketMainGUI(player, marketModule).open();
+        }
+    }
+
+    /** 背景の画像を見せるため空きスロットを残しているので、ドラッグで物を置けないようにする */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().equals(inventory)
+                && event.getRawSlots().stream().anyMatch(slot -> slot < inventory.getSize())) {
+            event.setCancelled(true);
         }
     }
 

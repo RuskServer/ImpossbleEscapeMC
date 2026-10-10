@@ -81,8 +81,8 @@ public class AttachmentGUIListener implements Listener {
         // GUI内のクリックはキャンセル (デフォルト動作を防ぐ)
         event.setCancelled(true);
 
-        // 中央の銃スロット（13）はクリック不可
-        if (clickedSlot == 13)
+        // 中央の銃スロットはクリック不可
+        if (clickedSlot == AttachmentLayout.GUN_SLOT)
             return;
 
         AttachmentSlot targetSlot = AttachmentGUI.getSlotFromGuiSlot(clickedSlot);

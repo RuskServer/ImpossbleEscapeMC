@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
 import net.kyori.adventure.text.Component;
@@ -15,6 +16,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -32,32 +34,32 @@ import java.util.stream.Collectors;
 public class MarketMainGUI implements Listener {
     private final Player player;
     private final MarketModule marketModule;
-    private final Inventory inventory;
-    private int page = 0;
+    /** タイトルにページ数を出すので、開くときに作る */
+    private Inventory inventory;
+    private int page;
 
     public MarketMainGUI(Player player, MarketModule marketModule) {
+        this(player, marketModule, 0);
+    }
+
+    public MarketMainGUI(Player player, MarketModule marketModule, int page) {
         this.player = player;
         this.marketModule = marketModule;
-        this.inventory = Bukkit.createInventory(null, 54, Component.text("Global Market").decoration(TextDecoration.ITALIC, false));
+        this.page = page;
     }
 
     public void open() {
+        int pageCount = Math.max(1, (marketModule.getAllListings().size() + 44) / 45);
+        page = Math.max(0, Math.min(page, pageCount - 1));
+        this.inventory = Bukkit.createInventory(null, 54, GuiBackground.MARKET.pagedTitle(page, pageCount));
         setupGUI();
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
         player.openInventory(inventory);
     }
 
     private void setupGUI() {
+        // 背景はタイトルの画像で描くので、空きスロットは空のままにする
         inventory.clear();
-
-        // 背景/枠線
-        ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta glassMeta = glass.getItemMeta();
-        glassMeta.displayName(Component.empty());
-        glass.setItemMeta(glassMeta);
-        for (int i = 45; i < 54; i++) {
-            inventory.setItem(i, glass);
-        }
 
         // 出品一覧の取得（新しい順）
         List<MarketListing> allListings = marketModule.getAllListings().stream()
@@ -140,9 +142,9 @@ public class MarketMainGUI implements Listener {
             return;
         }
 
+        // ページ数はタイトルに出ているので、ページを変えるときは開き直す
         if (slot == 45 && page > 0) {
-            page--;
-            setupGUI();
+            new MarketMainGUI(player, marketModule, page - 1).open();
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             return;
         }
@@ -152,8 +154,7 @@ public class MarketMainGUI implements Listener {
                     .sorted(Comparator.comparingLong(MarketListing::getListDate).reversed())
                     .collect(Collectors.toList());
             if (allListings.size() > (page + 1) * 45) {
-                page++;
-                setupGUI();
+                new MarketMainGUI(player, marketModule, page + 1).open();
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             }
             return;
@@ -222,6 +223,15 @@ public class MarketMainGUI implements Listener {
                 player.sendMessage(Component.text("所持金が足りません。", NamedTextColor.RED));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
             }
+        }
+    }
+
+    /** 背景の画像を見せるため空きスロットを残しているので、ドラッグで物を置けないようにする */
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (event.getInventory().equals(inventory)
+                && event.getRawSlots().stream().anyMatch(slot -> slot < inventory.getSize())) {
+            event.setCancelled(true);
         }
     }
 
