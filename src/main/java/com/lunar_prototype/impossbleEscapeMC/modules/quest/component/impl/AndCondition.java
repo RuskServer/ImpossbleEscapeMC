@@ -15,6 +15,10 @@ public class AndCondition implements QuestCondition {
         this.conditions = conditions;
     }
 
+    public List<QuestCondition> getConditions() {
+        return conditions;
+    }
+
     @Override
     public boolean isMet(PlayerData data) {
         return conditions.stream().allMatch(c -> c.isMet(data));

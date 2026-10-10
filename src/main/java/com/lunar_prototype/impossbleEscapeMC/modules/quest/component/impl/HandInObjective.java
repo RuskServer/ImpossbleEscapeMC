@@ -4,7 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.AbstractQuestObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import org.bukkit.entity.Player;
 import java.util.Map;
@@ -13,7 +13,7 @@ import java.util.Map;
  * アイテムの納品を目標とするコンポーネント。
  * 特定のID、または特定のカテゴリー(med, gun等)を指定可能。
  */
-public class HandInObjective implements QuestObjective {
+public class HandInObjective extends AbstractQuestObjective {
     private final String itemId;   // null if type-based
     private final String itemType; // null if id-based
     private final int targetAmount;
@@ -66,7 +66,7 @@ public class HandInObjective implements QuestObjective {
     }
 
     @Override
-    public String getDescription() {
+    protected String defaultDescription() {
         String targetName = itemId;
         if (itemId != null) {
             ItemDefinition def = ItemRegistry.get(itemId);

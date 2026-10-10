@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -8,10 +9,14 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataLoadedEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.AndCondition;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.CompletedQuestCondition;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.HandInObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.QuestReward;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.UnlockTradeReward;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestEventBus;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -160,25 +165,60 @@ public class QuestModule implements IModule {
         player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
     }
 
+    /** クエスト定義 ({@link QuestCatalog}) を読み込み、参照の誤りを確かめる */
     public void loadQuests() {
         quests.clear();
-        File questDir = new File(plugin.getDataFolder(), "quests");
-        if (!questDir.exists()) {
-            questDir.mkdirs();
-        }
-
-        File[] files = questDir.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null) return;
-
-        for (File file : files) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            String id = file.getName().replace(".yml", "");
-            QuestDefinition def = QuestParser.parse(id, config, this);
-            if (def != null) {
-                quests.put(id, def);
+        for (QuestDefinition def : QuestCatalog.create(this)) {
+            if (quests.putIfAbsent(def.getId(), def) != null) {
+                plugin.getLogger().severe("クエストIDが重複しています (後の定義を無視): " + def.getId());
             }
         }
+        validateQuests();
+        warnLegacyQuestFiles();
         plugin.getLogger().info("Loaded " + quests.size() + " quests.");
+    }
+
+    /**
+     * 前提クエストが存在するか、納品・取引解放のアイテムIDが登録されているかを確かめる。
+     * 誤りがあっても読み込みは続ける (そのクエストが受けられない・納品できないだけで済むため)
+     */
+    private void validateQuests() {
+        for (QuestDefinition def : quests.values()) {
+            for (QuestCondition condition : def.getConditions()) {
+                validateCondition(def, condition);
+            }
+            for (QuestObjective objective : def.getObjectives()) {
+                if (objective instanceof HandInObjective handIn && handIn.getItemId() != null
+                        && ItemRegistry.get(handIn.getItemId()) == null) {
+                    plugin.getLogger().warning("クエスト " + def.getId() + ": 納品アイテム " + handIn.getItemId() + " が登録されていません");
+                }
+            }
+            for (QuestReward reward : def.getRewards()) {
+                if (reward instanceof UnlockTradeReward unlock
+                        && ItemRegistry.get(unlock.getItemId()) == null) {
+                    plugin.getLogger().warning("クエスト " + def.getId() + ": 取引解放のアイテム " + unlock.getItemId() + " が登録されていません");
+                }
+            }
+        }
+    }
+
+    private void validateCondition(QuestDefinition def, QuestCondition condition) {
+        if (condition instanceof AndCondition and) {
+            for (QuestCondition inner : and.getConditions()) validateCondition(def, inner);
+        } else if (condition instanceof CompletedQuestCondition completed
+                && !quests.containsKey(completed.getRequiredQuestId())) {
+            plugin.getLogger().severe("クエスト " + def.getId() + ": 前提クエスト " + completed.getRequiredQuestId()
+                    + " がありません (このクエストは受けられません)");
+        }
+    }
+
+    /** 以前の quests/*.yml が残っていれば、読まれないことを知らせる */
+    private void warnLegacyQuestFiles() {
+        File questDir = new File(plugin.getDataFolder(), "quests");
+        File[] files = questDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files != null && files.length > 0) {
+            plugin.getLogger().warning("quests/ の " + files.length + " 個の yml は読み込まれません。クエストは QuestCatalog (Java) で定義します");
+        }
     }
 
     public QuestEventBus getEventBus() {
