@@ -79,6 +79,7 @@ public final class AttachmentItems {
         if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1)
             lore.add(Component.text("Find in Raid", NamedTextColor.GOLD));
         meta.lore(lore.stream().map(line -> line.decoration(TextDecoration.ITALIC, false)).toList());
+        TooltipStyle.forRarity(def.rarity()).applyTo(meta);
         item.setItemMeta(meta);
         return item;
     }
