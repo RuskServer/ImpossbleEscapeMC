@@ -116,6 +116,17 @@ public final class ScavAmmoSupply {
         return taken;
     }
 
+    /** 予備に amount 発足す (味方から分けてもらった弾) */
+    public synchronized void add(int amount) {
+        if (amount > 0) spare += amount;
+    }
+
+    /** 弾の口径。弾の定義が無ければnull */
+    public String caliber() {
+        AmmoDefinition ammo = ammo();
+        return ammo == null ? null : ammo.caliber;
+    }
+
     /** 残った予備を弾アイテムにする (死体に入れる) */
     public List<ItemStack> toItems() {
         List<ItemStack> items = new ArrayList<>();

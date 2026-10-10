@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackScavWeapon;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.PluginScavWeapon;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
@@ -120,6 +121,44 @@ public class ScavController {
     static final int PEEK_READY_TICKS = 4;
     /** これ以上撃てない (リロード・持ち替えなど) なら、弾切れと同じく隠れられる場所へ下がる */
     private static final int LONG_UNREADY_TICKS = 20;
+
+    // --- 遮蔽からの撃ち合いへの復帰 ---
+    // 遮蔽に着くと顔出し (単発を数発撃って戻り、数秒休む) を繰り返すだけになり、撃てる立ち位置へ出直さなかった。
+    // 隠れてしばらく経ち、撃てて・傷が浅く・撃たれていなければ、撃てる立ち位置へ出て撃ち合い、時間が来たら遮蔽へ戻る
+    /** 隠れてから出直すまで (tick)。強さごとの最短と、それに足すばらつき */
+    private static final int REENGAGE_WAIT_LOW = 60;
+    private static final int REENGAGE_WAIT_MID = 80;
+    private static final int REENGAGE_WAIT_HIGH = 100;
+    private static final int REENGAGE_WAIT_JITTER = 60;
+    /** 出て撃ち合う長さ (tick)。撃たれたら遮蔽へ戻る。撃てなくなると従来どおり下がる */
+    private static final int REENGAGE_MIN_TICKS = 60;
+    private static final int REENGAGE_JITTER_TICKS = 60;
+    /** 出直す条件: マガジンの残り・体力の割合・制圧・最後に撃たれてからの時間 (tick) */
+    private static final double REENGAGE_MIN_AMMO_RATIO = 0.5;
+    private static final double REENGAGE_MIN_HEALTH = 0.5;
+    private static final float REENGAGE_MAX_SUPPRESSION = 0.3f;
+    private static final int REENGAGE_NO_DAMAGE_TICKS = 60;
+    /** 遮蔽 (撃てない立ち位置) に着いた tick。撃てる立ち位置にいる間は -1 */
+    private int inCoverSinceTick = -1;
+    private int reengageAfterTick;
+    private int reengageUntilTick;
+    private double lastAmmoRatio = 1.0;
+
+    // --- 弾切れ (予備も尽きた時) ---
+    /** 弾を分けてもらいに行く味方の範囲と、受け取れる距離 */
+    private static final double AMMO_SUPPLIER_RANGE = 40.0;
+    private static final double AMMO_HANDOVER_DISTANCE = 2.5;
+    /** 弾を分けてくれる味方・隠れる所を探し直す間隔 (tick) */
+    private static final int UNARMED_RECHECK_TICKS = 20;
+    /** 隠れる所が無い時に、相手から離れる距離 (ブロック) */
+    private static final double UNARMED_FLEE_DISTANCE = 14.0;
+    /** 弾を分けてもらう相手 (向かっている間だけ) */
+    private UUID ammoSupplierId;
+    /** 弾が尽き、分けてくれる味方もいない (撃ち合いを避けて隠れる) */
+    private boolean unarmed;
+    private int unarmedRecheckTick;
+    /** 弾が尽きた時に向かう隠れ場所 (無ければ相手から離れる) */
+    private Location unarmedRefuge;
     /** 相手から隠れている時、弾がこの割合を切っていればリロードしておく (相手が分からない時は減っていれば) */
     private static final double TACTICAL_RELOAD_RATIO = 0.5;
 
@@ -296,8 +335,7 @@ public class ScavController {
     private boolean returningHome = false;
 
     // --- 味方の救援 ---
-    // 味方に伝えるのは「自分がどこで戦っているか」と「どちらを向いているか」だけで、敵の位置は伝えない。
-    // 呼ばれた側は味方の後ろへ向かい、敵は自分の目と耳で見つける (敵の位置を共有するとウォールハックになるため)
+    // 味方には過去の視認位置・時刻・観測速度を伝える。実際の接敵・射撃は自分の視認で判断する。
     /** 敵を見ている・撃たれてから、この間 (tick) は交戦中とみなす */
     private static final int COMBAT_MEMORY_TICKS = ScavHelpEncounter.QUIET_TICKS;
     /** 救援に向かい続ける時間 (tick)。呼ばれ直すと延びる */
@@ -314,6 +352,12 @@ public class ScavController {
     /** 救援に向かっている味方 */
     private UUID assistCallerId;
     private int assistUntilTick;
+    private int assistStartedTick;
+    private ScavContactReport sharedContact;
+    private Location assignedSearchPoint;
+    private int assignedSearchStartedTick;
+    private int nextSharedSearchTick;
+    private int sharedSearchUntilTick;
     /** 味方の左右どちらに着くか (1 / -1) */
     private int assistSide = 1;
 
@@ -485,7 +529,7 @@ public class ScavController {
             return;
         }
 
-        if (target != null || lastKnownLocation != null) weapon.prepare();
+        if (target != null || lastKnownLocation != null || assisting) weapon.prepare();
 
         // 撃てない時間を自分で作るなら、相手から見られていない時に。隠れている間に弾を補充しておく
         boolean knowsEnemy = target != null || lastKnownLocation != null;
@@ -502,6 +546,10 @@ public class ScavController {
         weaponReadyInTicks = weapon.ticksUntilReady();
         boolean needsReload = weapon.needsReload() || weaponReadyInTicks >= LONG_UNREADY_TICKS;
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+        updateAmmoState(weapon);
+        lastAmmoRatio = weapon.ammoRatio();
+        // 撃てない間は下がる (弾を分けてもらいに行く間・弾が尽きて隠れる間は、それぞれの動きに任せる)
+        boolean coverForReload = needsReload && ammoSupplierId == null && !unarmed;
 
         // 3. スイッチング
         if (squad.getMyRole() == ScavSquad.SquadRole.POINTMAN && (suppression > 0.8f || needsReload || healthPercent < 0.4)) {
@@ -512,12 +560,12 @@ public class ScavController {
         // 4. カバー検索
         if (target != null && tactics.getCoverSearchCooldown() <= 0) {
             // 撃ってくる相手が見えている時は、制圧されていても物陰へ走らずに撃ち返す (移動中は撃たないため)
-            if ((suppression > 0.6f && !canSeeTarget) || healthPercent < 0.4 || needsReload) {
+            if ((suppression > 0.6f && !canSeeTarget) || healthPercent < 0.4 || coverForReload) {
               if (!assisting && pursuitSteps == 0 && isEngaged(canSeeTarget) && (canSeeTarget || lastKnownLocation != null)) {
                 // 相手の位置が分かっている間は、立ち位置の仕組みで隠れられる場所へ下がる
                 // 負傷なら長く、リロードなら撃てるようになるまで、制圧だけなら短く下がる
                 int withdrawTicks = SUPPRESSED_WITHDRAW_TICKS;
-                if (needsReload) withdrawTicks = Math.max(withdrawTicks, Math.min(WITHDRAW_TICKS, weaponReadyInTicks + RELOAD_WITHDRAW_MARGIN_TICKS));
+                if (coverForReload) withdrawTicks = Math.max(withdrawTicks, Math.min(WITHDRAW_TICKS, weaponReadyInTicks + RELOAD_WITHDRAW_MARGIN_TICKS));
                 if (healthPercent < 0.4) withdrawTicks = WITHDRAW_TICKS;
                 withdrawUntilTick = Bukkit.getCurrentTick() + withdrawTicks;
                 positioning.invalidate();
@@ -611,10 +659,13 @@ public class ScavController {
         // 相手の位置が分かっている間は、立ち位置を選んでそこで戦う (使えない時は以下の従来の動き)。
         // 見失った直後の追跡・顔出し・弾切れや負傷で物陰へ下がっている間は、そちらを優先する
         boolean retreatingToCover = tactics.getTacticalCoverLoc() != null && tactics.getCoverStayTicks() > 0;
-        boolean positioned = !assisting && pursuitSteps == 0 && !retreatingToCover && isEngaged(canSeeTarget)
+        boolean fetchingAmmo = fetchAmmoFromAlly(weapon) || handleUnarmed(target);
+        boolean positioned = !fetchingAmmo && !assisting && pursuitSteps == 0 && !retreatingToCover && isEngaged(canSeeTarget)
                 && handlePositioning(target, canSeeTarget);
-        if (!positioned) followingPath = false;
-        if (positioned) {
+        if (!positioned && !fetchingAmmo) followingPath = false;
+        if (fetchingAmmo) {
+            isHoldingAngle = false;
+        } else if (positioned) {
             isHoldingAngle = false;
         } else if (moveAction == 8 && !assisting) {
             isHoldingAngle = true;
@@ -679,12 +730,154 @@ public class ScavController {
                 }
             } else if (!canSeeTarget && suppressiveFire(weapon, now)) {
                 // 見えない相手が出てきそうな所へ撃ち込んだ
-            } else if (actions[1] == 0 && target != null) {
+            } else if (actions[1] == 0 && target != null && !unarmed) {
                 tactics.handleJumpShot(target);
             }
         }
 
         logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
+    }
+
+    /**
+     * 予備の弾が尽きて撃ち切った時: 同じ口径の弾を持つ味方がいれば分けてもらいに行き、いなければ撃ち合いを避けて隠れる
+     * ({@link #handleUnarmed})。弾がある間は何もしない。味方・隠れる所は1秒ごとに探し直す
+     */
+    private void updateAmmoState(ScavWeapon weapon) {
+        ScavAmmoSupply supply = ScavAmmoSupply.of(scav.getUniqueId());
+        boolean outOfAmmo = supply != null && supply.spare() <= 0 && weapon.ammo() <= 0 && !weapon.isReloading();
+        if (!outOfAmmo) {
+            ammoSupplierId = null;
+            unarmed = false;
+            unarmedRefuge = null;
+            return;
+        }
+        int now = Bukkit.getCurrentTick();
+        if (now < unarmedRecheckTick) return;
+        unarmedRecheckTick = now + UNARMED_RECHECK_TICKS;
+        ScavController supplier = findAmmoSupplier(supply);
+        UUID previous = ammoSupplierId;
+        ammoSupplierId = supplier != null ? supplier.getScav().getUniqueId() : null;
+        boolean wasUnarmed = unarmed;
+        unarmed = supplier == null;
+        if (unarmed) unarmedRefuge = findRefuge();
+        if (ammoSupplierId != null && !ammoSupplierId.equals(previous)) {
+            Bukkit.getLogger().info("[AI_AMMO] " + scav.getUniqueId().toString().substring(0, 8)
+                    + " | out of ammo, fetching from " + ammoSupplierId.toString().substring(0, 8));
+        } else if (unarmed && !wasUnarmed) {
+            Bukkit.getLogger().info("[AI_AMMO] " + scav.getUniqueId().toString().substring(0, 8)
+                    + " | out of ammo, no supplier, refuge=" + (unarmedRefuge == null ? "none" : unarmedRefuge.toVector()));
+        }
+    }
+
+    /** 弾が尽きた時の逃げ場: 相手から見えない近くの場所。無ければ相手と反対の方へ離れた、たどり着ける場所 */
+    private Location findRefuge() {
+        Location threat = threatEye();
+        if (threat == null) return null;
+        Location hidden = positioning.nearestHidden(threat);
+        if (hidden != null) return hidden;
+        Vector away = scav.getLocation().toVector().subtract(threat.toVector()).setY(0);
+        if (away.lengthSquared() < 1.0E-6) away = new Vector(1, 0, 0);
+        away.normalize();
+        for (double angle : new double[]{0, 45, -45, 90, -90}) {
+            Vector direction = away.clone().rotateAroundY(Math.toRadians(angle));
+            Location candidate = scav.getLocation().add(direction.multiply(UNARMED_FLEE_DISTANCE));
+            var path = scav.getPathfinder().findPath(candidate);
+            if (path != null && path.canReachFinalPoint()) return candidate;
+        }
+        return null;
+    }
+
+    /** 相手の目の位置 (見えていれば今の位置、見失っていれば最後に分かった位置) */
+    private Location threatEye() {
+        LivingEntity target = scav.getTarget();
+        if (target != null && target.getWorld() == scav.getWorld()) return target.getEyeLocation();
+        return lastKnownLocation != null && lastKnownLocation.getWorld() == scav.getWorld()
+                ? lastKnownLocation.clone().add(0, 1.6, 0) : null;
+    }
+
+    /**
+     * 弾が尽き、分けてくれる味方もいない時: 詰めたり撃ち合いの立ち位置に出たりせず、逃げ場へ下がってそこで待つ
+     * (相手を見張り、味方の救援を待つ)。敵を知らない時は何もしない
+     *
+     * @return 逃げ場へ向かっている・待っている (他の移動をしない) 場合true
+     */
+    private boolean handleUnarmed(LivingEntity target) {
+        if (!unarmed || (target == null && lastKnownLocation == null)) return false;
+        if (unarmedRefuge == null || unarmedRefuge.getWorld() != scav.getWorld()) {
+            // 逃げ場が無い: その場で止まって見張る (詰めはしない)
+            tactics.stopMoving();
+            scav.getPathfinder().stopPathfinding();
+            preAimAtThreat();
+            return true;
+        }
+        if (scav.getLocation().distanceSquared(unarmedRefuge) > 1.0) {
+            scav.getPathfinder().moveTo(unarmedRefuge, RELOCATE_SPEED);
+            followingPath = true;
+        } else {
+            tactics.stopMoving();
+            preAimAtThreat();
+        }
+        return true;
+    }
+
+    /** 同じ口径の弾を、自分の1マガジン分より多く持っている近くの味方 (いちばん近い者) */
+    private ScavController findAmmoSupplier(ScavAmmoSupply mine) {
+        String caliber = mine == null ? null : mine.caliber();
+        if (caliber == null) return null;
+        ScavController best = null;
+        double bestDistance = AMMO_SUPPLIER_RANGE * AMMO_SUPPLIER_RANGE;
+        for (ScavController ally : squad.getNearbyAllies()) {
+            if (ally == this || !ally.getScav().isValid() || ally.getScav().getWorld() != scav.getWorld()) continue;
+            if (spareToShare(ally, caliber) <= 0) continue;
+            double distance = ally.getScav().getLocation().distanceSquared(scav.getLocation());
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = ally;
+            }
+        }
+        return best;
+    }
+
+    /** 味方が分けられる弾の数 (同じ口径で、自分の銃の1マガジン分は手元に残す) */
+    private static int spareToShare(ScavController ally, String caliber) {
+        ScavAmmoSupply supply = ScavAmmoSupply.of(ally.getScav().getUniqueId());
+        if (supply == null || !caliber.equalsIgnoreCase(supply.caliber())) return 0;
+        DatapackGunProfile profile = DatapackGunCatalog.get(
+                DatapackGunCatalog.gunIdOf(ally.getScav().getEquipment().getItemInMainHand()));
+        int keep = profile != null ? profile.magazineSize() : 30;
+        return supply.spare() - keep;
+    }
+
+    /**
+     * 弾を分けてくれる味方が決まっていれば、その味方の所へ行き、着いたら弾を受け取る (自分の2マガジン分まで)。
+     * 受け取ると予備ができるので、撃ち切った銃はそのまま再装填が始まる
+     *
+     * @return 味方の所へ向かっている (他の移動をしない) 場合true
+     */
+    private boolean fetchAmmoFromAlly(ScavWeapon weapon) {
+        if (ammoSupplierId == null) return false;
+        ScavController ally = ScavSpawner.getController(ammoSupplierId);
+        ScavAmmoSupply mine = ScavAmmoSupply.of(scav.getUniqueId());
+        if (ally == null || mine == null || !ally.getScav().isValid() || ally.getScav().getWorld() != scav.getWorld()) {
+            ammoSupplierId = null;
+            unarmedRecheckTick = 0;
+            return false;
+        }
+        Location allyAt = ally.getScav().getLocation();
+        if (scav.getLocation().distanceSquared(allyAt) > AMMO_HANDOVER_DISTANCE * AMMO_HANDOVER_DISTANCE) {
+            scav.getPathfinder().moveTo(allyAt, RELOCATE_SPEED);
+            followingPath = true;
+            return true;
+        }
+        int share = Math.min(spareToShare(ally, mine.caliber()), weapon.magazineSize() * 2);
+        ScavAmmoSupply allySupply = ScavAmmoSupply.of(ammoSupplierId);
+        int taken = share > 0 && allySupply != null ? allySupply.take(share) : 0;
+        mine.add(taken);
+        Bukkit.getLogger().info(String.format("[AI_AMMO] %s | handover from %s rounds=%d",
+                scav.getUniqueId().toString().substring(0, 8), ammoSupplierId.toString().substring(0, 8), taken));
+        ammoSupplierId = null;
+        unarmedRecheckTick = 0;
+        return false;
     }
 
     /**
@@ -814,6 +1007,8 @@ public class ScavController {
                 observedVelocity = new Vector();
             }
         }
+        squad.releaseSearch();
+        assignedSearchPoint = null;
         lastSeenLocation = now.clone();
         lastSeenTick = tick;
     }
@@ -870,8 +1065,10 @@ public class ScavController {
             return;
         }
         // 捜索中も、照準は相手が出てきそうな所 (分からなければ一番ありそうな場所) へ向けておく
-        tactics.handleSearching(lastKnownLocation, searchTicks, isSprinting, loc -> preAimAtThreat());
-        double dist = scav.getLocation().distance(lastKnownLocation);
+        ScavContactReport report = visualReport();
+        Location searchGoal = report != null ? assignedSearchGoal(report) : null;
+        tactics.handleSearching(searchGoal != null ? searchGoal : lastKnownLocation, searchTicks, isSprinting, loc -> preAimAtThreat());
+        double dist = scav.getLocation().distance(searchGoal != null ? searchGoal : lastKnownLocation);
         if (dist <= 2.5) {
             cornerCheckTicks++;
             if (cornerCheckTicks > 60) {
@@ -1119,6 +1316,8 @@ public class ScavController {
         addAlertness(0.35f, "TOOK_DAMAGE", raidSessionId);
         suppression = Math.min(1.0f, suppression + 0.3f);
         lastDamagedTick = Bukkit.getCurrentTick();
+        // 出直して撃ち合っている時に撃たれたら、遮蔽へ戻る (撃ち合いを続けて撃たれ続けない)
+        reengageUntilTick = 0;
         brain.requestDecision("DAMAGE_EVENT");
         positioning.recordHit(scav.getLocation());
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
@@ -1154,7 +1353,9 @@ public class ScavController {
                 : lastKnownLocation != null ? lastKnownLocation.clone().add(0, 1.6, 0) : null;
         if (threat == null || threat.getWorld() != scav.getWorld()) return false;
         followingPath = false;
-        String mode = Bukkit.getCurrentTick() < withdrawUntilTick ? "WITHDRAW" : brain.getCurrentModeName();
+        int now = Bukkit.getCurrentTick();
+        String mode = now < withdrawUntilTick ? "WITHDRAW"
+                : now < reengageUntilTick ? TacticalPositioning.MODE_ENGAGE : brain.getCurrentModeName();
         TacticalPositioning.Spot spot = positioning.update(threat, mode, brain.getEngagementRange(), squad.getNearbyAllies());
         if (spot == null) return false;
 
@@ -1166,7 +1367,8 @@ public class ScavController {
         if (!arrived) {
             // 相手が見えていてまっすぐ行けるなら相手を向いたまま横歩きで、それ以外は経路探索で回り込む
             // (経路探索は進む方向を向くため、撃ち合いの最中に背中を向けてしまう)
-            boolean closeFight = canSeeTarget && target != null
+            // 撃てない間 (リロード・弾切れ) は撃ち合えないので、近くても立ち位置へ下がる
+            boolean closeFight = canSeeTarget && target != null && weaponReadyInTicks <= PEEK_READY_TICKS
                     && here.distanceSquared(target.getLocation()) <= CLOSE_FIGHT_DISTANCE * CLOSE_FIGHT_DISTANCE;
             if (canSeeTarget && distance <= DIRECT_MOVE_MAX && TacticalPositioning.walkableStraight(here, spot.stand())) {
                 tactics.moveDirectTo(spot.stand(), 1.2);
@@ -1183,6 +1385,7 @@ public class ScavController {
             return true;
         }
 
+        updateReengage(spot, now);
         switch (spot.type()) {
             case FIRE -> {
                 if (canSeeTarget) {
@@ -1217,6 +1420,33 @@ public class ScavController {
     }
 
     /**
+     * 遮蔽に着いてから出直すまでを数え、条件がそろったら撃てる立ち位置へ出させる ({@link TacticalPositioning#MODE_ENGAGE})。
+     * 撃てる立ち位置にいる間は数え直す
+     */
+    private void updateReengage(TacticalPositioning.Spot spot, int now) {
+        if (spot.type() == TacticalPositioning.SpotType.FIRE) {
+            inCoverSinceTick = -1;
+            return;
+        }
+        if (inCoverSinceTick < 0) {
+            inCoverSinceTick = now;
+            int wait = switch (brainLevel) {
+                case LOW -> REENGAGE_WAIT_LOW;
+                case MID -> REENGAGE_WAIT_MID;
+                case HIGH -> REENGAGE_WAIT_HIGH;
+            };
+            reengageAfterTick = now + wait + java.util.concurrent.ThreadLocalRandom.current().nextInt(REENGAGE_WAIT_JITTER);
+        }
+        if (now < reengageAfterTick || now < reengageUntilTick || now < withdrawUntilTick) return;
+        double health = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+        if (weaponReadyInTicks > 0 || lastAmmoRatio < REENGAGE_MIN_AMMO_RATIO || health < REENGAGE_MIN_HEALTH
+                || suppression > REENGAGE_MAX_SUPPRESSION || now - lastDamagedTick < REENGAGE_NO_DAMAGE_TICKS) return;
+        reengageUntilTick = now + REENGAGE_MIN_TICKS + java.util.concurrent.ThreadLocalRandom.current().nextInt(REENGAGE_JITTER_TICKS);
+        inCoverSinceTick = -1;
+        positioning.invalidate();
+    }
+
+    /**
      * 見えていない相手の居場所の推定を1ステップ進め、一番ありそうな場所を lastKnownLocation にする。
      * 自分の視界で「見ているのに見えない」場所を消していく (追跡中は視野角なし、手放した後は視野角の内側だけ)
      */
@@ -1240,6 +1470,7 @@ public class ScavController {
         LivingEntity target = scav.getTarget();
         squad.enterCombat(target != null ? target.getUniqueId() : null);
         assistCallerId = null;
+        sharedContact = null;
         squad.callForHelp();
     }
 
@@ -1264,32 +1495,90 @@ public class ScavController {
      * @return 引き受けた場合true
      */
     public boolean receiveHelpCall(ScavController caller) {
-        if (caller == this || isInCombat()) return false;
+        if (caller == this || isInCombat() || !caller.getScav().isValid()
+                || caller.getScav().getWorld() != scav.getWorld() || !caller.isInCombat()) return false;
         UUID callerId = caller.getScav().getUniqueId();
-        if (assistCallerId != null && !assistCallerId.equals(callerId) && ScavSpawner.getController(assistCallerId) != null) return false;
+        UUID previousCallerId = assistCallerId;
+        int now = Bukkit.getCurrentTick();
+        if (assistCallerId != null && !assistCallerId.equals(callerId)) {
+            ScavController previous = ScavSpawner.getController(assistCallerId);
+            boolean active = previous != null && previous.getScav().isValid() && previous.isInCombat()
+                    && previous.getScav().getWorld() == scav.getWorld() && now <= assistUntilTick;
+            if (!ScavHelpPolicy.shouldSwitch(active ? previous.helpPriority(scav.getLocation()) : 0,
+                    caller.helpPriority(scav.getLocation()), now - assistStartedTick, active)) return false;
+        }
         if (!squad.joinHelpEncounter(caller.getSquad())) return false;
         if (!callerId.equals(assistCallerId)) {
-            assistSide = Math.random() < 0.5 ? 1 : -1;
+            squad.releaseSearch();
+            assignedSearchPoint = null;
+            assistStartedTick = now;
+            sharedContact = null;
+            assistSide = squad.supportSide();
             addAlertness(0.2f, "HELP_CALL", ScavSpawner.getRaidSessionId(scav.getUniqueId()));
+        }
+        ScavContactReport report = caller.visualReport();
+        if (report != null && (sharedContact == null || report.observedTick() > sharedContact.observedTick()
+                || !report.targetId().equals(sharedContact.targetId()))) {
+            if (sharedContact == null || !report.targetId().equals(sharedContact.targetId())) {
+                squad.releaseSearch();
+                assignedSearchPoint = null;
+                nextSharedSearchTick = 0;
+            }
+            sharedContact = report;
+            sharedSearchUntilTick = report.observedTick() + ScavContactReport.MAX_AGE;
         }
         assistCallerId = callerId;
         assistUntilTick = Bukkit.getCurrentTick() + ASSIST_DURATION_TICKS;
+        if (!callerId.equals(previousCallerId)) {
+            java.util.Map<String, Object> details = new java.util.HashMap<>();
+            details.put("callerId", callerId.toString());
+            details.put("previousCallerId", previousCallerId == null ? null : previousCallerId.toString());
+            details.put("priority", caller.helpPriority(scav.getLocation()));
+            details.put("observationTick", sharedContact == null ? null : sharedContact.observedTick());
+            details.put("contactSource", sharedContact == null ? "NONE" : "VISUAL_REPORT");
+            logCoordination("HELP_ASSIGNED", details);
+        }
         isAlerted = true;
         return true;
     }
 
     /** 味方の後ろ・横へ向かい、着いたら味方が向いている方向を見張る。救援中でなければfalse */
     private boolean handleAssist() {
-        if (assistCallerId == null) return false;
-        ScavController caller = ScavSpawner.getController(assistCallerId);
+        int now = Bukkit.getCurrentTick();
+        ScavController caller = assistCallerId == null ? null : ScavSpawner.getController(assistCallerId);
         if (caller == null || !caller.getScav().isValid() || caller.getScav().getWorld() != scav.getWorld()
-                || Bukkit.getCurrentTick() > assistUntilTick || !caller.isInCombat()) {
+                || now > assistUntilTick || !caller.isInCombat()) {
             assistCallerId = null;
-            return false;
+            caller = null;
+            // Finish a short search using the last actual report, rather than immediately abandoning it.
+            if (sharedContact == null || !sharedContact.fresh(now) || now >= sharedSearchUntilTick
+                    || sharedContact.position().getWorld() != scav.getWorld()) {
+                sharedContact = null;
+                assignedSearchPoint = null;
+                squad.releaseSearch();
+                return false;
+            }
         }
+        if (sharedContact != null && sharedContact.fresh(now) && sharedContact.position().getWorld() == scav.getWorld()
+                && (caller == null || now - sharedContact.observedTick() >= 60)) {
+            Location goal = assignedSearchGoal(sharedContact);
+            updatePreAim(sharedContact.predicted(now));
+            if (goal != null) {
+                if (scav.getLocation().distanceSquared(goal) > 2.25) scav.getPathfinder().moveTo(goal, ASSIST_SPEED);
+                else scav.getPathfinder().stopPathfinding();
+                return true;
+            }
+            if (caller == null) return false;
+        }
+        if (caller == null) return false;
 
         Location callerLoc = caller.getScav().getLocation();
         Vector facing = caller.getFacing();
+        if (sharedContact != null && sharedContact.fresh(now) && sharedContact.position().getWorld() == scav.getWorld()) {
+            Vector towardObservation = sharedContact.position().toVector().subtract(callerLoc.toVector()).setY(0);
+            if (towardObservation.lengthSquared() > 0.01) facing = towardObservation.normalize();
+        }
+        assistSide = squad.supportSide();
         Vector side = new Vector(-facing.getZ(), 0, facing.getX()).multiply(assistSide * ASSIST_SIDE);
         Location post = callerLoc.clone().subtract(facing.clone().multiply(ASSIST_BEHIND)).add(side);
 
@@ -1300,9 +1589,65 @@ public class ScavController {
             }
         } else {
             scav.getPathfinder().stopPathfinding();
-            updatePreAim(caller.getScav().getLocation().add(facing.clone().multiply(ASSIST_WATCH_DISTANCE)));
+            updatePreAim(sharedContact != null && sharedContact.fresh(now)
+                    ? sharedContact.predicted(now) : callerLoc.clone().add(facing.clone().multiply(ASSIST_WATCH_DISTANCE)));
         }
         return true;
+    }
+
+    private ScavContactReport visualReport() {
+        int now = Bukkit.getCurrentTick();
+        if (lastSeenLocation == null || lastSeenTargetId == null || now - lastSeenTick >= ScavContactReport.MAX_AGE) return null;
+        LivingEntity current = scav.getTarget();
+        if (current != null && !current.getUniqueId().equals(lastSeenTargetId)) return null;
+        return new ScavContactReport(lastSeenTargetId, scav.getUniqueId(), lastSeenLocation, observedVelocity, lastSeenTick);
+    }
+
+    private double helpPriority(Location responder) {
+        int now = Bukkit.getCurrentTick();
+        return ScavHelpPolicy.priority(scav.getHealth() / Math.max(1, scav.getMaxHealth()), suppression,
+                now - lastDamagedTick < 40, now - lastTargetVisibleTick < 40, squad.responderCount(),
+                responder.getWorld() == scav.getWorld() ? responder.distance(scav.getLocation()) : 1000);
+    }
+
+    private Location assignedSearchGoal(ScavContactReport report) {
+        int now = Bukkit.getCurrentTick();
+        if (assignedSearchPoint != null && now - assignedSearchStartedTick >= 20
+                && scav.getLocation().distanceSquared(assignedSearchPoint) <= 6.25
+                && canInspectSearchPoint(assignedSearchPoint)) {
+            squad.inspected(report, assignedSearchPoint);
+            logCoordination("SEARCH_SECTOR_INSPECTED", java.util.Map.of("targetId", report.targetId().toString(),
+                    "x", assignedSearchPoint.getX(), "y", assignedSearchPoint.getY(), "z", assignedSearchPoint.getZ()));
+            assignedSearchPoint = null;
+            nextSharedSearchTick = now;
+        }
+        if (now < nextSharedSearchTick) return assignedSearchPoint;
+        Location point = squad.searchPoint(report);
+        nextSharedSearchTick = now + 20; // path probes at most once per second per searching SCAV
+        if (point == null || assignedSearchPoint == null || point.distanceSquared(assignedSearchPoint) > 0.01) {
+            assignedSearchPoint = point;
+            assignedSearchStartedTick = now;
+            if (point != null) logCoordination("SEARCH_SECTOR_ASSIGNED", java.util.Map.of(
+                    "targetId", report.targetId().toString(), "observationTick", report.observedTick(),
+                    "uncertainty", report.uncertainty(now), "x", point.getX(), "y", point.getY(), "z", point.getZ()));
+        }
+        return assignedSearchPoint;
+    }
+
+    private void logCoordination(String event, java.util.Map<String, Object> details) {
+        String session = ScavSpawner.getRaidSessionId(scav.getUniqueId());
+        if (session != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled())
+            plugin.getAiRaidLogger().logEvent(session, scav.getUniqueId(), event, details);
+    }
+
+    private boolean canInspectSearchPoint(Location point) {
+        Location eye = scav.getEyeLocation();
+        Vector direction = point.clone().add(0, 1, 0).toVector().subtract(eye.toVector());
+        double distance = direction.length();
+        if (distance < 0.1) return true;
+        if (Math.toDegrees(eye.getDirection().angle(direction)) > vision.fovDegrees() / 2) return false;
+        return eye.getWorld().rayTraceBlocks(eye, direction.normalize(), distance,
+                org.bukkit.FluidCollisionMode.NEVER, true) == null;
     }
 
     /** 味方の銃声を聞いた。戦闘が近くで起きていることだけ分かる (撃っている味方の位置を敵の位置とは扱わない) */
@@ -1317,7 +1662,7 @@ public class ScavController {
         // 至近弾が続いて頭を上げられなくなった瞬間に叫ぶ
         if (before < UNDER_FIRE_VOICE_SUPPRESSION && suppression >= UNDER_FIRE_VOICE_SUPPRESSION) playScavVoice(ScavVoice.UNDER_FIRE);
     }
-    public void onDeath() { brain.onDeath(); releaseChunkTicket(); }
+    public void onDeath() { squad.releaseSearch(); brain.onDeath(); releaseChunkTicket(); }
     public void terminate() {
         brain.terminate();
         releaseChunkTicket();

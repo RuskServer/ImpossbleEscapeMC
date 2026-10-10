@@ -43,6 +43,9 @@ public final class TacticalPositioning {
     private record Candidate(Location stand, Location peek, SpotType type, double score) {
     }
 
+    /** 遮蔽から撃ち合いへ出直す時の配点モード (ScavBrain のモードとは別に ScavController が使う) */
+    public static final String MODE_ENGAGE = "ENGAGE";
+
     /** 候補を探す範囲 (ブロック) と間隔 */
     private static final int SEARCH_RADIUS = 8;
     private static final int SEARCH_STEP = 2;
@@ -122,6 +125,37 @@ public final class TacticalPositioning {
         return current;
     }
 
+    /**
+     * 相手から見えない立ち位置のうち、いちばん近くてたどり着ける所 (無ければnull)。
+     * 弾が尽きた時の逃げ場を探すのに使う (今の立ち位置は変えない)
+     *
+     * @param threat 相手の目の位置
+     */
+    public Location nearestHidden(Location threat) {
+        World world = scav.getWorld();
+        Location base = scav.getLocation();
+        List<Location> hidden = new ArrayList<>();
+        int minX = Math.floorDiv(base.getBlockX() - SEARCH_RADIUS, SEARCH_STEP) * SEARCH_STEP;
+        int minZ = Math.floorDiv(base.getBlockZ() - SEARCH_RADIUS, SEARCH_STEP) * SEARCH_STEP;
+        for (int x = minX; x <= base.getBlockX() + SEARCH_RADIUS; x += SEARCH_STEP) {
+            for (int z = minZ; z <= base.getBlockZ() + SEARCH_RADIUS; z += SEARCH_STEP) {
+                Location stand = standable(world, x, base.getBlockY(), z);
+                if (stand != null && horizontal(stand, threat) >= MIN_RANGE
+                        && !clear(world, stand.clone().add(0, EYE_HEIGHT, 0), threat)) {
+                    hidden.add(stand);
+                }
+            }
+        }
+        hidden.sort(Comparator.comparingDouble(stand -> horizontal(stand, base)));
+        for (int i = 0; i < Math.min(PATH_CHECKS, hidden.size()); i++) {
+            Location stand = hidden.get(i);
+            if (horizontal(stand, base) <= 1.5) return stand;
+            var path = scav.getPathfinder().findPath(stand);
+            if (path != null && path.canReachFinalPoint()) return stand;
+        }
+        return null;
+    }
+
     private Spot choose(Location threat, String mode, double range, List<ScavController> allies) {
         World world = scav.getWorld();
         Location base = scav.getLocation();
@@ -176,6 +210,8 @@ public final class TacticalPositioning {
             case "PUSH" -> type == SpotType.FIRE ? 2.0 : type == SpotType.COVER_PEEK ? 2.4 : 0.0;
             // 回り込む: 遮蔽を使いつつ、相手から見て今と違う角度へ
             case "FLANK" -> type == SpotType.FIRE ? 1.6 : type == SpotType.COVER_PEEK ? 2.6 : 0.2;
+            // 出直す: 撃てる場所へ出る (遮蔽に留まる加点を上回るように)
+            case MODE_ENGAGE -> type == SpotType.FIRE ? 3.4 : type == SpotType.COVER_PEEK ? 1.0 : 0.0;
             // 下がる: 隠れられる場所を優先し、遠めを取る
             case "WITHDRAW" -> type == SpotType.FIRE ? 0.0 : type == SpotType.COVER_PEEK ? 1.6 : 2.6;
             // 待つ・顔出し: 遮蔽から顔を出して撃てる場所

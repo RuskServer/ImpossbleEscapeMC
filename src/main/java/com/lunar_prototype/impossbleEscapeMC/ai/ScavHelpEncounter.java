@@ -13,14 +13,28 @@ final class ScavHelpEncounter {
 
     private ScavHelpEncounter parent = this;
     private final Set<UUID> members = new HashSet<>();
-    private final Set<UUID> reinforcements = new HashSet<>();
+    private final Set<UUID> reinforcements = new java.util.LinkedHashSet<>();
     private int lastContactTick;
+    private final ScavSearchPlan searchPlan = new ScavSearchPlan();
+
+    boolean sameAs(ScavHelpEncounter other) { return other != null && root() == other.root(); }
+
+    ScavSearchPlan searchPlan() { return root().searchPlan; }
 
     private ScavHelpEncounter(int now) { lastContactTick = now; }
 
     private ScavHelpEncounter root() {
         if (parent != this) parent = parent.root();
         return parent;
+    }
+
+    int supportSide(UUID member) {
+        int index = 0;
+        for (UUID id : root().reinforcements) {
+            if (id.equals(member)) return (index & 1) == 0 ? -1 : 1;
+            index++;
+        }
+        return 1;
     }
 
     boolean active(int now) { return now - root().lastContactTick < QUIET_TICKS; }
@@ -50,6 +64,7 @@ final class ScavHelpEncounter {
                 ScavHelpEncounter other = known.root();
                 encounter.members.addAll(other.members);
                 encounter.reinforcements.addAll(other.reinforcements);
+                encounter.searchPlan.merge(other.searchPlan);
                 other.parent = encounter;
             }
             encounter.lastContactTick = now;
