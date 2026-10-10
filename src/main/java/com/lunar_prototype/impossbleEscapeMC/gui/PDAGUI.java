@@ -8,6 +8,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketMainGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -32,13 +33,20 @@ public class PDAGUI implements Listener {
     /** Toi's Armoryのダイアログ入力。2で設定ダイアログを開く */
     private static final String DATAPACK_DIALOG_INPUT_OBJECTIVE = "toisarm.trigger.input";
     private static final int DATAPACK_SETTINGS_INPUT = 2;
+    /**
+     * タイトルに出す背景 (リソースパックの iem:gui フォント)。-8 の空白でタイトルの位置 (8, 6) を打ち消し、
+     * 画面の上半分 (176x72) を覆う背景の1文字を描く。白にしないとタイトルの色 (暗い灰色) で暗く染まる
+     */
+    private static final Component BACKGROUND_TITLE = Component.text("\uE001\uE000")
+            .font(Key.key("iem", "gui"))
+            .color(NamedTextColor.WHITE);
 
     private final Player player;
     private final Inventory inventory;
 
     public PDAGUI(Player player) {
         this.player = player;
-        this.inventory = Bukkit.createInventory(null, 27, Component.text("PDA - Player Information").decoration(TextDecoration.ITALIC, false));
+        this.inventory = Bukkit.createInventory(null, 27, BACKGROUND_TITLE);
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }
 
@@ -48,16 +56,8 @@ public class PDAGUI implements Listener {
     }
 
     private void setupGUI() {
+        // 背景はタイトルの画像で描くので、空きスロットは空のままにする (クリックはすべて止めている)
         inventory.clear();
-
-        // 背景
-        ItemStack bg = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta bgMeta = bg.getItemMeta();
-        bgMeta.displayName(Component.empty());
-        bg.setItemMeta(bgMeta);
-        for (int i = 0; i < 27; i++) {
-            inventory.setItem(i, bg);
-        }
 
         PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
         LevelModule levelModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(LevelModule.class);
