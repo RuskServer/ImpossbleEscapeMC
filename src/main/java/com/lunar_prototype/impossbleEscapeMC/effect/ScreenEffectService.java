@@ -9,6 +9,8 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidEndSequence;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidInstance;
 import io.papermc.paper.event.player.PlayerClientLoadedWorldEvent;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Bukkit;
@@ -41,9 +43,10 @@ import java.util.UUID;
  * エフェクト本体 (assets/iem/post_effect/*.json と shaders/post/*.fsh) はサーバーのリソースパックで配る。
  * クライアントは送られた順にポストエフェクトを重ねて描くため、次の層を下から順に重ねる。
  * <ol>
+ *   <li>空: レイド終盤は空だけを染める iem:emp_precursor_* → iem:emp_aurora ({@link RaidEndSequence} が段階を決める)</li>
  *   <li>色味: レイド中は常に iem:raid_grade</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
- *   <li>演出: アドレナリン放出・死亡・レイド開始。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
+ *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
  * </ol>
  * 付け外しするのは iem 名前空間のエフェクトだけで、他のポストエフェクトには触れない。
@@ -69,6 +72,11 @@ public final class ScreenEffectService implements Listener {
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
     private static final Key HIT_FADE = Key.key(NAMESPACE, "hit_fade");
+    private static final Key EMP_FLASH = Key.key(NAMESPACE, "emp_flash");
+    /** EMP の閃光は emp_flash (真っ白) から emp_flash_fade_1〜3 へ順に薄れる */
+    private static final int EMP_FLASH_FADE_STAGES = 3;
+    private static final int EMP_FLASH_TICKS = 3;
+    private static final int[] EMP_FLASH_FADE_TICKS = {4, 6, 10};
     /** レイド開始の演出。intro_0 (真っ黒) から intro_6 (ほぼ素の画面) へ順に明るくする */
     private static final int INTRO_STAGES = 7;
     private static final int INTRO_BLACK_TICKS = 20;
@@ -128,6 +136,8 @@ public final class ScreenEffectService implements Listener {
 
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Playback> playing = new HashMap<>();
+    /** 空の層のエフェクト (レイド終盤) */
+    private final Map<UUID, Key> sky = new HashMap<>();
     /** 色味の層をかけているプレイヤー (レイド中) */
     private final Set<UUID> graded = new HashSet<>();
     /** 負傷の層のエフェクト (出血中・瀕死) */
@@ -208,6 +218,17 @@ public final class ScreenEffectService implements Listener {
         instance.start(player, steps, true);
     }
 
+    /** 上空で EMP が起爆した瞬間の閃光 (真っ白に飛んで、揺れと色収差を残しながら戻る) */
+    public static void playEmpFlash(Player player) {
+        if (instance == null) return;
+        List<Step> steps = new ArrayList<>();
+        steps.add(new Step(EMP_FLASH, EMP_FLASH_TICKS, false));
+        for (int i = 1; i <= EMP_FLASH_FADE_STAGES; i++) {
+            steps.add(new Step(Key.key(NAMESPACE, "emp_flash_fade_" + i), EMP_FLASH_FADE_TICKS[i - 1], false));
+        }
+        instance.start(player, steps);
+    }
+
     private void start(Player player, List<Step> steps) {
         start(player, steps, false);
     }
@@ -283,18 +304,21 @@ public final class ScreenEffectService implements Listener {
         }
     }
 
-    // --- 色味・負傷・被弾の層 ---
+    // --- 空・色味・負傷・被弾の層 ---
 
-    /** レイド中なら色味、出血中なら負傷の層をかける */
+    /** レイド中なら色味 (終盤は空も)、出血中なら負傷の層をかける */
     private void updateGradeAndWound(Player player) {
         UUID playerId = player.getUniqueId();
         boolean alive = !player.isDead() && !awaitingRespawn.contains(playerId)
                 && player.getGameMode() != GameMode.SPECTATOR && player.getGameMode() != GameMode.CREATIVE;
 
-        boolean grade = alive && plugin.getRaidModule() != null && plugin.getRaidModule().isInRaid(player);
+        RaidInstance raid = alive && plugin.getRaidModule() != null ? plugin.getRaidModule().getRaidOf(player) : null;
+        Key skyEffect = raid != null ? raid.getEndSequence().skyEffect() : null;
         Key woundEffect = alive ? woundEffectOf(player) : null;
 
-        boolean changed = grade ? graded.add(playerId) : graded.remove(playerId);
+        boolean changed = raid != null ? graded.add(playerId) : graded.remove(playerId);
+        Key previousSky = skyEffect != null ? sky.put(playerId, skyEffect) : sky.remove(playerId);
+        changed |= previousSky != skyEffect;
         Key previous = woundEffect != null ? wound.put(playerId, woundEffect) : wound.remove(playerId);
         changed |= previous != woundEffect;
         if (changed) refresh(player);
@@ -345,7 +369,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (色味 → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (空 → 色味 → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -353,6 +377,8 @@ public final class ScreenEffectService implements Listener {
         for (Key existing : current) {
             if (!NAMESPACE.equals(existing.namespace())) effects.add(existing);
         }
+        Key skyEffect = sky.get(playerId);
+        if (skyEffect != null) effects.add(skyEffect);
         if (graded.contains(playerId)) effects.add(RAID_GRADE);
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
@@ -377,6 +403,7 @@ public final class ScreenEffectService implements Listener {
 
     private void forget(UUID playerId) {
         playing.remove(playerId);
+        sky.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
@@ -393,6 +420,7 @@ public final class ScreenEffectService implements Listener {
         Player player = event.getEntity();
         UUID playerId = player.getUniqueId();
         awaitingRespawn.add(playerId);
+        sky.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);

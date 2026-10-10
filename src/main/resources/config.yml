@@ -4,6 +4,12 @@ resource-pack:
   prompt: "サーバー専用リソースパックを適用してください。"
   force: true
 
+# レイド終盤の演出 (残り秒数)。予告 → 予兆 (サイレン・照明弾・空が色づく) → EMP 起爆 → 時間切れで MIA
+raid-end-sequence:
+  warning-seconds: 180
+  precursor-seconds: 90
+  emp-seconds: 45
+
 hit-sounds:
   headshot: "custom_hit"
   penetration-success: "ENTITY_ZOMBIE_ATTACK_IRON_DOOR"
