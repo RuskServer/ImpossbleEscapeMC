@@ -49,6 +49,8 @@ public class InventoryListener implements Listener {
     }
 
     private void openAttachmentGui(Player player) {
+        // データパック銃なら、データパックのアタッチメントの画面
+        if (com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUI.open(player)) return;
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         String itemId = mainHand.hasItemMeta() ?
                 mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;

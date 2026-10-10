@@ -174,6 +174,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletHitBridge(), this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
         getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI(raidModule), this);
         getServer().getPluginManager().registerEvents(searchGUI, this);
