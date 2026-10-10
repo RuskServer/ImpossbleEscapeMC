@@ -248,6 +248,13 @@ public class ScavController {
     private static final int VOICE_LINE_COOLDOWN_TICKS = 100;
     /** 周りの味方がこの時間 (tick) 以内に喋り出していたら喋らない */
     private static final int ALLY_VOICE_GAP_TICKS = 40;
+    /** 撃たれ続けて制圧がこの値を超えた時に叫ぶ */
+    private static final float UNDER_FIRE_VOICE_SUPPRESSION = 0.5f;
+    /** 警戒していない時の独り言の頻度 (平均1分に1回) と、独り言を言う時に近くにいるべきプレイヤーの距離 */
+    private static final double IDLE_VOICE_CHANCE_PER_STEP = STEP_TICKS / (20.0 * 60.0);
+    private static final double IDLE_VOICE_PLAYER_RANGE = 24.0;
+    /** 前のステップでリロード中だったか (弾切れでリロードを始めた瞬間を知るため) */
+    private boolean wasReloading;
     /** 視認中に味方へ位置を伝える間隔 (tick) */
     private static final int SHARE_INTERVAL_TICKS = 10;
     private int lastShareTick = Integer.MIN_VALUE / 2;
@@ -377,7 +384,7 @@ public class ScavController {
             target = vision.scanForTargets();
             if (target != null) {
                 scav.setTarget(target);
-                playScavVoice("minecraft:scav1", 1.0f, 1.0f);
+                playScavVoice(ScavVoice.SPOTTED);
             }
         }
 
@@ -413,7 +420,7 @@ public class ScavController {
                 enterCombat();
                 if (Bukkit.getCurrentTick() - lastShareTick >= SHARE_INTERVAL_TICKS) {
                     lastShareTick = Bukkit.getCurrentTick();
-                    if (Math.random() < 0.2) playScavVoice("minecraft:scav2", 1.0f, 1.0f);
+                    if (Math.random() < 0.2) playScavVoice(ScavVoice.TAUNT);
                 }
             } else {
                 lostTargetSteps++;
@@ -468,8 +475,13 @@ public class ScavController {
         boolean exposedToTarget = target != null && scav.hasLineOfSight(target);
         if (!exposedToTarget && tactics.getPeekPhase() == 0
                 && weapon.ammoRatio() < (knowsEnemy ? TACTICAL_RELOAD_RATIO : 1.0)) {
-            weapon.startReload();
+            if (weapon.startReload() && knowsEnemy) playScavVoice(ScavVoice.RELOAD);
         }
+        // 撃ち尽くしてリロードを始めた時も、戦っているなら味方に知らせる
+        // (リロード中には構え直しなどの準備中も含まれるので、弾が無いことで見分ける)
+        boolean reloading = weapon.isReloading();
+        if (reloading && !wasReloading && weapon.ammo() <= 0 && knowsEnemy) playScavVoice(ScavVoice.RELOAD);
+        wasReloading = reloading;
         weaponReadyInTicks = weapon.ticksUntilReady();
         boolean needsReload = weapon.needsReload() || weaponReadyInTicks >= LONG_UNREADY_TICKS;
         double healthPercent = scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
@@ -1010,7 +1022,7 @@ public class ScavController {
 
         // 音の方へ振り向く (一瞬で向きを変えず、照準と同じく滑らかに、音のした所の目の高さへ)
         updatePreAim(source);
-        playScavVoice("minecraft:scav1", 1.0f, 1.0f); // 索敵ボイスに変更
+        playScavVoice(ScavVoice.HEARD);
 
         if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
             Map<String, Object> payload = new HashMap<>();
@@ -1066,7 +1078,7 @@ public class ScavController {
         return SoundArc.FRONT;
     }
 
-    public void playScavVoice(String sound, float volume, float pitch) {
+    public void playScavVoice(ScavVoice voice) {
         int now = Bukkit.getCurrentTick();
         if (now < voiceAvailableTick) return;
 
@@ -1075,13 +1087,13 @@ public class ScavController {
             if (now - ally.lastVoiceTick < ALLY_VOICE_GAP_TICKS) return; // 誰かが2秒以内に喋り出していたらキャンセル
         }
 
-        scav.getWorld().playSound(scav.getLocation(), sound, volume, pitch);
+        scav.getWorld().playSound(scav.getLocation(), voice.sound(), 1.0f, 1.0f);
         lastVoiceTick = now;
         voiceAvailableTick = now + VOICE_LINE_COOLDOWN_TICKS + (int)(Math.random() * 40); // 5〜7秒のクールダウン
     }
 
     public void onKill(LivingEntity victim) {
-        playScavVoice("minecraft:scav4", 1.0f, 1.0f);
+        playScavVoice(ScavVoice.KILL);
     }
 
     public void onDamage(Entity attacker) {
@@ -1093,9 +1105,7 @@ public class ScavController {
         brain.requestDecision("DAMAGE_EVENT");
         positioning.recordHit(scav.getLocation());
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
-        if (scav.getHealth() / scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() < 0.5) {
-            playScavVoice("minecraft:scav3", 1.0f, 1.0f);
-        }
+        playScavVoice(ScavVoice.HIT);
         if (attacker instanceof LivingEntity living && living.getWorld() == scav.getWorld()) {
             Vector toAttacker = living.getLocation().toVector().subtract(scav.getLocation().toVector());
             // 同じ位置からの被弾 (向きが決まらない) では振り向かない
@@ -1275,7 +1285,12 @@ public class ScavController {
         isAlerted = true;
     }
 
-    public void addSuppression(float amount) { this.suppression = Math.min(1.0f, this.suppression + amount); }
+    public void addSuppression(float amount) {
+        float before = suppression;
+        suppression = Math.min(1.0f, suppression + amount);
+        // 至近弾が続いて頭を上げられなくなった瞬間に叫ぶ
+        if (before < UNDER_FIRE_VOICE_SUPPRESSION && suppression >= UNDER_FIRE_VOICE_SUPPRESSION) playScavVoice(ScavVoice.UNDER_FIRE);
+    }
     public void onDeath() { brain.onDeath(); releaseChunkTicket(); }
     public void terminate() { brain.terminate(); releaseChunkTicket(); releaseWeapon(); }
 
@@ -1528,6 +1543,12 @@ public class ScavController {
             }
         } else {
             returningHome = false;
+        }
+
+        // 警戒していない時は、たまに独り言を言う (近くのプレイヤーにだけ聞こえる距離なので、誰もいなければ言わない)
+        if (behaviorState == BehaviorState.RELAXED && Math.random() < IDLE_VOICE_CHANCE_PER_STEP
+                && !scav.getLocation().getNearbyPlayers(IDLE_VOICE_PLAYER_RANGE).isEmpty()) {
+            playScavVoice(ScavVoice.IDLE);
         }
     }
 
