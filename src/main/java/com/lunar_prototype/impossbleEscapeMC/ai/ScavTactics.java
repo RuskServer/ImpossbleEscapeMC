@@ -130,14 +130,19 @@ public class ScavTactics {
 
         if (moveVec.lengthSquared() > 0) {
             Vector finalMove = moveVec.normalize();
-            Location dest = sLoc.clone().add(finalMove.multiply(2.0));
-            moveDirect(dest, isSprinting ? 1.5 : 1.0);
+            double speed = isSprinting ? 1.5 : 1.0;
+            // 2ブロック先へ行けなければ1ブロック先、それも無理ならその場に留まる
+            if (!moveDirect(sLoc.clone().add(finalMove.clone().multiply(2.0)), speed)
+                    && !moveDirect(sLoc.clone().add(finalMove.clone().multiply(1.0)), speed)) {
+                stopMoving();
+            }
         }
     }
 
     // --- 直接移動 ---
     // 撃ち合い中の横移動や顔出しは短い距離を素早く切り返すため、毎回の経路探索 (止まっては動く) を通さず、
-    // 移動の制御 (MoveControl) に直接指示する。足元が抜けている・壁の時だけ経路探索に任せる。
+    // 移動の制御 (MoveControl) に直接指示する。まっすぐ行けない (途中に壁・穴がある) 時は、その動きをしない
+    // (経路探索に任せると、回り込んで壁の前まで歩くなど、顔出しや横移動に見えない動きになる)。
     // 行き先へ向かう指示 (setWantedPosition) は体を移動方向へ回すため、照準を合わせた向きと毎tick取り合って体が揺れる。
     // そこでスケルトンが弓を構えたまま横移動するのと同じストレイフ (向いている方向を基準に前後左右へ動く) を使う
 
@@ -153,22 +158,34 @@ public class ScavTactics {
     private int directUntilTick;
     private static final double DIRECT_ARRIVE_DISTANCE = 0.3;
 
-    /** 相手を向いたまま、近くの場所へ直接移動する (着くか、次の判断まで) */
-    public void moveDirectTo(Location dest, double speed) {
-        moveDirect(dest, speed);
+    /**
+     * 相手を向いたまま、近くの場所へ直接移動する (着くか、次の判断まで)
+     *
+     * @return 動き始めた場合true。まっすぐ行けない時はfalse (動かない)
+     */
+    public boolean moveDirectTo(Location dest, double speed) {
+        return moveDirect(dest, speed);
     }
 
-    private void moveDirect(Location dest, double speed) {
-        if (!isSafeStep(dest)) {
+    private boolean moveDirect(Location dest, double speed) {
+        if (!canStepStraight(dest)) {
             endStrafe();
-            scav.getPathfinder().moveTo(dest, speed);
-            return;
+            return false;
         }
         scav.getPathfinder().stopPathfinding();
         directTarget = dest.clone();
         directSpeed = speed;
         directUntilTick = org.bukkit.Bukkit.getCurrentTick() + ScavController.STEP_TICKS + 1;
         tickDirectMove();
+        return true;
+    }
+
+    /** 今の位置からまっすぐ歩いて行けるか。段差の上り下りはまっすぐには調べられないため、行き先に立てるかだけ見る */
+    private boolean canStepStraight(Location dest) {
+        Location here = scav.getLocation();
+        if (dest.getWorld() != here.getWorld()) return false;
+        if (Math.abs(dest.getY() - here.getY()) > 0.5) return isSafeStep(dest);
+        return TacticalPositioning.walkableStraight(here, dest);
     }
 
     /** 毎tick、照準を合わせた後に呼ぶ。直接移動中なら、今の向きを基準にした前後左右の移動を MoveControl に指示し直す */
@@ -229,6 +246,14 @@ public class ScavTactics {
         Location here = scav.getLocation();
         ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle().getMoveControl()
                 .setWantedPosition(here.getX(), here.getY(), here.getZ(), 0.0);
+    }
+
+    private static boolean clearLine(Location from, Location to) {
+        Vector direction = to.toVector().subtract(from.toVector());
+        double length = direction.length();
+        if (length < 1.0E-3) return true;
+        var hit = from.getWorld().rayTraceBlocks(from, direction.multiply(1.0 / length), length, org.bukkit.FluidCollisionMode.NEVER, true);
+        return hit == null || hit.getHitBlock() == null;
     }
 
     /** 足と頭の高さが通れて、1段下までに立てる床がある (崖から落ちない・壁に突っ込まない) */
@@ -297,7 +322,12 @@ public class ScavTactics {
     public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, double spread, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
         if (peekPhase == 1) { // Moving out
-            moveDirect(peekLocation, PEEK_SPEED);
+            if (!moveDirect(peekLocation, PEEK_SPEED)) {
+                // 出る途中で行けなくなった (押された・相手の位置が変わったなど): 引っ込む
+                peekPhase = 2;
+                peekTicks = 0;
+                return;
+            }
             // 出て、止まって、撃つ (横へ出ている最中に撃つと当たらない)
             boolean settled = scav.getLocation().distanceSquared(peekLocation) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE;
             if (targetVisible) {
@@ -331,7 +361,8 @@ public class ScavTactics {
                 peekTicks = 0;
             }
         } else if (peekPhase == 2) { // Moving back
-            moveDirect(coverLocation, PEEK_SPEED);
+            // 戻りは来た道をまっすぐ戻る。押されてまっすぐ戻れない時だけ経路探索で遮蔽へ戻る
+            if (!moveDirect(coverLocation, PEEK_SPEED)) scav.getPathfinder().moveTo(coverLocation, PEEK_SPEED);
             if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= 5) {
                 peekPhase = 0;
                 peekRestTicks = 4 + (int) (Math.random() * 20); // 次に顔を出すまでの間をばらつかせる
@@ -352,6 +383,8 @@ public class ScavTactics {
      */
     public boolean startPeekTo(Location peek) {
         if (peekRestTicks > 0) return false;
+        // 立ち位置から少しずれて立っていると、顔出し位置との間に遮蔽の角が入ることがある
+        if (!canStepStraight(peek)) return false;
         coverLocation = scav.getLocation().clone();
         peekLocation = peek.clone();
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
@@ -365,15 +398,31 @@ public class ScavTactics {
     public boolean startPeek(Location lastKnownLocation, boolean isSprinting, boolean jump) {
         if (peekRestTicks > 0) return false;
         coverLocation = scav.getLocation().clone();
-        Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).normalize();
+        Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).setY(0);
+        if (toTarget.lengthSquared() < 1.0E-6) return false;
+        toTarget.normalize();
         Vector tangent = new Vector(-toTarget.getZ(), 0, toTarget.getX());
         // 前回と逆側から出ることが多いが、同じ側から出直すこともある
         int side;
         if (lastPeekSide == 0) side = Math.random() < 0.5 ? 1 : -1;
         else side = Math.random() < 0.65 ? -lastPeekSide : lastPeekSide;
         lastPeekSide = side;
-        double offset = 1.0 + Math.random() * 2.0;
-        peekLocation = coverLocation.clone().add(tangent.multiply(side * offset));
+        // 横へまっすぐ出られて、そこから相手のいそうな方向が見える所だけを顔出し位置にする。
+        // 決めた側で見つからなければ逆側を試し、どちらも無ければ顔を出さない
+        Location threatEye = lastKnownLocation.clone().add(0, 1.5, 0);
+        peekLocation = null;
+        for (int s : new int[]{side, -side}) {
+            for (double offset : new double[]{1.0 + Math.random() * 2.0, 1.5, 1.0}) {
+                Location candidate = coverLocation.clone().add(tangent.clone().multiply(s * offset));
+                if (canStepStraight(candidate) && clearLine(candidate.clone().add(0, 1.6, 0), threatEye)) {
+                    peekLocation = candidate;
+                    lastPeekSide = s;
+                    break;
+                }
+            }
+            if (peekLocation != null) break;
+        }
+        if (peekLocation == null) return false;
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
         peekOutLimit = 3 + (int) (Math.random() * 6);
         peekPhase = 1;
