@@ -19,95 +19,67 @@
 
 ---
 
-## 2. DSL コンポーネント (YAML)
+## 2. クエスト定義 (Java)
 
-クエスト定義ファイルは `/quests/*.yml` に配置します。
+クエストは `QuestCatalog` に `QuestBuilder` で定義します (以前の `/quests/*.yml` は読み込まれません。残っていれば起動時に警告が出ます)。
+クエストIDはプレイヤーの進捗 (完了・進行中) とトレーダー設定の `quest:` が参照するため、一度公開したら変えないでください。
 
-### A. 条件コンポーネント (Conditions)
-クエストの受領条件を定義します。
+### A. 受領条件 (すべて満たす必要がある)
 
-| タイプ | YAML キー | パラメータ | 説明 |
-| :--- | :--- | :--- | :--- |
-| **論理積** | `and` | `conditions: []` | リスト内の全ての条件を満たす必要がある |
-| **クエスト完了** | `completed_quest` | `quest_id: "ID"` | 指定されたクエストが完了している必要がある |
-| **レベル制限** | `level` | `amount: 数` | プレイヤーレベルが指定値以上である必要がある |
+| メソッド | 説明 |
+| :--- | :--- |
+| `requiresLevel(レベル)` | プレイヤーレベルが指定値以上 |
+| `requiresQuest("クエストID")` | 指定したクエストが完了している |
 
-### B. 目標コンポーネント (Objectives)
-クエストの達成目標を定義します。
+### B. 目標 (並べた順にGUIへ出る)
 
-| タイプ | YAML キー | パラメータ | 説明 |
-| :--- | :--- | :--- | :--- |
-| **エンティティ討伐** | `kill_entity` | `entity: "ID"`, `amount: 数`, `min_distance: 数`, `max_distance: 数`, `distance: 数` | 指定された種類のエンティティを一定数倒す。`min_distance` / `max_distance` でプレイヤーからの直線距離を範囲指定できる。`distance` は完全一致指定 |
-| **脱出** | `extract` | `map: "ID"`, `amount: 数` | 指定されたマップ(or "any")から脱出する |
-| **地点到達** | `reach_location` | `world: "ID"`, `x: 数`, `y: 数`, `z: 数`, `radius: 数`, `name: "名称"` | 特定の座標地点に到達する |
-| **納品** | `hand_in` | `item_id: "ID"`, `item_type: "TYPE"`, `amount: 数`, `fir: true/false` | アイテムIDまたはカテゴリーで指定されたアイテムを納品する。`fir: true`でFIR品のみ受付。 |
+| メソッド | 説明 |
+| :--- | :--- |
+| `kill("SCAV", 数)` | 指定した種類のエンティティを一定数倒す |
+| `killAtDistance("SCAV", 数, 最小, 最大)` | プレイヤーからの直線距離の範囲を指定した討伐 (ブロック、`null` で制限なし。同じ値なら完全一致) |
+| `extract(マップ名)` | 指定したマップから脱出する (マップ名は脱出時に渡る名前と同じ文字列) |
+| `reach(ワールド, x, y, z, 半径, "名称")` | 特定の座標地点に到達する |
+| `handInFir("アイテムID", 数)` | FIR品 (レイドで拾った物) のみ受け付ける納品 |
+| `handIn("アイテムID", 数)` | 通常品も受け付ける納品 |
+| `handInCategory("med", 数, FIRのみか)` | カテゴリー (med, gun, attachment 等) で指定した納品 |
+| `label("説明文")` | 直前の目標のGUI表示を、既定の文の代わりにこの文にする |
 
-### C. 報酬コンポーネント (Rewards)
-クエスト完了時に付与される報酬を定義します。
+### C. 報酬
 
-| タイプ | YAML キー | パラメータ | 説明 |
-| :--- | :--- | :--- | :--- |
-| **取引解放** | `unlock_trade` | `trader_id: "ID"`, `item_id: "ID"` | 特定トレーダーのアイテムを解放する |
-| **経験値** | `exp` | `amount: 数` | プレイヤーに経験値を付与する |
-| **資金** | `money` | `amount: 数` | プレイヤーに通貨を付与する |
+| メソッド | 説明 |
+| :--- | :--- |
+| `money(額)` | 通貨を付与する |
+| `exp(量)` | 経験値を付与する |
+| `unlockTrade("トレーダーID", "アイテムID")` | 取引解放の表示。実際の解放は、トレーダー設定の該当アイテムの `quest:` がこのクエストのIDを指すことで行われる |
+
+### D. 起動時の確認
+`QuestModule` は読み込み時に次を確かめ、ログに出します。誤りがあっても読み込みは続きます。
+
+- クエストIDの重複 (後の定義は無視)
+- `requiresQuest` の前提クエストが存在するか (無ければそのクエストは受けられない)
+- 納品・取引解放のアイテムIDが登録されているか
 
 ---
 
-## 3. YAML 記述例
+## 3. 記述例
 
-```yaml
-trader_id: "prapor"          # 依頼主のトレーダーID
-display_name: "初陣"          # クエスト表示名
-description: "スカブを5体排除し、アイテムを納品して脱出せよ" # クエスト説明
-
-# 受領条件
-conditions:
-  - type: "and"
-    conditions:
-      - type: "level"
-        amount: 5            # レベル5以上
-      - type: "completed_quest"
-        quest_id: "first_steps" # 前提クエスト
-
-# 達成目標
-objectives:
-  - type: "kill_entity"
-    entity: "SCAV"
-    amount: 5
-    min_distance: 30
-    max_distance: 80
-  - type: "kill_entity"
-    entity: "BOSS"
-    amount: 1
-    distance: 100
-  - type: "extract"
-    map: "factory"
-    amount: 1
-  - type: "hand_in"
-    item_id: "salewa"        # 特定アイテムID指定
-    amount: 3
-    fir: true                # FIR品(Found In Raid)のみ受付
-  - type: "hand_in"
-    item_type: "med"         # カテゴリー指定 (med, gun, attachment等)
-    amount: 5
-    fir: false               # 通常品も受付
-  - type: "reach_location"
-    world: "factory"
-    x: 100
-    y: 64
-    z: 200
-    radius: 5
-    name: "給水塔"
-
-# 完了報酬
-rewards:
-  - type: "money"
-    amount: 5000             # 5000ルーブル
-  - type: "exp"
-    amount: 100              # 100 EXP
-  - type: "unlock_trade"
-    trader_id: "prapor"
-    item_id: "ak74"          # AK-74の販売を解放
+```java
+quests.add(new QuestBuilder(module, "first_contact")
+        .trader(KOVACS)
+        .name("初陣")
+        .description("スカブを5体排除し、アイテムを納品して脱出せよ")
+        .requiresLevel(5)
+        .requiresQuest("supply_route")
+        .killAtDistance("SCAV", 5, 30.0, 80.0)
+        .label("30〜80m の距離からSCAVを5体排除する")
+        .extract(FACTORY)
+        .handInFir("salewa", 3)
+        .handInCategory("med", 5, false)
+        .reach("factory", 100, 64, 200, 5, "給水塔")
+        .money(5000)
+        .exp(100)
+        .unlockTrade(KOVACS, "ak74")
+        .build());
 ```
 
 ---
@@ -115,6 +87,6 @@ rewards:
 ## 4. 拡張方法
 新しいコンポーネントを追加する場合、以下のクラスを実装・更新してください。
 
-1.  `com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl` パッケージに新しいクラスを作成。
-2.  `QuestParser.java` の `parseCondition`, `parseObjective`, `parseReward` メソッドに新しいタイプを登録。
+1.  `com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl` パッケージに新しいクラスを作成 (目標は `AbstractQuestObjective` を継承し、既定の説明文を `defaultDescription` に書く)。
+2.  `QuestBuilder` に、そのコンポーネントを追加するメソッドを足す。
 3.  必要に応じて `QuestTrigger` を追加し、`QuestListener` で Bukkit イベントをブリッジする。

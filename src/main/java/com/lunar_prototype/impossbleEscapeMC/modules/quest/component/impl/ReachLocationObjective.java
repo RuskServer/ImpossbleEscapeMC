@@ -2,7 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.AbstractQuestObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import org.bukkit.entity.Player;
 import java.util.Map;
@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * 特定の座標地点への到達を目標とするコンポーネント
  */
-public class ReachLocationObjective implements QuestObjective {
+public class ReachLocationObjective extends AbstractQuestObjective {
     private final String worldName;
     private final double x, y, z;
     private final double radiusSquared;
@@ -52,7 +52,7 @@ public class ReachLocationObjective implements QuestObjective {
     }
 
     @Override
-    public String getDescription() {
+    protected String defaultDescription() {
         String name = (locationName != null) ? locationName : "指定地点";
         return name + " を探索する";
     }
