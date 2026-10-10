@@ -3,7 +3,6 @@ package com.lunar_prototype.impossbleEscapeMC.modules.scoreboard;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.Criteria;
@@ -86,34 +85,7 @@ public class ScoreboardHandler {
         content.add(Component.text("Weight: ", NamedTextColor.GRAY)
             .append(Component.text(String.format("%.1f", weightKg) + "kg", data.getWeightStage().getColor())));
         
-        content.add(Component.empty());
-
-        content.add(Component.text("STATUS:", NamedTextColor.YELLOW, TextDecoration.BOLD));
-
-        boolean hasStatus = false;
-        
-        // 状態異常のリスト構築
-        if (data.getBleedingLevel() > 0) {
-            content.add(Component.text(" - Bleeding (Lvl " + data.getBleedingLevel() + ")", NamedTextColor.RED));
-            hasStatus = true;
-        }
-        if (data.hasLegFracture()) {
-            content.add(Component.text(" - Leg Fracture", NamedTextColor.RED));
-            hasStatus = true;
-        }
-        if (data.hasArmFracture()) {
-            content.add(Component.text(" - Arm Fracture", NamedTextColor.RED));
-            hasStatus = true;
-        }
-        if (data.isPainkillerActive()) {
-            long remaining = (data.getPainkillerUntil() - System.currentTimeMillis()) / 1000;
-            content.add(Component.text(" - Painkiller (" + remaining + "s)", NamedTextColor.AQUA));
-            hasStatus = true;
-        }
-
-        if (!hasStatus) {
-            content.add(Component.text(" - None", NamedTextColor.GRAY));
-        }
+        // 状態異常 (出血・骨折・鎮痛剤) はバニラのステータス効果と同じ所に出す (medical/StatusEffectIcons)
 
         // 実際にTeamのPrefixを更新して画面に反映
         for (int i = 0; i < 15; i++) {

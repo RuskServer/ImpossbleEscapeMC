@@ -129,6 +129,7 @@ public class MedicalModule implements IModule, Listener {
             if (def.medStats.cureBleeding) data.setBleedingLevel(0);
             if (def.medStats.cureLegFracture) data.setLegFracture(false);
             if (def.medStats.cureArmFracture) data.setArmFracture(false);
+            StatusEffectIcons.sync(player, data);
             
             player.sendMessage(net.kyori.adventure.text.Component.text(def.displayName + " を使用して手当を行いました。", net.kyori.adventure.text.format.NamedTextColor.GREEN));
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
