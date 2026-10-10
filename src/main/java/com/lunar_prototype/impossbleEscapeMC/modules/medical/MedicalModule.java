@@ -108,17 +108,10 @@ public class MedicalModule implements IModule, Listener {
                 int current = progressTicks.getOrDefault(uuid, 0) + 1;
                 progressTicks.put(uuid, current);
 
-                // 進捗をアクションバーに表示
-                float progress = (float) current / def.medStats.durationTicks;
-                StringBuilder bar = new StringBuilder("§e[使用中] §7[");
-                int bars = 20;
-                int filled = (int) (progress * bars);
-                for (int i = 0; i < bars; i++) {
-                    if (i < filled) bar.append("§a■");
-                    else bar.append("§8■");
-                }
-                bar.append("§7]");
-                player.sendActionBar(net.kyori.adventure.text.Component.text(bar.toString()));
+                // 残り時間をアクションバーに表示 (撃ち合いの中で「あと何秒で動けるか」が分かるように)
+                double remainingSeconds = Math.max(0, def.medStats.durationTicks - current) / 20.0;
+                player.sendActionBar(net.kyori.adventure.text.Component.text(
+                        String.format("使用中… %.1fs", remainingSeconds), net.kyori.adventure.text.format.NamedTextColor.YELLOW));
 
                 if (current >= def.medStats.durationTicks) {
                     finishOneTimeUsing(player, def);
