@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo;
@@ -48,7 +49,7 @@ public class DatapackBulletHitBridge implements Listener {
     private static final double BULLET_SEARCH_RADIUS = 64.0;
     /** データパックの当たり判定は当たり判定の箱を0.1広げた範囲 */
     private static final double HITBOX_MARGIN = 0.1;
-    /** 込めた弾が分からない時 (SCAV・弾を込めていない銃) の貫通クラス */
+    /** 撃った弾が分からない時 (弾を込めていない銃・弾の無い口径のSCAV) の貫通クラス */
     private static final int DATAPACK_AMMO_CLASS = 1;
     private static final double LEGS_DAMAGE_MULTIPLIER = 0.6;
     private static final double NOT_PENETRATED_DAMAGE_MULTIPLIER = 0.15;
@@ -67,9 +68,9 @@ public class DatapackBulletHitBridge implements Listener {
         if (!(event.getEntity() instanceof LivingEntity victim)) return;
         if (!isDatapackBullet(event)) return;
 
-        // プレイヤーの弾は、撃った時に銃に込めていた弾の貫通クラスと威力 (同じ口径のいちばん弱い弾に対する比)。
-        // 分からない時 (SCAV・弾を込めていない銃) は貫通クラス1
-        AmmoDefinition ammo = playerAmmo(event.getDamager());
+        // 撃った弾の貫通クラスと威力 (同じ口径のいちばん弱い弾に対する比)。プレイヤーは撃った時に銃に込めていた弾、
+        // SCAVは割り当てられた弾。分からない時 (弾を込めていない銃・弾の無い口径のSCAV) は貫通クラス1
+        AmmoDefinition ammo = shooterAmmo(event.getDamager());
         int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
         double rawDamage = event.getDamage() * DatapackAmmo.damageMultiplier(ammo);
         String hitLocation = hitLocation(victim);
@@ -115,8 +116,11 @@ public class DatapackBulletHitBridge implements Listener {
                 result.ammoClass(), result.rawDamage()));
     }
 
-    private static AmmoDefinition playerAmmo(Entity damager) {
+    private static AmmoDefinition shooterAmmo(Entity damager) {
         Entity shooter = DatapackGunnerManager.resolveShooter(damager);
+        if (shooter == null) return null;
+        ScavAmmoSupply supply = ScavAmmoSupply.of(shooter.getUniqueId());
+        if (supply != null) return supply.ammo();
         return shooter instanceof Player player && !DatapackGunnerManager.isGunner(player)
                 ? DatapackAmmo.lastShotAmmo(player.getUniqueId()) : null;
     }

@@ -130,6 +130,8 @@ public class ScavSpawner implements Listener {
 
         // コントローラーを生成して登録
         ScavBrain.BrainLevel brainLevel = rollBrainLevel();
+        // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
+        com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav, brainLevel);
         ScavController controller = new ScavController(plugin, scav, gunListener, brainLevel);
         controllers.put(scav.getUniqueId(), controller);
         if (raidSessionId != null && !raidSessionId.isEmpty()) {
@@ -540,6 +542,8 @@ public class ScavSpawner implements Listener {
                     }
                 }
             }
+            // 弾は撃つ側 (FakePlayer) が消える前に集める: 落とす銃に残りの弾数と種類を書き、予備の弾は死体に入れる
+            List<ItemStack> ammoLoot = collectAmmoLoot(victim);
             if (controller != null) {
                 controller.terminate();
                 Bukkit.getLogger().info("[SCAV] AI Terminated: " + uuid);
@@ -556,8 +560,26 @@ public class ScavSpawner implements Listener {
 
             // Spawn Corpse and cancel vanilla drops
             event.getDrops().clear();
-            plugin.getCorpseManager().spawnCorpse(victim);
+            plugin.getCorpseManager().spawnCorpse(victim, ammoLoot);
         }
+    }
+
+    /**
+     * 倒されたSCAVの弾: 手に持った銃に、撃つ側に残っていた弾数と弾の種類を書き (拾った銃はそのまま撃てる)、
+     * 予備の弾を弾アイテムにして返す。弾が割り当てられていないSCAVは空
+     */
+    private List<ItemStack> collectAmmoLoot(LivingEntity victim) {
+        var supply = com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.remove(victim.getUniqueId());
+        if (supply == null || victim.getEquipment() == null) return List.of();
+        ItemStack gun = victim.getEquipment().getItemInMainHand();
+        String gunId = DatapackGunCatalog.gunIdOf(gun);
+        DatapackGunner gunner = DatapackGunnerManager.get(victim.getUniqueId());
+        DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
+        if (gunner != null && profile != null) {
+            int magazine = Math.max(0, Math.min(gunner.ammo(), profile.magazineSize()));
+            victim.getEquipment().setItemInMainHand(com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.withMagazine(gun, magazine, supply.ammoId()));
+        }
+        return supply.toItems();
     }
 
     public void cleanup() {
