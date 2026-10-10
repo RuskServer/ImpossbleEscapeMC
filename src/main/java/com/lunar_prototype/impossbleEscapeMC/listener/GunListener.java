@@ -132,6 +132,8 @@ public class GunListener implements Listener {
             lastDatapackGunshotTick.put(player.getUniqueId(), currentTick);
             notifyScavsOfPlayerGunshot(player);
             if (!com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) {
+                // 当たった時に、撃った時に込めていた弾の種類を使う
+                com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.recordShot(player);
                 handleDatapackShotLine(player);
             }
         }
