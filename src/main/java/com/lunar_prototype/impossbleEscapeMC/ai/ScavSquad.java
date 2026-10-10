@@ -11,10 +11,10 @@ import java.util.UUID;
 public class ScavSquad {
     /** 助けを呼ぶ声が届く距離 (ブロック)。壁や床を挟むと半分 */
     private static final double HELP_CALL_RANGE = 24.0;
-    /** 1回の交戦で救援に来る味方の数 */
-    private static final int MAX_RESPONDERS = 2;
-    /** 助けを呼び直す間隔 (tick)。呼び直すたびに救援の時間が延び、来られなくなった味方の代わりを呼ぶ */
+    /** 助けを呼び直す間隔 (tick)。既存の救援時間だけを延ばし、交戦中の枠は補充しない */
     private static final int HELP_CALL_INTERVAL_TICKS = 40;
+    private static final ScavHelpEncounter.Registry HELP_ENCOUNTERS = new ScavHelpEncounter.Registry();
+    private ScavHelpEncounter helpEncounter;
 
     private final ScavController owner;
     private final Mob scav;
@@ -42,6 +42,20 @@ public class ScavSquad {
 
     public void setMyRole(SquadRole myRole) {
         this.myRole = myRole;
+    }
+
+    /** 救援参加者の接敵と、同じ敵への独立した接敵で救援枠を共有する。 */
+    public void enterCombat(UUID targetId) {
+        helpEncounter = HELP_ENCOUNTERS.contact(helpEncounter, scav.getUniqueId(), targetId,
+                org.bukkit.Bukkit.getCurrentTick());
+    }
+
+    /** 受諾時に枠を消費する。接敵・死亡・離脱しても同じ交戦中は返さない。 */
+    public boolean joinHelpEncounter(ScavSquad caller) {
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        if (caller.helpEncounter == null || !caller.helpEncounter.recruit(scav.getUniqueId(), now)) return false;
+        helpEncounter = caller.helpEncounter;
+        return true;
     }
 
     public void updateNearbyAllies() {
@@ -103,14 +117,18 @@ public class ScavSquad {
             ScavController responder = ScavSpawner.getController(id);
             return responder == null || !myId.equals(responder.getAssistCallerId());
         });
-        int needed = MAX_RESPONDERS - responders.size();
-        if (needed <= 0) return;
+        // Keep already travelling responders assigned without spending another slot.
+        for (UUID id : responders) {
+            ScavController responder = ScavSpawner.getController(id);
+            if (responder != null) responder.receiveHelpCall(owner);
+        }
+        if (helpEncounter == null || !helpEncounter.active(now) || helpEncounter.full()) return;
 
         List<ScavController> candidates = new ArrayList<>();
         for (Entity e : scav.getNearbyEntities(HELP_CALL_RANGE, HELP_CALL_RANGE / 2, HELP_CALL_RANGE)) {
             if (!(e instanceof Mob)) continue;
             ScavController ally = ScavSpawner.getController(e.getUniqueId());
-            if (ally == null || ally == owner || responders.contains(e.getUniqueId())) continue;
+            if (ally == null || ally == owner || helpEncounter.contains(e.getUniqueId())) continue;
             double distance = scav.getLocation().distance(e.getLocation());
             if (distance > HELP_CALL_RANGE) continue;
             if (distance > HELP_CALL_RANGE / 2 && !scav.hasLineOfSight(e)) continue;
@@ -122,7 +140,7 @@ public class ScavSquad {
         for (ScavController ally : candidates) {
             if (ally.receiveHelpCall(owner)) {
                 responders.add(ally.getScav().getUniqueId());
-                if (--needed <= 0) break;
+                if (helpEncounter.full()) break;
             }
         }
     }
