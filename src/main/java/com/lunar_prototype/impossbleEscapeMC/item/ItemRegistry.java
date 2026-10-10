@@ -1,6 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
-import com.lunar_prototype.impossbleEscapeMC.item.parser.AmmoDefinitionParser;
 import com.lunar_prototype.impossbleEscapeMC.item.parser.AttachmentDefinitionParser;
 import com.lunar_prototype.impossbleEscapeMC.item.parser.ItemDefinitionParser;
 import org.bukkit.configuration.ConfigurationSection;
@@ -33,22 +32,16 @@ public class ItemRegistry {
         AMMO_MAP.clear();
         ATTACHMENT_MAP.clear();
 
-        // --- Ammo 読み込み ---
-        File ammofolder = new File(plugin.getDataFolder(), "ammo");
-        if (!ammofolder.exists()) {
-            ammofolder.mkdirs();
-        } else {
-            File[] ammoFiles = ammofolder.listFiles((dir, name) -> name.endsWith(".yml"));
-            if (ammoFiles != null) {
-                for (File file : ammoFiles) {
-                    YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-                    for (String key : config.getKeys(false)) {
-                        ConfigurationSection section = config.getConfigurationSection(key);
-                        AmmoDefinition ammo = AmmoDefinitionParser.parse(key, section);
-                        if (ammo != null) AMMO_MAP.put(key, ammo);
-                    }
-                }
+        // --- Ammo (Java 定義) ---
+        for (AmmoDefinition ammo : AmmoCatalog.create()) {
+            if (AMMO_MAP.putIfAbsent(ammo.id, ammo) != null) {
+                plugin.getLogger().severe("弾のIDが重複しています (後の定義を無視): " + ammo.id);
             }
+        }
+        File ammoFolder = new File(plugin.getDataFolder(), "ammo");
+        File[] legacyAmmoFiles = ammoFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (legacyAmmoFiles != null && legacyAmmoFiles.length > 0) {
+            plugin.getLogger().warning("ammo/ の " + legacyAmmoFiles.length + " 個の yml は読み込まれません。弾は AmmoCatalog (Java) で定義します");
         }
 
         // --- Attachment 読み込み ---
@@ -83,7 +76,7 @@ public class ItemRegistry {
         }
 
         plugin.getLogger().info(ITEM_MAP.size() + " items loaded from /items folder.");
-        plugin.getLogger().info(AMMO_MAP.size() + " items loaded from /ammo folder.");
+        plugin.getLogger().info(AMMO_MAP.size() + " ammo types loaded (AmmoCatalog).");
         plugin.getLogger().info(ATTACHMENT_MAP.size() + " attachments loaded from /attachments folder.");
     }
 
