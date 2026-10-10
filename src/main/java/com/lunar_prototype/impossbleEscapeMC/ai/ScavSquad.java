@@ -116,6 +116,8 @@ public class ScavSquad {
             if (distance > HELP_CALL_RANGE / 2 && !scav.hasLineOfSight(e)) continue;
             candidates.add(ally);
         }
+        // 呼べる味方がいる時だけ声を上げる
+        if (!candidates.isEmpty()) owner.playScavVoice(ScavVoice.CALL_HELP);
         candidates.sort(java.util.Comparator.comparingDouble(ally -> ally.getScav().getLocation().distanceSquared(scav.getLocation())));
         for (ScavController ally : candidates) {
             if (ally.receiveHelpCall(owner)) {
