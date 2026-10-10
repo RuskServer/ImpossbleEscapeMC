@@ -220,10 +220,8 @@ public class WeightModule implements IModule, Listener {
     }
 
     private int getItemWeight(ItemStack item) {
-        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return 0;
-        int weightPerItem = item.getItemMeta().getPersistentDataContainer()
-                .getOrDefault(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, 0);
-        return weightPerItem * item.getAmount();
+        // データパックの銃・アタッチメントは表の値 (アイテムに重さを書いていないため)
+        return com.lunar_prototype.impossbleEscapeMC.item.ItemWeights.totalWeightOf(item);
     }
 
     private void applyWeightEffects(Player player, PlayerData data) {

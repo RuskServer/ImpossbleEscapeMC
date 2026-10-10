@@ -34,7 +34,7 @@ public class CostSlotManager {
             // RigModuleのロック用プレースホルダーも無視
             if (RigModule.isLockedSlotPlaceholder(item)) continue;
 
-            int cost = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.ITEM_COST, PDCKeys.INTEGER, 1);
+            int cost = ItemWeights.costOf(item);
             if (cost > 1) {
                 extraSlotsNeeded += (cost - 1);
             }
