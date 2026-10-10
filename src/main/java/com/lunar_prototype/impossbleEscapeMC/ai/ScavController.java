@@ -1318,7 +1318,13 @@ public class ScavController {
         if (before < UNDER_FIRE_VOICE_SUPPRESSION && suppression >= UNDER_FIRE_VOICE_SUPPRESSION) playScavVoice(ScavVoice.UNDER_FIRE);
     }
     public void onDeath() { brain.onDeath(); releaseChunkTicket(); }
-    public void terminate() { brain.terminate(); releaseChunkTicket(); releaseWeapon(); }
+    public void terminate() {
+        brain.terminate();
+        releaseChunkTicket();
+        releaseWeapon();
+        // 倒されずに消えた時 (レイド終了など) も、弾の割り当てを残さない
+        com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.remove(scav.getUniqueId());
+    }
 
     /**
      * 手に持っている銃に対応する武器を返す。持ち替えたら作り直す。

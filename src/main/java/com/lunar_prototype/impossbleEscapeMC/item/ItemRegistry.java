@@ -92,6 +92,11 @@ public class ItemRegistry {
         return ids;
     }
 
+    /** 定義されている弾のID */
+    public static List<String> getAmmoIds() {
+        return new ArrayList<>(AMMO_MAP.keySet());
+    }
+
     public static AmmoDefinition getAmmo(String id) {
         return AMMO_MAP.get(id);
     }

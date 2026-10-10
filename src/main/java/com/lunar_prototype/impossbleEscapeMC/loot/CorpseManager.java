@@ -40,7 +40,16 @@ public class CorpseManager {
         spawnCorpse(victim, (LivingEntity) com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.resolveShooter(victim.getKiller()));
     }
 
+    /** SCAVなどの死体に、装備とは別の物 (残った予備の弾など) も入れる */
+    public void spawnCorpse(LivingEntity victim, java.util.List<ItemStack> extraLoot) {
+        spawnCorpse(victim, (LivingEntity) com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.resolveShooter(victim.getKiller()), extraLoot);
+    }
+
     public void spawnCorpse(LivingEntity victim, LivingEntity killer) {
+        spawnCorpse(victim, killer, java.util.List.of());
+    }
+
+    private void spawnCorpse(LivingEntity victim, LivingEntity killer, java.util.List<ItemStack> extraLoot) {
         if (victim instanceof Player player) {
             spawnPlayerCorpse(player, killer);
             return;
@@ -106,6 +115,10 @@ public class CorpseManager {
             }
         }
         
+        for (ItemStack item : extraLoot) {
+            virtualInv.addItem(item);
+        }
+
         finishSpawning(mannequin, virtualInv, loc);
     }
 

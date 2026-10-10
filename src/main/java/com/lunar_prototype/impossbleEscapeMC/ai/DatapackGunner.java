@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -57,6 +58,8 @@ public final class DatapackGunner {
     private static final int GIVE_GUN_DELAY_TICKS = 2;
     /** 生成から撃てるようになるまでの目安 (銃の受け取りと銃データの読み込み・装填) */
     public static final int ARMING_TICKS = GIVE_GUN_DELAY_TICKS + 5;
+    /** 予備の弾が尽きて撃てない時に返す待ち (AIは撃てない時間が長いとみなし、隠れる) */
+    private static final int OUT_OF_AMMO_TICKS = 6000;
     /** データパックが引き金を受け付けない間のタイマー (toisarm:player/gun の SHOOTABLE と同じ)。-1 で終わり、値は残りtick */
     private static final String[] BLOCKING_TIMERS = {
             "toisarm.timer.swap", "toisarm.timer.reload", "toisarm.timer.empty_reload",
@@ -173,17 +176,39 @@ public final class DatapackGunner {
         }
 
         if (reloadTicks > 0) {
-            if (--reloadTicks == 0) fillMagazine();
+            if (--reloadTicks == 0) reloadFromSupply();
         } else if (scoreAmmo() <= 0) {
             if (firedSinceFill) {
-                // 撃ち切った: データパックの弾切れリロード時間の後に再装填する
-                reloadTicks = Math.max(1, profile.emptyReloadTicks());
+                // 撃ち切った: データパックの弾切れリロード時間の後に再装填する (予備が尽きていれば撃てないまま)
+                if (hasSpare()) reloadTicks = Math.max(1, profile.emptyReloadTicks());
             } else {
                 // 撃っていないのに0: 装填直後にデータパックが銃のデータ (弾数0で配られた銃) を読み直して上書きした。
                 // 弾切れとして扱うと数秒撃てなくなるため、すぐ装填し直す
                 fillMagazine();
             }
         }
+    }
+
+    /**
+     * リロードの完了: 満タンにし、増えたぶんをSCAVの予備の弾から取る。予備が足りなければ取れたぶんだけ込める
+     * (SCAVに弾が割り当てられていなければ、今までどおり満タンにする)
+     */
+    private void reloadFromSupply() {
+        ScavAmmoSupply supply = ScavAmmoSupply.of(owner.getUniqueId());
+        int before = Math.max(0, score("toisarm.ammo_remaining"));
+        fillMagazine();
+        if (supply == null) return;
+        int capacity = score("toisarm.state.ammo_capacity");
+        if (capacity <= 0) capacity = profile.magazineSize();
+        int needed = Math.max(0, capacity - before);
+        int taken = supply.take(needed);
+        if (taken < needed) setScore("toisarm.ammo_remaining", before + taken);
+    }
+
+    /** 予備の弾が残っているか (弾が割り当てられていなければ常に残っている) */
+    private boolean hasSpare() {
+        ScavAmmoSupply supply = ScavAmmoSupply.of(owner.getUniqueId());
+        return supply == null || supply.spare() > 0;
     }
 
     private void fillMagazine() {
@@ -205,7 +230,7 @@ public final class DatapackGunner {
     public int ticksUntilReady() {
         if (!armed) return Math.max(1, ARMING_TICKS - age);
         if (reloadTicks > 0) return reloadTicks;
-        if (scoreAmmo() <= 0) return Math.max(1, profile.emptyReloadTicks());
+        if (scoreAmmo() <= 0) return hasSpare() ? Math.max(1, profile.emptyReloadTicks()) : OUT_OF_AMMO_TICKS;
         int wait = 0;
         for (String timer : BLOCKING_TIMERS) wait = Math.max(wait, scoreOr(timer, -1) + 1);
         return wait;
@@ -217,7 +242,7 @@ public final class DatapackGunner {
      * @return 始めた場合true (準備中・リロード中・撃っていない・弾切れの時はfalse。弾切れは tick で再装填する)
      */
     public boolean startReload() {
-        if (!armed || reloadTicks > 0 || !firedSinceFill || scoreAmmo() <= 0) return false;
+        if (!armed || reloadTicks > 0 || !firedSinceFill || scoreAmmo() <= 0 || !hasSpare()) return false;
         reloadTicks = Math.max(1, profile.reloadTicks());
         return true;
     }
@@ -295,6 +320,11 @@ public final class DatapackGunner {
             runSilently("data remove storage toisarm:private " + datapackId);
         }
         runSilently("scoreboard players reset " + handle.getScoreboardName());
+    }
+
+    private void setScore(String objectiveName, int value) {
+        Objective objective = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(objectiveName);
+        if (objective != null) objective.getScore(handle.getScoreboardName()).setScore(value);
     }
 
     private int score(String objectiveName) {
