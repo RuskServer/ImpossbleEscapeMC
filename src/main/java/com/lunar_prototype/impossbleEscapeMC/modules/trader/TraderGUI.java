@@ -102,6 +102,11 @@ public class TraderGUI implements Listener {
             lore.add(Component.empty());
             lore.add(Component.text("解放レベル: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                     .append(Component.text("Lv." + requiredLevel, unlocked ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
+            if (ti.requiredQuestId != null) {
+                lore.add(Component.text(traderModule.getUnlockRequirements(ti),
+                        data.isQuestCompleted(ti.requiredQuestId) ? NamedTextColor.GREEN : NamedTextColor.RED)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
             lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                     .append(Component.text(ti.price + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
             if (ti.dailyLimit > 0) {
@@ -114,7 +119,7 @@ public class TraderGUI implements Listener {
                 lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
                 lore.add(Component.text("Shift+クリックで個数を指定", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             } else {
-                lore.add(Component.text("未解放: Lv." + requiredLevel + " で購入可能", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("未解放: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
             }
 
             meta.lore(lore);
@@ -424,7 +429,7 @@ public class TraderGUI implements Listener {
                         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
                         if (ti != null) {
                             if (!traderModule.isUnlocked(data, ti)) {
-                                player.sendMessage(Component.text("この取引は Lv." + traderModule.getRequiredLevel(ti) + " で解放されます。", NamedTextColor.RED));
+                                player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED));
                                 return;
                             }
                             new TraderQuantityGUI(traderModule, trader, ti, player, this).open();
@@ -525,7 +530,7 @@ public class TraderGUI implements Listener {
         if (ti == null) return;
         if (quantity <= 0) return;
         if (!traderModule.isUnlocked(data, ti)) {
-            player.sendMessage(Component.text("この取引は Lv." + traderModule.getRequiredLevel(ti) + " で解放されます。", NamedTextColor.RED));
+            player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED));
             return;
         }
 

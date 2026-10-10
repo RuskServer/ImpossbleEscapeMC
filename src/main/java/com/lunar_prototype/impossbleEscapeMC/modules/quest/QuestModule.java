@@ -204,6 +204,17 @@ public class QuestModule implements IModule {
                     plugin.getLogger().warning("クエスト " + def.getId() + ": 納品アイテム " + handIn.getItemId() + " が登録されていません");
                 }
             }
+            for (QuestObjective objective : def.getObjectives()) {
+                if (objective instanceof HandInObjective handIn && handIn.getItemId() == null) {
+                    boolean exists = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAllItemIds().stream()
+                            .anyMatch(id -> {
+                                var item = QuestItems.resolve(id);
+                                return item != null && handIn.matches(id, item.type(), true);
+                            });
+                    if (!exists) plugin.getLogger().warning("クエスト " + def.getId()
+                            + ": 納品条件を満たすアイテム定義がありません");
+                }
+            }
             for (QuestReward reward : def.getRewards()) {
                 if (reward instanceof UnlockTradeReward unlock
                         && QuestItems.resolve(unlock.getItemId()) == null) {

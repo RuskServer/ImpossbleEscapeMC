@@ -24,7 +24,23 @@ final class TraderCatalog {
                         item("ak74", 15000, 2, 1, "AK-74M", "field_deployment"),
                         item("545x39_ps", 150, 300, 1, null, null),
                         item("tactical_sling_bag", 6000, 10, 1, null, null),
-                        item("d3rcx", 10000, 10, 8, null, null)
+                        item("d3rcx", 10000, 10, 8, null, "bastion_carrying_capacity"),
+                        item("762x54r_ps", 240, 120, 3, null, "kovacs_eastern_supply"),
+                        item("9x39_sp5", 220, 120, 3, null, "kovacs_eastern_supply"),
+                        item("556x45_hp", 160, 240, 3, null, "kovacs_western_supply"),
+                        item("762x51_fmj_28", 240, 120, 3, null, "kovacs_western_supply"),
+                        item("9x19_pst_gzh", 90, 180, 4, null, "kovacs_close_supply"),
+                        item("45acp_match_fmj_26", 120, 180, 4, null, "kovacs_close_supply"),
+                        item("12x70_steel_buckshot", 180, 60, 4, null, "kovacs_close_supply"),
+                        item("ekp_8", 9000, 3, 5, null, "kovacs_optic_reserve"),
+                        item("545x39_pp", 350, 60, 8, null, "kovacs_penetration"),
+                        item("556x45_m855", 350, 60, 8, null, "kovacs_penetration"),
+                        item("762x51_m62", 450, 60, 8, null, "kovacs_penetration"),
+                        item("762x54r_lps_gzh", 450, 60, 8, null, "kovacs_penetration"),
+                        item("9x39_sp6", 450, 60, 8, null, "kovacs_penetration"),
+                        item("9x19_7n21", 250, 60, 8, null, "kovacs_penetration"),
+                        item("45acp_ap", 250, 60, 8, null, "kovacs_penetration"),
+                        item("12x70_tss", 350, 24, 8, null, "kovacs_penetration")
                 )));
 
         traders.add(trader("pharmakon", "§aPharmakon (Buy Only)", TraderType.BUY, 2,
@@ -40,7 +56,7 @@ final class TraderCatalog {
                         item("micro_rig", 6700, 15, 1, null, null),
                         item("mbss", 12000, 10, 8, null, "bastion_logistics_02"),
                         item("FAST-MT", 43000, 10, 20, null, null),
-                        item("Trooper", 62000, 10, 20, null, null)
+                        item("Trooper", 62000, 10, 20, null, "bastion_protection_selection")
                 )));
 
         traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,

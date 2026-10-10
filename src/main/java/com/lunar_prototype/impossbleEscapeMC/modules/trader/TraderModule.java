@@ -112,6 +112,17 @@ public class TraderModule implements IModule {
         return Math.max(1, item.requiredLevel);
     }
 
+    public String getUnlockRequirements(TraderItem item) {
+        String requirements = "Lv." + getRequiredLevel(item);
+        if (item.requiredQuestId != null) {
+            var quests = plugin == null ? null : plugin.getServiceContainer().get(
+                    com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+            var quest = quests == null ? null : quests.getQuest(item.requiredQuestId);
+            requirements += " ＋ クエスト「" + (quest == null ? item.requiredQuestId : quest.getDisplayName()) + "」完了";
+        }
+        return requirements;
+    }
+
     public TraderDefinition getTraderByNpcId(int npcId) {
         if (npcId == -1) return null;
         return traders.values().stream()

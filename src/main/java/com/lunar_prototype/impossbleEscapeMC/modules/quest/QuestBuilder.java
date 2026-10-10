@@ -99,6 +99,24 @@ public final class QuestBuilder {
         return this;
     }
 
+    /** 任意のマップから累計指定回数脱出する。 */
+    public QuestBuilder extractAny(int amount) {
+        if (amount <= 0) throw new IllegalArgumentException("脱出回数は正の値が必要です");
+        objectives.add(new ExtractObjective(null, amount));
+        return this;
+    }
+
+    /** 同じ口径なら複数の弾種を混ぜて納品できる。nullの口径は全口径。 */
+    public QuestBuilder handInAmmoFir(String caliber, Integer minClass, int amount) {
+        objectives.add(new HandInObjective(null, "AMMO", amount, true, caliber, minClass, null));
+        return this;
+    }
+
+    public QuestBuilder handInArmorFir(int minClass, int amount) {
+        objectives.add(new HandInObjective(null, "ARMOR", amount, true, null, null, minClass));
+        return this;
+    }
+
     public QuestBuilder reach(String world, double x, double y, double z, double radius, String locationName) {
         objectives.add(new ReachLocationObjective(world, x, y, z, radius, locationName));
         return this;
