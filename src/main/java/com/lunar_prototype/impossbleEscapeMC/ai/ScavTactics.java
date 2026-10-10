@@ -137,10 +137,14 @@ public class ScavTactics {
 
     // --- 直接移動 ---
     // 撃ち合い中の横移動や顔出しは短い距離を素早く切り返すため、毎回の経路探索 (止まっては動く) を通さず、
-    // 移動の制御 (MoveControl) に行き先を直接与える。足元が抜けている・壁の時だけ経路探索に任せる
+    // 移動の制御 (MoveControl) に直接指示する。足元が抜けている・壁の時だけ経路探索に任せる。
+    // 行き先へ向かう指示 (setWantedPosition) は体を移動方向へ回すため、照準を合わせた向きと毎tick取り合って体が揺れる。
+    // そこでスケルトンが弓を構えたまま横移動するのと同じストレイフ (向いている方向を基準に前後左右へ動く) を使う
 
     /** 顔出しの出入りの速さ (移動速度に対する倍率) */
     private static final double PEEK_SPEED = 1.8;
+    /** 顔出し位置にこの距離まで来たら止まったとみなして撃つ */
+    private static final double PEEK_SETTLED_DISTANCE = 0.6;
 
     /** 直接移動の行き先。MoveControl は行き先を与えた次の1tickしか動かないため、毎tick与え直す (tickDirectMove) */
     private Location directTarget;
@@ -149,9 +153,14 @@ public class ScavTactics {
     private int directUntilTick;
     private static final double DIRECT_ARRIVE_DISTANCE = 0.3;
 
+    /** 相手を向いたまま、近くの場所へ直接移動する (着くか、次の判断まで) */
+    public void moveDirectTo(Location dest, double speed) {
+        moveDirect(dest, speed);
+    }
+
     private void moveDirect(Location dest, double speed) {
         if (!isSafeStep(dest)) {
-            directTarget = null;
+            endStrafe();
             scav.getPathfinder().moveTo(dest, speed);
             return;
         }
@@ -162,21 +171,60 @@ public class ScavTactics {
         tickDirectMove();
     }
 
-    /** 毎tick呼ぶ。直接移動中なら MoveControl に行き先を与え直す */
+    /** 毎tick、照準を合わせた後に呼ぶ。直接移動中なら、今の向きを基準にした前後左右の移動を MoveControl に指示し直す */
     public void tickDirectMove() {
         if (directTarget == null) return;
         if (org.bukkit.Bukkit.getCurrentTick() > directUntilTick || directTarget.getWorld() != scav.getWorld()
                 || scav.getLocation().distanceSquared(directTarget) < DIRECT_ARRIVE_DISTANCE * DIRECT_ARRIVE_DISTANCE) {
-            directTarget = null;
+            endStrafe();
             return;
         }
-        ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle().getMoveControl()
-                .setWantedPosition(directTarget.getX(), directTarget.getY(), directTarget.getZ(), directSpeed);
+        net.minecraft.world.entity.Mob handle = ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle();
+        double dx = directTarget.getX() - handle.getX();
+        double dz = directTarget.getZ() - handle.getZ();
+        double length = Math.hypot(dx, dz);
+        if (length < 1.0E-4) return;
+        dx /= length;
+        dz /= length;
+        // 向き (yaw) の前方は (-sin, cos)、MoveControl の横方向 (xxa の正) は (cos, sin)
+        double yaw = Math.toRadians(handle.getYRot());
+        float forward = (float) (-dx * Math.sin(yaw) + dz * Math.cos(yaw));
+        float right = (float) (dx * Math.cos(yaw) + dz * Math.sin(yaw));
+        net.minecraft.world.entity.ai.control.MoveControl control = handle.getMoveControl();
+        control.strafe(forward, right);
+        setStrafeSpeed(control, directSpeed);
+    }
+
+    private static java.lang.reflect.Field strafeSpeedField;
+
+    /** MoveControl#strafe は速さの倍率を 0.25 に固定するため、指定の倍率に設定し直す */
+    private static void setStrafeSpeed(net.minecraft.world.entity.ai.control.MoveControl control, double speed) {
+        try {
+            if (strafeSpeedField == null) {
+                strafeSpeedField = net.minecraft.world.entity.ai.control.MoveControl.class.getDeclaredField("speedModifier");
+                strafeSpeedField.setAccessible(true);
+            }
+            strafeSpeedField.setDouble(control, speed);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("MoveControl.speedModifier にアクセスできません", e);
+        }
+    }
+
+    /**
+     * ストレイフをやめる。MoveControl は待機中に横方向の入力 (xxa) を戻さず、少しずつ減らすだけなので、
+     * そのままだと止めた後や経路探索に切り替えた後も横に流れ続ける
+     */
+    private void endStrafe() {
+        if (directTarget == null) return;
+        directTarget = null;
+        net.minecraft.world.entity.Mob handle = ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle();
+        handle.setXxa(0.0F);
+        handle.setZza(0.0F);
     }
 
     /** 経路探索と直接移動の両方を止める */
     public void stopMoving() {
-        directTarget = null;
+        endStrafe();
         scav.getPathfinder().stopPathfinding();
         Location here = scav.getLocation();
         ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle().getMoveControl()
@@ -243,17 +291,22 @@ public class ScavTactics {
      * @param fireAllowed   撃ってよいか (発見直後の反応時間などで撃てない時はfalse)
      * @param aim           撃つ直前に照準を相手へ合わせる処理。移動中は頭が進行方向を向くため、撃つ前に必ず合わせる
      */
-    public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, float suppression, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
+    /**
+     * @param spread 弾のばらつき (通常の射撃と同じ、ランク別の基本値 + 制圧による乱れ)
+     */
+    public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, double spread, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
         if (peekPhase == 1) { // Moving out
             moveDirect(peekLocation, PEEK_SPEED);
+            // 出て、止まって、撃つ (横へ出ている最中に撃つと当たらない)
+            boolean settled = scav.getLocation().distanceSquared(peekLocation) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE;
             if (targetVisible) {
                 long now = System.currentTimeMillis();
                 long interval = (long) (60000.0 / weapon.rpm());
-                if (fireAllowed && now - lastShotTime >= interval) {
+                if (settled && fireAllowed && now - lastShotTime >= interval) {
                     aim.run();
-                    // 顔出しは単発で撃つ。撃ち返されるほど狙いが乱れる (通常の射撃と同じ係数)
-                    if (weapon.fire(0.1 + (suppression * 0.2), false)) {
+                    // 顔出しは単発で撃つ
+                    if (weapon.fire(spread, false)) {
                         shotTimeSetter.accept(now);
                         peekShotsRemaining--;
                     }
@@ -287,6 +340,23 @@ public class ScavTactics {
      * @param jump 顔を出す時に跳ぶ (ジャンプピーク)
      * @return 始めた場合true。前回の顔出しから間が空いていなければfalse
      */
+    /**
+     * 決めておいた顔出し位置へ出て撃ち、今の位置 (遮蔽) へ戻る
+     *
+     * @return 始めた場合true。前回の顔出しから間が空いていなければfalse
+     */
+    public boolean startPeekTo(Location peek) {
+        if (peekRestTicks > 0) return false;
+        coverLocation = scav.getLocation().clone();
+        peekLocation = peek.clone();
+        peekShotsRemaining = 1 + (int) (Math.random() * 3);
+        peekOutLimit = 4 + (int) (Math.random() * 6);
+        peekPhase = 1;
+        peekTicks = 0;
+        moveDirect(peekLocation, PEEK_SPEED);
+        return true;
+    }
+
     public boolean startPeek(Location lastKnownLocation, boolean isSprinting, boolean jump) {
         if (peekRestTicks > 0) return false;
         coverLocation = scav.getLocation().clone();
