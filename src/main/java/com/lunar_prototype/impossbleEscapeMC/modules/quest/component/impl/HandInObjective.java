@@ -69,9 +69,9 @@ public class HandInObjective extends AbstractQuestObjective {
     protected String defaultDescription() {
         String targetName = itemId;
         if (itemId != null) {
-            ItemDefinition def = ItemRegistry.get(itemId);
-            if (def != null && def.displayName != null) {
-                targetName = def.displayName;
+            var def = com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItems.resolve(itemId);
+            if (def != null && def.name() != null) {
+                targetName = def.name();
             }
         } else if (itemType != null) {
             targetName = "カテゴリー: " + itemType;

@@ -204,13 +204,14 @@ public class TraderQuestGUI implements Listener {
                 if (obj.isCompleted(active, i)) break;
 
                 ItemMeta meta = item.getItemMeta();
-                String itemId = meta != null ? meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+                String itemId = com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attachmentIdOf(item);
+                if (itemId == null && meta != null) itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
                 if (itemId == null && meta != null) {
                     itemId = getDatapackGunId(item);
                 }
                 if (itemId == null) continue;
 
-                ItemDefinition def = ItemRegistry.get(itemId);
+                QuestItems.Definition def = QuestItems.resolve(itemId);
                 if (def == null) continue;
 
                 boolean isFIR = meta.getPersistentDataContainer().getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1;
@@ -222,7 +223,7 @@ public class TraderQuestGUI implements Listener {
                 if (hio.getItemId() != null) {
                     match = hio.getItemId().equalsIgnoreCase(itemId);
                 } else if (hio.getItemType() != null) {
-                    match = hio.getItemType().equalsIgnoreCase(def.type);
+                    match = hio.getItemType().equalsIgnoreCase(def.type());
                 }
 
                 if (match) {
@@ -234,13 +235,13 @@ public class TraderQuestGUI implements Listener {
                     
                     Map<String, Object> params = new HashMap<>();
                     params.put("itemId", itemId);
-                    params.put("itemType", def.type);
+                    params.put("itemType", def.type());
                     params.put("isFIR", isFIR);
                     params.put("amount", toTake);
 
                     if (hio.updateProgress(player, data, active, i, QuestTrigger.HAND_IN, params)) {
                         item.setAmount(item.getAmount() - toTake);
-                        totalHandedIn.put(def.displayName, totalHandedIn.getOrDefault(def.displayName, 0) + toTake);
+                        totalHandedIn.put(def.name(), totalHandedIn.getOrDefault(def.name(), 0) + toTake);
                         anyHandedIn = true;
                         data.setDirty(true);
                     }

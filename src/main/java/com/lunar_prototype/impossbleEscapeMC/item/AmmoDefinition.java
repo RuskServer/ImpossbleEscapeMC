@@ -10,4 +10,6 @@ public class AmmoDefinition {
     public int rarity;
     public int weight; // weight in grams
     public int customModelData;
+    public String description; // ツールチップの説明 (無ければnull)
+    public boolean reference;  // 口径の基準弾 (データパック銃のダメージはこの弾に合わせてある)
 }

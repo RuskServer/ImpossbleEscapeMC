@@ -57,10 +57,6 @@ public class LootCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(Component.text("全てのコンテナを補充しました。", NamedTextColor.GREEN));
                 }
             }
-            case "reload" -> {
-                plugin.getLootManager().loadAll();
-                player.sendMessage(Component.text("loot.yml をリロードしました。", NamedTextColor.GREEN));
-            }
             default -> player.sendMessage(Component.text("不明なコマンドです。", NamedTextColor.RED));
         }
 
@@ -125,7 +121,7 @@ public class LootCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
-        if (args.length == 1) return Arrays.asList("container", "egg", "refill", "reload");
+        if (args.length == 1) return Arrays.asList("container", "egg", "refill");
 
         if (args[0].equalsIgnoreCase("container")) {
             if (args.length == 2) return Arrays.asList("set", "remove");

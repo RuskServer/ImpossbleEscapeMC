@@ -1,7 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
 import com.lunar_prototype.impossbleEscapeMC.item.parser.AttachmentDefinitionParser;
-import com.lunar_prototype.impossbleEscapeMC.item.parser.ItemDefinitionParser;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -24,9 +23,6 @@ public class ItemRegistry {
      */
     public static void loadAllItems(JavaPlugin plugin) {
         File folder = new File(plugin.getDataFolder(), "items");
-        if (!folder.exists()) {
-            folder.mkdirs();
-        }
 
         ITEM_MAP.clear();
         AMMO_MAP.clear();
@@ -38,6 +34,13 @@ public class ItemRegistry {
                 plugin.getLogger().severe("弾のIDが重複しています (後の定義を無視): " + ammo.id);
             }
         }
+        Map<String, Integer> referencesPerCaliber = new HashMap<>();
+        for (AmmoDefinition ammo : AMMO_MAP.values()) {
+            referencesPerCaliber.merge(ammo.caliber.toLowerCase(java.util.Locale.ROOT), ammo.reference ? 1 : 0, Integer::sum);
+        }
+        referencesPerCaliber.forEach((caliber, count) -> {
+            if (count != 1) plugin.getLogger().warning("口径 " + caliber + " の基準弾が " + count + " 個あります (1個にしてください)");
+        });
         File ammoFolder = new File(plugin.getDataFolder(), "ammo");
         File[] legacyAmmoFiles = ammoFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (legacyAmmoFiles != null && legacyAmmoFiles.length > 0) {
@@ -62,20 +65,18 @@ public class ItemRegistry {
             }
         }
 
-        // --- Item 読み込み ---
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files != null) {
-            for (File file : files) {
-                YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-                for (String key : config.getKeys(false)) {
-                    ConfigurationSection section = config.getConfigurationSection(key);
-                    ItemDefinition def = ItemDefinitionParser.parse(key, section);
-                    if (def != null) ITEM_MAP.put(key, def);
-                }
+        // --- Item (Java 定義) ---
+        for (ItemDefinition def : ItemCatalog.create()) {
+            if (ITEM_MAP.putIfAbsent(def.id, def) != null) {
+                plugin.getLogger().severe("アイテムのIDが重複しています (後の定義を無視): " + def.id);
             }
         }
+        File[] legacyItemFiles = folder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (legacyItemFiles != null && legacyItemFiles.length > 0) {
+            plugin.getLogger().warning("items/ の " + legacyItemFiles.length + " 個の yml は読み込まれません。アイテムは ItemCatalog (Java) で定義します (銃はデータパック銃)");
+        }
 
-        plugin.getLogger().info(ITEM_MAP.size() + " items loaded from /items folder.");
+        plugin.getLogger().info(ITEM_MAP.size() + " items loaded (ItemCatalog).");
         plugin.getLogger().info(AMMO_MAP.size() + " ammo types loaded (AmmoCatalog).");
         plugin.getLogger().info(ATTACHMENT_MAP.size() + " attachments loaded from /attachments folder.");
     }
@@ -141,6 +142,14 @@ public class ItemRegistry {
         }
         backpacks.sort(Comparator.comparing(def -> def.id));
         return backpacks;
+    }
+
+    /** 口径の基準弾 (データパック銃のダメージはこの弾に合わせてある)。基準弾が無ければいちばん弱い弾 */
+    public static AmmoDefinition getReferenceAmmoForCaliber(String caliber) {
+        for (AmmoDefinition ammo : AMMO_MAP.values()) {
+            if (ammo.reference && ammo.caliber.equalsIgnoreCase(caliber)) return ammo;
+        }
+        return getWeakestAmmoForCaliber(caliber);
     }
 
     public static AmmoDefinition getWeakestAmmoForCaliber(String caliber) {

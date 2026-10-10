@@ -149,13 +149,13 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         return updated;
     }
 
-    /** 込めていた種類の弾を戻す (種類が分からない銃は、その口径のいちばん弱い弾) */
+    /** 込めていた種類の弾を戻す (種類が分からない銃は、その口径の基準弾) */
     private static void refund(Player player, ItemStack gun, String caliber, int count) {
         String ammoId = DatapackAmmo.loadedAmmoId(gun);
         if (ammoId == null) {
-            AmmoDefinition weakest = ItemRegistry.getWeakestAmmoForCaliber(caliber);
-            if (weakest == null) return;
-            ammoId = weakest.id;
+            AmmoDefinition reference = ItemRegistry.getReferenceAmmoForCaliber(caliber);
+            if (reference == null) return;
+            ammoId = reference.id;
         }
         giveRounds(player, ammoId, count);
     }
@@ -253,9 +253,16 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             String loaded = DatapackAmmo.loadedAmmoId(gun);
             AmmoDefinition ammo = loaded != null ? ItemRegistry.getAmmo(loaded) : null;
             String name = ammo != null ? ammo.displayName : (caliber != null ? caliber + " (種類不明)" : "種類不明");
+            NamedTextColor nameColor = ammo == null ? NamedTextColor.WHITE : switch (ammo.rarity) {
+                case 2 -> NamedTextColor.GREEN;
+                case 3 -> NamedTextColor.AQUA;
+                case 4 -> NamedTextColor.LIGHT_PURPLE;
+                case 5 -> NamedTextColor.GOLD;
+                default -> NamedTextColor.WHITE;
+            };
             String count = magazine + (chambered ? "+1" : "");
             return Component.text("装填中: ", NamedTextColor.GRAY)
-                    .append(Component.text(name, NamedTextColor.WHITE))
+                    .append(Component.text(name, nameColor))
                     .append(Component.text(" (" + count + ")", NamedTextColor.GRAY));
         }
         if (DatapackAmmo.hasAmmoFor(caliber) && DatapackAmmo.findAmmo(player, caliber).isEmpty()) {

@@ -3,11 +3,10 @@ package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
+import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.util.*;
@@ -39,47 +38,35 @@ public class TraderModule implements IModule {
         traders.clear();
     }
 
+    /** トレーダー定義 ({@link TraderCatalog}) を読み込み、品物のIDを確かめる */
     public void loadTraders() {
         traders.clear();
-        File file = new File(plugin.getDataFolder(), "traders.yml");
-        if (!file.exists()) {
-            plugin.saveResource("traders.yml", false);
-        }
-        
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        for (String id : config.getKeys(false)) {
-            ConfigurationSection section = config.getConfigurationSection(id);
-            if (section == null) continue;
-
-            String displayName = section.getString("displayName", id);
-            TraderType type = TraderType.valueOf(section.getString("type", "BUY").toUpperCase());
-            int npcId = section.getInt("npc_id", -1);
-            boolean canRepairArmor = section.getBoolean("repair_armor", section.getBoolean("repair", false));
-            boolean canRepairWeapon = section.getBoolean("repair_weapon", false);
-            
-            List<TraderItem> items = new ArrayList<>();
-            if (section.contains("items")) {
-                for (Map<?, ?> map : section.getMapList("items")) {
-                    String itemId = (String) map.get("id");
-                    double price = ((Number) map.get("price")).doubleValue();
-                    int limit = map.containsKey("limit") ? ((Number) map.get("limit")).intValue() : 0;
-                    int requiredLevel = map.containsKey("level") ? ((Number) map.get("level")).intValue() : 1;
-                    String requiredQuest = (String) map.get("quest");
-                    TraderItem traderItem = new TraderItem(itemId, price, limit, requiredLevel, requiredQuest);
-                    if (map.containsKey("display_name")) {
-                        traderItem.displayName = (String) map.get("display_name");
-                    } else if (map.containsKey("displayName")) {
-                        traderItem.displayName = (String) map.get("displayName");
-                    } else if (map.containsKey("display-name")) {
-                        traderItem.displayName = (String) map.get("display-name");
-                    }
-                    items.add(traderItem);
-                }
+        for (TraderDefinition trader : TraderCatalog.create()) {
+            if (traders.putIfAbsent(trader.id, trader) != null) {
+                plugin.getLogger().severe("トレーダーのIDが重複しています (後の定義を無視): " + trader.id);
+                continue;
             }
-            
-            traders.put(id, new TraderDefinition(id, displayName, type, items, npcId, canRepairArmor, canRepairWeapon));
+
+        }
+        File legacy = new File(plugin.getDataFolder(), "traders.yml");
+        if (legacy.exists()) {
+            plugin.getLogger().warning("traders.yml は読み込まれません。トレーダーは TraderCatalog (Java) で定義します");
         }
         plugin.getLogger().info("Loaded " + traders.size() + " traders.");
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, this::validateItems);
+    }
+
+    /** Check after datapack load functions, also called on resource reload. */
+    public void validateItems() {
+        var quests = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+        for (TraderDefinition trader : traders.values()) {
+            for (TraderItem item : trader.items) {
+                if (!GameItems.exists(item.itemId)) plugin.getLogger().warning("トレーダー " + trader.id
+                        + ": 品物 " + item.itemId + " が登録されていません");
+                if (item.requiredQuestId != null && quests != null && quests.getQuest(item.requiredQuestId) == null)
+                    plugin.getLogger().warning("トレーダー " + trader.id + ": 解放クエスト " + item.requiredQuestId + " がありません");
+            }
+        }
     }
 
     /**

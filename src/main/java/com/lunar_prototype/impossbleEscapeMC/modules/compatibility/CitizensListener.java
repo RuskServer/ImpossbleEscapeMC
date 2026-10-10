@@ -23,7 +23,7 @@ public class CitizensListener implements Listener {
             new TraderGUI(traderModule, trader, event.getClicker()).open();
         } else {
             // デバッグ用: クリックされたが紐付けがない場合にログを出力
-            traderModule.getPlugin().getLogger().info("[Trader] NPC Clicked: ID=" + npcId + " (No trader assigned in traders.yml)");
+            traderModule.getPlugin().getLogger().info("[Trader] NPC Clicked: ID=" + npcId + " (No trader assigned in TraderCatalog)");
         }
     }
 }

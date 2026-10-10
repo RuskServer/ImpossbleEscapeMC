@@ -36,6 +36,12 @@ public class QuestModule implements IModule {
     private final Map<String, QuestDefinition> quests = new HashMap<>();
     private final QuestEventBus eventBus = new QuestEventBus();
     private PlayerDataModule dataModule;
+    private final Listener catalogReloadListener = new Listener() {
+        @EventHandler
+        public void onResourcesReloaded(io.papermc.paper.event.server.ServerResourcesReloadedEvent event) {
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, QuestModule.this::validateQuests);
+        }
+    };
 
     public enum NotificationSource {
         PLAYER_JOIN,
@@ -52,6 +58,7 @@ public class QuestModule implements IModule {
     public void onEnable(ServiceContainer container) {
         this.dataModule = container.get(PlayerDataModule.class);
         
+        plugin.getServer().getPluginManager().registerEvents(catalogReloadListener, plugin);
         loadQuests();
         setupEventBus();
         
@@ -134,6 +141,7 @@ public class QuestModule implements IModule {
 
     @Override
     public void onDisable() {
+        org.bukkit.event.HandlerList.unregisterAll(catalogReloadListener);
         quests.clear();
     }
 
@@ -173,7 +181,7 @@ public class QuestModule implements IModule {
                 plugin.getLogger().severe("クエストIDが重複しています (後の定義を無視): " + def.getId());
             }
         }
-        validateQuests();
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, this::validateQuests);
         warnLegacyQuestFiles();
         plugin.getLogger().info("Loaded " + quests.size() + " quests.");
     }
@@ -183,20 +191,31 @@ public class QuestModule implements IModule {
      * 誤りがあっても読み込みは続ける (そのクエストが受けられない・納品できないだけで済むため)
      */
     private void validateQuests() {
+        if (quests.isEmpty()) return;
+        var traderModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule.class);
+        if (traderModule != null) traderModule.validateItems();
         for (QuestDefinition def : quests.values()) {
             for (QuestCondition condition : def.getConditions()) {
                 validateCondition(def, condition);
             }
             for (QuestObjective objective : def.getObjectives()) {
                 if (objective instanceof HandInObjective handIn && handIn.getItemId() != null
-                        && ItemRegistry.get(handIn.getItemId()) == null) {
+                        && QuestItems.resolve(handIn.getItemId()) == null) {
                     plugin.getLogger().warning("クエスト " + def.getId() + ": 納品アイテム " + handIn.getItemId() + " が登録されていません");
                 }
             }
             for (QuestReward reward : def.getRewards()) {
                 if (reward instanceof UnlockTradeReward unlock
-                        && ItemRegistry.get(unlock.getItemId()) == null) {
+                        && QuestItems.resolve(unlock.getItemId()) == null) {
                     plugin.getLogger().warning("クエスト " + def.getId() + ": 取引解放のアイテム " + unlock.getItemId() + " が登録されていません");
+                }
+                if (reward instanceof UnlockTradeReward unlock && traderModule != null) {
+                    var trader = traderModule.getTrader(unlock.getTraderId());
+                    if (trader == null || trader.items.stream().noneMatch(item ->
+                            unlock.getItemId().equals(item.itemId) && def.getId().equals(item.requiredQuestId))) {
+                        plugin.getLogger().warning("クエスト " + def.getId() + ": 取引解放 " + unlock.getItemId()
+                                + " に対応する販売クエスト条件がありません");
+                    }
                 }
             }
         }
