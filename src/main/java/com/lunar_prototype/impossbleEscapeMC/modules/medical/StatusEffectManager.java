@@ -37,7 +37,10 @@ public class StatusEffectManager implements Listener {
      */
     public void tick() {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) continue;
+            if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
+                StatusEffectIcons.clear(player);
+                continue;
+            }
 
             PlayerData data = dataModule.getPlayerData(player.getUniqueId());
             if (data == null) continue;
@@ -45,6 +48,7 @@ public class StatusEffectManager implements Listener {
             handleBleeding(player, data);
             handleFractureEffects(player, data);
             handlePainkillerExpiry(player, data);
+            StatusEffectIcons.sync(player, data);
         }
     }
 
@@ -118,6 +122,7 @@ public class StatusEffectManager implements Listener {
 
         // 2. 負傷判定
         applyInjuryChance(victim, data, event.getHitLocation(), event.isPenetrated());
+        StatusEffectIcons.sync(victim, data);
     }
 
     private void applyInjuryChance(Player victim, PlayerData data, String hitLocation, boolean penetrated) {
