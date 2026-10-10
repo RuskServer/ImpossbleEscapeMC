@@ -20,6 +20,9 @@ public class AttachmentCommand implements CommandExecutor {
             return true;
         }
 
+        // データパック銃なら、データパックのアタッチメントの画面
+        if (com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUI.open(player)) return true;
+
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
         // 銃を持っているかチェック
