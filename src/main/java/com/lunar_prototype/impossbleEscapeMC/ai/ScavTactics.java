@@ -435,6 +435,10 @@ public class ScavTactics {
         return true;
     }
 
+    /** 確認する地点がこれより遠ければ小走りで向かう (ブロック) と、その速さ */
+    private static final double SEARCH_JOG_DISTANCE = 8.0;
+    private static final double SEARCH_JOG_SPEED = 1.5;
+
     public void handleSearching(Location lastKnownLocation, int searchTicks, boolean isSprinting, java.util.function.Consumer<Location> preAimer) {
         if (slicingPoint == null || searchTicks % 40 == 0) {
             slicingPoint = TacticalVision.findSlicingPoint(scav.getLocation(), lastKnownLocation);
@@ -442,6 +446,8 @@ public class ScavTactics {
 
         double distToLast = scav.getLocation().distance(lastKnownLocation);
         double speed = isSprinting ? 1.4 : 1.0;
+        // 遠くの物音 (銃声など) へは小走りで近づき、近づいたら慎重に確認する
+        if (slicingPoint != null && scav.getLocation().distance(slicingPoint) > SEARCH_JOG_DISTANCE) speed = Math.max(speed, SEARCH_JOG_SPEED);
 
         if (slicingPoint != null && scav.getLocation().distance(slicingPoint) > 1.5) {
             scav.getPathfinder().moveTo(slicingPoint, speed);

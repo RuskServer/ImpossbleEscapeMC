@@ -101,6 +101,12 @@ public class ScavController {
     private static final double RELOCATE_SPEED = 1.8;
     /** 立ち位置へ経路探索で歩いている (照準で向きを上書きしない) */
     private boolean followingPath = false;
+    /** 見失って・撃たれてからこのtickの間は、撃ち合いの最中とみなす (立ち位置を選んで戦う) */
+    private static final int ENGAGED_MEMORY_TICKS = 200;
+    /** 同じあたりからの音がこの間隔 (tick) 以内に続いた時は、居場所の推定だけ更新する (連射の1発ごとに反応し直さない) */
+    private static final int SOUND_REPEAT_TICKS = 20;
+    private static final double SOUND_REPEAT_DISTANCE = 6.0;
+    private int lastSoundReactionTick = Integer.MIN_VALUE / 2;
     private ScavWeapon weapon;
     private String weaponKey;
     /** 銃があと何tickで撃てるか (この判断ステップの時点)。撃てない間は顔を出さない */
@@ -478,7 +484,7 @@ public class ScavController {
         if (target != null && tactics.getCoverSearchCooldown() <= 0) {
             // 撃ってくる相手が見えている時は、制圧されていても物陰へ走らずに撃ち返す (移動中は撃たないため)
             if ((suppression > 0.6f && !canSeeTarget) || healthPercent < 0.4 || needsReload) {
-              if (!assisting && pursuitSteps == 0 && (canSeeTarget || lastKnownLocation != null)) {
+              if (!assisting && pursuitSteps == 0 && isEngaged(canSeeTarget) && (canSeeTarget || lastKnownLocation != null)) {
                 // 相手の位置が分かっている間は、立ち位置の仕組みで隠れられる場所へ下がる
                 // 負傷なら長く、リロードなら撃てるようになるまで、制圧だけなら短く下がる
                 int withdrawTicks = SUPPRESSED_WITHDRAW_TICKS;
@@ -576,7 +582,8 @@ public class ScavController {
         // 相手の位置が分かっている間は、立ち位置を選んでそこで戦う (使えない時は以下の従来の動き)。
         // 見失った直後の追跡・顔出し・弾切れや負傷で物陰へ下がっている間は、そちらを優先する
         boolean retreatingToCover = tactics.getTacticalCoverLoc() != null && tactics.getCoverStayTicks() > 0;
-        boolean positioned = !assisting && pursuitSteps == 0 && !retreatingToCover && handlePositioning(target, canSeeTarget);
+        boolean positioned = !assisting && pursuitSteps == 0 && !retreatingToCover && isEngaged(canSeeTarget)
+                && handlePositioning(target, canSeeTarget);
         if (!positioned) followingPath = false;
         if (positioned) {
             isHoldingAngle = false;
@@ -833,7 +840,8 @@ public class ScavController {
             }
             return;
         }
-        tactics.handleSearching(lastKnownLocation, searchTicks, isSprinting, this::updatePreAim);
+        // 捜索中も、照準は相手が出てきそうな所 (分からなければ一番ありそうな場所) へ向けておく
+        tactics.handleSearching(lastKnownLocation, searchTicks, isSprinting, loc -> preAimAtThreat());
         double dist = scav.getLocation().distance(lastKnownLocation);
         if (dist <= 2.5) {
             cornerCheckTicks++;
@@ -923,6 +931,8 @@ public class ScavController {
 
     public void onSoundHeard(SoundContact sound) {
         if (sound == null || sound.sourceLocation == null) return;
+        // 相手が見えている間は、音で分かることはない (撃ってくる相手の銃声のたびに振り向かない)
+        if (sawTargetLastStep && scav.getTarget() != null) return;
         if (scav.getTarget() != null && scav.hasLineOfSight(scav.getTarget()) && sound.kind != SoundContact.Kind.GUNSHOT) {
             return;
         }
@@ -939,6 +949,19 @@ public class ScavController {
                 ? Math.min(GUNSHOT_MAX_LOCATION_ERROR, dist * (muffled ? 0.15 : 0.08))
                 : Math.min(FOOTSTEP_MAX_LOCATION_ERROR, dist * (muffled ? 0.2 : 0.08));
         source.add((Math.random() - 0.5) * 2.0 * error, 0, (Math.random() - 0.5) * 2.0 * error);
+
+        // 連射など、同じあたりから音が続いている: 居場所の推定だけ更新し、反応 (振り向き・声・調べ始め) はし直さない
+        int nowTick = Bukkit.getCurrentTick();
+        if (nowTick - lastSoundReactionTick < SOUND_REPEAT_TICKS && lastHeardSoundLocation != null
+                && lastHeardSoundLocation.getWorld() == source.getWorld() && lastHeardSoundLocation.distance(source) < SOUND_REPEAT_DISTANCE) {
+            if (lastKnownLocation != null) {
+                belief.observeNear(source, Math.max(1.0, error * 0.6));
+                OpponentBelief.Estimate estimate = belief.estimate();
+                if (estimate != null) lastKnownLocation = estimate.location();
+            }
+            return;
+        }
+        lastSoundReactionTick = nowTick;
 
         float hearingBoost = (float) Math.max(0.08, 0.28 - (dist / 180.0));
         double movementSpeed = Math.max(0.0, sound.movementSpeed);
@@ -985,10 +1008,8 @@ public class ScavController {
             lastKnownLocation = estimate != null ? estimate.location() : inferred;
         }
 
-        Vector toSource = source.toVector().subtract(scav.getEyeLocation().toVector());
-        if (toSource.lengthSquared() > 0) {
-            scav.setRotation(scav.getLocation().setDirection(toSource.normalize()).getYaw(), 0);
-        }
+        // 音の方へ振り向く (一瞬で向きを変えず、照準と同じく滑らかに、音のした所の目の高さへ)
+        updatePreAim(source);
         playScavVoice("minecraft:scav1", 1.0f, 1.0f); // 索敵ボイスに変更
 
         if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
@@ -1087,6 +1108,15 @@ public class ScavController {
             }
         }
         enterCombat();
+    }
+
+    /**
+     * 撃ち合いの最中か (相手が見えている・見失って間もない・撃たれて間もない)。
+     * この間だけ立ち位置を選んで戦う。音だけで知った遠くの相手には、立ち位置で待たずに捜索で近づく
+     */
+    private boolean isEngaged(boolean canSeeTarget) {
+        int now = Bukkit.getCurrentTick();
+        return canSeeTarget || now - lastTargetVisibleTick <= ENGAGED_MEMORY_TICKS || now - lastDamagedTick <= ENGAGED_MEMORY_TICKS;
     }
 
     /**
