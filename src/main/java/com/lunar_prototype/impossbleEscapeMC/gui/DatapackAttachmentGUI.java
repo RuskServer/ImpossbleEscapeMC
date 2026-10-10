@@ -146,10 +146,8 @@ public class DatapackAttachmentGUI implements InventoryHolder {
 
     /** アタッチメントの名前 (データパックの翻訳キー。リソースパックに翻訳が無ければデータパックの英名) */
     static Component name(String attachmentId) {
-        DatapackAttachments.Info info = DatapackAttachments.info(attachmentId);
-        if (info == null) return Component.text(attachmentId, NamedTextColor.WHITE);
-        if (info.translationKey().isEmpty()) return Component.text(info.fallbackName(), NamedTextColor.WHITE);
-        return Component.translatable(info.translationKey(), info.fallbackName()).color(NamedTextColor.WHITE);
+        var definition = com.lunar_prototype.impossbleEscapeMC.item.AttachmentItems.resolve(attachmentId);
+        return definition != null ? definition.name() : Component.text(attachmentId, NamedTextColor.WHITE);
     }
 
     static String slotLabel(String slot) {

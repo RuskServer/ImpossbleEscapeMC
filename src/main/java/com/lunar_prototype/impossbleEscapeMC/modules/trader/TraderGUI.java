@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
@@ -89,12 +90,7 @@ public class TraderGUI implements Listener {
         int slot = 0;
         for (TraderItem ti : trader.items) {
             if (slot >= size) break;
-            ItemStack icon;
-            if (ti.displayName != null && !ti.displayName.isEmpty()) {
-                icon = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), ti.itemId, ti.displayName);
-            } else {
-                icon = ItemFactory.create(ti.itemId);
-            }
+            ItemStack icon = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
             if (icon == null) continue;
             boolean unlocked = traderModule.isUnlocked(data, ti);
             int requiredLevel = traderModule.getRequiredLevel(ti);
@@ -344,13 +340,26 @@ public class TraderGUI implements Listener {
         inventory.setItem(SELL_BUTTON_SLOT, button);
     }
 
+    /**
+     * 売る物の品物ID。プラグインのアイテム・弾はアイテムのID、データパックの銃とアタッチメントはデータパックのID
+     * (データパックの物にはプラグインのIDが書かれていないため)
+     */
+    private static String sellableIdOf(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        String itemId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (itemId != null) return itemId;
+        String gunId = com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(item);
+        if (gunId != null) return gunId;
+        return com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attachmentIdOf(item);
+    }
+
     private double calculateTotalSellValue() {
         double total = 0;
         for (int slot : SELL_INPUT_SLOTS) {
             ItemStack item = inventory.getItem(slot);
             if (item == null || item.getType() == Material.AIR) continue;
 
-            String itemId = item.hasItemMeta() ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+            String itemId = sellableIdOf(item);
             if (itemId == null) continue;
 
             TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
@@ -507,7 +516,11 @@ public class TraderGUI implements Listener {
     }
 
     public void handleBuy(ItemStack clicked, PlayerData data, int quantity) {
-        String itemId = clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        handleBuy(clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING), data, quantity);
+    }
+
+    /** 品物のIDで購入する (数量指定の画面から。品物の見本を作らずに済む) */
+    public void handleBuy(String itemId, PlayerData data, int quantity) {
         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
         if (ti == null) return;
         if (quantity <= 0) return;
@@ -537,12 +550,7 @@ public class TraderGUI implements Listener {
         double totalPrice = ti.price * finalQuantity;
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), totalPrice)) {
             // アイテムをスタック数に合わせて配布
-            ItemStack sample;
-            if (ti.displayName != null && !ti.displayName.isEmpty()) {
-                sample = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), ti.itemId, ti.displayName);
-            } else {
-                sample = ItemFactory.create(ti.itemId);
-            }
+            ItemStack sample = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
             if (sample == null) {
                 // 万が一アイテムが見つからない場合は返金
                 traderModule.getEconomyModule().deposit(player.getUniqueId(), totalPrice);
@@ -605,7 +613,7 @@ public class TraderGUI implements Listener {
             ItemStack item = inventory.getItem(slot);
             if (item == null || item.getType() == Material.AIR) continue;
             
-            String itemId = item.hasItemMeta() ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+            String itemId = sellableIdOf(item);
             if (itemId != null && trader.items.stream().anyMatch(i -> i.itemId.equals(itemId))) {
                 inventory.setItem(slot, null);
             }

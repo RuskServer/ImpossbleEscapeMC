@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -74,17 +74,12 @@ public class TraderQuantityGUI implements Listener {
     }
 
     private void updateQuantityDisplay() {
-        ItemStack item;
-        if (traderItem.displayName != null && !traderItem.displayName.isEmpty()) {
-            item = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(player.getWorld(), traderItem.itemId, traderItem.displayName);
-        } else {
-            item = ItemFactory.create(traderItem.itemId);
-        }
+        ItemStack item = GameItems.create(player.getWorld(), traderItem.itemId, traderItem.displayName);
         if (item == null) return;
         item.setAmount(Math.max(1, Math.min(64, quantity))); // 表示上のみ
 
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(traderItem.itemId, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+        if (!meta.hasDisplayName()) meta.displayName(Component.text(traderItem.itemId, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
         lore.add(Component.text("解放レベル: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                 .append(Component.text("Lv." + traderModule.getRequiredLevel(traderItem), NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false)));
@@ -134,9 +129,8 @@ public class TraderQuantityGUI implements Listener {
         else if (slot == 18) { player.closeInventory(); parentGUI.open(); }
         else if (slot == 22) {
             PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
-            ItemStack icon = ItemFactory.create(traderItem.itemId);
             player.closeInventory();
-            parentGUI.handleBuy(icon, data, quantity);
+            parentGUI.handleBuy(traderItem.itemId, data, quantity);
             parentGUI.open();
         }
     }

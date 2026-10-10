@@ -19,7 +19,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * データパック銃を持つSCAVの弾。込めている弾の種類と、予備の弾数。
  * <ul>
- *   <li>弾の種類はSCAVの強さで選ぶ (LOW はその口径でいちばん弱い弾、MID はたまに一段上、HIGH はいちばん強い弾)</li>
+ *   <li>弾の種類はSCAVの強さに応じた貫通クラスの確率で選ぶ ({@link #CLASS_WEIGHTS})。その口径に無いクラスなら近いクラス</li>
  *   <li>撃つ側 ({@link com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunner}) は、最初のマガジンは満タンで受け取り、
  *       リロードのたびに予備から込める。予備が尽きると込められない</li>
  *   <li>倒された時、残った予備は弾アイテムとして死体に入る</li>
@@ -31,8 +31,15 @@ public final class ScavAmmoSupply {
     /** 予備のマガジン数 (最小〜最大) */
     private static final int MIN_SPARE_MAGAZINES = 1;
     private static final int MAX_SPARE_MAGAZINES = 3;
-    /** MID が一段上の弾を持つ確率 */
-    private static final double MID_BETTER_AMMO_CHANCE = 0.25;
+    /**
+     * SCAVの強さごとの、弾の貫通クラス (1〜6) の重み。LOW は粗悪な弾から標準弾、MID は標準弾が中心、
+     * HIGH は貫通弾が中心で、ごくまれに最新の弾 (クラス6) を持つ
+     */
+    private static final Map<ScavBrain.BrainLevel, double[]> CLASS_WEIGHTS = Map.of(
+            //                                 class:  1     2     3     4     5     6
+            ScavBrain.BrainLevel.LOW, new double[]{0.15, 0.30, 0.55, 0, 0, 0},
+            ScavBrain.BrainLevel.MID, new double[]{0, 0.10, 0.55, 0.35, 0, 0},
+            ScavBrain.BrainLevel.HIGH, new double[]{0, 0, 0, 0.50, 0.48, 0.02});
 
     private static final Map<UUID, ScavAmmoSupply> SUPPLIES = new ConcurrentHashMap<>();
 
@@ -56,17 +63,30 @@ public final class ScavAmmoSupply {
             AmmoDefinition ammo = ItemRegistry.getAmmo(id);
             if (ammo != null && ammo.caliber.equalsIgnoreCase(caliber)) choices.add(ammo);
         }
-        choices.sort(Comparator.comparingInt((AmmoDefinition a) -> a.ammoClass).thenComparingDouble(a -> a.damage));
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int index = switch (level) {
-            case LOW -> 0;
-            case MID -> random.nextDouble() < MID_BETTER_AMMO_CHANCE ? Math.min(1, choices.size() - 1) : 0;
-            case HIGH -> choices.size() - 1;
-        };
+        int ammoClass = rollClass(CLASS_WEIGHTS.get(level), random);
+        // そのクラスに近い弾 (同じ近さなら低いクラス、同じクラスが複数あればダメージの低い方)
+        AmmoDefinition chosen = choices.stream()
+                .min(Comparator.comparingInt((AmmoDefinition a) -> Math.abs(a.ammoClass - ammoClass))
+                        .thenComparingInt(a -> a.ammoClass)
+                        .thenComparingDouble(a -> a.damage))
+                .orElseThrow();
         int magazines = MIN_SPARE_MAGAZINES + random.nextInt(MAX_SPARE_MAGAZINES - MIN_SPARE_MAGAZINES + 1);
-        ScavAmmoSupply supply = new ScavAmmoSupply(choices.get(index).id, profile.magazineSize() * magazines);
+        ScavAmmoSupply supply = new ScavAmmoSupply(chosen.id, profile.magazineSize() * magazines);
         SUPPLIES.put(scav.getUniqueId(), supply);
         return supply;
+    }
+
+    /** 重みで貫通クラス (1〜6) を選ぶ */
+    private static int rollClass(double[] weights, ThreadLocalRandom random) {
+        double total = 0;
+        for (double w : weights) total += w;
+        double r = random.nextDouble() * total;
+        for (int i = 0; i < weights.length; i++) {
+            r -= weights[i];
+            if (r < 0) return i + 1;
+        }
+        return weights.length;
     }
 
     public static ScavAmmoSupply of(UUID scavId) {

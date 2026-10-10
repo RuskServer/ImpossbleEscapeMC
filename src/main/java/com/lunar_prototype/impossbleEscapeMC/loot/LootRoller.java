@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -25,13 +25,8 @@ public class LootRoller {
 
             // Independent chance check (0.0 to 100.0)
             if (random.nextDouble() * 100.0 <= entry.chance) {
-                ItemStack item;
-                if (entry.displayName != null && !entry.displayName.isEmpty()) {
-                    item = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(world, entry.itemId, entry.displayName);
-                } else {
-                    item = ItemFactory.create(entry.itemId);
-                }
-                
+                ItemStack item = GameItems.create(world, entry.itemId, entry.displayName);
+
                 if (item != null) {
                     int amount = entry.minAmount;
                     if (entry.maxAmount > entry.minAmount) {
@@ -40,7 +35,7 @@ public class LootRoller {
                     item.setAmount(amount);
                     results.add(item);
                 } else {
-                    ImpossbleEscapeMC.getInstance().getLogger().warning("Loot Error: Item ID '" + entry.itemId + "' not found in ItemRegistry!");
+                    ImpossbleEscapeMC.getInstance().getLogger().warning("Loot Error: Item ID '" + entry.itemId + "' could not be created!");
                 }
             }
         }
@@ -49,16 +44,11 @@ public class LootRoller {
         int safetyBreak = 0;
         while (results.size() < table.minItems && !pool.isEmpty() && safetyBreak < 20) {
             safetyBreak++;
-            // まだ選ばれていないものから優先的に選ぶ、あるいはランダムに選ぶ
-            LootTable.LootEntry entry = pool.get(random.nextInt(pool.size()));
+            // 確率に比例して選ぶ (均等に選ぶと、品物の多い表で確率の低い物ばかり出やすくなる)
+            LootTable.LootEntry entry = pickByChance(pool);
             
-            ItemStack item;
-            if (entry.displayName != null && !entry.displayName.isEmpty()) {
-                item = com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil.generateGunItem(world, entry.itemId, entry.displayName);
-            } else {
-                item = ItemFactory.create(entry.itemId);
-            }
-            
+            ItemStack item = GameItems.create(world, entry.itemId, entry.displayName);
+
             if (item != null) {
                 int amount = entry.minAmount;
                 if (entry.maxAmount > entry.minAmount) {
@@ -70,5 +60,17 @@ public class LootRoller {
         }
 
         return results;
+    }
+
+    private static LootTable.LootEntry pickByChance(List<LootTable.LootEntry> pool) {
+        double total = 0;
+        for (LootTable.LootEntry entry : pool) total += Math.max(0, entry.chance);
+        if (total <= 0) return pool.get(random.nextInt(pool.size()));
+        double r = random.nextDouble() * total;
+        for (LootTable.LootEntry entry : pool) {
+            r -= Math.max(0, entry.chance);
+            if (r < 0) return entry;
+        }
+        return pool.get(pool.size() - 1);
     }
 }

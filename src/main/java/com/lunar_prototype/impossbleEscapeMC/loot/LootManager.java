@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
@@ -9,87 +10,50 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
 public class LootManager {
     private final ImpossbleEscapeMC plugin;
     private final Map<String, LootTable> lootTables = new HashMap<>();
     private final Map<String, LootCrate> lootCrates = new HashMap<>();
-    private final File lootFile;
 
     public LootManager(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
-        this.lootFile = new File(plugin.getDataFolder(), "loot.yml");
-        if (!lootFile.exists()) {
-            plugin.saveResource("loot.yml", false);
-        }
         loadAll();
     }
 
+    /** ルート表とクレートを {@link LootCatalog} から読み込み、品物のIDとクレートのルート表を確かめる */
     public void loadAll() {
         lootTables.clear();
         lootCrates.clear();
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(lootFile);
-
-        // Load Tables
-        if (config.contains("tables")) {
-            ConfigurationSection tablesSection = config.getConfigurationSection("tables");
-            for (String tableId : tablesSection.getKeys(false)) {
-                ConfigurationSection section = tablesSection.getConfigurationSection(tableId);
-                LootTable table = new LootTable();
-                table.id = tableId;
-                table.minItems = section.getInt("min_items", 1);
-                table.maxItems = section.getInt("max_items", 5);
-
-                List<Map<?, ?>> itemList = section.getMapList("items");
-                for (Map<?, ?> itemMap : itemList) {
-                    LootTable.LootEntry entry = new LootTable.LootEntry();
-                    entry.itemId = (String) itemMap.get("item");
-                    entry.chance = ((Number) itemMap.get("chance")).doubleValue();
-                    entry.minAmount = itemMap.containsKey("min") ? ((Number) itemMap.get("min")).intValue() : 1;
-                    entry.maxAmount = itemMap.containsKey("max") ? ((Number) itemMap.get("max")).intValue() : 1;
-                    if (itemMap.containsKey("display_name")) {
-                        entry.displayName = (String) itemMap.get("display_name");
-                    } else if (itemMap.containsKey("displayName")) {
-                        entry.displayName = (String) itemMap.get("displayName");
-                    } else if (itemMap.containsKey("display-name")) {
-                        entry.displayName = (String) itemMap.get("display-name");
-                    }
-                    plugin.getLogger().info("[LootManager] Parsed item: " + entry.itemId + ", displayName: " + entry.displayName + ", raw: " + itemMap);
-                    table.items.add(entry);
+        for (LootTable table : LootCatalog.tables()) {
+            if (lootTables.put(table.id, table) != null) {
+                plugin.getLogger().severe("ルート表のIDが重複しています: " + table.id);
+            }
+            for (LootTable.LootEntry entry : table.items) {
+                if (!GameItems.exists(entry.itemId)) {
+                    plugin.getLogger().warning("ルート表 " + table.id + ": 品物 " + entry.itemId + " がアイテム・弾・データパック銃・アタッチメントのどれにもありません");
                 }
-                lootTables.put(tableId, table);
             }
         }
-
-        // Load Crates
-        if (config.contains("crates")) {
-            ConfigurationSection cratesSection = config.getConfigurationSection("crates");
-            for (String crateId : cratesSection.getKeys(false)) {
-                ConfigurationSection section = cratesSection.getKeys(false).contains(crateId) ? cratesSection.getConfigurationSection(crateId) : null;
-                if (section == null) continue;
-
-                LootCrate crate = new LootCrate();
-                crate.id = crateId;
-                crate.color = section.getString("color", "WHITE").toUpperCase();
-
-                ConfigurationSection weightsSection = section.getConfigurationSection("tables");
-                if (weightsSection != null) {
-                    for (String tId : weightsSection.getKeys(false)) {
-                        crate.tableWeights.put(tId, weightsSection.getDouble(tId));
-                    }
+        for (LootCrate crate : LootCatalog.crates()) {
+            if (lootCrates.put(crate.id, crate) != null) {
+                plugin.getLogger().severe("クレートのIDが重複しています: " + crate.id);
+            }
+            for (String tableId : crate.tableWeights.keySet()) {
+                if (!lootTables.containsKey(tableId)) {
+                    plugin.getLogger().warning("クレート " + crate.id + ": ルート表 " + tableId + " がありません");
                 }
-                lootCrates.put(crateId, crate);
             }
         }
-        plugin.getLogger().info("Loaded " + lootTables.size() + " tables and " + lootCrates.size() + " crates from loot.yml.");
+        if (new File(plugin.getDataFolder(), "loot.yml").exists()) {
+            plugin.getLogger().warning("loot.yml は読み込まれません。ルート表は LootCatalog (Java) で定義します");
+        }
+        plugin.getLogger().info("Loaded " + lootTables.size() + " loot tables and " + lootCrates.size() + " crates.");
     }
 
     public void refillAllContainers() {

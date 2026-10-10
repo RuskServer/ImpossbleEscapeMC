@@ -21,7 +21,18 @@ import java.util.*;
 public class ItemFactory {
     private static final Random random = new Random();
 
+    public static ItemStack create(org.bukkit.World world, String id) {
+        var attachment = AttachmentItems.resolve(id);
+        if (attachment != null && attachment.datapack()) return AttachmentItems.create(world, id);
+        return create(id);
+    }
+
     public static ItemStack create(String id) {
+        var attachment = AttachmentItems.resolve(id);
+        if (attachment != null && attachment.datapack()) {
+            var worlds = org.bukkit.Bukkit.getWorlds();
+            return worlds.isEmpty() ? null : AttachmentItems.create(worlds.get(0), id);
+        }
         ItemDefinition def = ItemRegistry.get(id);
         AmmoDefinition ammoDef = ItemRegistry.getAmmo(id);
         AttachmentDefinition attDef = ItemRegistry.getAttachment(id);
@@ -41,7 +52,7 @@ public class ItemFactory {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(PDCKeys.ITEM_ID, PDCKeys.STRING, attDef.id);
             pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, attDef.weight);
-            pdc.set(PDCKeys.ITEM_COST, PDCKeys.INTEGER, 1);
+            pdc.set(PDCKeys.ITEM_COST, PDCKeys.INTEGER, attDef.cost);
 
             String rarityColor = getRarityColor(attDef.rarity);
             meta.setDisplayName(rarityColor + ChatColor.translateAlternateColorCodes('&', attDef.displayName));
@@ -261,6 +272,7 @@ public class ItemFactory {
     }
 
     public static ItemStack updateLore(ItemStack item) {
+        if (DatapackAttachments.attachmentIdOf(item) != null) return AttachmentItems.wrap(item);
         ItemMeta meta = item.getItemMeta();
         if (meta == null)
             return item;
@@ -370,6 +382,7 @@ public class ItemFactory {
             lore.add("§7口径 §f" + ammoDef.caliber);
             lore.add("§7貫通 §fClass " + ammoDef.ammoClass);
             lore.add("§7ダメージ §f" + ammoDef.damage);
+            if (ammoDef.description != null) lore.add("§8§o" + ammoDef.description);
             lore.add("");
         }
 

@@ -18,6 +18,10 @@ public class AttachmentDefinitionParser {
         att.customModelData = section.getInt("customModelData", 0);
         att.rarity = section.getInt("rarity", 1);
         att.weight = ParserUtils.getWeight(section);
+        att.cost = Math.max(1, section.getInt("cost", 1));
+        att.description = new java.util.ArrayList<>(section.getStringList("lore"));
+        if (section.isList("description")) att.description.addAll(section.getStringList("description"));
+        else if (section.isString("description")) att.description.add(section.getString("description"));
 
         ConfigurationSection modSection = section.getConfigurationSection("modifiers");
         if (modSection != null) {

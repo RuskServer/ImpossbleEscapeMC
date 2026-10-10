@@ -44,6 +44,7 @@ final class QuestCatalog {
                 .requiresQuest("supply_route")
                 .kill("SCAV", 3)
                 .handInFir("mini_battery", 1)
+                .unlockTrade(KOVACS, "ak74")
                 .money(15000)
                 .exp(820)
                 .build());

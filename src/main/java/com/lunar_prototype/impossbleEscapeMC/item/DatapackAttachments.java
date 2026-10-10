@@ -164,7 +164,7 @@ public final class DatapackAttachments {
     public static ItemStack createItem(World world, String attachmentId) {
         List<ItemStack> items = DatapackFunctionUtil.captureItemsFromFunction(world,
                 GIVE_FUNCTION + " {id:\"" + attachmentId.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}");
-        return items.isEmpty() ? null : items.get(0);
+        return items.isEmpty() ? null : AttachmentItems.wrap(items.get(0));
     }
 
     /** 効果の説明 (例: "ADS時間 +1", "縦反動 -15%")。見た目だけの変更など、出さない物はnull */

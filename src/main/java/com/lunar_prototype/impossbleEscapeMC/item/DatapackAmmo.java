@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * データパック銃 (Toi's Armory) の弾。データパックには口径 (state.ammo_type) はあるが弾の種類が無いため、
- * プラグインの弾 (ammo/*.yml の AmmoDefinition) を口径で対応させる。
+ * プラグインの弾 ({@link AmmoCatalog} の AmmoDefinition) を口径で対応させる。
  * <ul>
  *   <li>銃に込めた弾の種類は custom_data.toisarm.state に書く (データパックは持ち替えの判定で state を見ないため、
  *       書いても持ち替え扱いにならない)</li>
@@ -155,10 +155,10 @@ public final class DatapackAmmo {
         return ItemRegistry.getAmmo(shot.ammoId());
     }
 
-    /** 弾のダメージ倍率 (同じ口径のいちばん弱い弾に対する比。データパックの銃のダメージに掛ける) */
+    /** 弾のダメージ倍率 (同じ口径の基準弾に対する比。データパックの銃のダメージに掛ける) */
     public static double damageMultiplier(AmmoDefinition ammo) {
         if (ammo == null) return 1.0;
-        AmmoDefinition base = ItemRegistry.getWeakestAmmoForCaliber(ammo.caliber);
+        AmmoDefinition base = ItemRegistry.getReferenceAmmoForCaliber(ammo.caliber);
         if (base == null || base.damage <= 0) return 1.0;
         return ammo.damage / base.damage;
     }
