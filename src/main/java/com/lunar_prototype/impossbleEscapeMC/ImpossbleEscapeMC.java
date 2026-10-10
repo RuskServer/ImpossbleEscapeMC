@@ -188,6 +188,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.github.retrooper.packetevents.PacketEvents.getAPI().getEventManager().registerListener(
                 new com.lunar_prototype.impossbleEscapeMC.listener.LobbyVisibilityListener(this)
         );
+        // レイド終盤の EMP を空と雲のシェーダーに伝える (全員の時刻パケットを書き換える)
+        com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.init();
 
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
@@ -285,6 +287,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // SCAVのデータパック銃用FakePlayerは、サーバー停止時の退出・保存処理に乗らないよう先に取り除く
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
         }
