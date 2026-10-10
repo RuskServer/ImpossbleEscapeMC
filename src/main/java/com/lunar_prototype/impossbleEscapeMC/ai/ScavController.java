@@ -294,7 +294,7 @@ public class ScavController {
     // 味方に伝えるのは「自分がどこで戦っているか」と「どちらを向いているか」だけで、敵の位置は伝えない。
     // 呼ばれた側は味方の後ろへ向かい、敵は自分の目と耳で見つける (敵の位置を共有するとウォールハックになるため)
     /** 敵を見ている・撃たれてから、この間 (tick) は交戦中とみなす */
-    private static final int COMBAT_MEMORY_TICKS = 200;
+    private static final int COMBAT_MEMORY_TICKS = ScavHelpEncounter.QUIET_TICKS;
     /** 救援に向かい続ける時間 (tick)。呼ばれ直すと延びる */
     private static final int ASSIST_DURATION_TICKS = 600;
     /** 味方のどれだけ後ろ・横に着くか (ブロック) */
@@ -1214,6 +1214,8 @@ public class ScavController {
     /** 交戦を始めた・続けている時に呼ぶ。救援に向かうのをやめ、周りの味方を呼ぶ */
     private void enterCombat() {
         lastCombatTick = Bukkit.getCurrentTick();
+        LivingEntity target = scav.getTarget();
+        squad.enterCombat(target != null ? target.getUniqueId() : null);
         assistCallerId = null;
         squad.callForHelp();
     }
@@ -1242,6 +1244,7 @@ public class ScavController {
         if (caller == this || isInCombat()) return false;
         UUID callerId = caller.getScav().getUniqueId();
         if (assistCallerId != null && !assistCallerId.equals(callerId) && ScavSpawner.getController(assistCallerId) != null) return false;
+        if (!squad.joinHelpEncounter(caller.getSquad())) return false;
         if (!callerId.equals(assistCallerId)) {
             assistSide = Math.random() < 0.5 ? 1 : -1;
             addAlertness(0.2f, "HELP_CALL", ScavSpawner.getRaidSessionId(scav.getUniqueId()));
