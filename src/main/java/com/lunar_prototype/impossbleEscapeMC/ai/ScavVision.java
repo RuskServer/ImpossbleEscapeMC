@@ -19,6 +19,8 @@ public class ScavVision {
     private final Mob scav;
     private static final double MAX_VISION_DISTANCE = 96.0;
     private static final double FOV_ANGLE = 120.0;
+    /** これより近い相手には、視野の外でも気付く (ブロック) */
+    private static final double CLOSE_AWARENESS_DISTANCE = 4.0;
     private LosSnapshot lastLosSnapshot = null;
     private float alertness = 0.25f;
 
@@ -160,7 +162,8 @@ public class ScavVision {
         double angle = direction.angle(toTarget) * 180 / Math.PI;
         double relaxedFovScale = 0.8 + (0.25 * alertness);
         double currentFov = isFiring ? 200.0 : (FOV_ANGLE * relaxedFovScale);
-        if (angle > currentFov / 2.0) return false;
+        // すぐ近く (足音や気配が分かる距離) なら、視野の外でも気付く (壁越しは下の射線判定で弾く)
+        if (angle > currentFov / 2.0 && dist > CLOSE_AWARENESS_DISTANCE) return false;
 
         double visibility = 1.0;
         int light = targetLoc.getBlock().getLightLevel();
