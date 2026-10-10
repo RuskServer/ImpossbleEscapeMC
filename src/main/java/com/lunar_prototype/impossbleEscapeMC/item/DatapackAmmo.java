@@ -31,6 +31,8 @@ public final class DatapackAmmo {
 
     /** 込めた弾の種類 (custom_data.toisarm.state の中) */
     private static final String LOADED_AMMO_KEY = "iemc_loaded_ammo";
+    /** 銃1丁ごとのID (同じ種類の銃を入れ替えた時と、同じ銃のマガジンを付け替えた時を見分ける) */
+    private static final String INSTANCE_ID_KEY = "iemc_id";
     /** データパックとプラグインで書き方が違う口径 (大文字小文字の違いは同じとみなす) */
     private static final Map<String, String> CALIBER_ALIASES = Map.of("12ga", "12x70mm");
     /** 撃った弾がこのtick以内に当たった時、撃った時の弾の種類を使う */
@@ -105,12 +107,30 @@ public final class DatapackAmmo {
 
     /** マガジンの弾数と込めた弾の種類を書き換えた銃を返す (state の他の値には触らない) */
     public static ItemStack withMagazine(ItemStack gun, int magazine, String ammoId) {
+        return editState(gun, state -> {
+            state.putInt("ammo_remaining", magazine);
+            if (ammoId != null) state.putString(LOADED_AMMO_KEY, ammoId);
+        });
+    }
+
+    /** 銃1丁ごとのID。まだ無ければnull */
+    public static String instanceId(ItemStack gun) {
+        String id = state(gun).getStringOr(INSTANCE_ID_KEY, "");
+        return id.isEmpty() ? null : id;
+    }
+
+    /** 銃1丁ごとのIDを付けた銃を返す */
+    public static ItemStack withInstanceId(ItemStack gun) {
+        String id = UUID.randomUUID().toString();
+        return editState(gun, state -> state.putString(INSTANCE_ID_KEY, id));
+    }
+
+    private static ItemStack editState(ItemStack gun, java.util.function.Consumer<CompoundTag> edit) {
         net.minecraft.world.item.ItemStack nms = CraftItemStack.asNMSCopy(gun);
         CompoundTag root = nms.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         CompoundTag toisarm = root.getCompoundOrEmpty("toisarm");
         CompoundTag state = toisarm.getCompoundOrEmpty("state");
-        state.putInt("ammo_remaining", magazine);
-        if (ammoId != null) state.putString(LOADED_AMMO_KEY, ammoId);
+        edit.accept(state);
         toisarm.put("state", state);
         root.put("toisarm", toisarm);
         nms.set(DataComponents.CUSTOM_DATA, CustomData.of(root));

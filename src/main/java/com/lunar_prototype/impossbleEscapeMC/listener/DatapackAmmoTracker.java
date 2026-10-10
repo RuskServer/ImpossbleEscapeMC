@@ -12,7 +12,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Score;
@@ -38,19 +41,20 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
 
     private static final String ENOUGH_AMMO_TAG = "ENOUGH_AMMO";
     private static final String UPDATE_NAME_TAG = "toisarm.update_item_name";
-    private static final String RELOAD_INPUT_TAG = "toisarm.input.reload";
+    /** リロードに割り当てたキー (データパックのプレイヤー設定。1 ならそのキーがリロード) */
+    private static final String KEYBIND_SWAP = "toisarm.settings.keybind.swap";
+    private static final String KEYBIND_DROP = "toisarm.settings.keybind.drop";
+    private static final int KEYBIND_RELOAD = 1;
     private static final String SETTING_HOLDER = "#toisarm.settings.reload_requires_ammo";
     private static final String SETTING_OBJECTIVE = "_";
     private static final int SETTING_REFRESH_TICKS = 100;
-    private static final int NO_AMMO_MESSAGE_INTERVAL_TICKS = 20;
     private static final String[] RELOAD_TIMERS = {"toisarm.timer.reload", "toisarm.timer.empty_reload", "toisarm.timer.reload_loop"};
 
     /** 前のtickに見た、手に持った銃の弾数 */
-    private record Seen(int slot, String gunId, int rounds, boolean reloading) {
+    private record Seen(String instanceId, int rounds, boolean reloading, int capacity) {
     }
 
     private final Map<UUID, Seen> seen = new HashMap<>();
-    private final Map<UUID, Integer> lastNoAmmoMessage = new HashMap<>();
     private int tick;
 
     @Override
@@ -67,7 +71,6 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
 
     private void update(Player player) {
         UUID id = player.getUniqueId();
-        int slot = player.getInventory().getHeldItemSlot();
         ItemStack gun = player.getInventory().getItemInMainHand();
         String gunId = DatapackGunCatalog.gunIdOf(gun);
         if (gunId == null) {
@@ -76,13 +79,26 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         }
         String caliber = DatapackAmmo.caliberOf(gunId);
         boolean limited = DatapackAmmo.hasAmmoFor(caliber);
+        // 銃1丁ごとのIDを付ける (データパックは state を持ち替えの判定に使わないため、書いても持ち替え扱いにならない)
+        String instanceId = DatapackAmmo.instanceId(gun);
+        if (instanceId == null) {
+            gun = DatapackAmmo.withInstanceId(gun);
+            player.getInventory().setItemInMainHand(gun);
+            instanceId = DatapackAmmo.instanceId(gun);
+        }
 
         int rounds = rounds(gun);
+        int capacity = score(player, "toisarm.state.ammo_capacity", -1);
         Seen previous = seen.get(id);
-        if (limited && previous != null && previous.reloading() && previous.slot() == slot
-                && previous.gunId().equals(gunId) && rounds > previous.rounds()) {
+        // 同じ1丁を持ち続けている時だけ見る (同じ種類の別の銃に持ち替えた差を、リロードや付け替えと取り違えない)
+        boolean sameGun = previous != null && previous.instanceId().equals(instanceId);
+        if (limited && sameGun && previous.reloading() && rounds > previous.rounds()) {
             gun = loadFromInventory(player, gun, caliber, previous.rounds(), rounds - previous.rounds());
             rounds = rounds(gun);
+        }
+        // 小さいマガジンに付け替えた: データパックが弾数を新しい容量まで切り詰めるため、あふれたぶんを弾として手元に戻す
+        if (limited && sameGun && capacity > 0 && previous.capacity() > capacity && rounds < previous.rounds()) {
+            refund(player, gun, caliber, previous.rounds() - rounds);
         }
 
         boolean hasAmmo = !limited || !DatapackAmmo.findAmmo(player, caliber).isEmpty();
@@ -90,15 +106,8 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             player.addScoreboardTag(ENOUGH_AMMO_TAG);
         } else {
             player.removeScoreboardTag(ENOUGH_AMMO_TAG);
-            if (player.getScoreboardTags().contains(RELOAD_INPUT_TAG)) {
-                int last = lastNoAmmoMessage.getOrDefault(id, Integer.MIN_VALUE / 2);
-                if (tick - last >= NO_AMMO_MESSAGE_INTERVAL_TICKS) {
-                    lastNoAmmoMessage.put(id, tick);
-                    player.sendActionBar(Component.text("弾がありません (" + caliber + ")", NamedTextColor.RED));
-                }
-            }
         }
-        seen.put(id, new Seen(slot, gunId, rounds, reloading(player)));
+        seen.put(id, new Seen(instanceId, rounds, reloading(player), capacity));
     }
 
     /**
@@ -138,6 +147,17 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         setScore(player, "toisarm.ammo_remaining", magazine);
         player.addScoreboardTag(UPDATE_NAME_TAG);
         return updated;
+    }
+
+    /** 込めていた種類の弾を戻す (種類が分からない銃は、その口径のいちばん弱い弾) */
+    private static void refund(Player player, ItemStack gun, String caliber, int count) {
+        String ammoId = DatapackAmmo.loadedAmmoId(gun);
+        if (ammoId == null) {
+            AmmoDefinition weakest = ItemRegistry.getWeakestAmmoForCaliber(caliber);
+            if (weakest == null) return;
+            ammoId = weakest.id;
+        }
+        giveRounds(player, ammoId, count);
     }
 
     private static int take(List<ItemStack> stacks, int amount) {
@@ -194,11 +214,60 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         DatapackAmmo.clearCache();
     }
 
+    /*
+     * リロードキーを押した時: マガジンが満タンなら込めている弾を見せる (弾薬チェック)、弾が無ければそう伝える。
+     * データパックは、持ち替えキー (F) を「銃がオフハンドに来た」、ドロップキー (Q) を「銃を落とした」で検知してリロードにするため、
+     * 同じ操作をBukkitのイベントで受ける。どちらがリロードかはプレイヤーのデータパック設定に従う
+     */
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onSwapHands(PlayerSwapHandItemsEvent event) {
+        ItemStack gun = event.getOffHandItem();
+        if (DatapackGunCatalog.gunIdOf(gun) != null && score(event.getPlayer(), KEYBIND_SWAP, KEYBIND_RELOAD) == KEYBIND_RELOAD) {
+            reloadPressed(event.getPlayer(), gun);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onDrop(PlayerDropItemEvent event) {
+        ItemStack gun = event.getItemDrop().getItemStack();
+        if (DatapackGunCatalog.gunIdOf(gun) != null && score(event.getPlayer(), KEYBIND_DROP, -1) == KEYBIND_RELOAD) {
+            reloadPressed(event.getPlayer(), gun);
+        }
+    }
+
+    private static void reloadPressed(Player player, ItemStack gun) {
+        Component message = reloadPressMessage(player, gun);
+        if (message != null) player.sendActionBar(message);
+    }
+
+    /**
+     * リロードキーを押した時に出す文。満タンなら込めている弾と弾数、弾が無ければその口径、それ以外 (普通にリロードが始まる) はnull
+     */
+    static Component reloadPressMessage(Player player, ItemStack gun) {
+        String caliber = DatapackAmmo.caliberOf(DatapackGunCatalog.gunIdOf(gun));
+        int magazine = DatapackAmmo.magazine(gun);
+        boolean chambered = DatapackAmmo.chambered(gun);
+        int capacity = score(player, "toisarm.state.ammo_capacity", -1);
+        if (capacity > 0 && magazine >= capacity) {
+            String loaded = DatapackAmmo.loadedAmmoId(gun);
+            AmmoDefinition ammo = loaded != null ? ItemRegistry.getAmmo(loaded) : null;
+            String name = ammo != null ? ammo.displayName : (caliber != null ? caliber + " (種類不明)" : "種類不明");
+            String count = magazine + (chambered ? "+1" : "");
+            return Component.text("装填中: ", NamedTextColor.GRAY)
+                    .append(Component.text(name, NamedTextColor.WHITE))
+                    .append(Component.text(" (" + count + ")", NamedTextColor.GRAY));
+        }
+        if (DatapackAmmo.hasAmmoFor(caliber) && DatapackAmmo.findAmmo(player, caliber).isEmpty()) {
+            return Component.text("弾がありません (" + caliber + ")", NamedTextColor.RED);
+        }
+        return null;
+    }
+
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID id = event.getPlayer().getUniqueId();
         seen.remove(id);
-        lastNoAmmoMessage.remove(id);
         DatapackAmmo.forget(id);
     }
 }
