@@ -65,6 +65,12 @@ public class GunListener implements Listener {
     private static final int MODEL_ADD_SPRINT = 2000;
     private static final String DATAPACK_FIRING_OBJECTIVE = "toisarm.timer.firing";
     private static final int DATAPACK_GUNSHOT_DEDUP_TICKS = 1;
+    /** Toi's Armory の ADS の進み具合 (10000 = 構えていない、0 = 覗き切った) */
+    private static final String DATAPACK_ADS_PROGRESS_OBJECTIVE = "toisarm.ads_progress";
+    /** これより覗き込んでいればマズルフラッシュを ADS 用にする */
+    private static final int ADS_FLASH_THRESHOLD = 5000;
+    /** 銃身と一体のサプレッサーを持つ銃 */
+    private static final java.util.Set<String> INTEGRALLY_SUPPRESSED_GUNS = java.util.Set.of("as_val");
     private static final double HEATMAP_SHOT_LINE_RANGE = 64.0;
     /** 弾がこの距離以内を通ったSCAVは至近弾として制圧される (BulletTaskのニアミス判定と同じ範囲) */
     private static final double NEAR_MISS_RADIUS = 2.0;
@@ -135,8 +141,30 @@ public class GunListener implements Listener {
                 // 当たった時に、撃った時に込めていた弾の種類を使う
                 com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.recordShot(player);
                 handleDatapackShotLine(player);
+                com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playMuzzleFlash(
+                        player, isAimingDatapackGun(player), isSuppressed(player.getInventory().getItemInMainHand()));
             }
         }
+    }
+
+    private static boolean isAimingDatapackGun(Player player) {
+        org.bukkit.scoreboard.ScoreboardManager manager = Bukkit.getScoreboardManager();
+        org.bukkit.scoreboard.Objective objective = manager != null
+                ? manager.getMainScoreboard().getObjective(DATAPACK_ADS_PROGRESS_OBJECTIVE) : null;
+        if (objective == null) return false;
+        org.bukkit.scoreboard.Score score = objective.getScore(player.getName());
+        return score.isScoreSet() && score.getScore() < ADS_FLASH_THRESHOLD;
+    }
+
+    /** サプレッサーが付いている (またはサプレッサーと一体の) データパック銃か */
+    private static boolean isSuppressed(org.bukkit.inventory.ItemStack gun) {
+        String gunId = com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(gun);
+        if (gunId == null) return false;
+        if (INTEGRALLY_SUPPRESSED_GUNS.contains(gunId)) return true;
+        org.bukkit.inventory.ItemStack muzzle = com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attached(gun).get("muzzle");
+        String attachmentId = muzzle != null
+                ? com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attachmentIdOf(muzzle) : null;
+        return attachmentId != null && attachmentId.contains("suppressor");
     }
 
     /**

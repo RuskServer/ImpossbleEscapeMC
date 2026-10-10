@@ -44,7 +44,8 @@ import java.util.UUID;
  * クライアントは送られた順にポストエフェクトを重ねて描くため、次の層を下から順に重ねる。
  * <ol>
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
- *   <li>色味: レイド中は常に iem:raid_grade</li>
+ *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
+ *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
@@ -67,12 +68,15 @@ public final class ScreenEffectService implements Listener {
     private static final Key DEATH_BLACKOUT = Key.key(NAMESPACE, "death_blackout");
     private static final Key DEATH_FADE = Key.key(NAMESPACE, "death_fade");
     private static final Key DEATH_RECOVER = Key.key(NAMESPACE, "death_recover");
-    private static final Key RAID_GRADE = Key.key(NAMESPACE, "raid_grade");
+    private static final Key GRADE = Key.key(NAMESPACE, "grade");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
     private static final Key HIT_FADE = Key.key(NAMESPACE, "hit_fade");
     private static final Key EMP_FLASH = Key.key(NAMESPACE, "emp_flash");
+    private static final Key MUZZLE_FLASH_HIP = Key.key(NAMESPACE, "muzzle_flash_hip");
+    private static final Key MUZZLE_FLASH_ADS = Key.key(NAMESPACE, "muzzle_flash_ads");
+    private static final Key MUZZLE_FLASH_SUPPRESSED = Key.key(NAMESPACE, "muzzle_flash_suppressed");
     /** EMP の閃光は emp_flash (真っ白) から emp_flash_fade_1〜3 へ順に薄れる */
     private static final int EMP_FLASH_FADE_STAGES = 3;
     private static final int EMP_FLASH_TICKS = 3;
@@ -98,7 +102,7 @@ public final class ScreenEffectService implements Listener {
     private static final int CRITICAL_HEARTBEAT_TICKS = 24;
     /** 出血中にこの割合を下回る体力を瀕死とみなす */
     private static final double CRITICAL_HEALTH_RATIO = 0.3;
-    /** 色味・負傷の層を見直す間隔 (tick) */
+    /** 画作り・負傷の層を見直す間隔 (tick) */
     private static final int STATE_UPDATE_INTERVAL_TICKS = 5;
     /** クライアントの読み込み完了の通知が来ない場合に待つのをやめるまで */
     private static final int LOAD_WAIT_TIMEOUT_TICKS = 400;
@@ -138,12 +142,15 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Playback> playing = new HashMap<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
-    /** 色味の層をかけているプレイヤー (レイド中) */
+    /** 画作りの層 (レンズフレア + 色味) をかけているプレイヤー */
     private final Set<UUID> graded = new HashSet<>();
     /** 負傷の層のエフェクト (出血中・瀕死) */
     private final Map<UUID, Key> wound = new HashMap<>();
     /** 被弾した tick */
     private final Map<UUID, Integer> hitTick = new HashMap<>();
+    /** マズルフラッシュの層のエフェクトと、撃った tick (その tick だけかける) */
+    private final Map<UUID, Key> muzzleFlash = new HashMap<>();
+    private final Map<UUID, Integer> muzzleFlashTick = new HashMap<>();
     /** ワールドの読み込み待ちのプレイヤーと、待ち始めたtick */
     private final Map<UUID, Integer> awaitingLoad = new HashMap<>();
     /** 読み込みが終わったプレイヤーと、演出を進めてよくなるtick */
@@ -265,6 +272,7 @@ public final class ScreenEffectService implements Listener {
             }
         }
         tickHits(now);
+        tickMuzzleFlashes(now);
         tickCriticalHeartbeat();
 
         for (Map.Entry<UUID, Playback> entry : new ArrayList<>(playing.entrySet())) {
@@ -304,9 +312,9 @@ public final class ScreenEffectService implements Listener {
         }
     }
 
-    // --- 空・色味・負傷・被弾の層 ---
+    // --- 空・画作り・負傷・被弾の層 ---
 
-    /** レイド中なら色味 (終盤は空も)、出血中なら負傷の層をかける */
+    /** 生きている間は画作り (レイド終盤は空も)、出血中なら負傷の層をかける */
     private void updateGradeAndWound(Player player) {
         UUID playerId = player.getUniqueId();
         boolean alive = !player.isDead() && !awaitingRespawn.contains(playerId)
@@ -316,7 +324,7 @@ public final class ScreenEffectService implements Listener {
         Key skyEffect = raid != null ? raid.getEndSequence().skyEffect() : null;
         Key woundEffect = alive ? woundEffectOf(player) : null;
 
-        boolean changed = raid != null ? graded.add(playerId) : graded.remove(playerId);
+        boolean changed = alive ? graded.add(playerId) : graded.remove(playerId);
         Key previousSky = skyEffect != null ? sky.put(playerId, skyEffect) : sky.remove(playerId);
         changed |= previousSky != skyEffect;
         Key previous = woundEffect != null ? wound.put(playerId, woundEffect) : wound.remove(playerId);
@@ -340,6 +348,31 @@ public final class ScreenEffectService implements Listener {
             int elapsed = now - entry.getValue();
             if (player == null || elapsed >= HIT_TICKS + HIT_FADE_TICKS) hitTick.remove(entry.getKey());
             if (player != null && (elapsed == HIT_TICKS || elapsed >= HIT_TICKS + HIT_FADE_TICKS)) refresh(player);
+        }
+    }
+
+    /**
+     * 撃った本人の画面に、その tick だけマズルフラッシュをかける。
+     * 銃口の画面上の位置は送れないため、腰だめ・ADS で別のエフェクトにしてある (位置は muzzle_flash.py が各銃の中央値で決める)
+     */
+    public static void playMuzzleFlash(Player player, boolean aiming, boolean suppressed) {
+        if (instance == null) return;
+        if (player.getGameMode() == GameMode.SPECTATOR) return;
+        UUID playerId = player.getUniqueId();
+        Key effect = suppressed ? MUZZLE_FLASH_SUPPRESSED : aiming ? MUZZLE_FLASH_ADS : MUZZLE_FLASH_HIP;
+        instance.muzzleFlash.put(playerId, effect);
+        instance.muzzleFlashTick.put(playerId, Bukkit.getCurrentTick());
+        instance.refresh(player);
+    }
+
+    /** 撃った次の tick にマズルフラッシュを外す */
+    private void tickMuzzleFlashes(int now) {
+        for (Map.Entry<UUID, Integer> entry : new ArrayList<>(muzzleFlashTick.entrySet())) {
+            if (now - entry.getValue() < 1) continue;
+            muzzleFlashTick.remove(entry.getKey());
+            muzzleFlash.remove(entry.getKey());
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player != null) refresh(player);
         }
     }
 
@@ -369,7 +402,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (空 → 色味 → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (空 → マズルフラッシュ → 画作り → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -379,7 +412,9 @@ public final class ScreenEffectService implements Listener {
         }
         Key skyEffect = sky.get(playerId);
         if (skyEffect != null) effects.add(skyEffect);
-        if (graded.contains(playerId)) effects.add(RAID_GRADE);
+        Key flashEffect = muzzleFlash.get(playerId);
+        if (flashEffect != null) effects.add(flashEffect);
+        if (graded.contains(playerId)) effects.add(GRADE);
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
         Playback playback = playing.get(playerId);
@@ -407,6 +442,8 @@ public final class ScreenEffectService implements Listener {
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
+        muzzleFlash.remove(playerId);
+        muzzleFlashTick.remove(playerId);
         awaitingLoad.remove(playerId);
         settlingUntil.remove(playerId);
         awaitingRespawn.remove(playerId);
@@ -424,6 +461,8 @@ public final class ScreenEffectService implements Listener {
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
+        muzzleFlash.remove(playerId);
+        muzzleFlashTick.remove(playerId);
         playing.put(playerId, new Playback(List.of(
                 new Step(DEATH_IMPACT, DEATH_IMPACT_TICKS, false),
                 new Step(DEATH_BLACKOUT, DEATH_BLACKOUT_TICKS, false),
