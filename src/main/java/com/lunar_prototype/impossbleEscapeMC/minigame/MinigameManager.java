@@ -530,30 +530,45 @@ private void spawnPlayers() {
         }
 
         if (weapon != null) {
+            // 弾: 銃の口径の基準弾 (標準的な弾。無ければ一番弱い弾) をマガジンに込め、予備を SPARE_ROUNDS 発渡す
+            AmmoDefinition ammoDef = ammoFor(loadout);
+            com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile profile =
+                    com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.get(loadout);
+            if (ammoDef != null && profile != null) {
+                weapon = com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.withMagazine(weapon, profile.magazineSize(), ammoDef.id);
+            }
             player.getInventory().setItem(0, weapon);
-            
-            // Ammo
-            ItemDefinition def = ItemRegistry.get(loadout);
-            if (def != null && def.gunStats != null) {
-                AmmoDefinition ammoDef = ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
-                if (ammoDef != null) {
-                    ItemStack ammo = ItemFactory.create(ammoDef.id);
-                    if (ammo != null) {
-                        ammo.setAmount(64);
-                        player.getInventory().setItem(1, ammo);
-                        player.getInventory().setItem(2, ammo.clone());
-                        player.getInventory().setItem(3, ammo.clone());
-                        ItemStack lastAmmo = ammo.clone();
-                        lastAmmo.setAmount(8); // 64*3 + 8 = 200
-                        player.getInventory().setItem(4, lastAmmo);
-                    }
-                }
+
+            int slot = 1;
+            int remaining = ammoDef != null ? SPARE_ROUNDS : 0;
+            while (remaining > 0 && slot < 9) {
+                ItemStack ammo = ItemFactory.create(ammoDef.id);
+                if (ammo == null) break;
+                int amount = Math.min(remaining, ammo.getMaxStackSize());
+                ammo.setAmount(amount);
+                player.getInventory().setItem(slot++, ammo);
+                remaining -= amount;
             }
         }
 
         // Iron Armor (Fallback to vanilla with PDC if custom definition missing)
         player.getInventory().setHelmet(createArmor("iron_helmet", Material.IRON_HELMET, 2));
         player.getInventory().setChestplate(createArmor("iron_chestplate", Material.IRON_CHESTPLATE, 2));
+    }
+
+    /** 予備の弾の数 (マガジンに込める分とは別) */
+    private static final int SPARE_ROUNDS = 200;
+
+    /** ロードアウトの銃の弾: データパック銃の口径 (無ければアイテム定義の口径) の基準弾、無ければ一番弱い弾 */
+    private static AmmoDefinition ammoFor(String loadout) {
+        String caliber = com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.caliberOf(loadout);
+        if (caliber == null) {
+            ItemDefinition def = ItemRegistry.get(loadout);
+            if (def != null && def.gunStats != null) caliber = def.gunStats.caliber;
+        }
+        if (caliber == null) return null;
+        AmmoDefinition reference = ItemRegistry.getReferenceAmmoForCaliber(caliber);
+        return reference != null ? reference : ItemRegistry.getWeakestAmmoForCaliber(caliber);
     }
 
     private ItemStack createArmor(String id, Material fallback, int armorClass) {
