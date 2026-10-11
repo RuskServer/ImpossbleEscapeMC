@@ -57,6 +57,7 @@ public class StaminaModule implements IModule, Listener {
 
     private void tick() {
         for (Player player : Bukkit.getOnlinePlayers()) {
+            clearLegacyGravityPenalty(player);
             if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) continue;
 
             PlayerData data = dataModule.getPlayerData(player.getUniqueId());
@@ -170,11 +171,6 @@ public class StaminaModule implements IModule, Listener {
         if (moveSpeed != null) {
             moveSpeed.addModifier(new AttributeModifier(EXHAUSTION_SPEED_MODIFIER_KEY, -0.2, AttributeModifier.Operation.ADD_SCALAR));
         }
-        // Apply gravity penalty (halve jump height)
-        AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
-        if (gravity != null) {
-            gravity.addModifier(new AttributeModifier(EXHAUSTION_GRAVITY_MODIFIER_KEY, 0.08, AttributeModifier.Operation.ADD_NUMBER));
-        }
     }
 
     private void removeExhaustionEffect(Player player) {
@@ -183,9 +179,13 @@ public class StaminaModule implements IModule, Listener {
         if (moveSpeed != null) {
             moveSpeed.removeModifier(EXHAUSTION_SPEED_MODIFIER_KEY);
         }
-        // Remove gravity penalty
+        clearLegacyGravityPenalty(player);
+    }
+
+    /** 旧バージョンで付いたスタミナ切れの重力補正だけを解除する。 */
+    private void clearLegacyGravityPenalty(Player player) {
         AttributeInstance gravity = player.getAttribute(Attribute.GRAVITY);
-        if (gravity != null) {
+        if (gravity != null && gravity.getModifier(EXHAUSTION_GRAVITY_MODIFIER_KEY) != null) {
             gravity.removeModifier(EXHAUSTION_GRAVITY_MODIFIER_KEY);
         }
     }
