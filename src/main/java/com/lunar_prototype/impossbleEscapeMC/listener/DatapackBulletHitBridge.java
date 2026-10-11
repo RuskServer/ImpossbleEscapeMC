@@ -51,8 +51,7 @@ public class DatapackBulletHitBridge implements Listener {
     private static final double HITBOX_MARGIN = 0.1;
     /** 撃った弾が分からない時 (弾を込めていない銃・弾の無い口径のSCAV) の貫通クラス */
     private static final int DATAPACK_AMMO_CLASS = 1;
-    private static final double LEGS_DAMAGE_MULTIPLIER = 0.6;
-    private static final double NOT_PENETRATED_DAMAGE_MULTIPLIER = 0.15;
+
     /** プレイヤーの弾がSCAVに当たった時の制圧 (プラグイン銃の BulletTask と同じ値) */
     private static final float HIT_SUPPRESSION = 0.5f;
 
@@ -68,18 +67,24 @@ public class DatapackBulletHitBridge implements Listener {
         if (!(event.getEntity() instanceof LivingEntity victim)) return;
         if (!isDatapackBullet(event)) return;
 
-        // 撃った弾の貫通クラスと威力 (同じ口径のいちばん弱い弾に対する比)。プレイヤーは撃った時に銃に込めていた弾、
+        // 撃った弾の貫通クラスと定義威力。プレイヤーは撃った時に銃に込めていた弾、
         // SCAVは割り当てられた弾。分からない時 (弾を込めていない銃・弾の無い口径のSCAV) は貫通クラス1
         AmmoDefinition ammo = shooterAmmo(event.getDamager());
         int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
-        double rawDamage = event.getDamage() * DatapackAmmo.damageMultiplier(ammo);
-        String hitLocation = hitLocation(victim);
+        double rawDamage = BulletDamageModel.baseDamage(ammo);
+        BulletContact contact = bulletContact(victim);
+        String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null);
+        // データパックは変更せず、処理中の弾Markerから入射方向を読む。
+        Vector incoming = contact != null ? contact.direction() : null;
+        if (BulletDamageModel.visorRicochets(victim, hitLocation, incoming)) {
+            event.setCancelled(true);
+            victim.getWorld().playSound(victim.getEyeLocation(), org.bukkit.Sound.ENTITY_ARROW_HIT_PLAYER, 1.0f, 1.3f);
+            return;
+        }
         int armorClass = BulletDamageModel.armorClass(victim, hitLocation);
         boolean penetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
 
-        double damage = rawDamage;
-        if (BulletDamageModel.LEGS.equals(hitLocation)) damage *= LEGS_DAMAGE_MULTIPLIER;
-        if (!penetrated) damage *= NOT_PENETRATED_DAMAGE_MULTIPLIER;
+        double damage = BulletDamageModel.damageForHit(rawDamage, hitLocation, penetrated);
 
         event.setDamage(damage);
         // バニラの防具・耐性などによる軽減を外す (GunListener#onEntityDamage の bypass_armor と同じ)
@@ -129,17 +134,19 @@ public class DatapackBulletHitBridge implements Listener {
         return DATAPACK_BULLET_DAMAGE.equals(event.getDamageSource().getDamageType().getKey());
     }
 
-    private static String hitLocation(LivingEntity victim) {
+    private static String hitLocation(LivingEntity victim, Vector entry) {
         if (victim.getScoreboardTags().contains(CRIT_HIT_TAG)) return BulletDamageModel.HEAD;
-        Vector entry = bulletEntryPoint(victim);
         if (entry == null) return BulletDamageModel.BODY;
         String location = BulletDamageModel.hitLocation(victim, entry);
         // 頭はデータパックの判定 (CRIT_HIT) に合わせる。付いていなければ胴として扱う
         return BulletDamageModel.HEAD.equals(location) ? BulletDamageModel.BODY : location;
     }
 
-    /** ダメージを与えている最中の弾の位置と進行方向から、当たり判定の箱への入射点を求める */
-    private static Vector bulletEntryPoint(LivingEntity victim) {
+    private record BulletContact(Vector entry, Vector direction) {
+    }
+
+    /** 処理中の弾の箱への入射点と進行方向。軌道が箱を通らない場合は部位だけを推定する。 */
+    private static BulletContact bulletContact(LivingEntity victim) {
         Collection<Marker> bullets = victim.getWorld().getNearbyEntitiesByType(Marker.class, victim.getLocation(), BULLET_SEARCH_RADIUS,
                 marker -> marker.getScoreboardTags().contains(BULLET_TAG) && marker.getScoreboardTags().contains(HIT_ENTITY_TAG));
         if (bullets.isEmpty()) return null;
@@ -147,7 +154,7 @@ public class DatapackBulletHitBridge implements Listener {
         BoundingBox box = victim.getBoundingBox().clone().expand(HITBOX_MARGIN);
         Vector center = box.getCenter();
         // 処理中の弾は1発のはずだが、念のため弾道が箱を通る弾のうち一番近いものを使う
-        Vector bestEntry = null;
+        BulletContact bestContact = null;
         double bestDistance = Double.MAX_VALUE;
         Marker nearest = null;
         double nearestDistance = Double.MAX_VALUE;
@@ -164,15 +171,15 @@ public class DatapackBulletHitBridge implements Listener {
             RayTraceResult trace = box.rayTrace(origin, direction, BULLET_SEARCH_RADIUS * 4);
             if (trace != null && distance < bestDistance) {
                 bestDistance = distance;
-                bestEntry = trace.getHitPosition();
+                bestContact = new BulletContact(trace.getHitPosition(), direction);
             }
         }
-        if (bestEntry != null) return bestEntry;
+        if (bestContact != null) return bestContact;
         // 弾道が曲がっていて線が箱を外れた時は、一番近い弾に一番近い箱の上の点
         Vector position = nearest.getLocation().toVector();
-        return new Vector(
+        return new BulletContact(new Vector(
                 Math.max(box.getMinX(), Math.min(box.getMaxX(), position.getX())),
                 Math.max(box.getMinY(), Math.min(box.getMaxY(), position.getY())),
-                Math.max(box.getMinZ(), Math.min(box.getMaxZ(), position.getZ())));
+                Math.max(box.getMinZ(), Math.min(box.getMaxZ(), position.getZ()))), null);
     }
 }

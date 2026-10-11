@@ -11,5 +11,5 @@ public class AmmoDefinition {
     public int weight; // weight in grams
     public int customModelData;
     public String description; // ツールチップの説明 (無ければnull)
-    public boolean reference;  // 口径の基準弾 (データパック銃のダメージはこの弾に合わせてある)
+    public boolean reference;  // 口径の基準弾 (口径内の標準弾を識別する印)
 }

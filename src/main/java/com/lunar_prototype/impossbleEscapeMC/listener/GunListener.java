@@ -796,7 +796,6 @@ public class GunListener implements Listener {
         }
 
         // --- バースト（連射）による反動計算 ---
-        double damage = stats.damage;
         double baseRecoil = stats.recoil;
 
         // 現在の連射数を取得して加算
@@ -841,7 +840,7 @@ public class GunListener implements Listener {
 
         if (ammoDef != null) {
             int ammoClass = ammoDef.ammoClass;
-            double totalDamage = ammoDef.damage * damage;
+            double totalDamage = BulletDamageModel.baseDamage(ammoDef);
             int pellets = Math.max(1, stats.pelletCount);
             for (int i = 0; i < pellets; i++) {
                 new BulletTask(ImpossbleEscapeMC.getInstance(),player, totalDamage, ammoClass, inaccuracy).start();
@@ -929,8 +928,8 @@ public class GunListener implements Listener {
 
         // 2. 弾丸の生成
         com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition ammoDef = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getWeakestAmmoForCaliber(stats.caliber);
-        double baseDamage = (ammoDef != null) ? ammoDef.damage : 5.0;
-        double totalDamage = baseDamage * stats.damage;
+        double baseDamage = BulletDamageModel.baseDamage(ammoDef);
+        double totalDamage = baseDamage;
 
         int pellets = Math.max(1, stats.pelletCount);
         for (int i = 0; i < pellets; i++) {

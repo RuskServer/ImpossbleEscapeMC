@@ -415,6 +415,9 @@ public class ItemFactory {
                 ItemDefinition helmet = ItemRegistry.get(id);
                 if (HelmetVisors.fits(helmet, def.id)) helmets.add(helmet.displayName);
             }
+            if (def.visorStats.ricochetChance > 0) {
+                lore.add("§7正面頭部の跳弾率 §f" + Math.round(def.visorStats.ricochetChance * 100) + "%");
+            }
             if (!helmets.isEmpty()) lore.add("§7付けられるヘルメット " + String.join("§7, ", helmets));
             lore.add("§8ヘルメットのアタッチメント画面で装着");
             lore.add("");

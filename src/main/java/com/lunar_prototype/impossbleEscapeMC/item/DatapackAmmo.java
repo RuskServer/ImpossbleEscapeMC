@@ -155,14 +155,6 @@ public final class DatapackAmmo {
         return ItemRegistry.getAmmo(shot.ammoId());
     }
 
-    /** 弾のダメージ倍率 (同じ口径の基準弾に対する比。データパックの銃のダメージに掛ける) */
-    public static double damageMultiplier(AmmoDefinition ammo) {
-        if (ammo == null) return 1.0;
-        AmmoDefinition base = ItemRegistry.getReferenceAmmoForCaliber(ammo.caliber);
-        if (base == null || base.damage <= 0) return 1.0;
-        return ammo.damage / base.damage;
-    }
-
     public static void forget(UUID player) {
         lastShots.remove(player);
     }

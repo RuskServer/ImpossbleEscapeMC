@@ -12,8 +12,7 @@ import java.util.List;
  * (最初の6種は以前の ammo/*.yml のキーと同じ)。口径は銃 (プラグイン銃の caliber、データパック銃の ammo_type) と同じ書き方にする
  * (大文字小文字は区別しない。データパックの 12ga は {@link DatapackAmmo} が 12x70mm に読み替える)。
  * <ul>
- *   <li>威力は口径ごとの基準弾 ({@link #reference}、データパック銃のダメージに合わせた弾) との比で効く
- *       (データパック銃では、その比をデータパックのダメージに掛ける)</li>
+ *   <li>威力は全銃共通の1発分の基礎ダメージ (散弾は1粒分)。銃側の威力倍率・距離減衰は使わない</li>
  *   <li>クラス1〜2 (ホローポイント・ソフトポイントなど) は体へのダメージが高いが、防具にはほぼ止められる。
  *       クラス3〜4 は標準弾と貫通力を上げた弾。クラス5 は2030年代の量産型の改良弾、クラス6 は最新の特殊弾
  *       (ロシア系の口径は Kopye、西側の口径は Lancer)。高いクラスほど手に入りにくい</li>
@@ -160,7 +159,7 @@ final class AmmoCatalog {
         return ammoClass <= 2 ? 1 : Math.min(5, ammoClass - 1);
     }
 
-    /** 口径の基準弾にする (データパック銃のダメージはこの弾に合わせてある) */
+    /** 口径の基準弾にする (口径内の標準弾を識別する印) */
     private static AmmoDefinition reference(AmmoDefinition ammo) {
         ammo.reference = true;
         return ammo;

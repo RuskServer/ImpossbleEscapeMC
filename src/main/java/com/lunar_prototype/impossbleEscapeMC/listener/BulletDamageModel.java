@@ -1,6 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import com.lunar_prototype.impossbleEscapeMC.item.HelmetVisors;
+import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.EquipmentSlot;
@@ -60,6 +64,43 @@ public final class BulletDamageModel {
         ItemStack item = entity.getEquipment().getItem(slot);
         if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return 0;
         return item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
+    }
+
+    /** 全銃共通の1発 (散弾は1粒) の威力。弾が不明な旧装備は固定5ダメージ。 */
+    public static double baseDamage(AmmoDefinition ammo) {
+        return ammo != null ? ammo.damage : 5.0;
+    }
+
+    /** 銃・データパックの威力補正は使わず、部位と防具だけで補正する。 */
+    public static double damageForHit(double baseDamage, String hitLocation, boolean penetrated) {
+        double damage = baseDamage;
+        if (HEAD.equals(hitLocation)) damage *= 1.2;
+        else if (LEGS.equals(hitLocation)) damage *= 0.6;
+        return penetrated ? damage : damage * 0.15;
+    }
+
+    /** バイザーの正面防護。入射方向が不明・装着が不正なら判定しない。 */
+    public static boolean visorRicochets(LivingEntity victim, String hitLocation, Vector incomingDirection) {
+        if (!HEAD.equals(hitLocation) || incomingDirection == null || victim.getEquipment() == null) return false;
+        ItemStack helmet = victim.getEquipment().getHelmet();
+        String visorId = HelmetVisors.visorOf(helmet);
+        if (visorId == null || !HelmetVisors.fits(HelmetVisors.helmetDef(helmet), visorId)) return false;
+        ItemDefinition visor = ItemRegistry.get(visorId);
+        if (visor == null || visor.visorStats == null) return false;
+        return rollVisorRicochet(hitLocation, visor.visorStats.ricochetChance,
+                victim.getEyeLocation().getDirection(), incomingDirection, Math.random());
+    }
+
+    /** 頭の向きに対して左右60度以内の正面入射だけを対象にする。ベクトルは変更しない。 */
+    static boolean rollVisorRicochet(String hitLocation, double chance, Vector facing, Vector incoming, double roll) {
+        if (!HEAD.equals(hitLocation) || !Double.isFinite(chance) || chance <= 0
+                || facing == null || incoming == null) return false;
+        double facingLength = Math.hypot(facing.getX(), facing.getZ());
+        double incomingLength = Math.hypot(incoming.getX(), incoming.getZ());
+        if (facingLength < 1e-6 || incomingLength < 1e-6) return false;
+        double dot = (facing.getX() * incoming.getX() + facing.getZ() * incoming.getZ())
+                / (facingLength * incomingLength);
+        return dot <= -0.5 && roll >= 0 && roll < Math.min(1.0, chance);
     }
 
     /** 弾薬クラスと防具クラスから、防具を貫通したかを抽選する */

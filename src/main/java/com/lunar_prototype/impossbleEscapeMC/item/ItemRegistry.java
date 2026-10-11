@@ -144,7 +144,7 @@ public class ItemRegistry {
         return backpacks;
     }
 
-    /** 口径の基準弾 (データパック銃のダメージはこの弾に合わせてある)。基準弾が無ければいちばん弱い弾 */
+    /** 口径の基準弾 (口径内の標準弾を識別する印)。基準弾が無ければいちばん弱い弾 */
     public static AmmoDefinition getReferenceAmmoForCaliber(String caliber) {
         for (AmmoDefinition ammo : AMMO_MAP.values()) {
             if (ammo.reference && ammo.caliber.equalsIgnoreCase(caliber)) return ammo;
