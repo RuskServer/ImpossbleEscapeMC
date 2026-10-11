@@ -56,9 +56,9 @@ public class PDASettingsGUI implements Listener {
         }
 
         // リロードキー設定
-        inventory.setItem(11, getSettingItem("リロードキー (RELOAD)", "RELOAD"));
+        inventory.setItem(10, getSettingItem("リロードキー (RELOAD)", "RELOAD"));
         // 射撃モード切替キー設定
-        inventory.setItem(13, getSettingItem("射撃モード切替キー (FIREMODE)", "FIREMODE"));
+        inventory.setItem(12, getSettingItem("射撃モード切替キー (FIREMODE)", "FIREMODE"));
 
         // ADSダッシュ解除設定
         ItemStack adsItem = new ItemStack(data.isCancelAdsOnSprint() ? Material.LIME_DYE : Material.GRAY_DYE);
@@ -71,7 +71,23 @@ public class PDASettingsGUI implements Listener {
         adsLore.add(Component.text("クリックでON/OFFを切り替え", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
         adsMeta.lore(adsLore);
         adsItem.setItemMeta(adsMeta);
-        inventory.setItem(15, adsItem);
+        inventory.setItem(14, adsItem);
+
+        // コンパスの脱出地点の表示
+        boolean showMarkers = !data.isHideExtractMarkers();
+        ItemStack compassItem = new ItemStack(showMarkers ? Material.LIME_DYE : Material.GRAY_DYE);
+        ItemMeta compassMeta = compassItem.getItemMeta();
+        compassMeta.displayName(Component.text("コンパスに脱出地点を表示", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+        List<Component> compassLore = new ArrayList<>();
+        compassLore.add(Component.text("現在の設定: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                .append(Component.text(showMarkers ? "ON" : "OFF", showMarkers ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
+        compassLore.add(Component.text("レイド中、画面上のコンパスに今回の脱出地点の", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        compassLore.add(Component.text("方角と距離を出します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        compassLore.add(Component.empty());
+        compassLore.add(Component.text("クリックでON/OFFを切り替え", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        compassMeta.lore(compassLore);
+        compassItem.setItemMeta(compassMeta);
+        inventory.setItem(16, compassItem);
 
         // 戻るボタン
         ItemStack back = new ItemStack(Material.ARROW);
@@ -132,17 +148,22 @@ public class PDASettingsGUI implements Listener {
         if (slot == 22) {
             player.closeInventory();
             new PDAGUI(player).open();
-        } else if (slot == 11) {
+        } else if (slot == 10) {
             cycleKeybind("RELOAD");
             setupGUI(); // 再描画
             player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-        } else if (slot == 13) {
+        } else if (slot == 12) {
             cycleKeybind("FIREMODE");
             setupGUI(); // 再描画
             player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-        } else if (slot == 15) {
+        } else if (slot == 14) {
             data.setCancelAdsOnSprint(!data.isCancelAdsOnSprint());
             data.setDirty(true);
+            dataModule.saveAsync(player.getUniqueId());
+            setupGUI(); // 再描画
+            player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+        } else if (slot == 16) {
+            data.setHideExtractMarkers(!data.isHideExtractMarkers());
             dataModule.saveAsync(player.getUniqueId());
             setupGUI(); // 再描画
             player.playSound(player.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
