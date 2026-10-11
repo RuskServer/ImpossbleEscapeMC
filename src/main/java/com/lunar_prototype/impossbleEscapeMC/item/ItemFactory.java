@@ -89,6 +89,7 @@ public class ItemFactory {
             if (ammoDef.customModelData != 0) {
                 meta.setCustomModelData(ammoDef.customModelData);
             }
+            meta.setItemModel(ammoModel(ammoDef.id));
             TooltipStyle.forRarity(ammoDef.rarity).applyTo(meta);
             item.setItemMeta(meta);
         } else {
@@ -481,6 +482,11 @@ public class ItemFactory {
         }
 
         return item;
+    }
+
+    /** 弾のアイコン (リソースパックの assets/iem/items/ammo/&lt;id&gt;.json、IEM_shader/tools/ammo_icons.py が作る) */
+    public static NamespacedKey ammoModel(String ammoId) {
+        return new NamespacedKey("iem", "ammo/" + ammoId);
     }
 
     private static String getRarityColor(int rarity) {
