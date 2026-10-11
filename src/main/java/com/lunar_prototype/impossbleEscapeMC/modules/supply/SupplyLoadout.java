@@ -120,7 +120,8 @@ public final class SupplyLoadout {
         if (data == null) return "プレイヤーデータを読み込み中です";
         long remaining = remainingCooldown(data);
         if (remaining > 0) return "次に受け取れるまで " + formatDuration(remaining);
-        if (!hasEmptyLoadout(player)) return "持ち物 (装備を含む) を空にしてから受け取ってください";
+        String blocking = blockingItem(player);
+        if (blocking != null) return "持ち物 (装備を含む) を空にしてから受け取ってください: " + blocking;
         return null;
     }
 
@@ -129,15 +130,51 @@ public final class SupplyLoadout {
         return String.format("%d:%02d", seconds / 60, seconds % 60);
     }
 
-    /** 持ち物 (装備・オフハンドを含む) が空か。地図・占有スロット・リグで塞がれたスロットは数えない */
-    static boolean hasEmptyLoadout(Player player) {
-        for (ItemStack item : player.getInventory().getContents()) {
+    /**
+     * 受け取りの邪魔になっている持ち物 (装備・オフハンドを含む) を「欄の 名前」で返す。無ければ null。
+     * 地図 (地図の欄の地図は名前に関係なく)・占有スロット・リグで塞がれたスロットは数えない。
+     * 地図を手に持っている間は、本人の画面ではオフハンドが空に見える (MapOffhandHider) ので、その時はそう書き添える
+     */
+    static String blockingItem(Player player) {
+        PlayerInventory inventory = player.getInventory();
+        ItemStack[] contents = inventory.getContents();
+        for (int slot = 0; slot < contents.length; slot++) {
+            ItemStack item = contents[slot];
             if (item == null || item.getType().isAir()) continue;
             if (RaidMapManager.isTacticalMapItem(item) || ItemFactory.isCostSlotPlaceholder(item)
                     || RigModule.isLockedSlotPlaceholder(item)) continue;
-            return false;
+            // 地図の欄の地図は、名前に関係なく数えない (古い版で作られた地図など、名前で見分けられないことがある)
+            if (slot == RaidMapManager.MAP_SLOT && (item.getType() == Material.MAP || item.getType() == Material.FILLED_MAP)) continue;
+            String found = slotName(slot) + "の " + itemName(item);
+            if (slot == OFFHAND_SLOT && RaidMapManager.isTacticalMapItem(inventory.getItemInMainHand())) {
+                found += " (地図を持っている間はオフハンドが表示されません)";
+            }
+            return found;
         }
-        return true;
+        return null;
+    }
+
+    /** PlayerInventory.getContents() の並び: 0〜8 ホットバー、9〜35 持ち物、36〜39 足・脚・胴・頭、40 オフハンド */
+    private static final int OFFHAND_SLOT = 40;
+
+    private static String slotName(int slot) {
+        if (slot < 9) return "ホットバー " + (slot + 1);
+        if (slot < 36) return "持ち物";
+        return switch (slot) {
+            case 36 -> "足";
+            case 37 -> "脚";
+            case 38 -> "胴";
+            case 39 -> "頭";
+            default -> "オフハンド";
+        };
+    }
+
+    private static String itemName(ItemStack item) {
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null && meta.displayName() != null) {
+            return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(meta.displayName());
+        }
+        return item.getType().name().toLowerCase();
     }
 
     /** 武器の銃に込める弾: その口径の貫通クラス AMMO_CLASS の弾 (無ければ一番弱い弾)。口径が分からなければ null */
