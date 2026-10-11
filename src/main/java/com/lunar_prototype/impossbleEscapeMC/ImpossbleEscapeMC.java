@@ -208,6 +208,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("scavspawn").setExecutor(new ScavCommand(this));
         getCommand("attachment").setExecutor(new AttachmentCommand());
         getCommand("itemreload").setExecutor(new ItemReloadCommand(this));
+        getCommand("shaderdebug").setExecutor(new ShaderDebugCommand());
         
         DatapackTestCommand datapackTestCommand = new DatapackTestCommand();
         getCommand("datapacktest").setExecutor(datapackTestCommand);

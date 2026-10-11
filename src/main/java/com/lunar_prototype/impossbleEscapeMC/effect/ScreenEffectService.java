@@ -44,6 +44,9 @@ import java.util.UUID;
  * エフェクト本体 (assets/iem/post_effect/*.json と shaders/post/*.fsh) はサーバーのリソースパックで配る。
  * クライアントは送られた順にポストエフェクトを重ねて描くため、次の層を下から順に重ねる。
  * <ol>
+ *   <li>数値の画素: 常に iem:control。空のシェーダーが画面の左下の端に書いた数値 (カメラの向き・太陽の向きなど。
+ *       リソースパックの shaders/include/iem_control.glsl) を、ほかのエフェクトが絵を動かす前に隠す。
+ *       確認用の iem:control_debug ({@link #toggleControlDebug}、/shaderdebug) は、隠す前に数値を読んで重ねて描く</li>
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
  *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)</li>
@@ -71,6 +74,8 @@ public final class ScreenEffectService implements Listener {
     private static final Key DEATH_FADE = Key.key(NAMESPACE, "death_fade");
     private static final Key DEATH_RECOVER = Key.key(NAMESPACE, "death_recover");
     private static final Key GRADE = Key.key(NAMESPACE, "grade");
+    private static final Key CONTROL = Key.key(NAMESPACE, "control");
+    private static final Key CONTROL_DEBUG = Key.key(NAMESPACE, "control_debug");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
@@ -142,6 +147,8 @@ public final class ScreenEffectService implements Listener {
 
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Playback> playing = new HashMap<>();
+    /** 数値の画素の確認用エフェクトを重ねているプレイヤー */
+    private final Set<UUID> controlDebug = new HashSet<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
     /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間) */
@@ -202,6 +209,16 @@ public final class ScreenEffectService implements Listener {
         PacketEvents.getAPI().getEventManager().unregisterListener(instance.playerLoadedListener);
         Bukkit.getOnlinePlayers().forEach(ScreenEffectService::clearIem);
         instance = null;
+    }
+
+    /** 数値の画素の確認用エフェクトを付け外しする。付けたら true */
+    public static boolean toggleControlDebug(Player player) {
+        if (instance == null) return false;
+        UUID playerId = player.getUniqueId();
+        boolean enabled = instance.controlDebug.add(playerId);
+        if (!enabled) instance.controlDebug.remove(playerId);
+        instance.refresh(player);
+        return enabled;
     }
 
     /** アドレナリン放出の演出 (強い一撃 → 心拍で脈打つ → 弱めて終わる) を、効果時間に合わせて流す */
@@ -409,7 +426,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (空 → マズルフラッシュ → バイザー → 画作り → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (数値の画素 → 空 → マズルフラッシュ → バイザー → 画作り → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -417,6 +434,8 @@ public final class ScreenEffectService implements Listener {
         for (Key existing : current) {
             if (!NAMESPACE.equals(existing.namespace())) effects.add(existing);
         }
+        if (controlDebug.contains(playerId)) effects.add(CONTROL_DEBUG);
+        effects.add(CONTROL);
         Key skyEffect = sky.get(playerId);
         if (skyEffect != null) effects.add(skyEffect);
         Key flashEffect = muzzleFlash.get(playerId);
@@ -446,6 +465,7 @@ public final class ScreenEffectService implements Listener {
     }
 
     private void forget(UUID playerId) {
+        controlDebug.remove(playerId);
         playing.remove(playerId);
         sky.remove(playerId);
         visor.remove(playerId);
