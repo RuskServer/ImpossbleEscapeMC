@@ -24,6 +24,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerGameModeChangeEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.GameMode;
+import org.bukkit.entity.Player;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.ItemStack;
@@ -51,7 +55,8 @@ import java.util.regex.Pattern;
  * (IEM_shader/tools/light_heads.py)。色はヘッドごとに {@link #HEADS} で決める。
  * <p>
  * 芯は保存しない (persistent=false)。チャンクが読み込まれた時にヘッドを探して出し、外れる時に消す。
- * 壊された・動かされたヘッドの芯は {@link #CHECK_INTERVAL_TICKS} ごとの見直しで消す
+ * 壊された・動かされたヘッドの芯は {@link #CHECK_INTERVAL_TICKS} ごとの見直しで消す。
+ * クリエイティブのプレイヤーには芯を見せない (マップを作る時にヘッドが隠れないように)
  */
 public final class LightHeads implements Listener {
 
@@ -136,6 +141,24 @@ public final class LightHeads implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> update(block));
     }
 
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        if (event.getPlayer().getGameMode() == GameMode.CREATIVE) setCoresVisible(event.getPlayer(), false);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGameModeChange(PlayerGameModeChangeEvent event) {
+        setCoresVisible(event.getPlayer(), event.getNewGameMode() != GameMode.CREATIVE);
+    }
+
+    /** そのプレイヤーに、今ある芯をすべて見せる / 隠す */
+    private void setCoresVisible(Player player, boolean visible) {
+        for (ItemDisplay core : cores.values()) {
+            if (visible) player.showEntity(plugin, core);
+            else player.hideEntity(plugin, core);
+        }
+    }
+
     /** チャンクの中の光源ヘッドに芯を出す (前に残った芯は消してから) */
     private void scan(Chunk chunk) {
         for (Entity entity : chunk.getEntities()) {
@@ -177,7 +200,11 @@ public final class LightHeads implements Listener {
             return;
         }
         if (existing != null && existing.isValid()) return;
-        cores.put(key, spawn(block, color));
+        ItemDisplay core = spawn(block, color);
+        cores.put(key, core);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getGameMode() == GameMode.CREATIVE) player.hideEntity(plugin, core);
+        }
     }
 
     private ItemDisplay spawn(Block block, Color color) {
