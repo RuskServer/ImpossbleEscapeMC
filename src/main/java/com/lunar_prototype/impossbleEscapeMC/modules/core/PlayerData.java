@@ -56,6 +56,8 @@ public class PlayerData {
     private boolean cancelAdsOnSprint;
     /** レイドの HUD のコンパスに脱出地点を出さない (初期値 false = 出す。古いデータに無い項目も false になる) */
     private boolean hideExtractMarkers;
+    /** 最後に支給装備を受け取った時刻 (ミリ秒。受け取ったことが無ければ 0) */
+    private long lastSupplyTime;
     private java.util.Map<String, String> keybinds;
 
     // 隠れ家システム
@@ -377,6 +379,17 @@ public class PlayerData {
     public void setCancelAdsOnSprint(boolean cancelAdsOnSprint) {
         if (this.cancelAdsOnSprint != cancelAdsOnSprint) {
             this.cancelAdsOnSprint = cancelAdsOnSprint;
+            this.dirty = true;
+        }
+    }
+
+    public long getLastSupplyTime() {
+        return lastSupplyTime;
+    }
+
+    public void setLastSupplyTime(long lastSupplyTime) {
+        if (this.lastSupplyTime != lastSupplyTime) {
+            this.lastSupplyTime = lastSupplyTime;
             this.dirty = true;
         }
     }

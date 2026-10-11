@@ -43,6 +43,8 @@ public class PDCKeys {
     public static final NamespacedKey GUI_TYPE = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "gui_type");
     /** ヘルメットに付けたバイザーのアイテムID */
     public static final NamespacedKey HELMET_VISOR = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "helmet_visor");
+    /** 支給装備 (無料の装備) の品。売れない・納品できない・FIR にならない。生還すると回収される */
+    public static final NamespacedKey SUPPLIED = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "supplied");
 
     public static NamespacedKey affix(String stat) {
         return new NamespacedKey(ImpossbleEscapeMC.getInstance(), "affix_" + stat);

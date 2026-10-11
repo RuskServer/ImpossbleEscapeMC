@@ -262,11 +262,10 @@ public class ItemFactory {
         if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
         if (pdc.getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
         if (pdc.getOrDefault(PDCKeys.DROPPED_BY_PLAYER, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
+        // 支給品は FIR にしない (拾われても)
+        if (pdc.getOrDefault(PDCKeys.SUPPLIED, PDCKeys.BOOLEAN, (byte) 0) == 1) return;
 
-        // 弾薬には FIR を付けない（既存の仕様を踏襲）
-        String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        if (itemId != null && ItemRegistry.getAmmo(itemId) != null) return;
-
+        // 弾薬にも付ける (FIR の弾を納品するクエストがあるため)。FIR の弾と FIR でない弾は別のスタックになる
         pdc.set(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 1);
         item.setItemMeta(meta);
         updateLore(item);
@@ -318,6 +317,9 @@ public class ItemFactory {
 
         if (pdc.getOrDefault(PDCKeys.FIND_IN_RAID, PDCKeys.BOOLEAN, (byte) 0) == 1) {
             lore.add("§6Find in Raid");
+        }
+        if (pdc.getOrDefault(PDCKeys.SUPPLIED, PDCKeys.BOOLEAN, (byte) 0) == 1) {
+            lore.add(SUPPLIED_LORE_LINE);
         }
 
         lore.add("");
@@ -397,6 +399,9 @@ public class ItemFactory {
             if (def.maxDurability > 0) {
                 int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
                 lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
+            }
+            if (def.armorStats.ricochetChance > 0) {
+                lore.add("§7正面頭部の跳弾率 §f" + Math.round(def.armorStats.ricochetChance * 100) + "%");
             }
             if (def.armorStats.visors != null && !def.armorStats.visors.isEmpty()) {
                 String visorId = pdc.get(PDCKeys.HELMET_VISOR, PDCKeys.STRING);
@@ -506,6 +511,9 @@ public class ItemFactory {
         return item;
     }
 
+    /** 支給品 (PDCKeys.SUPPLIED) の説明の行 */
+    public static final String SUPPLIED_LORE_LINE = "§c支給品 §8(売却・納品不可、生還時に回収)";
+
     /** 弾のアイコン (リソースパックの assets/iem/items/ammo/&lt;id&gt;.json、IEM_shader/tools/ammo_icons.py が作る) */
     public static NamespacedKey ammoModel(String ammoId) {
         return new NamespacedKey("iem", "ammo/" + ammoId);
@@ -527,7 +535,7 @@ public class ItemFactory {
     }
 
     public static ItemStack createCostSlotPlaceholder() {
-        ItemStack item = new ItemStack(Material.BARRIER);
+        ItemStack item = new ItemStack(Material.RED_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName("§8[ サイズ制限 ]");

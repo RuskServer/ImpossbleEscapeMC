@@ -198,6 +198,27 @@ public class PDAGUI implements Listener {
         // Partyボタン
         inventory.setItem(10, createPartyButton());
 
+        // 支給装備ボタン (無料の最低限の装備)
+        ItemStack supply = new ItemStack(inRaid ? Material.BARRIER : Material.BARREL);
+        ItemMeta supplyMeta = supply.getItemMeta();
+        supplyMeta.displayName(Component.text("Supply (支給装備)", inRaid ? NamedTextColor.RED : NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        List<Component> supplyLore = new ArrayList<>();
+        supplyLore.add(Component.text("装備が無くても出撃できる、無料の最低限の装備。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        supplyLore.add(Component.text("売却・納品はできず、生還すると回収されます。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        supplyLore.add(Component.empty());
+        if (inRaid) {
+            supplyLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else {
+            long remaining = com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.remainingCooldown(data);
+            if (remaining > 0) {
+                supplyLore.add(Component.text("次に受け取れるまで " + com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.formatDuration(remaining), NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            }
+            supplyLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
+        supplyMeta.lore(supplyLore);
+        supply.setItemMeta(supplyMeta);
+        inventory.setItem(9, supply);
+
         // 閉じるボタン
         ItemStack close = new ItemStack(Material.BARRIER);
         ItemMeta closeMeta = close.getItemMeta();
@@ -255,6 +276,15 @@ public class PDAGUI implements Listener {
         } else if (slot == 10) {
             player.closeInventory();
             new PartyGUI(player).open();
+        } else if (slot == 9) {
+            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+            if (raidModule.isInRaid(player)) {
+                player.sendMessage(Component.text("§cレイド中は支給装備を開くことができません！", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
+            player.closeInventory();
+            new com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI(player).open();
         } else if (slot == 11) {
             RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
             if (raidModule.isInRaid(player)) {
