@@ -59,6 +59,7 @@ final class LootCatalog {
                 item("UNTAR", 10.0),
                 item("MF-UNTAR", 10.0),
                 item("FAST-MT", 8.0),
+                item("FAST-MT_visor", 5.0),
                 item("Trooper", 8.0),
                 item("mbss", 8.0),
                 item("micro_rig", 15.0),

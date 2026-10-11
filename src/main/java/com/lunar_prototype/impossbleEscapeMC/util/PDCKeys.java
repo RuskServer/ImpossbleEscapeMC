@@ -41,6 +41,8 @@ public class PDCKeys {
     public static final NamespacedKey QUEST_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "quest_id");
     public static final NamespacedKey RAID_MAP_ID = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "raid_map_id");
     public static final NamespacedKey GUI_TYPE = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "gui_type");
+    /** ヘルメットに付けたバイザーのアイテムID */
+    public static final NamespacedKey HELMET_VISOR = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "helmet_visor");
 
     public static NamespacedKey affix(String stat) {
         return new NamespacedKey(ImpossbleEscapeMC.getInstance(), "affix_" + stat);

@@ -88,7 +88,16 @@ final class ItemCatalog {
         // weight: 1.2kg
         // cost: 軽量ヘルメット、1スロット+1占有
         fast_mt.armorStats = armor(3, 6, "HEAD", null);
+        // バイザーを付けると CustomModelData 7 (バイザー付きのモデル)
+        fast_mt.armorStats.visors = List.of("FAST-MT_visor");
+        fast_mt.armorStats.visorCustomModelData = 7;
         items.add(fast_mt);
+
+        ItemDefinition fast_mt_visor = item("FAST-MT_visor", "VISOR", Material.DIAMOND, "§b[FAST-MT] バイザー", 3, 8, 0, 600, 2);
+        // weight: 0.6kg
+        // FAST-MT のアタッチメント。付けたヘルメットをかぶると、バイザー越しの見え方になる
+        fast_mt_visor.visorStats = visor("iem:visor");
+        items.add(fast_mt_visor);
 
         ItemDefinition trooper = item("Trooper", "ARMOR", Material.IRON_CHESTPLATE, "§b[Trooper] アーマー", 3, 0, 500, 8200, 6);
         // weight: 8.2kg
@@ -180,6 +189,13 @@ final class ItemCatalog {
         stats.customModelData = customModelData;
         stats.slot = slot;
         stats.cameraOverlay = cameraOverlay;
+        return stats;
+    }
+
+    /** @param postEffect かぶっている間のバイザー越しの見え方 (ポストエフェクト) */
+    private static VisorStats visor(String postEffect) {
+        VisorStats stats = new VisorStats();
+        stats.postEffect = postEffect;
         return stats;
     }
 

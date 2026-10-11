@@ -398,6 +398,25 @@ public class ItemFactory {
                 int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
                 lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
             }
+            if (def.armorStats.visors != null && !def.armorStats.visors.isEmpty()) {
+                String visorId = pdc.get(PDCKeys.HELMET_VISOR, PDCKeys.STRING);
+                ItemDefinition visor = visorId != null ? ItemRegistry.get(visorId) : null;
+                lore.add("§7バイザー " + (visor != null ? visor.displayName : "§8なし"));
+            }
+            lore.add("");
+        }
+
+        // =========================
+        // バイザー
+        // =========================
+        if (def != null && def.visorStats != null) {
+            List<String> helmets = new ArrayList<>();
+            for (String id : ItemRegistry.getAllItemIds()) {
+                ItemDefinition helmet = ItemRegistry.get(id);
+                if (HelmetVisors.fits(helmet, def.id)) helmets.add(helmet.displayName);
+            }
+            if (!helmets.isEmpty()) lore.add("§7付けられるヘルメット " + String.join("§7, ", helmets));
+            lore.add("§8ヘルメットのアタッチメント画面で装着");
             lore.add("");
         }
 

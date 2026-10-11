@@ -19,4 +19,5 @@ public class ItemDefinition {
     public ArmorStats armorStats;
     public BackpackStats backpackStats;
     public RigStats rigStats;
+    public VisorStats visorStats;
 }

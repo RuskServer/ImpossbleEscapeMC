@@ -58,8 +58,9 @@ public class InventoryListener implements Listener {
 
         if (def != null && "GUN".equals(def.type)) {
             new AttachmentGUI(player, mainHand).open();
-        } else {
-            player.sendMessage("§cメインハンドに有効な銃を持っていません");
+        } else if (!com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) {
+            // 手に持ったヘルメット、無ければかぶっているヘルメットのバイザー
+            player.sendMessage("§cメインハンドに銃かヘルメットを持つか、バイザーを付けられるヘルメットをかぶってください");
         }
     }
 
@@ -70,6 +71,7 @@ public class InventoryListener implements Listener {
             meta.setDisplayName("§6[ 武器カスタマイズ ]");
             List<String> lore = new ArrayList<>();
             lore.add("§7メインハンドの武器を改造します");
+            lore.add("§7(ヘルメットはバイザーを付け外し)");
             lore.add("");
             lore.add("§eクリックでカスタマイズGUIを開く");
             meta.setLore(lore);

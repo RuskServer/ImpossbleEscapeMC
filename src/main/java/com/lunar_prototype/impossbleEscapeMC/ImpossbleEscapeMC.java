@@ -178,6 +178,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.TooltipStyleMigration(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUIListener(), this);
+        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUIListener(), this);
         // データパック銃のリロードに、プラグインの弾を使わせる
         com.lunar_prototype.impossbleEscapeMC.listener.DatapackAmmoTracker ammoTracker = new com.lunar_prototype.impossbleEscapeMC.listener.DatapackAmmoTracker();
         getServer().getPluginManager().registerEvents(ammoTracker, this);
