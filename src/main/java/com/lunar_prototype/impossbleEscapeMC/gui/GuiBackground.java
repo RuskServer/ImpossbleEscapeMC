@@ -30,7 +30,9 @@ public enum GuiBackground {
     RAID(0xE220, 6),
     QUEST(0xE240, 3),
     /** アタッチメント画面 (PDA ではなく武器職人の作業台) */
-    ATTACHMENT(0xE260, 5);
+    ATTACHMENT(0xE260, 5),
+    /** 支給装備 (無料の最低限の装備) */
+    SUPPLY(0xE280, 4);
 
     private static final char SHIFT_TITLE = '\uE001';
     private static final char SHIFT_GAP = '\uE002';

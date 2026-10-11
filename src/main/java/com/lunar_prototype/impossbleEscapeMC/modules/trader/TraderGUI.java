@@ -351,6 +351,8 @@ public class TraderGUI implements Listener {
      */
     private static String sellableIdOf(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
+        // 支給品は売れない (値段 0 で、閉じた時に持ち物へ戻る)
+        if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) return null;
         String itemId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         if (itemId != null) return itemId;
         String gunId = com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(item);

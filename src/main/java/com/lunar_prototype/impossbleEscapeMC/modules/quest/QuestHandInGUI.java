@@ -245,6 +245,8 @@ public class QuestHandInGUI implements Listener {
     /** 納品で使うアイテムのID: データパックのアタッチメント → プラグインのアイテム・弾 → データパックの銃 */
     static String handInIdOf(ItemStack item) {
         if (item == null || item.getType().isAir() || !item.hasItemMeta()) return null;
+        // 支給品は納品できない (クエストの強調表示もしない)
+        if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) return null;
         String id = DatapackAttachments.attachmentIdOf(item);
         if (id != null) return id;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();

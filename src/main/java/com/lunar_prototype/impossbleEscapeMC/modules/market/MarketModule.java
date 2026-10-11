@@ -86,6 +86,8 @@ public class MarketModule implements IModule {
      */
     public boolean canSellOnMarket(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
+        // 支給品は出品できない
+        if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) return false;
         
         // FIRなら出品可能
         if (isFir(item)) return true;

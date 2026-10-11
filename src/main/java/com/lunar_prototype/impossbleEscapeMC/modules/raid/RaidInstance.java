@@ -311,6 +311,7 @@ public class RaidInstance {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 clearRaidMarkersFromCurrentInventory(p);
+                com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(p); // 支給装備はロビーに戻る時に回収する
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 hud.hide(p);
@@ -533,6 +534,8 @@ public class RaidInstance {
                 }
             }
 
+            // 支給装備は生還したら回収する (拾った物は残る)
+            com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(p);
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
             resetCameraDistance(p);
             showIndividualRaidResult(p);
@@ -585,6 +588,7 @@ public class RaidInstance {
                     result.outcome = RaidOutcome.MIA;
                 }
                 clearRaidMarkersFromCurrentInventory(p);
+                com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(p); // 支給装備はロビーに戻る時に回収する
                 hud.hide(p);
                 resetCameraDistance(p);
                 showIndividualRaidResult(p);
@@ -671,6 +675,7 @@ public class RaidInstance {
             result.outcome = RaidOutcome.LEFT;
         }
         clearRaidMarkersFromCurrentInventory(player);
+        com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(player); // 支給装備はロビーに戻る時に回収する
         players.remove(player.getUniqueId());
         resetCameraDistance(player);
         if (players.isEmpty()) {
