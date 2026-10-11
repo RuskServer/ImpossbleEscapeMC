@@ -21,6 +21,7 @@ public class ArmorStats {
 
     // ヘルメットのバイザー ({@link HelmetVisors})
     public List<String> visors; // 付けられるバイザーのアイテムID (無ければ付けられない)
+    public double ricochetChance; // 元からバイザーと一体のヘルメットの、正面の頭部被弾を跳弾させる確率 (0..1)
     public int visorCustomModelData; // バイザーを付けた時の CustomModelData
 
     public ArmorStats() {

@@ -32,14 +32,15 @@ public final class ScavAmmoSupply {
     private static final int MIN_SPARE_MAGAZINES = 1;
     private static final int MAX_SPARE_MAGAZINES = 3;
     /**
-     * SCAVの強さごとの、弾の貫通クラス (1〜6) の重み。LOW は粗悪な弾から標準弾、MID は標準弾が中心、
-     * HIGH は貫通弾が中心で、ごくまれに最新の弾 (クラス6) を持つ
+     * SCAVの強さごとの、弾の貫通クラス (1〜6) の重み。普通のSCAV (LOW・MID) は粗悪な弾 (クラス1〜2) が中心で、
+     * 防具 (クラス2〜3) に止められやすい。MID はまれに標準弾 (クラス3)。HIGH だけが標準弾〜貫通弾 (クラス3〜4) を持ち、
+     * ごくまれに改良弾 (クラス5)。クラス6 は持たない
      */
     private static final Map<ScavBrain.BrainLevel, double[]> CLASS_WEIGHTS = Map.of(
             //                                 class:  1     2     3     4     5     6
-            ScavBrain.BrainLevel.LOW, new double[]{0.15, 0.30, 0.55, 0, 0, 0},
-            ScavBrain.BrainLevel.MID, new double[]{0, 0.10, 0.55, 0.35, 0, 0},
-            ScavBrain.BrainLevel.HIGH, new double[]{0, 0, 0, 0.50, 0.48, 0.02});
+            ScavBrain.BrainLevel.LOW, new double[]{0.50, 0.50, 0, 0, 0, 0},
+            ScavBrain.BrainLevel.MID, new double[]{0.30, 0.60, 0.10, 0, 0, 0},
+            ScavBrain.BrainLevel.HIGH, new double[]{0, 0.20, 0.50, 0.27, 0.03, 0});
 
     private static final Map<UUID, ScavAmmoSupply> SUPPLIES = new ConcurrentHashMap<>();
 

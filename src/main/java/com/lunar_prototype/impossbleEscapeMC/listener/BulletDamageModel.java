@@ -23,6 +23,11 @@ public final class BulletDamageModel {
 
     /** 目の高さからこの範囲は頭 */
     private static final double HEAD_HEIGHT = 0.25;
+    /** 防具に止められた時のダメージの倍率 */
+    private static final double NOT_PENETRATED_MULTIPLIER = 0.15;
+    /** 防具を抜かれた時に、防具クラス 1 つにつき減らす割合 */
+    private static final double PENETRATED_REDUCTION_PER_CLASS = 0.10;
+    private static final int MAX_ARMOR_CLASS = 6;
     /** 足元から (目の高さまでの) この割合までは足 */
     private static final double LEGS_RATIO = 0.45;
     /** 胴の高さで、体の中心から左右にこの距離 (当たり判定の幅に対する割合) より外は腕 */
@@ -71,24 +76,40 @@ public final class BulletDamageModel {
         return ammo != null ? ammo.damage : 5.0;
     }
 
-    /** 銃・データパックの威力補正は使わず、部位と防具だけで補正する。 */
-    public static double damageForHit(double baseDamage, String hitLocation, boolean penetrated) {
+    /**
+     * 銃・データパックの威力補正は使わず、部位と防具だけで補正する。
+     * 防具に止められた時は 0.15 倍。抜かれた時も防具が勢いを殺すので、防具クラス 1 つにつき
+     * {@link #PENETRATED_REDUCTION_PER_CLASS} 減らす (クラス 3 なら 0.7 倍、最大のクラス 6 で 0.4 倍)
+     */
+    public static double damageForHit(double baseDamage, String hitLocation, boolean penetrated, int armorClass) {
         double damage = baseDamage;
         if (HEAD.equals(hitLocation)) damage *= 1.2;
         else if (LEGS.equals(hitLocation)) damage *= 0.6;
-        return penetrated ? damage : damage * 0.15;
+        if (!penetrated) return damage * NOT_PENETRATED_MULTIPLIER;
+        int clamped = Math.max(0, Math.min(MAX_ARMOR_CLASS, armorClass));
+        return damage * (1.0 - PENETRATED_REDUCTION_PER_CLASS * clamped);
     }
 
-    /** バイザーの正面防護。入射方向が不明・装着が不正なら判定しない。 */
+    /**
+     * バイザーの正面防護。付けたバイザー (FAST-MT のバイザーなど) があればその跳弾率、
+     * 無ければ元からバイザーと一体のヘルメット (Altyn など) の跳弾率で判定する。入射方向が不明なら判定しない。
+     */
     public static boolean visorRicochets(LivingEntity victim, String hitLocation, Vector incomingDirection) {
         if (!HEAD.equals(hitLocation) || incomingDirection == null || victim.getEquipment() == null) return false;
-        ItemStack helmet = victim.getEquipment().getHelmet();
+        double chance = faceShieldRicochetChance(victim.getEquipment().getHelmet());
+        return rollVisorRicochet(hitLocation, chance, victim.getEyeLocation().getDirection(), incomingDirection, Math.random());
+    }
+
+    /** かぶっているヘルメットの、正面頭部の跳弾率 (付けたバイザー → ヘルメット自体の順)。無ければ0 */
+    public static double faceShieldRicochetChance(ItemStack helmet) {
+        if (helmet == null || helmet.getType().isAir() || !helmet.hasItemMeta()) return 0;
         String visorId = HelmetVisors.visorOf(helmet);
-        if (visorId == null || !HelmetVisors.fits(HelmetVisors.helmetDef(helmet), visorId)) return false;
-        ItemDefinition visor = ItemRegistry.get(visorId);
-        if (visor == null || visor.visorStats == null) return false;
-        return rollVisorRicochet(hitLocation, visor.visorStats.ricochetChance,
-                victim.getEyeLocation().getDirection(), incomingDirection, Math.random());
+        if (visorId != null && HelmetVisors.fits(HelmetVisors.helmetDef(helmet), visorId)) {
+            ItemDefinition visor = ItemRegistry.get(visorId);
+            if (visor != null && visor.visorStats != null) return visor.visorStats.ricochetChance;
+        }
+        ItemDefinition def = ItemRegistry.get(helmet.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING));
+        return def != null && def.armorStats != null ? def.armorStats.ricochetChance : 0;
     }
 
     /** 頭の向きに対して左右60度以内の正面入射だけを対象にする。ベクトルは変更しない。 */
