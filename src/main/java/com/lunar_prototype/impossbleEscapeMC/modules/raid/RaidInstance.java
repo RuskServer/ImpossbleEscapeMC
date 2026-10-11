@@ -300,6 +300,7 @@ public class RaidInstance {
      * RaidResult を `MIA` に設定する。オンラインのプレイヤーには失敗メッセージを送信し、
      * ゲームモードを Adventure に変更してメインワールドのスポーンへテレポートし、ボスバーを非表示にし、
      * 失敗エフェクトを適用してマップスロットを更新する。最後に参加者集合をクリアする。
+     * 時間内に脱出できなかった (MIA) 参加者は、持ち込んだ物も拾った物もすべて失う ({@link #forfeitLoadout})。
      */
     public void handleMIA() {
         endReason = "mia_cycle_end";
@@ -310,8 +311,7 @@ public class RaidInstance {
             result.outcome = RaidOutcome.MIA;
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
-                clearRaidMarkersFromCurrentInventory(p);
-                com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(p); // 支給装備はロビーに戻る時に回収する
+                forfeitLoadout(p);
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 hud.hide(p);
@@ -322,6 +322,17 @@ public class RaidInstance {
             }
         }
         players.clear();
+    }
+
+    /**
+     * MIA: 持ち物 (装備・オフハンド・バッグの中・カーソル・クラフト欄) をすべて失う。地図は updateMapSlot が渡し直す。
+     * サーバー停止で終わったレイド (endRaid の MIA) は再起動後に戻れるので、ここは時間切れの時だけ
+     */
+    private void forfeitLoadout(Player p) {
+        p.closeInventory();   // 開いているバッグ・クラフト欄の中身を持ち物に戻してから消す
+        p.getInventory().clear();
+        p.setItemOnCursor(null);
+        p.sendMessage(Component.text("MIA: 時間内に脱出できなかったため、装備をすべて失いました", NamedTextColor.RED));
     }
 
     public void resetCycle() {
