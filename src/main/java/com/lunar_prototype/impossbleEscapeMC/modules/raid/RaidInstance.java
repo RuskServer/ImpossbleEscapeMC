@@ -5,7 +5,6 @@ import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -36,7 +35,8 @@ public class RaidInstance {
     private final long startTime;
     private final String raidSessionId;
     private BukkitRunnable task;
-    private BossBar bossBar;
+    /** 中央上のコンパスと右上の残り時間 (プレイヤーごとのボスバー) */
+    private final RaidHud hud;
     private int respawnTicks = 0;
     private String endReason = "raid_end";
     private boolean ended = false;
@@ -85,6 +85,7 @@ public class RaidInstance {
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
         this.endSequence = new RaidEndSequence(plugin, map);
+        this.hud = new RaidHud(plugin, map, activeExtractions);
 
         if (plugin.getAiRaidLogger() != null) {
             plugin.getAiRaidLogger().startRaidSession(
@@ -209,24 +210,18 @@ public class RaidInstance {
      * 定期的に死んだスカブの復活チェックを実行します（内部での周期管理あり）。
      */
     private void startTask() {
-        bossBar = BossBar.bossBar(
-                Component.text("残りレイド時間: 計算中..."),
-                1.0f,
-                BossBar.Color.GREEN,
-                BossBar.Overlay.PROGRESS
-        );
-
+        updateHudTime();
         for (UUID uuid : players) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null) {
-                player.showBossBar(bossBar);
+                hud.show(player);
             }
         }
 
         task = new BukkitRunnable() {
             @Override
             public void run() {
-                updateBossBar();
+                updateHudTime();
                 enforceRaidGamemode();
                 checkExtractions();
                 endSequence.tick(getTimeLeft(), players);
@@ -294,11 +289,8 @@ public class RaidInstance {
         }
     }
 
-    private void updateBossBar() {
-        int timeLeft = plugin.getRaidModule().getMapTimeLeft(map.getMapId());
-        String timeStr = String.format("%02d:%02d", timeLeft / 60, timeLeft % 60);
-        bossBar.name(Component.text("残りレイド時間: " + timeStr, NamedTextColor.WHITE));
-        bossBar.progress((float) timeLeft / (float) RaidModule.CYCLE_DURATION);
+    private void updateHudTime() {
+        hud.setTimeLeft(plugin.getRaidModule().getMapTimeLeft(map.getMapId()));
     }
 
     /**
@@ -321,7 +313,7 @@ public class RaidInstance {
                 clearRaidMarkersFromCurrentInventory(p);
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
-                p.hideBossBar(bossBar);
+                hud.hide(p);
                 resetCameraDistance(p);
                 plugin.getRaidModule().applyFailureEffect(p);
                 showIndividualRaidResult(p);
@@ -526,7 +518,7 @@ public class RaidInstance {
             }
 
             players.remove(p.getUniqueId());
-            p.hideBossBar(bossBar);
+            hud.hide(p);
             p.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
             // クエストトリガーの発火
@@ -565,6 +557,7 @@ public class RaidInstance {
         ended = true;
 
         if (task != null) task.cancel();
+        hud.stop();
         endSequence.stop();
 
         // Cleanup all spawned SCAVs
@@ -592,7 +585,7 @@ public class RaidInstance {
                     result.outcome = RaidOutcome.MIA;
                 }
                 clearRaidMarkersFromCurrentInventory(p);
-                p.hideBossBar(bossBar);
+                hud.hide(p);
                 resetCameraDistance(p);
                 showIndividualRaidResult(p);
             }
@@ -649,7 +642,7 @@ public class RaidInstance {
         }
 
         players.remove(player.getUniqueId());
-        player.hideBossBar(bossBar);
+        hud.hide(player);
         resetCameraDistance(player);
         showIndividualRaidResult(player);
         plugin.getRaidMapManager().updateMapSlot(player);
@@ -750,7 +743,7 @@ public class RaidInstance {
             raidMembers.add(player.getUniqueId());
             getOrCreateRaidResult(player.getUniqueId());
             markRaidBroughtInItems(player);
-            player.showBossBar(bossBar);
+            hud.show(player);
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
             if (centerSpawn != null) {
@@ -811,7 +804,7 @@ public class RaidInstance {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
-                p.showBossBar(bossBar);
+                hud.show(p);
                 setRaidCameraDistance(p);
                 p.sendMessage(Component.text("レイドへ再復帰しました。", NamedTextColor.GREEN));
             }
