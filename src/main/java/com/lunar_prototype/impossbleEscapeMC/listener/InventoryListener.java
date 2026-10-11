@@ -218,14 +218,14 @@ public class InventoryListener implements Listener {
         }
         
         Player player = (Player) event.getPlayer();
-        // 念のためプレイヤーのインベントリ全体をスキャンしてボタンやコストプレースホルダーが混じっていれば消去
+        // 念のためプレイヤーのインベントリ全体をスキャンしてボタンが混じっていれば消去
+        // (占有スロットは下の再計算が、要らない所の分だけ消す。全部消して置き直すとホットバーの占有スロットが跳ねる)
         for (int i = 0; i < player.getInventory().getSize(); i++) {
-            ItemStack item = player.getInventory().getItem(i);
-            if (isGuiTrigger(item) || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item)) {
+            if (isGuiTrigger(player.getInventory().getItem(i))) {
                 player.getInventory().setItem(i, null);
             }
         }
-        
+
         // 閉じるときにコストを再計算して占有スロットを再配置
         com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
     }

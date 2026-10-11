@@ -237,6 +237,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("market").setExecutor(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketCommand(marketModule, levelModule));
 
         QuestModule questModule = serviceContainer.get(QuestModule.class);
+        // 受けているクエストで納品するアイテムを、そのプレイヤーの画面で強調する
+        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.init(this, questModule);
         QuestCommand questCmd = new QuestCommand(questModule);
         getCommand("quest").setExecutor(questCmd);
         getCommand("quest").setTabCompleter(questCmd);
@@ -304,6 +306,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
