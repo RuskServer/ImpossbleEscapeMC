@@ -34,6 +34,10 @@ public class RaidModule implements IModule {
     private final Map<String, Long> lastCycleStartTime = new HashMap<>();
     private BukkitRunnable globalTimerTask;
     private final Map<String, BossBar> queueBossBars = new HashMap<>();
+    /** マップごとの、今の周期と次の周期の時間帯・天候 ({@link RaidConditions})。周期が切り替わると次が今になる */
+    private final Map<String, RaidConditions> currentConditions = new HashMap<>();
+    private final Map<String, RaidConditions> nextConditions = new HashMap<>();
+    private final java.util.Random conditionRandom = new java.util.Random();
 
     public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -58,6 +62,9 @@ public class RaidModule implements IModule {
                     BossBar.Color.YELLOW,
                     BossBar.Overlay.PROGRESS
             ));
+            currentConditions.put(mapId, RaidConditions.roll(conditionRandom));
+            nextConditions.put(mapId, RaidConditions.roll(conditionRandom));
+            applyConditions(mapId);
         }
 
         // Apply rotation offset if there are 2 maps (one starts at 5 mins)
@@ -190,7 +197,9 @@ public class RaidModule implements IModule {
         progress = Math.max(0.0f, Math.min(1.0f, progress));
         
         bar.progress(progress);
-        bar.name(Component.text("出撃まであと " + formatTime(timeLeft) + " (" + mapId + ")", NamedTextColor.YELLOW));
+        RaidConditions next = getNextConditions(mapId);
+        bar.name(Component.text("出撃まであと " + formatTime(timeLeft) + " (" + mapId
+                + (next != null ? " / " + next.describe() : "") + ")", NamedTextColor.YELLOW));
     }
 
     private void notifyQueuedPlayers(String mapId) {
@@ -221,6 +230,12 @@ public class RaidModule implements IModule {
             activeRaid.stop();
             activeRaids.remove(mapId);
         }
+
+        // 1.5 時間帯・天候: 次の周期の分を今の周期にして、ワールドへ当てはめる (待機中に見せていた条件で出撃する)
+        RaidConditions upcoming = nextConditions.remove(mapId);
+        currentConditions.put(mapId, upcoming != null ? upcoming : RaidConditions.roll(conditionRandom));
+        nextConditions.put(mapId, RaidConditions.roll(conditionRandom));
+        applyConditions(mapId);
 
         // 2. 物資リセット
         if (plugin.getLootManager() != null) {
@@ -454,6 +469,23 @@ public class RaidModule implements IModule {
         // Fallback: 最初のマップの時間を返す
         if (mapTimers.isEmpty()) return CYCLE_DURATION;
         return mapTimers.values().iterator().next();
+    }
+
+    /** 今の周期 (進行中・途中参加) の時間帯・天候 */
+    public RaidConditions getConditions(String mapId) {
+        return currentConditions.get(mapId);
+    }
+
+    /** 次の周期 (今から待機列に入ると出撃する) の時間帯・天候 */
+    public RaidConditions getNextConditions(String mapId) {
+        return nextConditions.get(mapId);
+    }
+
+    /** 今の周期の時間帯・天候をレイドのワールドへ当てはめる (ワールドがまだ無ければ、レイドが始まる時に当てはめる) */
+    void applyConditions(String mapId) {
+        RaidConditions conditions = currentConditions.get(mapId);
+        RaidMap map = maps.get(mapId);
+        if (conditions != null && map != null) conditions.applyTo(Bukkit.getWorld(map.getWorldName()));
     }
 
     public int getMapTimeLeft(String mapId) {

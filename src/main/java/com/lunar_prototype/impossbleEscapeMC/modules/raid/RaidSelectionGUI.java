@@ -142,6 +142,16 @@ public class RaidSelectionGUI implements Listener {
                 // マップ個別のタイマーを表示
                 int tl = manager.getMapTimeLeft(id);
                 lore.add(Component.text("  出撃まで: ", NamedTextColor.GRAY).append(Component.text(formatTime(tl), NamedTextColor.AQUA)).decoration(TextDecoration.ITALIC, false));
+
+                // 時間帯・天候: 途中参加なら今のレイド、待機列に入るなら次のレイドの条件
+                RaidConditions current = manager.getConditions(id);
+                RaidConditions next = manager.getNextConditions(id);
+                if (isLateJoinable && current != null) {
+                    lore.add(Component.text("  現在の現地: ", NamedTextColor.GRAY).append(Component.text(current.describe(), NamedTextColor.WHITE)).decoration(TextDecoration.ITALIC, false));
+                }
+                if (next != null) {
+                    lore.add(Component.text("  次の出撃: ", NamedTextColor.GRAY).append(Component.text(next.describe(), NamedTextColor.WHITE)).decoration(TextDecoration.ITALIC, false));
+                }
                 
                 lore.add(Component.empty());
                 if (isQueued) {
