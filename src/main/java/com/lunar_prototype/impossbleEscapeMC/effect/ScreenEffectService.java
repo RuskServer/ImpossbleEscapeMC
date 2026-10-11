@@ -44,13 +44,14 @@ import java.util.UUID;
  * エフェクト本体 (assets/iem/post_effect/*.json と shaders/post/*.fsh) はサーバーのリソースパックで配る。
  * クライアントは送られた順にポストエフェクトを重ねて描くため、次の層を下から順に重ねる。
  * <ol>
- *   <li>数値の画素: 常に iem:control。空のシェーダーが画面の左下の端に書いた数値 (カメラの向き・太陽の向きなど。
- *       リソースパックの shaders/include/iem_control.glsl) を、ほかのエフェクトが絵を動かす前に隠す。
- *       確認用の iem:control_debug ({@link #toggleControlDebug}、/shaderdebug) は、隠す前に数値を読んで重ねて描く</li>
+ *   <li>確認用: iem:control_debug ({@link #toggleControlDebug}、/shaderdebug)。空のシェーダーが画面の左下の端に書いた数値
+ *       (カメラの向き・太陽の向きなど。リソースパックの shaders/include/iem_control.glsl) を読んで重ねて描く</li>
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
  *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)</li>
- *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)</li>
+ *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)。太陽のフレアの位置は数値から求める
+ *       (ここより下の層は数値の画素をそのまま通す)</li>
+ *   <li>数値の画素: 常に iem:control。数値の画素を隣の行の色で隠す (画作りが無い時のため。ある時は画作りが隠している)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
@@ -426,7 +427,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (数値の画素 → 空 → マズルフラッシュ → バイザー → 画作り → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -435,7 +436,6 @@ public final class ScreenEffectService implements Listener {
             if (!NAMESPACE.equals(existing.namespace())) effects.add(existing);
         }
         if (controlDebug.contains(playerId)) effects.add(CONTROL_DEBUG);
-        effects.add(CONTROL);
         Key skyEffect = sky.get(playerId);
         if (skyEffect != null) effects.add(skyEffect);
         Key flashEffect = muzzleFlash.get(playerId);
@@ -443,6 +443,7 @@ public final class ScreenEffectService implements Listener {
         Key visorEffect = visor.get(playerId);
         if (visorEffect != null) effects.add(visorEffect);
         if (graded.contains(playerId)) effects.add(GRADE);
+        effects.add(CONTROL);
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
         Playback playback = playing.get(playerId);
