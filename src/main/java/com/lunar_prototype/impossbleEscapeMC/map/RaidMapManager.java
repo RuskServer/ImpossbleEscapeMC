@@ -21,6 +21,8 @@ import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 
 public class RaidMapManager {
 
+    public static final int MAP_SLOT = 8;
+
     private final ImpossbleEscapeMC plugin;
     private final RaidMapRenderer renderer;
     private final Set<java.util.UUID> lootSessionSuppressedPlayers = new HashSet<>();
@@ -185,6 +187,11 @@ public class RaidMapManager {
     }
 
     public boolean isMapSlotItem(ItemStack item) {
+        return isTacticalMapItem(item);
+    }
+
+    /** コスト・排出処理からも使う、地図と受信待ちアイテムの共通判定。 */
+    public static boolean isTacticalMapItem(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
         Component name = item.getItemMeta().displayName();
         if (name == null) return false;
