@@ -82,8 +82,10 @@ public class PDAQuestGUI implements Listener {
             for (int i = 0; i < q.getObjectives().size(); i++) {
                 QuestObjective obj = q.getObjectives().get(i);
                 boolean done = obj.isCompleted(active, i);
-                lore.add(Component.text("- " + obj.getDescription() + " (" + obj.getProgressText(active, i) + ")",
-                        done ? NamedTextColor.GREEN : NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                for (String line : QuestText.wrap("- " + obj.getDescription() + " (" + obj.getProgressText(active, i) + ")", 30)) {
+                    lore.add(Component.text(line, done ? NamedTextColor.GREEN : NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false));
+                }
             }
 
             meta.lore(lore);
@@ -99,7 +101,9 @@ public class PDAQuestGUI implements Listener {
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("依頼主: " + q.getTraderId(), NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             lore.add(Component.empty());
-            lore.add(Component.text(q.getDescription(), NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false));
+            for (String line : QuestText.wrap(q.getDescription(), 30)) {
+                lore.add(Component.text(line, NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false));
+            }
             lore.add(Component.empty());
             lore.add(Component.text("▶ クリックして受領", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
 
