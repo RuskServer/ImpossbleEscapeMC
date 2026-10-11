@@ -21,10 +21,19 @@ final class TraderCatalog {
 
         traders.add(trader("kovacs", "§cKovacs (Buy Only)", TraderType.BUY, 1,
                 false, true, List.of(
-                        item("ak74", 15000, 2, 1, "AK-74M", "field_deployment"),
+                        item("ak74", 15000, 2, 1, "AK-74M", null),
                         item("mossberg_590", 18000, 2, 4, "Mossberg 590", "kovacs_close_supply"),
                         item("uzi", 22000, 2, 4, "UZI", "kovacs_close_supply"),
                         item("svd", 65000, 2, 10, "SVD", "kovacs_marksman_02"),
+                        // クラス1弾は全口径を初期販売。標準弾・貫通弾は既存の条件で解放する。
+                        item("545x39_hp", 100, 180, 1, null, null),
+                        item("556x45_rrlp", 110, 180, 1, null, null),
+                        item("762x51_sp", 180, 120, 1, null, null),
+                        item("762x54r_hp_bt", 180, 120, 1, null, null),
+                        item("9x39_hp", 160, 120, 1, null, null),
+                        item("9x19_rip", 70, 180, 1, null, null),
+                        item("45acp_hydra_shok", 90, 180, 1, null, null),
+                        item("12x70_steel_buckshot", 180, 60, 1, null, null),
                         item("545x39_ps", 150, 300, 1, null, null),
                         item("tactical_sling_bag", 6000, 10, 1, null, null),
                         item("d3rcx", 10000, 10, 8, null, "bastion_carrying_capacity"),
@@ -34,7 +43,6 @@ final class TraderCatalog {
                         item("762x51_fmj_28", 240, 120, 3, null, "kovacs_western_supply"),
                         item("9x19_pst_gzh", 90, 180, 4, null, "kovacs_close_supply"),
                         item("45acp_match_fmj_26", 120, 180, 4, null, "kovacs_close_supply"),
-                        item("12x70_steel_buckshot", 180, 60, 4, null, "kovacs_close_supply"),
                         item("ekp_8", 9000, 3, 5, null, "kovacs_optic_reserve"),
                         item("545x39_pp", 350, 60, 8, null, "kovacs_penetration"),
                         item("556x45_m855", 350, 60, 8, null, "kovacs_penetration"),
@@ -57,10 +65,10 @@ final class TraderCatalog {
                         item("UNTAR", 8200, 10, 1, null, null),
                         item("MF-UNTAR", 9800, 10, 1, null, null),
                         item("micro_rig", 6700, 15, 1, null, null),
-                        item("mbss", 12000, 10, 8, null, "bastion_logistics_02"),
-                        item("FAST-MT", 43000, 10, 20, null, null),
-                        item("FAST-MT_visor", 14000, 10, 20, null, "bastion_face_protection"),
-                        item("Trooper", 62000, 10, 20, null, "bastion_protection_selection")
+                        item("mbss", 12000, 10, 4, null, "bastion_logistics_02"),
+                        item("FAST-MT", 43000, 10, 8, null, null),
+                        item("FAST-MT_visor", 14000, 10, 15, null, "bastion_face_protection"),
+                        item("Trooper", 62000, 10, 10, null, "bastion_protection_selection")
                 )));
 
         traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,
