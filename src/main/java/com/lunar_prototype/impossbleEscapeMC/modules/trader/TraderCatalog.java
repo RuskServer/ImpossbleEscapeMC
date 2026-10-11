@@ -56,6 +56,7 @@ final class TraderCatalog {
                         item("micro_rig", 6700, 15, 1, null, null),
                         item("mbss", 12000, 10, 8, null, "bastion_logistics_02"),
                         item("FAST-MT", 43000, 10, 20, null, null),
+                        item("FAST-MT_visor", 14000, 10, 20, null, null),
                         item("Trooper", 62000, 10, 20, null, "bastion_protection_selection")
                 )));
 
@@ -83,6 +84,7 @@ final class TraderCatalog {
                         item("MF-UNTAR", 6200, 0, 1, null, null),
                         item("Altyn", 24000, 0, 1, null, null),
                         item("FAST-MT", 6500, 0, 1, null, null),
+                        item("FAST-MT_visor", 2100, 0, 1, null, null),
                         item("UNTAR", 5800, 0, 1, null, null),
                         // --- Gear (Bags & Rigs) ---
                         item("tactical_sling_bag", 4800, 0, 1, null, null),

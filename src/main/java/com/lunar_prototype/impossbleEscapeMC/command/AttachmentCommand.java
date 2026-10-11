@@ -25,9 +25,10 @@ public class AttachmentCommand implements CommandExecutor {
 
         ItemStack mainHand = player.getInventory().getItemInMainHand();
 
-        // 銃を持っているかチェック
+        // 銃を持っているかチェック (何も持っていなければ、かぶっているヘルメットのバイザーの画面)
         if (mainHand.getType() == Material.AIR || !mainHand.hasItemMeta()) {
-            player.sendMessage("§c銃を手に持った状態で実行してください");
+            if (com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) return true;
+            player.sendMessage("§c銃かヘルメットを手に持った状態で実行してください");
             return true;
         }
 
@@ -36,7 +37,9 @@ public class AttachmentCommand implements CommandExecutor {
         ItemDefinition def = ItemRegistry.get(itemId);
 
         if (def == null || !"GUN".equalsIgnoreCase(def.type)) {
-            player.sendMessage("§c銃を手に持った状態で実行してください");
+            // ヘルメット (手に持っている物、無ければかぶっている物) ならバイザーの画面
+            if (com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) return true;
+            player.sendMessage("§c銃かヘルメットを手に持った状態で実行してください");
             return true;
         }
 

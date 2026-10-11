@@ -7,7 +7,7 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * アタッチメント画面 (プラグイン銃・データパック銃とも) のパーツの位置と名前。
+ * アタッチメント画面 (プラグイン銃・データパック銃・ヘルメット) のパーツの位置と名前。
  * 5段で、銃 (中央) のまわりに1マスずつ空けて銃の形に合わせて並べ (上にサイトなど、左にストック、右にバレルとマズル、
  * 下にグリップとマガジン)、銃から各パーツへ線を伸ばす。
  * 背景 (作業台の整備マット) と線は IEM_shader/tools/workbench.py が作る。線と枠は位置ごとに別の文字で、
@@ -22,6 +22,8 @@ public final class AttachmentLayout {
             Map.entry("slide", 0),
             Map.entry("receiver", 2),
             Map.entry("sight", 4),
+            // ヘルメットの画面 (HelmetAttachmentGUI) のバイザー。銃の画面には出ない
+            Map.entry("visor", 4),
             Map.entry("handguard", 6),
             Map.entry("accessory", 8),
             Map.entry("shell", 18),
@@ -84,6 +86,7 @@ public final class AttachmentLayout {
             case "accessory" -> "アクセサリー";
             case "slide" -> "スライド";
             case "shell" -> "シェル";
+            case "visor" -> "バイザー";
             default -> slot;
         };
     }

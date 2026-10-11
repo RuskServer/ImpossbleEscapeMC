@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
+import com.lunar_prototype.impossbleEscapeMC.item.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidEndSequence;
@@ -45,6 +46,7 @@ import java.util.UUID;
  * <ol>
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
+ *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)</li>
  *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
@@ -142,6 +144,8 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Playback> playing = new HashMap<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
+    /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間) */
+    private final Map<UUID, Key> visor = new HashMap<>();
     /** 画作りの層 (レンズフレア + 色味) をかけているプレイヤー */
     private final Set<UUID> graded = new HashSet<>();
     /** 負傷の層のエフェクト (出血中・瀕死) */
@@ -314,7 +318,7 @@ public final class ScreenEffectService implements Listener {
 
     // --- 空・画作り・負傷・被弾の層 ---
 
-    /** 生きている間は画作り (レイド終盤は空も)、出血中なら負傷の層をかける */
+    /** 生きている間は画作り (レイド終盤は空も、バイザー付きのヘルメットならバイザーも)、出血中なら負傷の層をかける */
     private void updateGradeAndWound(Player player) {
         UUID playerId = player.getUniqueId();
         boolean alive = !player.isDead() && !awaitingRespawn.contains(playerId)
@@ -323,12 +327,15 @@ public final class ScreenEffectService implements Listener {
         RaidInstance raid = alive && plugin.getRaidModule() != null ? plugin.getRaidModule().getRaidOf(player) : null;
         Key skyEffect = raid != null ? raid.getEndSequence().skyEffect() : null;
         Key woundEffect = alive ? woundEffectOf(player) : null;
+        Key visorEffect = alive ? HelmetVisors.postEffectOf(player.getInventory().getHelmet()) : null;
 
         boolean changed = alive ? graded.add(playerId) : graded.remove(playerId);
         Key previousSky = skyEffect != null ? sky.put(playerId, skyEffect) : sky.remove(playerId);
         changed |= previousSky != skyEffect;
         Key previous = woundEffect != null ? wound.put(playerId, woundEffect) : wound.remove(playerId);
         changed |= previous != woundEffect;
+        Key previousVisor = visorEffect != null ? visor.put(playerId, visorEffect) : visor.remove(playerId);
+        changed |= !java.util.Objects.equals(previousVisor, visorEffect);
         if (changed) refresh(player);
     }
 
@@ -402,7 +409,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (空 → マズルフラッシュ → 画作り → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (空 → マズルフラッシュ → バイザー → 画作り → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -414,6 +421,8 @@ public final class ScreenEffectService implements Listener {
         if (skyEffect != null) effects.add(skyEffect);
         Key flashEffect = muzzleFlash.get(playerId);
         if (flashEffect != null) effects.add(flashEffect);
+        Key visorEffect = visor.get(playerId);
+        if (visorEffect != null) effects.add(visorEffect);
         if (graded.contains(playerId)) effects.add(GRADE);
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
@@ -439,6 +448,7 @@ public final class ScreenEffectService implements Listener {
     private void forget(UUID playerId) {
         playing.remove(playerId);
         sky.remove(playerId);
+        visor.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
@@ -458,6 +468,7 @@ public final class ScreenEffectService implements Listener {
         UUID playerId = player.getUniqueId();
         awaitingRespawn.add(playerId);
         sky.remove(playerId);
+        visor.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
