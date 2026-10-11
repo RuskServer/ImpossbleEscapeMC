@@ -84,10 +84,10 @@ final class ItemCatalog {
         items.add(slick);
 
         // --- クラス3 (Mid Range) ---
-        ItemDefinition fast_mt = item("FAST-MT", "ARMOR", Material.IRON_HELMET, "§b[FAST-MT] ヘルメット", 3, 0, 500, 1200, 2);
+        ItemDefinition fast_mt = item("FAST-MT", "ARMOR", Material.DIAMOND, "§b[FAST-MT] ヘルメット", 3, 0, 500, 1200, 2);
         // weight: 1.2kg
         // cost: 軽量ヘルメット、1スロット+1占有
-        fast_mt.armorStats = armor(3, 2, null, null);
+        fast_mt.armorStats = armor(3, 6, "HEAD", null);
         items.add(fast_mt);
 
         ItemDefinition trooper = item("Trooper", "ARMOR", Material.IRON_CHESTPLATE, "§b[Trooper] アーマー", 3, 0, 500, 8200, 6);
