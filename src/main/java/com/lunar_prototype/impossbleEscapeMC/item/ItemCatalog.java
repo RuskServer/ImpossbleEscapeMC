@@ -75,6 +75,8 @@ final class ItemCatalog {
         // weight: 3.8kg
         // cost: 2x2相当のサイズ感を占有
         altyn.armorStats = armor(4, 3, "HEAD", "minecraft:misc/altyn_overray");
+        // 元から厚い防弾バイザーと一体。正面からの頭部被弾を跳ね返すことがある
+        altyn.armorStats.ricochetChance = 0.20;
         items.add(altyn);
 
         ItemDefinition slick = item("Slick", "ARMOR", Material.DIAMOND_CHESTPLATE, "§6[Slick] アーマー", 4, 0, 600, 6500, 9);

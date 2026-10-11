@@ -16,7 +16,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -198,18 +197,13 @@ public class BulletTask extends BukkitRunnable {
             return false;
         }
 
-        int armorClass = 0;
-        if (isHeadshot) {
-            armorClass = BulletDamageModel.armorClassFromSlot(victim, EquipmentSlot.HEAD);
-        } else if (!isLegShot) {
-            armorClass = BulletDamageModel.armorClassFromSlot(victim, EquipmentSlot.CHEST);
-        }
-
-        boolean isPenetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
         String hitLocation = isHeadshot ? BulletDamageModel.HEAD
                 : isLegShot ? BulletDamageModel.LEGS
                 : BulletDamageModel.isArm(victim, hitLoc.toVector()) ? BulletDamageModel.ARMS : BulletDamageModel.BODY;
-        double finalDamage = BulletDamageModel.damageForHit(baseDamage, hitLocation, isPenetrated);
+        // 頭はヘルメット、胴はボディアーマー、腕・足は無し (データパック銃と同じ)
+        int armorClass = BulletDamageModel.armorClass(victim, hitLocation);
+        boolean isPenetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
+        double finalDamage = BulletDamageModel.damageForHit(baseDamage, hitLocation, isPenetrated, armorClass);
         Player shooterPlayer = (shooter instanceof Player p) ? p : null;
 
         if (!isPenetrated) {

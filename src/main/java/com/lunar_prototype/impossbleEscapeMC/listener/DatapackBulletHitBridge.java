@@ -84,7 +84,7 @@ public class DatapackBulletHitBridge implements Listener {
         int armorClass = BulletDamageModel.armorClass(victim, hitLocation);
         boolean penetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
 
-        double damage = BulletDamageModel.damageForHit(rawDamage, hitLocation, penetrated);
+        double damage = BulletDamageModel.damageForHit(rawDamage, hitLocation, penetrated, armorClass);
 
         event.setDamage(damage);
         // バニラの防具・耐性などによる軽減を外す (GunListener#onEntityDamage の bypass_armor と同じ)
