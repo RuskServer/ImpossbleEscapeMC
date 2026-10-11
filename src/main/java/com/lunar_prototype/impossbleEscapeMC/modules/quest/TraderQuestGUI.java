@@ -122,27 +122,7 @@ public class TraderQuestGUI implements Listener {
     }
 
     private List<String> wrapText(String text, int limit) {
-        if (text == null || text.isEmpty()) return Collections.emptyList();
-        List<String> lines = new ArrayList<>();
-        StringBuilder currentLine = new StringBuilder();
-        
-        for (String word : text.split(" ")) {
-            if (currentLine.length() + word.length() + 1 > limit) {
-                if (currentLine.length() > 0) {
-                    lines.add(currentLine.toString());
-                    currentLine = new StringBuilder();
-                }
-                // 単語が制限より長い場合は強制分割
-                while (word.length() > limit) {
-                    lines.add(word.substring(0, limit));
-                    word = word.substring(limit);
-                }
-            }
-            if (currentLine.length() > 0) currentLine.append(" ");
-            currentLine.append(word);
-        }
-        if (currentLine.length() > 0) lines.add(currentLine.toString());
-        return lines;
+        return QuestText.wrap(text, limit);
     }
 
     @EventHandler
