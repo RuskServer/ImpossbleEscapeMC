@@ -86,6 +86,8 @@ public class RaidInstance {
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
         this.endSequence = new RaidEndSequence(plugin, map);
         this.hud = new RaidHud(plugin, map, activeExtractions);
+        // 時間帯・天候 (周期の始めに当てはめているが、その時ワールドが無かった場合のために、もう一度)
+        if (plugin.getRaidModule() != null) plugin.getRaidModule().applyConditions(map.getMapId());
 
         if (plugin.getAiRaidLogger() != null) {
             plugin.getAiRaidLogger().startRaidSession(
@@ -760,6 +762,10 @@ public class RaidInstance {
             getOrCreateRaidResult(player.getUniqueId());
             markRaidBroughtInItems(player);
             hud.show(player);
+            RaidConditions conditions = plugin.getRaidModule() != null ? plugin.getRaidModule().getConditions(map.getMapId()) : null;
+            if (conditions != null) {
+                player.sendMessage(Component.text("[RAID] 現地: " + conditions.describe(), NamedTextColor.GRAY));
+            }
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
             if (centerSpawn != null) {
