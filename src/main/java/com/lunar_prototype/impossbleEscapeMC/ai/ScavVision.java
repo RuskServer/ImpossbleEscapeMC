@@ -18,7 +18,8 @@ import java.util.UUID;
 public class ScavVision {
     private final Mob scav;
     private static final double MAX_VISION_DISTANCE = 96.0;
-    private static final double FOV_ANGLE = 120.0;
+    /** 新しく見つける時の視野角の基準 (度、全幅)。警戒度で 0.8〜1.05 倍 (普段は約 85°、最大限に警戒して約 105°) */
+    private static final double FOV_ANGLE = 100.0;
     /** これより近い相手には、視野の外でも気付く (ブロック) */
     private static final double CLOSE_AWARENESS_DISTANCE = 4.0;
     /** しゃがまずに動いている相手には、視野の外でもこの距離まで気付く (動きと物音は視界の端でも分かる) */
