@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
@@ -75,6 +76,8 @@ public class CostSlotManager {
     /** 1スタックが使うスロットの数。空のスロット・占有スロット・リグのロック用は数えない */
     public static int stackCost(ItemStack item) {
         if (item == null || item.getType().isAir()) return 0;
+        // システム支給の地図は収納コストも自動排出も対象外。
+        if (RaidMapManager.isTacticalMapItem(item)) return 0;
         if (ItemFactory.isCostSlotPlaceholder(item) || RigModule.isLockedSlotPlaceholder(item)) return 0;
         return Math.max(1, ItemWeights.costOf(item));
     }
@@ -172,8 +175,9 @@ public class CostSlotManager {
                 return slots;
             }
             // メインインベントリ（ホットバー + リグ解放分）
-            // ホットバー (0-8)
-            for (int i = 0; i < 9; i++) {
+            // ホットバー (0-7)。右端 (8) は地図専用で、占有スロットも置かない。
+            for (int i = 0; i < HOTBAR_SIZE; i++) {
+                if (i == RaidMapManager.MAP_SLOT) continue;
                 slots.add(i);
             }
             // リグ解放分 (9-35)
