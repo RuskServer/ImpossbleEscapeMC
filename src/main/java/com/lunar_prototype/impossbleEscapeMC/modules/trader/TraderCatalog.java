@@ -22,6 +22,9 @@ final class TraderCatalog {
         traders.add(trader("kovacs", "§cKovacs (Buy Only)", TraderType.BUY, 1,
                 false, true, List.of(
                         item("ak74", 15000, 2, 1, "AK-74M", "field_deployment"),
+                        item("mossberg_590", 18000, 2, 4, "Mossberg 590", "kovacs_close_supply"),
+                        item("uzi", 22000, 2, 4, "UZI", "kovacs_close_supply"),
+                        item("svd", 65000, 2, 10, "SVD", "kovacs_marksman_02"),
                         item("545x39_ps", 150, 300, 1, null, null),
                         item("tactical_sling_bag", 6000, 10, 1, null, null),
                         item("d3rcx", 10000, 10, 8, null, "bastion_carrying_capacity"),
@@ -56,7 +59,7 @@ final class TraderCatalog {
                         item("micro_rig", 6700, 15, 1, null, null),
                         item("mbss", 12000, 10, 8, null, "bastion_logistics_02"),
                         item("FAST-MT", 43000, 10, 20, null, null),
-                        item("FAST-MT_visor", 14000, 10, 20, null, null),
+                        item("FAST-MT_visor", 14000, 10, 20, null, "bastion_face_protection"),
                         item("Trooper", 62000, 10, 20, null, "bastion_protection_selection")
                 )));
 
