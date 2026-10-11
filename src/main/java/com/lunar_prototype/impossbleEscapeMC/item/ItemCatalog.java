@@ -97,6 +97,7 @@ final class ItemCatalog {
         // weight: 0.6kg
         // FAST-MT のアタッチメント。付けたヘルメットをかぶると、バイザー越しの見え方になる
         fast_mt_visor.visorStats = visor("iem:visor");
+        fast_mt_visor.visorStats.ricochetChance = 0.10;
         items.add(fast_mt_visor);
 
         ItemDefinition trooper = item("Trooper", "ARMOR", Material.IRON_CHESTPLATE, "§b[Trooper] アーマー", 3, 0, 500, 8200, 6);

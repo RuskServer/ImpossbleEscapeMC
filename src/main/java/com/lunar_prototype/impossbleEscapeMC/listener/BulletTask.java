@@ -158,8 +158,9 @@ public class BulletTask extends BukkitRunnable {
 
             if (victim != null) {
                 Vector bulletDir = velocity.clone().normalize();
-                handleDamage((LivingEntity) victim, shooter, damage, ammoClass, hitPos.toLocation(currentLoc.getWorld()));
-                BloodEffect.spawn(hitPos.toLocation(currentLoc.getWorld()), bulletDir, damage);
+                if (handleDamage((LivingEntity) victim, shooter, damage, ammoClass, hitPos.toLocation(currentLoc.getWorld()))) {
+                    BloodEffect.spawn(hitPos.toLocation(currentLoc.getWorld()), bulletDir, damage);
+                }
                 this.cancel();
                 return;
             } else if (blockTrace != null) {
@@ -184,8 +185,7 @@ public class BulletTask extends BukkitRunnable {
         }
     }
 
-    private void handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass, Location hitLoc) {
-        double finalDamage = baseDamage;
+    private boolean handleDamage(LivingEntity victim, LivingEntity shooter, double baseDamage, int ammoClass, Location hitLoc) {
         double footY = victim.getLocation().getY();
         double headY = victim.getEyeLocation().getY();
         double hitY = hitLoc.getY();
@@ -193,22 +193,26 @@ public class BulletTask extends BukkitRunnable {
 
         boolean isHeadshot = hitY >= (headY - 0.25);
         boolean isLegShot = hitY <= (footY + (height * 0.45));
+        if (isHeadshot && BulletDamageModel.visorRicochets(victim, BulletDamageModel.HEAD, velocity)) {
+            playHitSound(null, hitLoc, "hit-sounds.impact", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.3f);
+            return false;
+        }
 
         int armorClass = 0;
         if (isHeadshot) {
-            finalDamage *= 1.2;
             armorClass = BulletDamageModel.armorClassFromSlot(victim, EquipmentSlot.HEAD);
-        } else if (isLegShot) {
-            finalDamage *= 0.6;
-        } else {
+        } else if (!isLegShot) {
             armorClass = BulletDamageModel.armorClassFromSlot(victim, EquipmentSlot.CHEST);
         }
 
         boolean isPenetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
+        String hitLocation = isHeadshot ? BulletDamageModel.HEAD
+                : isLegShot ? BulletDamageModel.LEGS
+                : BulletDamageModel.isArm(victim, hitLoc.toVector()) ? BulletDamageModel.ARMS : BulletDamageModel.BODY;
+        double finalDamage = BulletDamageModel.damageForHit(baseDamage, hitLocation, isPenetrated);
         Player shooterPlayer = (shooter instanceof Player p) ? p : null;
 
         if (!isPenetrated) {
-            finalDamage *= 0.15;
             playHitSound(shooterPlayer, hitLoc, "hit-sounds.impact", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
         } else {
             playHitSound(shooterPlayer, hitLoc, "hit-sounds.headshot", "ENTITY_ARROW_HIT_PLAYER", 1.0f, 1.0f);
@@ -225,9 +229,6 @@ public class BulletTask extends BukkitRunnable {
 
         // 独自イベント発行
         // 胴の高さは、体の中心から左右に離れていれば腕 (以前は胴の高さがすべて腕になっていた)
-        String hitLocation = isHeadshot ? BulletDamageModel.HEAD
-                : isLegShot ? BulletDamageModel.LEGS
-                : BulletDamageModel.isArm(victim, hitLoc.toVector()) ? BulletDamageModel.ARMS : BulletDamageModel.BODY;
         BulletHitEvent bulletEvent = new BulletHitEvent(victim, shooter, finalDamage, hitLocation, isPenetrated, ammoClass);
         Bukkit.getPluginManager().callEvent(bulletEvent);
 
@@ -235,6 +236,7 @@ public class BulletTask extends BukkitRunnable {
         victim.setMetadata("bypass_armor", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
         victim.setNoDamageTicks(0);
         victim.damage(finalDamage, shooter);
+        return true;
     }
 
     private void playHitSound(Player player, Location loc, String configKey, String defaultSound, float vol, float pitch) {
