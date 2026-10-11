@@ -14,7 +14,9 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 持ち物の大きさ (コスト) の制限。1スタックはコストの数だけスロットを使い、合計は使えるスロットの数を超えられない。
@@ -51,24 +53,25 @@ public class CostSlotManager {
             }
         }
 
-        // 4. 既存のコスト占有スロットをクリア
-        for (int slot : storageSlots) {
-            ItemStack item = inventory.getItem(slot);
-            if (ItemFactory.isCostSlotPlaceholder(item)) {
-                inventory.setItem(slot, null);
+        // 4. 右下（リストの末尾）から、空き (または今の占有スロット) のスロットに必要な数だけ占有スロットを置く
+        Set<Integer> wanted = new HashSet<>();
+        for (int i = storageSlots.size() - 1; i >= 0 && wanted.size() < extraSlotsNeeded; i--) {
+            int slot = storageSlots.get(i);
+            ItemStack current = inventory.getItem(slot);
+            if (current == null || current.getType() == Material.AIR || ItemFactory.isCostSlotPlaceholder(current)) {
+                wanted.add(slot);
             }
         }
 
-        // 5. 右下（リストの末尾）から必要な数だけ占有スロットを配置
-        // ただし、アイテムが既にあるスロットはスキップする
-        int placed = 0;
-        for (int i = storageSlots.size() - 1; i >= 0 && placed < extraSlotsNeeded; i--) {
-            int slot = storageSlots.get(i);
-            ItemStack current = inventory.getItem(slot);
-
-            if (current == null || current.getType() == Material.AIR) {
-                inventory.setItem(slot, ItemFactory.createCostSlotPlaceholder());
-                placed++;
+        // 5. 変わるスロットだけ書き換える。全部消して置き直すと、プレイヤーのインベントリは書き換えのたびに
+        // クライアントへ送られるので、ホットバーの占有スロットが毎回拾った時のように跳ねる。
+        // 使えないスロット (地図のスロット・リグで塞がれた所) に残った占有スロットも消す
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            boolean placeholder = ItemFactory.isCostSlotPlaceholder(inventory.getItem(slot));
+            if (wanted.contains(slot)) {
+                if (!placeholder) inventory.setItem(slot, ItemFactory.createCostSlotPlaceholder());
+            } else if (placeholder) {
+                inventory.setItem(slot, null);
             }
         }
     }
