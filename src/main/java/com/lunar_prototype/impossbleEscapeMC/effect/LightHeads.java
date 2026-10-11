@@ -62,8 +62,8 @@ public final class LightHeads implements Listener {
 
     private static final Key CORE_MODEL = Key.key("iem", "light_core");
     private static final String TAG = "iem_light_head";
-    /** 芯の大きさ (ブロック) */
-    private static final float SIZE = 0.16f;
+    /** 芯の大きさ (ブロック)。ヘッド (0.5、斜めから見ると幅 0.7 ほど) を覆う光にする */
+    private static final float SIZE = 0.6f;
     /** 芯をヘッドの中心から見ている人の方へ出す距離。ヘッド (8px の立方体) の中心から角までの 0.433 より少し遠く */
     private static final float FORWARD = 0.45f;
     private static final int CHECK_INTERVAL_TICKS = 40;
