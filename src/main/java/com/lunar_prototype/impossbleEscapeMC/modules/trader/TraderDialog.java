@@ -75,10 +75,10 @@ public final class TraderDialog implements Listener {
     private static final char SPACE_NEG = '';
     private static final char HEADER_BASE = '';
     private static final int HEADER_TILES = 3;
-    private static final int HEADER_TILE_W = 110;
+    private static final int HEADER_TILE_W = 108;
     private static final char PLATE_BASE = '';
     private static final int PLATE_TILES = 3;
-    private static final int PLATE_TILE_W = 102;
+    private static final int PLATE_TILE_W = 100;
     private static final char RING = '';
     private static final int RING_W = 22;
     private static final char CHIP = '';
@@ -91,16 +91,20 @@ public final class TraderDialog implements Listener {
     private static final int BOX_TAB = 0, BOX_TAB_ON = 1, BOX_CHIP = 2;
 
     // ---- 寸法 (GUI の画素) ----
-    /** 上の端末の幅 (= 品物の行の、枠の左端から札の右端まで) と、本文の要素の幅 (余白 4 ずつ) */
-    private static final int HEADER_W = 330;
-    private static final int HEADER_BODY_W = HEADER_W + 8;
+    // 本文の文字は、行の途中で一度でも折り返し幅 (要素の幅 - 余白 8) を超えるとそこで改行される。
+    // 絵の右端・字の右端は、どの時点でも行の幅 (= 折り返し幅) を超えないように置く ({@link Line#max})
+    /** 上の端末の絵の幅 (= 品物の行の、枠の左端から札の右端まで) */
+    private static final int HEADER_ART_W = HEADER_TILES * HEADER_TILE_W;
+    /** 上の端末の要素の幅と、行の幅。行は要素の中央に寄るので、絵の左端は要素の中央 - 166 (品物の枠の左端と同じ) */
+    private static final int HEADER_BODY_W = 340;
+    static final int HEADER_W = HEADER_BODY_W - 8;
     /** 上の端末の行の数 (絵の高さ 55 を覆う: 9 x 6 + 8 = 62)。1 行目: 名前と液晶、3 行目: 札、5 行目: タブ */
     private static final int HEADER_LINES = 6;
     /** 液晶の左端 (所持金・容量・Lv) */
     private static final int LCD_X = 145;
-    /** 品物の説明の要素の幅と、行の幅 (要素の幅 - 余白 8) */
-    private static final int ROW_BODY_W = 306;
-    private static final int ROW_LINE_W = ROW_BODY_W - 8;
+    /** 品物の説明の要素の幅と、行の幅 (要素の幅 - 余白 8)。札 (3 x 100) は行の頭の 1 つ左から行の終わりまで */
+    private static final int ROW_BODY_W = 308;
+    static final int ROW_LINE_W = ROW_BODY_W - 8;
     /** アイテム欄の大きさ (品物は左上に 16x16 で描かれる) */
     private static final int ITEM_BOX = 16;
     /** 札は行の頭の 1 つ左から、品物の枠は行の頭の 25 左から */
@@ -355,13 +359,21 @@ public final class TraderDialog implements Listener {
     }
 
     static Component header(HeaderView v) {
+        return join(headerLines(v));
+    }
+
+    /** 上の端末の行 (テストで、どの行も途中で幅を超えないことを確かめる) */
+    static List<Line> headerLines(HeaderView v) {
         // 1 行目: 筐体の絵、名前、液晶 (所持金・容量・Lv)
         Line line1 = new Line();
         for (int i = 0; i < HEADER_TILES; i++) line1.stamp((char) (HEADER_BASE + i), HEADER_TILE_W, i * HEADER_TILE_W);
         line1.moveTo(8).text(FontWidths.truncate(v.name(), LCD_X - 16), INK);
         line1.moveTo(LCD_X + 5).text("₽ ", AMBER_DIM).text(String.format("%,d", v.money()), AMBER);
         line1.shift(8).text("容量 ", AMBER_DIM).text(v.used() + "/" + v.capacity(), v.used() < v.capacity() ? OK : NG);
-        line1.shift(8).text("Lv ", AMBER_DIM).text(String.valueOf(v.level()), AMBER);
+        String level = "Lv " + v.level();
+        if (line1.x + 8 + FontWidths.width(level) <= HEADER_ART_W - 6) {
+            line1.shift(8).text("Lv ", AMBER_DIM).text(String.valueOf(v.level()), AMBER);
+        }
         line1.moveTo(HEADER_W);
 
         // 3 行目: 並び・未解放・修理の札
@@ -376,14 +388,18 @@ public final class TraderDialog implements Listener {
         // 5 行目: 分類のタブ
         Line line4 = new Line().moveTo(8);
         for (Tab tab : v.tabs()) {
+            if (line4.x + boxWidth(tab.label()) > HEADER_ART_W - 6) break;   // 入りきらないタブは出さない (折り返させない)
             line4.box(tab.label(), tab.on() ? BOX_TAB_ON : BOX_TAB, tab.on() ? DARK : AMBER, click(tab.action()), null).shift(4);
         }
         line4.moveTo(HEADER_W);
 
-        Component blank = new Line().moveTo(HEADER_W).build();
-        List<Component> lines = new ArrayList<>(List.of(line1.build(), blank, line2.build(), blank, line4.build()));
-        while (lines.size() < HEADER_LINES) lines.add(new Line().moveTo(HEADER_W).build());
-        return Component.join(JoinConfiguration.newlines(), lines);
+        List<Line> lines = new ArrayList<>(List.of(line1, new Line().moveTo(HEADER_W), line2, new Line().moveTo(HEADER_W), line4));
+        while (lines.size() < HEADER_LINES) lines.add(new Line().moveTo(HEADER_W));
+        return lines;
+    }
+
+    private static Component join(List<Line> lines) {
+        return Component.join(JoinConfiguration.newlines(), lines.stream().map(Line::build).toList());
     }
 
     // ---- 品物の行 ----
@@ -417,6 +433,10 @@ public final class TraderDialog implements Listener {
     }
 
     static Component row(RowView v) {
+        return join(rowLines(v));
+    }
+
+    static List<Line> rowLines(RowView v) {
         Line line1 = new Line();
         for (int i = 0; i < PLATE_TILES; i++) {
             line1.stamp((char) (PLATE_BASE + (v.locked() ? PLATE_TILES : 0) + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
@@ -446,7 +466,7 @@ public final class TraderDialog implements Listener {
             line2.moveTo(Math.max(line2.x, PRICE_RIGHT - FontWidths.width(v.stock()))).text(v.stock(), v.stockRed() ? NG : NOTE);
         }
         line2.moveTo(ROW_LINE_W);
-        return Component.join(JoinConfiguration.newlines(), line1.build(), line2.build());
+        return List.of(line1, line2);
     }
 
     /** 確認の画面の品物の行に出す値 */
@@ -455,6 +475,10 @@ public final class TraderDialog implements Listener {
 
     /** 確認の画面の品物の行: 1 行目に名前と単価、2 行目に所持金・容量の空き・本日の残り */
     static Component confirmRow(ConfirmView v) {
+        return join(confirmLines(v));
+    }
+
+    static List<Line> confirmLines(ConfirmView v) {
         Line line1 = new Line();
         for (int i = 0; i < PLATE_TILES; i++) line1.stamp((char) (PLATE_BASE + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
         line1.stamp(RING, RING_W, RING_X);
@@ -468,7 +492,7 @@ public final class TraderDialog implements Listener {
         line2.text("空き ", NOTE).text(v.free() + "マス", v.free() > 0 ? OK : NG);
         if (v.maxStack() > 1) line2.text(" (1マスに" + v.maxStack() + ")", NOTE);
         line2.shift(8).text(v.stock(), v.stockRed() ? NG : NOTE).moveTo(ROW_LINE_W);
-        return Component.join(JoinConfiguration.newlines(), line1.build(), line2.build());
+        return List.of(line1, line2);
     }
 
     /** 2 行目の補足: 弾は口径と貫通、銃は装弾数、ほかは分類。どれもサイズを付ける */
@@ -620,10 +644,13 @@ public final class TraderDialog implements Listener {
     static final class Line {
         private final TextComponent.Builder out = Component.text();
         int x;
+        /** 一番右まで進んだ位置 (行の幅を超えると、クライアントがそこで改行してしまう) */
+        int max;
 
         Line shift(int n) {
             if (n != 0) out.append(Component.text(spaces(n)).font(FONT));
             x += n;
+            max = Math.max(max, x);
             return this;
         }
 
@@ -638,6 +665,7 @@ public final class TraderDialog implements Listener {
             if (hover != null) g = g.hoverEvent(HoverEvent.showText(hover));
             out.append(g);
             x += width + 1;
+            max = Math.max(max, x);
             return this;
         }
 
@@ -652,14 +680,14 @@ public final class TraderDialog implements Listener {
         Line text(String s, TextColor color) {
             out.append(Component.text(s, color));
             x += FontWidths.width(s);
+            max = Math.max(max, x);
             return this;
         }
 
         /** 箱 (タブ・札) と、その中央に字。箱は字の幅 + 8 が入る一番小さい物 */
         Line box(String label, int kind, TextColor color, ClickEvent click, Component hover) {
             int textW = FontWidths.width(label);
-            int sizeIndex = 0;
-            while (sizeIndex < BOX_WIDTHS.length - 1 && BOX_WIDTHS[sizeIndex] < textW + 8) sizeIndex++;
+            int sizeIndex = boxIndex(textW);
             int w = BOX_WIDTHS[sizeIndex];
             int start = x;
             glyph((char) (BOX_BASE + sizeIndex * 3 + kind), w, click, hover);
@@ -676,6 +704,18 @@ public final class TraderDialog implements Listener {
         Component build() {
             return out.build();
         }
+    }
+
+    /** 字の幅 + 8 が入る一番小さい箱の番号 */
+    private static int boxIndex(int textWidth) {
+        int i = 0;
+        while (i < BOX_WIDTHS.length - 1 && BOX_WIDTHS[i] < textWidth + 8) i++;
+        return i;
+    }
+
+    /** 箱の送り (箱の幅 + 1) */
+    static int boxWidth(String label) {
+        return BOX_WIDTHS[boxIndex(FontWidths.width(label))] + 1;
     }
 
     /** n だけ進む (負なら戻る) 空白の文字列。±2^i の空白を組み合わせる */

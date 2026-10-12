@@ -76,17 +76,30 @@ public final class TraderDialogLayoutTest {
                         List.of(new TraderDialog.Part("Lv.10", ng), new TraderDialog.Part("クエスト「精密射手 II」", ok)), null, false));
         TraderDialog.ConfirmView confirm = new TraderDialog.ConfirmView("5.45x39mm PS弾", "150₽", "72,550₽", 5, 60, "制限なし", false);
 
+        // どの行も、途中で一度も行の幅を超えず (超えるとクライアントが改行する)、ちょうど行の幅で終わる
+        for (TraderDialog.Line l : TraderDialog.headerLines(header)) {
+            check(l.max <= TraderDialog.HEADER_W && l.x == TraderDialog.HEADER_W, "header line " + l.max + " / " + l.x);
+        }
+        for (TraderDialog.RowView row : rows) {
+            for (TraderDialog.Line l : TraderDialog.rowLines(row)) {
+                check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "row line " + row.name() + " " + l.max + " / " + l.x);
+            }
+        }
+        for (TraderDialog.Line l : TraderDialog.confirmLines(confirm)) {
+            check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "confirm line " + l.max + " / " + l.x);
+        }
+
         Component headerComponent = TraderDialog.header(header);
         check(PlainTextComponentSerializer.plainText().serialize(headerComponent).split("\n").length == 6, "header lines");
         String dump = System.getenv("IEM_DIALOG_DUMP");
         if (dump != null) {
             StringBuilder json = new StringBuilder("[");
-            json.append("{\"kind\":\"header\",\"width\":338,\"component\":").append(GsonComponentSerializer.gson().serialize(headerComponent)).append('}');
+            json.append("{\"kind\":\"header\",\"width\":340,\"component\":").append(GsonComponentSerializer.gson().serialize(headerComponent)).append('}');
             for (TraderDialog.RowView row : rows) {
-                json.append(",{\"kind\":\"row\",\"width\":306,\"locked\":").append(row.locked())
+                json.append(",{\"kind\":\"row\",\"width\":308,\"locked\":").append(row.locked())
                         .append(",\"component\":").append(GsonComponentSerializer.gson().serialize(TraderDialog.row(row))).append('}');
             }
-            json.append(",{\"kind\":\"confirm\",\"width\":306,\"component\":")
+            json.append(",{\"kind\":\"confirm\",\"width\":308,\"component\":")
                     .append(GsonComponentSerializer.gson().serialize(TraderDialog.confirmRow(confirm))).append("}]");
             Files.writeString(Path.of(dump), json.toString(), StandardCharsets.UTF_8);
         }
