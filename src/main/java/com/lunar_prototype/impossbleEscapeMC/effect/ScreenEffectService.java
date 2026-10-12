@@ -77,6 +77,7 @@ public final class ScreenEffectService implements Listener {
     private static final Key GRADE = Key.key(NAMESPACE, "grade");
     private static final Key CONTROL = Key.key(NAMESPACE, "control");
     private static final Key CONTROL_DEBUG = Key.key(NAMESPACE, "control_debug");
+    private static final Key CAMERA = Key.key(NAMESPACE, "camera");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
@@ -150,6 +151,8 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Playback> playing = new HashMap<>();
     /** 数値の画素の確認用エフェクトを重ねているプレイヤー */
     private final Set<UUID> controlDebug = new HashSet<>();
+    /** カメラ風の見え方を試しているプレイヤー (/shaderdebug camera) */
+    private final Set<UUID> cameraTrial = new HashSet<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
     /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間) */
@@ -218,6 +221,19 @@ public final class ScreenEffectService implements Listener {
         UUID playerId = player.getUniqueId();
         boolean enabled = instance.controlDebug.add(playerId);
         if (!enabled) instance.controlDebug.remove(playerId);
+        instance.refresh(player);
+        return enabled;
+    }
+
+    /**
+     * カメラ風の見え方 (iem:camera: 露出の遅れ・端の暗さ・端の色ずれの揺れ) を試しに付け外しする。付けたら true。
+     * 画作りの後 (カメラのセンサーに写った後の処理なので、レンズフレアより後)、数値の画素を隠す層の前に置く
+     */
+    public static boolean toggleCameraTrial(Player player) {
+        if (instance == null) return false;
+        UUID playerId = player.getUniqueId();
+        boolean enabled = instance.cameraTrial.add(playerId);
+        if (!enabled) instance.cameraTrial.remove(playerId);
         instance.refresh(player);
         return enabled;
     }
@@ -427,7 +443,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → マズルフラッシュ → バイザー → 画作り → (カメラ風・試し) → 数値の画素 → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -443,6 +459,7 @@ public final class ScreenEffectService implements Listener {
         Key visorEffect = visor.get(playerId);
         if (visorEffect != null) effects.add(visorEffect);
         if (graded.contains(playerId)) effects.add(GRADE);
+        if (cameraTrial.contains(playerId)) effects.add(CAMERA);
         effects.add(CONTROL);
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
@@ -467,6 +484,7 @@ public final class ScreenEffectService implements Listener {
 
     private void forget(UUID playerId) {
         controlDebug.remove(playerId);
+        cameraTrial.remove(playerId);
         playing.remove(playerId);
         sky.remove(playerId);
         visor.remove(playerId);

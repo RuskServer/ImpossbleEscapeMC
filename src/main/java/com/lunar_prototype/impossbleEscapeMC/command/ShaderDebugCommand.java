@@ -11,7 +11,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * 数値の画素 (空のシェーダーが画面に書くカメラ・太陽の向きなど) の確認用エフェクトを、自分の画面に付け外しする。
- * 正しく読めていれば、地平線・方角・太陽の輪が絵とずれずに重なる。左下の四角が緑なら数値がそろっている
+ * 正しく読めていれば、地平線・方角・太陽の輪が絵とずれずに重なる。左下の四角が緑なら数値がそろっている。
+ * /shaderdebug camera で、カメラ風の見え方 (iem:camera、試し) を付け外しする
  */
 public class ShaderDebugCommand implements CommandExecutor {
 
@@ -19,6 +20,13 @@ public class ShaderDebugCommand implements CommandExecutor {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage("プレイヤーだけが使えます");
+            return true;
+        }
+        if (args.length > 0 && args[0].equalsIgnoreCase("camera")) {
+            boolean camera = ScreenEffectService.toggleCameraTrial(player);
+            player.sendMessage(Component.text(camera
+                    ? "カメラ風の見え方 (露出の遅れ・端の暗さ・色ずれの揺れ) を試しに表示"
+                    : "カメラ風の見え方を消しました", NamedTextColor.AQUA));
             return true;
         }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
