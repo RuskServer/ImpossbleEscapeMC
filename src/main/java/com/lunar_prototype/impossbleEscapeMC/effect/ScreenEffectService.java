@@ -118,14 +118,19 @@ public final class ScreenEffectService implements Listener {
     /** 読み込み完了から演出を始めるまでの間。読み込み画面が閉じた直後は周りの描画が追いついていない */
     private static final int START_DELAY_AFTER_LOAD_TICKS = 10;
 
-    /** 時間割の1段。effect が null の段はエフェクト無し */
-    private record Step(Key effect, int ticks, boolean heartbeat) {
+    /** 時間割の1段。effect が null の段はエフェクト無し。onStart はその段に入った時に呼ぶ (無ければ null) */
+    private record Step(Key effect, int ticks, boolean heartbeat, Runnable onStart) {
+        Step(Key effect, int ticks, boolean heartbeat) {
+            this(effect, ticks, heartbeat, null);
+        }
     }
 
     private static final class Playback {
         private final List<Step> steps;
         /** 読み込み待ちの間も最初の段を表示しておくか (時間割は読み込みが終わってから進める) */
         private final boolean showWhileWaiting;
+        /** 時間割の名前 (続いているかを外から確かめる用。無ければ null) */
+        private String name;
         private int index;
         private int remaining;
         private boolean started;
@@ -263,6 +268,50 @@ public final class ScreenEffectService implements Listener {
         instance.start(player, steps, true);
     }
 
+    // --- 出撃時の PDA (iem:pda_*。IEM_shader/tools/raid_pda.py) ---
+    /** 電源が入るまでの暗転 (クライアントの読み込み待ちの間も表示する) */
+    private static final int PDA_BLACK_TICKS = 16;
+    private static final int PDA_POWER_STAGES = 4;
+    private static final int PDA_OFF_STAGES = 4;
+    private static final int PDA_STAGE_TICKS = 2;
+    /** 起動ログ・戦術マップを出している長さ */
+    private static final int PDA_BOOT_TICKS = 22;
+    private static final int PDA_TACMAP_TICKS = 64;
+    public static final String PDA_INTRO = "pda_intro";
+
+    /**
+     * 出撃時の PDA の演出: 暗転 → 電源 (液晶が開く) → 起動ログ → 戦術マップ → 閉じる (CRT が消える)。
+     * 画面の中身 (文字・絵) はボスバーで描くので、段に入った時に知らせる。演出が別の演出に置き換わった時は
+     * 最後の知らせが来ないので、呼ぶ側は {@link #isPlaying} で確かめる
+     */
+    public static void playPdaIntro(Player player, Runnable onBoot, Runnable onTacmap, Runnable onClosing, Runnable onFinished) {
+        if (instance == null) {
+            onFinished.run();
+            return;
+        }
+        List<Step> steps = new ArrayList<>();
+        steps.add(new Step(Key.key(NAMESPACE, "pda_black"), PDA_BLACK_TICKS, false));
+        for (int i = 1; i <= PDA_POWER_STAGES; i++) {
+            steps.add(new Step(Key.key(NAMESPACE, "pda_power_" + i), PDA_STAGE_TICKS, false));
+        }
+        steps.add(new Step(Key.key(NAMESPACE, "pda_screen"), PDA_BOOT_TICKS, false, onBoot));
+        steps.add(new Step(Key.key(NAMESPACE, "pda_screen"), PDA_TACMAP_TICKS, false, onTacmap));
+        for (int i = 1; i <= PDA_OFF_STAGES; i++) {
+            steps.add(new Step(Key.key(NAMESPACE, "pda_off_" + i), PDA_STAGE_TICKS, false, i == 1 ? onClosing : null));
+        }
+        steps.add(new Step(null, 1, false, onFinished));
+        instance.start(player, steps, true);
+        Playback playback = instance.playing.get(player.getUniqueId());
+        if (playback != null) playback.name = PDA_INTRO;
+    }
+
+    /** その名前の時間割がまだ続いているか */
+    public static boolean isPlaying(Player player, String name) {
+        if (instance == null) return false;
+        Playback playback = instance.playing.get(player.getUniqueId());
+        return playback != null && name.equals(playback.name);
+    }
+
     /** 上空で EMP が起爆した瞬間の閃光 (真っ白に飛んで、揺れと色収差を残しながら戻る) */
     public static void playEmpFlash(Player player) {
         if (instance == null) return;
@@ -343,6 +392,13 @@ public final class ScreenEffectService implements Listener {
     }
 
     private static void onStepStart(Player player, Step step) {
+        if (step.onStart() != null) {
+            try {
+                step.onStart().run();
+            } catch (RuntimeException e) {
+                ImpossbleEscapeMC.getInstance().getLogger().log(java.util.logging.Level.WARNING, "画面効果の段の処理に失敗しました", e);
+            }
+        }
         if (DEATH_IMPACT.equals(step.effect())) {
             // 不意を突く低い衝撃音と耳鳴り
             player.playSound(player, Sound.ENTITY_WARDEN_SONIC_BOOM, SoundCategory.PLAYERS, 0.8f, 0.6f);
