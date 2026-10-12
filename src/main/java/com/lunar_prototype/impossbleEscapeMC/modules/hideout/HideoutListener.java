@@ -19,6 +19,8 @@ public class HideoutListener implements Listener {
     @EventHandler
     public void onSignInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        // 右クリックは手ごとに来ることがあるので、メインハンドの時だけ (画面を2回開かない)
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         Block block = event.getClickedBlock();
         if (block == null || !(block.getState() instanceof Sign sign)) return;
 

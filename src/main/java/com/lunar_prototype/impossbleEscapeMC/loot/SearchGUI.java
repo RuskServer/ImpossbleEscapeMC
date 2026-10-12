@@ -16,6 +16,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mannequin;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -75,6 +76,9 @@ public class SearchGUI implements Listener {
         if (!pdc.has(PDCKeys.LOOT_TABLE_ID, PDCKeys.STRING)) return;
 
         event.setCancelled(true);
+        // 右クリックは手ごとに (メイン・オフハンド) 来る。2回開くと漁るセッションが開き直され、
+        // 間に挟まる後片付けがバックパックの表示を消してしまうので、メインハンドの時だけ開く
+        if (event.getHand() != EquipmentSlot.HAND) return;
         open(event.getPlayer(), container);
     }
 
@@ -86,6 +90,8 @@ public class SearchGUI implements Listener {
         if (!pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.BYTE_ARRAY) && !pdc.has(PDCKeys.CORPSE_INVENTORY, PDCKeys.STRING)) return;
 
         event.setCancelled(true);
+        // マネキンへの右クリックはメインハンドの後にオフハンドでも来る (上と同じ理由で、メインハンドの時だけ開く)
+        if (event.getHand() != EquipmentSlot.HAND) return;
         open(event.getPlayer(), mannequin);
     }
 
@@ -242,7 +248,25 @@ public class SearchGUI implements Listener {
                 backpackModule.saveBackpackInventory(toMove, inv);
             }
 
-            Map<Integer, ItemStack> leftover = player.getInventory().addItem(toMove);
+            // 装備しているバックパックに先に入れ、入りきらない分を持ち物に入れる。
+            // バックパックの表示中は持ち物の欄がバックパックの表示なので、本物のホットバーにだけ入れ、残りは死体・コンテナに残す
+            com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay =
+                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class);
+            ItemStack rest = overlay != null ? overlay.addToBackpackFirst(player, toMove) : toMove;
+            Map<Integer, ItemStack> leftover;
+            if (rest == null) {
+                leftover = Map.of();
+            } else if (overlay != null && overlay.isBackpackView(player)) {
+                ItemStack notTaken = overlay.addToHotbar(player, rest);
+                leftover = notTaken == null ? Map.of() : Map.of(0, notTaken);
+                if (notTaken != null) {
+                    player.sendActionBar(net.kyori.adventure.text.Component.text(
+                            "バックパックがいっぱいです。コンパスで通常インベントリの表示に切り替えると、持ち物に入れられます",
+                            net.kyori.adventure.text.format.NamedTextColor.RED));
+                }
+            } else {
+                leftover = player.getInventory().addItem(rest);
+            }
             int leftoverAmount = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
             int movedAmount = sourceItem.getAmount() - leftoverAmount;
             if (movedAmount <= 0) return;
