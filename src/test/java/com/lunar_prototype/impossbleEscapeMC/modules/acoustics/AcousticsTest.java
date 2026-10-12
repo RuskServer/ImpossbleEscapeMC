@@ -12,12 +12,20 @@ public final class AcousticsTest {
     }
 
     public static void main(String[] args) {
-        // 空が見える (5 本中 3 本抜ける) なら、頭の上に何があっても屋外
-        check(AcousticZone.classify(3, 5, 10, 64, 32) == AcousticZone.OUTDOOR, "open sky");
-        check(AcousticZone.classify(2, 5, 1, 3, 4) == AcousticZone.INDOOR, "small room");
-        check(AcousticZone.classify(0, 5, 2, 9, 6) == AcousticZone.HALL, "high ceiling");
-        check(AcousticZone.classify(0, 5, 2, 4, 14) == AcousticZone.HALL, "wide floor");
-        check(AcousticZone.classify(0, 5, 6, 3, 4) == AcousticZone.UNDERGROUND, "under thick ground");
+        // 上半分の光線の 35% 以上が空に抜ければ、頭の上に何があっても屋外
+        check(AcousticZone.classify(12, 30, 10, 64, 32) == AcousticZone.OUTDOOR, "open sky");
+        check(AcousticZone.classify(8, 30, 1, 3, 4) == AcousticZone.INDOOR, "room with a window above");
+        check(AcousticZone.classify(0, 30, 2, 9, 6) == AcousticZone.HALL, "high ceiling");
+        check(AcousticZone.classify(0, 30, 2, 4, 14) == AcousticZone.HALL, "wide floor");
+        check(AcousticZone.classify(0, 30, 6, 3, 4) == AcousticZone.UNDERGROUND, "under thick ground");
+        // 光線: 64 本の単位ベクトルで、上下にほぼ半分ずつ
+        check(AcousticMap.RAYS.length == AcousticMap.RAY_COUNT, "ray count");
+        int upper = 0;
+        for (var ray : AcousticMap.RAYS) {
+            check(Math.abs(ray.length() - 1.0) < 1e-9, "unit ray");
+            if (ray.getY() > 0) upper++;
+        }
+        check(upper == AcousticMap.RAY_COUNT / 2, "half upward " + upper);
         for (AcousticZone zone : AcousticZone.values()) check(AcousticZone.byId(zone.id) == zone, "byId " + zone);
 
         // マスの番号: 同じマスは同じ、隣のマス・負の座標も別
