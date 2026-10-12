@@ -69,7 +69,9 @@ final class TraderCatalog {
                         item("mbss", 12000, 10, 4, null, "bastion_logistics_02"),
                         item("FAST-MT", 43000, 10, 8, null, null),
                         item("FAST-MT_visor", 14000, 10, 15, null, "bastion_face_protection"),
-                        item("Trooper", 62000, 10, 10, null, "bastion_protection_selection")
+                        item("Trooper", 62000, 10, 10, null, "bastion_protection_selection"),
+                        // 最初から買える
+                        item("flashlight", 2800, 0, 1, null, null)
                 )));
 
         traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,
@@ -108,6 +110,7 @@ final class TraderCatalog {
                         item("CAT", 900, 0, 1, null, null),
                         // --- Rare/Valuable Items ---
                         item("mini_battery", 2500, 0, 1, null, null),
+                        item("flashlight", 900, 0, 1, null, null),
                         item("eotech_xps2", 8500, 0, 1, null, null),
                         item("tool_box", 4500, 0, 1, null, null),
                         item("graphics_card", 85000, 0, 1, null, null),

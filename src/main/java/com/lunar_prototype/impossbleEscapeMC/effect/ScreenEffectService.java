@@ -47,6 +47,7 @@ import java.util.UUID;
  *   <li>確認用: iem:control_debug ({@link #toggleControlDebug}、/shaderdebug)。空のシェーダーが画面の左下の端に書いた数値
  *       (カメラの向き・太陽の向きなど。リソースパックの shaders/include/iem_control.glsl) を読んで重ねて描く</li>
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
+ *   <li>フラッシュライト: 点けたフラッシュライトを手に持っている間 iem:flashlight (周りを照らす光なので色味より下)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
  *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)</li>
  *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)。太陽のフレアの位置は数値から求める
@@ -78,6 +79,7 @@ public final class ScreenEffectService implements Listener {
     private static final Key CONTROL = Key.key(NAMESPACE, "control");
     private static final Key CONTROL_DEBUG = Key.key(NAMESPACE, "control_debug");
     private static final Key CAMERA = Key.key(NAMESPACE, "camera");
+    private static final Key FLASHLIGHT = Key.key(NAMESPACE, "flashlight");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
@@ -160,6 +162,8 @@ public final class ScreenEffectService implements Listener {
     private final Set<UUID> cameraTrial = new HashSet<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
+    /** フラッシュライトの層をかけているプレイヤー (点けたフラッシュライトを手に持っている間) */
+    private final Set<UUID> flashlit = new HashSet<>();
     /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間) */
     private final Map<UUID, Key> visor = new HashMap<>();
     /** 画作りの層 (レンズフレア + 色味) をかけているプレイヤー */
@@ -437,6 +441,8 @@ public final class ScreenEffectService implements Listener {
         changed |= previous != woundEffect;
         Key previousVisor = visorEffect != null ? visor.put(playerId, visorEffect) : visor.remove(playerId);
         changed |= !java.util.Objects.equals(previousVisor, visorEffect);
+        boolean lit = alive && com.lunar_prototype.impossbleEscapeMC.item.Flashlight.isLit(player);
+        changed |= lit ? flashlit.add(playerId) : flashlit.remove(playerId);
         if (changed) refresh(player);
     }
 
@@ -510,7 +516,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → マズルフラッシュ → バイザー → 画作り → (カメラ風・試し) → 数値の画素 → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → (カメラ風・試し) → 数値の画素 → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -521,6 +527,7 @@ public final class ScreenEffectService implements Listener {
         if (controlDebug.contains(playerId)) effects.add(CONTROL_DEBUG);
         Key skyEffect = sky.get(playerId);
         if (skyEffect != null) effects.add(skyEffect);
+        if (flashlit.contains(playerId)) effects.add(FLASHLIGHT);
         Key flashEffect = muzzleFlash.get(playerId);
         if (flashEffect != null) effects.add(flashEffect);
         Key visorEffect = visor.get(playerId);
@@ -555,6 +562,7 @@ public final class ScreenEffectService implements Listener {
         playing.remove(playerId);
         sky.remove(playerId);
         visor.remove(playerId);
+        flashlit.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
@@ -575,6 +583,7 @@ public final class ScreenEffectService implements Listener {
         awaitingRespawn.add(playerId);
         sky.remove(playerId);
         visor.remove(playerId);
+        flashlit.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
