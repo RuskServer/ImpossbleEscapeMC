@@ -172,11 +172,9 @@ public class RaidInstance {
         return bestFallback != null ? bestFallback : spawns.get(0);
     }
 
-    private void playStartEffect(Player p) {
-        p.sendMessage(Component.text("レイド開始: " + map.getMapId(), NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
+    /** レイド開始の音とタイトル (出撃時の PDA の演出が終わってから) */
+    private void showStartTitle(Player p) {
         p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.2f);
-
-        // タイトル表示
         p.showTitle(net.kyori.adventure.title.Title.title(
                 Component.text("RAID START", NamedTextColor.RED, net.kyori.adventure.text.format.TextDecoration.BOLD),
                 Component.text(map.getMapId() + " へ出撃しました", NamedTextColor.YELLOW),
@@ -770,10 +768,6 @@ public class RaidInstance {
             raidMembers.add(player.getUniqueId());
             getOrCreateRaidResult(player.getUniqueId());
             markRaidBroughtInItems(player);
-            RaidConditions conditions = plugin.getRaidModule() != null ? plugin.getRaidModule().getConditions(map.getMapId()) : null;
-            if (conditions != null) {
-                player.sendMessage(Component.text("[RAID] 現地: " + conditions.describe(), NamedTextColor.GRAY));
-            }
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
             if (centerSpawn != null) {
@@ -783,18 +777,26 @@ public class RaidInstance {
                 Location spawnLoc = centerSpawn.clone().add(offsetX, 0.1, offsetZ); // 足が埋まらないよう少し浮かせる
                 
                 player.teleport(spawnLoc);
-                applySpawnProtection(player);
             }
+            boolean protect = centerSpawn != null;
 
-            playStartEffect(player);
-            showExtractions(player);
             setRaidCameraDistance(player);
             plugin.getRaidMapManager().updateMapSlot(player);
-            // 出撃時の PDA の演出 (脱出地点の戦術マップ)。しまい終えてからコンパスと残り時間の HUD を出す
+            // 出撃時の PDA の演出 (脱出地点の戦術マップ)。しまい終えてから HUD・開始のタイトル・チャットの案内を出し、
+            // スポーン保護を始める (演出の間は PdaIntro がダメージを止めている)
             UUID playerId = player.getUniqueId();
             PdaIntro.start(player, map, activeExtractions, getTimeLeft(), () -> {
                 Player joined = Bukkit.getPlayer(playerId);
-                if (joined != null && players.contains(playerId)) hud.show(joined);
+                if (joined == null || !players.contains(playerId)) return;
+                hud.show(joined);
+                showStartTitle(joined);
+                joined.sendMessage(Component.text("レイド開始: " + map.getMapId(), NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
+                RaidConditions conditions = plugin.getRaidModule() != null ? plugin.getRaidModule().getConditions(map.getMapId()) : null;
+                if (conditions != null) {
+                    joined.sendMessage(Component.text("[RAID] 現地: " + conditions.describe(), NamedTextColor.GRAY));
+                }
+                showExtractions(joined);
+                if (protect) applySpawnProtection(joined);
             });
         }
     }

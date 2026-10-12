@@ -68,6 +68,38 @@ final class PdaTerrain {
         return grid;
     }
 
+    /** 地下かを決めるために、周りの地面の高さを調べる輪の半径 (ブロック) と、輪の上の点の数 */
+    private static final int[] GROUND_RINGS = {6, 10, 16};
+    private static final int GROUND_RING_POINTS = 16;
+    /** 周りの地面よりこれだけ (ブロック) 足元が低く、頭の上がふさがっていれば地下 */
+    private static final int UNDERGROUND_DEPTH = 3;
+
+    /**
+     * at が地下なら、周りの地面からの深さ (ブロック)。地下でなければ 0。
+     * 周りの地面は、輪の上の点の一番上のブロック (葉は除く) の低い方から4割の高さ (屋根を地面とみなさないように)。
+     * 丘の下のトンネルも、建物の地下室も地下になり、建物の上の階や谷底は地下にならない。メインスレッドで呼ぶ
+     */
+    static int depthBelowGround(Location at) {
+        World world = at.getWorld();
+        if (world == null) return 0;
+        int x = at.getBlockX(), z = at.getBlockZ(), feet = at.getBlockY();
+        if (!world.isChunkLoaded(x >> 4, z >> 4) || world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES) <= feet) return 0;
+        List<Integer> heights = new ArrayList<>();
+        for (int radius : GROUND_RINGS) {
+            for (int i = 0; i < GROUND_RING_POINTS; i++) {
+                double angle = Math.PI * 2 * i / GROUND_RING_POINTS;
+                int sx = x + (int) Math.round(Math.cos(angle) * radius), sz = z + (int) Math.round(Math.sin(angle) * radius);
+                if (!world.isChunkLoaded(sx >> 4, sz >> 4)) continue;
+                heights.add(world.getHighestBlockYAt(sx, sz, HeightMap.MOTION_BLOCKING_NO_LEAVES));
+            }
+        }
+        if (heights.isEmpty()) return 0;
+        heights.sort(Integer::compare);
+        // 地面の上に立つと足元は地面 + 1
+        int depth = heights.get(heights.size() * 4 / 10) + 1 - feet;
+        return depth >= UNDERGROUND_DEPTH ? depth : 0;
+    }
+
     /** 脱出地点の周りの拡大図 (地点を中央に)。まだできていなければ null */
     static Grid vignette(RaidMap map, RaidMap.ExtractionPoint point) {
         return VIGNETTES.get(map.getMapId() + "/" + point.getName());
