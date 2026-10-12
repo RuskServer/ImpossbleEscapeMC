@@ -24,9 +24,14 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.*;
 
 /**
- * トレーダー別のクエスト管理GUI
+ * トレーダー別のクエスト管理GUI。上の5段にクエストを並べ、一番下の段の中央に「まとめて納品」
+ * (進行中のクエストの納品をこのトレーダーの分まとめて行う画面、{@link QuestHandInGUI#forTrader}) を置く
  */
 public class TraderQuestGUI implements Listener {
+    /** クエストを並べるスロットの数 (上の5段) */
+    private static final int QUEST_SLOTS = 45;
+    private static final int BULK_HAND_IN_SLOT = 49;
+
     private final Player player;
     private final TraderDefinition trader;
     private final QuestModule questModule;
@@ -54,7 +59,7 @@ public class TraderQuestGUI implements Listener {
 
         int slot = 0;
         for (QuestDefinition q : traderQuests) {
-            if (slot >= 54) break;
+            if (slot >= QUEST_SLOTS) break;
 
             boolean isCompleted = data.isQuestCompleted(q.getId());
             ActiveQuest active = data.getActiveQuests().get(q.getId());
@@ -78,6 +83,30 @@ public class TraderQuestGUI implements Listener {
 
             inventory.setItem(slot++, item);
         }
+        inventory.setItem(BULK_HAND_IN_SLOT, bulkHandInButton(data));
+    }
+
+    /** まとめて納品のボタン。納品できるクエストが無ければ押せない見た目にする */
+    private ItemStack bulkHandInButton(PlayerData data) {
+        List<QuestDefinition> open = QuestHandInGUI.openHandIns(data, trader, questModule);
+        ItemStack item = new ItemStack(open.isEmpty() ? Material.GRAY_DYE : Material.CHEST);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("まとめて納品", open.isEmpty() ? NamedTextColor.DARK_GRAY : NamedTextColor.GOLD)
+                .decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        if (open.isEmpty()) {
+            lore.add(Component.text("納品が残っている進行中のクエストはありません", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("入れた物を、次のクエストの納品に順に充てます", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            for (QuestDefinition q : open) {
+                lore.add(Component.text("- " + q.getDisplayName(), NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false));
+            }
+            lore.add(Component.empty());
+            lore.add(Component.text("▶ [クリック] で納品画面を開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
     }
 
     private void setQuestMeta(ItemStack item, QuestDefinition q, String status, NamedTextColor color, ActiveQuest active, PlayerData data) {
@@ -129,6 +158,17 @@ public class TraderQuestGUI implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
         event.setCancelled(true);
+
+        if (event.getRawSlot() == BULK_HAND_IN_SLOT) {
+            QuestHandInGUI bulk = QuestHandInGUI.forTrader(player, trader, questModule);
+            if (bulk == null) {
+                player.sendMessage(Component.text("納品が残っている進行中のクエストはありません。", NamedTextColor.RED));
+                return;
+            }
+            player.closeInventory();
+            bulk.open();
+            return;
+        }
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || !clicked.hasItemMeta()) return;
