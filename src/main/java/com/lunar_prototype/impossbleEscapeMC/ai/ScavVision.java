@@ -139,8 +139,58 @@ public class ScavVision {
         Location targetLoc = target.getEyeLocation();
         if (eye.getWorld() != targetLoc.getWorld()) return false;
         double effectiveMaxVisionDistance = MAX_VISION_DISTANCE * (0.85 + (0.35 * alertness));
+        // 暗がりに逃げ込まれると、追っていても見失いやすい (見つける時より緩い)
+        if (!recentlyFired(target)) effectiveMaxVisionDistance *= trackingVisibility(effectiveLight(targetLoc.getBlock()));
         if (eye.distanceSquared(targetLoc) > effectiveMaxVisionDistance * effectiveMaxVisionDistance) return false;
         return hasAdvancedLoS(target);
+    }
+
+    /**
+     * その場所の実際の明るさ (0..15)。ブロックの光と、時間帯・天候で暗くなった空の光の大きい方。
+     * Block#getLightLevel は空の光を時刻で暗くしないため、夜の屋外でも 15 になってしまう
+     */
+    public static int effectiveLight(org.bukkit.block.Block block) {
+        org.bukkit.World world = block.getWorld();
+        int sky = block.getLightFromSky() - skyDarken(world.getTime(), world.hasStorm(), world.isThundering());
+        return Math.max(block.getLightFromBlocks(), Math.max(0, sky));
+    }
+
+    /** 空の光の暗くなり方 (0 昼〜11 夜。雨・雷雨でさらに暗い)。バニラの Level#getSkyDarken と同じ式 */
+    static int skyDarken(long dayTime, boolean rain, boolean thunder) {
+        double d = Math.floorMod(dayTime, 24000L) / 24000.0 - 0.25;
+        d -= Math.floor(d);
+        double angle = (d * 2.0 + (0.5 - Math.cos(d * Math.PI) / 2.0)) / 3.0;
+        double bright = 1.0 - Math.max(0.0, Math.min(1.0, 1.0 - (Math.cos(angle * Math.PI * 2.0) * 2.0 + 0.5)));
+        if (rain) bright *= 1.0 - 5.0 / 16.0;
+        if (thunder) bright *= 1.0 - 5.0 / 16.0;
+        return (int) ((1.0 - bright) * 11.0);
+    }
+
+    /** 新しく見つける時の、明るさによる見える距離の倍率 */
+    static double spotVisibility(int light) {
+        if (light < 4) return 0.12;
+        if (light < 8) return 0.35;
+        if (light < 12) return 0.75;
+        return 1.0;
+    }
+
+    /** 追っている相手を見失わない距離の、明るさによる倍率 */
+    static double trackingVisibility(int light) {
+        if (light < 4) return 0.25;
+        if (light < 8) return 0.55;
+        return 1.0;
+    }
+
+    /** 暗い所の相手を撃つ時に増えるばらつき (撃った直後は銃口の光で見えるので増えない) */
+    public static double darknessSpread(LivingEntity target) {
+        if (target == null || recentlyFired(target)) return 0.0;
+        int light = effectiveLight(target.getEyeLocation().getBlock());
+        return light < 4 ? 0.06 : light < 8 ? 0.03 : 0.0;
+    }
+
+    private static boolean recentlyFired(LivingEntity target) {
+        return target.hasMetadata("last_fired_tick")
+                && Bukkit.getCurrentTick() - target.getMetadata("last_fired_tick").get(0).asInt() < 5;
     }
 
     /** 新しくターゲットを見つける時の視認判定。視野角・明るさ・しゃがみ・発砲を考慮する */
@@ -171,11 +221,7 @@ public class ScavVision {
         double awareness = !sneaking && horizontalSpeed(target) > 0.1 ? MOVING_AWARENESS_DISTANCE : CLOSE_AWARENESS_DISTANCE;
         if (angle > currentFov / 2.0 && dist > awareness) return false;
 
-        double visibility = 1.0;
-        int light = targetLoc.getBlock().getLightLevel();
-        if (light < 4) visibility *= 0.2;
-        else if (light < 8) visibility *= 0.5;
-        else if (light < 12) visibility *= 0.8;
+        double visibility = spotVisibility(effectiveLight(targetLoc.getBlock()));
 
         if (sneaking) visibility *= 0.6;
         if (horizontalSpeed(target) > 0.1) visibility *= 1.2; // 歩き (約0.22ブロック/tick) 以上で動いている相手は目立つ

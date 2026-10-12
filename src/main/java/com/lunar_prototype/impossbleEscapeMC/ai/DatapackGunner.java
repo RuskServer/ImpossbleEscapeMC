@@ -71,6 +71,12 @@ public final class DatapackGunner {
      * その間にSCAVの体と頭は移動方向へ向き直るため、SCAVの向きをそのまま写すと2発目以降が横に逸れる
      */
     private static final int AIM_HOLD_TICKS = TRIGGER_PULL_VALUE + 2;
+    /**
+     * フルオートで撃ち続けている間の反動 (1tickあたり)。照準を保つ間に上へ跳ね上がり、左右にぶれる。
+     * SCAVの撃ち手 (FakePlayer) はデータパックの反動を受けないため、無いと連射の全弾が同じ所に当たる
+     */
+    private static final float RECOIL_CLIMB_DEG = 0.9f;
+    private static final float RECOIL_WOBBLE_DEG = 0.6f;
 
     /** 送信パケットをすべて捨てる接続 */
     private static final class DiscardingConnection extends Connection {
@@ -95,6 +101,8 @@ public final class DatapackGunner {
     private float aimYaw;
     private float aimPitch;
     private int aimHoldTicks;
+    /** 今の照準がフルオートの連射か (反動をかける) */
+    private boolean burstRecoil;
     /** 最後に装填してから引き金を引いたか (弾数0が撃ち切りか、データパックによる上書きかの区別) */
     private boolean firedSinceFill;
 
@@ -155,7 +163,13 @@ public final class DatapackGunner {
     /** 毎tick呼ぶ。位置同期・銃の受け取り・再装填を行う */
     void tick() {
         age++;
-        if (aimHoldTicks > 0) aimHoldTicks--;
+        if (aimHoldTicks > 0) {
+            if (burstRecoil) {
+                aimPitch = Math.max(-90f, aimPitch - RECOIL_CLIMB_DEG);
+                aimYaw += (float) ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * RECOIL_WOBBLE_DEG);
+            }
+            aimHoldTicks--;
+        }
         syncToOwner();
 
         if (age == GIVE_GUN_DELAY_TICKS) {
@@ -280,6 +294,7 @@ public final class DatapackGunner {
         aimYaw = eye.getYaw() + (float) ((random.nextDouble() * 2 - 1) * spread);
         aimPitch = Math.max(-90f, Math.min(90f, eye.getPitch() + (float) ((random.nextDouble() * 2 - 1) * spread * 0.6)));
         aimHoldTicks = AIM_HOLD_TICKS;
+        burstRecoil = profile.automatic() && fullAuto;
         firedSinceFill = true;
         syncToOwner();
 
