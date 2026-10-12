@@ -313,8 +313,10 @@ public final class TraderDialog implements Listener {
         }
         ActionButton back = ActionButton.create(Component.text("戻る"), null, 150, action("back"));
         DialogBase built = base.build();
-        player.showDialog(Dialog.create(builder -> builder.empty().base(built)
-                .type(DialogType.multiAction(buttons).columns(3).exitAction(back).build())));
+        // 買えない時 (所持金が足りない・本日の残りが 0) はボタンが無い。複数ボタンの型は空にできないので「戻る」だけの型にする
+        DialogType type = buttons.isEmpty() ? DialogType.notice(back)
+                : DialogType.multiAction(buttons).columns(3).exitAction(back).build();
+        player.showDialog(Dialog.create(builder -> builder.empty().base(built).type(type)));
     }
 
     private static Component title(TraderDefinition trader, Session session) {
