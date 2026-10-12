@@ -10,13 +10,13 @@ public enum AcousticZone {
     HALL("hall", "広い屋内"),
     UNDERGROUND("underground", "地下");
 
-    /** 上を向いた光線のうち、空まで抜けた割合がこれ以上なら屋外 */
-    static final double OPEN_SKY_SHARE = 0.5;
+    /** 上半分の光線のうち、空まで抜けた割合がこれ以上なら屋外 (地平線寄りの光線は遠くの建物に当たるので、半分より低くする) */
+    static final double OPEN_SKY_SHARE = 0.35;
     /** 頭の上の固いブロックがこれ以上重なっていれば地下 (建物の床と屋根より厚い) */
     static final int UNDERGROUND_SOLID = 6;
     /** 天井の高さ (ブロック) がこれ以上なら広い屋内 */
     static final double HALL_CEILING = 7.0;
-    /** 横の 8 方向の壁までの距離の平均 (ブロック) がこれ以上なら広い屋内 */
+    /** ほぼ横の光線の、壁までの距離の平均 (ブロック) がこれ以上なら広い屋内 */
     static final double HALL_SPAN = 12.0;
 
     public final String id;
@@ -37,11 +37,11 @@ public enum AcousticZone {
     /**
      * 測った値から場所を決める
      *
-     * @param openUp         上を向いた光線のうち、空まで抜けた本数
-     * @param upRays         上を向いた光線の本数
+     * @param openUp         上半分の光線のうち、空まで抜けた本数
+     * @param upRays         上半分の光線の本数
      * @param solidAbove     頭の上に重なっている固いブロックの数
-     * @param ceiling        真上の天井までの距離 (無ければ大きな値)
-     * @param meanHorizontal 横の 8 方向の壁までの距離の平均
+     * @param ceiling        ほぼ真上の光線の、天井までの距離の中央値 (無ければ大きな値)
+     * @param meanHorizontal ほぼ横の光線の、壁までの距離の平均
      */
     static AcousticZone classify(int openUp, int upRays, int solidAbove, double ceiling, double meanHorizontal) {
         if (openUp >= upRays * OPEN_SKY_SHARE) return OUTDOOR;
