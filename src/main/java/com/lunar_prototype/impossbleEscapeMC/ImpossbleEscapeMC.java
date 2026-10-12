@@ -200,6 +200,10 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         );
         // レイド終盤の EMP を空と雲のシェーダーに伝える (全員の時刻パケットを書き換える)
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.init();
+        // 足音などの響きを場所ごとに選ぶ音響の地図
+        com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AcousticMap.init(this);
+        // レイド中の背景音 (場所と時間帯で選ぶ)
+        com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AmbienceService.init(this);
 
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
@@ -209,6 +213,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getCommand("attachment").setExecutor(new AttachmentCommand());
         getCommand("itemreload").setExecutor(new ItemReloadCommand(this));
         getCommand("shaderdebug").setExecutor(new ShaderDebugCommand());
+        var acousticsCommand = new com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AcousticsCommand();
+        getCommand("acoustics").setExecutor(acousticsCommand);
+        getCommand("acoustics").setTabCompleter(acousticsCommand);
         
         DatapackTestCommand datapackTestCommand = new DatapackTestCommand();
         getCommand("datapacktest").setExecutor(datapackTestCommand);

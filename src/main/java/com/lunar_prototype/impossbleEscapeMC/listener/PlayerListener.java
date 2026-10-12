@@ -6,10 +6,12 @@ import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightStage;
+import com.lunar_prototype.impossbleEscapeMC.modules.acoustics.FoliageSounds;
+import com.lunar_prototype.impossbleEscapeMC.modules.acoustics.FootstepSounds;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -33,6 +35,10 @@ public class PlayerListener implements Listener {
     private final com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC plugin;
     private final PlayerDataModule dataModule;
     private final Map<UUID, Double> walkDistanceMap = new HashMap<>();
+    /** 草むら・茂みの中を動いた距離 (かき分ける音を鳴らすまで)。草むらの外では消す */
+    private final Map<UUID, Double> foliageDistanceMap = new HashMap<>();
+    /** かき分ける音の間隔 (ブロック。走りは長く、しゃがみは短く数える) */
+    private static final double RUSTLE_DISTANCE = 1.2;
     private final Map<UUID, Integer> continuousNoiseTicks = new HashMap<>();
     /** 足音をSCAVに最後に知らせたtick。移動イベントは毎tick来るため、知らせる間隔を空ける */
     private final Map<UUID, Integer> lastFootstepAlertTick = new HashMap<>();
@@ -127,21 +133,34 @@ public class PlayerListener implements Listener {
         }
 
         if (totalWalked > 3.0) {
-            float volume = 0.8f;
+            // 足元の材質と場所の響きで鳴らし分ける (modules/acoustics)。しゃがみは小さく、走りは大きく、重いほど大きい
+            // (音量が 1 を超えると、聞こえる距離が延びる)
+            float volume = isSneaking ? 0.35f : isSprinting ? 1.0f : 0.8f;
             if (data != null) {
                 volume *= data.getWeightStage().getFootstepVolumeMultiplier(data.getCurrentWeight());
             }
-
-            entity.getWorld().playSound(
-                    entity.getLocation(),
-                    Sound.BLOCK_STONE_STEP,
-                    volume,
-                    1.0f
-            );
+            float pitch = 0.95f + random.nextFloat() * 0.1f;
+            FootstepSounds.play(entity, entity instanceof Player ? SoundCategory.PLAYERS : SoundCategory.HOSTILE, volume, pitch);
             totalWalked = 0;
         }
 
         walkDistanceMap.put(uuid, totalWalked);
+
+        // 草むら・茂みをかき分ける音。入った時にすぐ鳴らし、中では一定の距離ごとに鳴らす
+        String foliage = FoliageSounds.kindAround(entity);
+        if (foliage != null) {
+            double rustle = foliageDistanceMap.getOrDefault(uuid, RUSTLE_DISTANCE)
+                    + distance * (isSneaking ? 0.6 : isSprinting ? 1.3 : 1.0);
+            if (rustle >= RUSTLE_DISTANCE) {
+                float volume = isSneaking ? 0.2f : isSprinting ? 0.85f : 0.55f;
+                float pitch = 0.9f + random.nextFloat() * 0.2f;
+                FoliageSounds.play(entity, foliage, entity instanceof Player ? SoundCategory.PLAYERS : SoundCategory.HOSTILE, volume, pitch);
+                rustle = 0;
+            }
+            foliageDistanceMap.put(uuid, rustle);
+        } else {
+            foliageDistanceMap.remove(uuid);
+        }
     }
 
     private void alertNearbyScavsOfFootsteps(LivingEntity source, PlayerData data, Vector movementDirection, double movementSpeed,
