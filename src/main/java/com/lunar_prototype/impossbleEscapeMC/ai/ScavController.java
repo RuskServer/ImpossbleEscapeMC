@@ -228,7 +228,7 @@ public class ScavController {
     /** フルオートで今のバーストに残っている引き金の回数 */
     private int burstPullsRemaining = 0;
     /** 通常のSCAVがフルオートに切り替える距離 (ブロック)。これより遠くでは単発で撃つ */
-    private static final double CLOSE_RANGE_FULL_AUTO = 10.0;
+    private static final double CLOSE_RANGE_FULL_AUTO = 7.0;
 
     // --- 命中精度 ---
     /** 制圧値1.0あたりのばらつきの増加。撃ち返されるほど狙いが乱れる */
@@ -716,6 +716,7 @@ public class ScavController {
                     double inacc = baseSpread()
                             + (suppression * SUPPRESSION_SPREAD)
                             + (scav.getVelocity().length() > 0.1 ? 0.04 : 0)
+                            + ScavVision.darknessSpread(target)
                             + Math.min(RECOIL_SPREAD_MAX, consecutivePulls * (fullAuto ? RECOIL_SPREAD_PER_PULL : RECOIL_SPREAD_PER_SINGLE_SHOT));
                     if (weapon.isManualAction()) {
                         inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
@@ -941,8 +942,8 @@ public class ScavController {
     /** ランクごとの基本の弾のばらつき (BulletTaskの拡散量と同じ尺度)。高ランクほど正確 */
     private double baseSpread() {
         return switch (brainLevel) {
-            case LOW -> 0.13;
-            case MID -> 0.09;
+            case LOW -> 0.15;
+            case MID -> 0.11;
             case HIGH -> 0.04;
         };
     }
