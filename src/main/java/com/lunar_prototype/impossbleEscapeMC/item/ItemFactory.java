@@ -534,14 +534,25 @@ public class ItemFactory {
         return color + "★".repeat(Math.max(1, rarity)) + "§8" + "☆".repeat(Math.max(0, 5 - rarity));
     }
 
-    public static ItemStack createCostSlotPlaceholder() {
+    /**
+     * 大きい物 (コスト 2 以上) が使う、本体以外のスロットに置く占有スロット。
+     * 見た目はリソースパックの iem:cost_slot (IEM_shader/tools/capacity_icons.py。無ければ赤いガラス板)
+     *
+     * @param ownerName どの物の分か
+     * @param ownerCost その物が使うスロットの数
+     */
+    public static ItemStack createCostSlotPlaceholder(String ownerName, int ownerCost) {
         ItemStack item = new ItemStack(Material.RED_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName("§8[ サイズ制限 ]");
-            List<String> lore = new ArrayList<>();
-            lore.add("§7他のアイテムのサイズによって占有されています");
-            meta.setLore(lore);
+            meta.displayName(net.kyori.adventure.text.Component.text("[ " + ownerName + " の分 ]",
+                    net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY).decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+            meta.lore(List.of(
+                    net.kyori.adventure.text.Component.text(ownerName + " は " + ownerCost + " マス使います",
+                            net.kyori.adventure.text.format.NamedTextColor.GRAY).decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                    net.kyori.adventure.text.Component.text("動かすと、このマスも一緒に付いていきます",
+                            net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY).decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)));
+            meta.setItemModel(new NamespacedKey("iem", "cost_slot"));
             TooltipStyle.RED.applyTo(meta);
             meta.getPersistentDataContainer().set(PDCKeys.COST_SLOT_PLACEHOLDER, PDCKeys.BOOLEAN, (byte) 1);
             meta.setMaxStackSize(1);

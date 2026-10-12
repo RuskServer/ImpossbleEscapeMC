@@ -70,7 +70,12 @@ public class RigModule implements IModule {
             return 27;
         }
 
-        RigStats stats = getRigStats(getEquippedRig(player));
+        return rigSlots(getEquippedRig(player));
+    }
+
+    /** そのアイテムをリグとして着けた時に開くメインの段のスロット数 (リグでなければ 0) */
+    public int rigSlots(ItemStack item) {
+        RigStats stats = getRigStats(item);
         if (stats == null) return 0;
         return Math.max(0, Math.min(27, stats.size));
     }
@@ -152,8 +157,13 @@ public class RigModule implements IModule {
             if (item == null || item.getType().isAir()) continue;
             if (isLockedSlotPlaceholder(item) || ItemFactory.isCostSlotPlaceholder(item)) continue;
 
+            // 塞がった段の物は、まず使えるスロットの空きへ移し、入りきらない分だけ足元に落とす
             inventory.setItem(slot, null);
-            Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), item);
+            int remaining = addItemToAllowedInventory(player, item.clone());
+            if (remaining <= 0) continue;
+            ItemStack rest = item.clone();
+            rest.setAmount(remaining);
+            Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), rest);
             dropped.setOwner(player.getUniqueId());
         }
     }

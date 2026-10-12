@@ -173,6 +173,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.InventoryListener(this), this);
         // 持ち物の大きさの合計が使えるスロットを超える操作を、入る前に止める
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.CostCapacityListener(), this);
+        // 容量のゲージ (クラフトグリッドの左下) と、大きい物の説明の「サイズ N マス」
+        com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge.init();
+        com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.init();
         // データパック銃の命中もプラグイン銃と同じBulletHitEventとして通知する (負傷・アドレナリン・SCAVの命中記録)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletHitBridge(), this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
@@ -317,6 +320,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();
         if (scavSpawner != null) {

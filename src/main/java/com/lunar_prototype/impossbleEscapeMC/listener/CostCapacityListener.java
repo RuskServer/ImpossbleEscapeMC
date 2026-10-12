@@ -1,11 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
+import com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge;
 import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
+import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -13,6 +17,8 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
@@ -29,12 +35,16 @@ import java.util.Set;
  * <p>
  * 1回の操作で各インベントリのスロットがどう変わるかを先に求めて判定する。すでに超えている時 (ロビーで整理中など) は、
  * 使用量を増やす操作だけを止め、減らす・並べ替える操作はできるようにする。
+ * リグ (ズボンの欄) を外す・小さいリグに替える操作も、持ち物が入りきらなくなるなら止める (落とさずに済むように)。
+ * 止めた時は音を鳴らし、容量のゲージ ({@link CapacityGauge}) を赤く光らせる。
  * 止められない経路であふれた分は {@link CostSlotManager} が片付ける。
  */
 public class CostCapacityListener implements Listener {
 
     /** プレイヤーのインベントリでのオフハンドのスロット (オフハンドとの入れ替えでホットバーの番号の代わりに使う) */
     private static final int OFFHAND_SLOT = 40;
+    /** プレイヤーのインベントリでのズボン (リグ) のスロット */
+    private static final int LEGGINGS_SLOT = 37;
 
     /** 容量を超えるインベントリと、操作した後の使用量 */
     private record Overflow(int used, int capacity) {
@@ -87,6 +97,16 @@ public class CostCapacityListener implements Listener {
         Inventory clicked = event.getClickedInventory();
         if (clicked == null) return;
         ItemStack current = event.getCurrentItem();
+        if (clicked.equals(player.getInventory()) && event.getSlot() == LEGGINGS_SLOT) {
+            Overflow rig = rigChange(player, event, current);
+            if (rig != null) {
+                event.setCancelled(true);
+                player.sendActionBar(Component.text("リグを外すと持ち物が入りきりません (" + rig.used() + " / " + rig.capacity() + " マス)",
+                        NamedTextColor.RED));
+                CapacityGauge.flash(player);
+                return;
+            }
+        }
         Changes changes = new Changes(player);
         switch (event.getAction()) {
             // 空いたスロットに置く (同じ物のスタックに足すだけなら新しいスロットを使わない)
@@ -139,11 +159,80 @@ public class CostCapacityListener implements Listener {
         reject(changes.overflow(), player, () -> event.setCancelled(true));
     }
 
+    /** 持っているリグを右クリックで着け替える (バニラの防具の入れ替え) */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onRigHotSwap(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        if (!event.getAction().isRightClick() || event.useItemInHand() == Event.Result.DENY || !isLimited(player)) return;
+        RigModule rigModule = rigModule();
+        ItemStack hand = event.getItem();
+        ItemStack worn = player.getInventory().getLeggings();
+        if (rigModule == null || !rigModule.isRigItem(hand) || isEmpty(worn)) return;
+        // 着けていたリグは手のスロットに入る
+        int handSlot = event.getHand() == EquipmentSlot.OFF_HAND ? OFFHAND_SLOT : player.getInventory().getHeldItemSlot();
+        Overflow overflow = afterRigChange(player, rigModule, worn, hand, swapDelta(player, handSlot, worn, hand));
+        if (overflow == null) return;
+        event.setUseItemInHand(Event.Result.DENY);
+        player.sendActionBar(Component.text("このリグに替えると持ち物が入りきりません (" + overflow.used() + " / " + overflow.capacity() + " マス)",
+                NamedTextColor.RED));
+        CapacityGauge.flash(player);
+    }
+
+    /**
+     * ズボンの欄をクリックした結果、リグが外れる・替わって容量が足りなくなるなら、その時の使用量と容量 (足りれば null)。
+     * 外したリグはカーソル・ホットバー・持ち物のどれかに行く
+     */
+    private static Overflow rigChange(Player player, InventoryClickEvent event, ItemStack worn) {
+        RigModule rigModule = rigModule();
+        if (rigModule == null) return null;
+        return switch (event.getAction()) {
+            // カーソルに取る・捨てる
+            case PICKUP_ALL, PICKUP_HALF, PICKUP_ONE, PICKUP_SOME, DROP_ALL_SLOT, DROP_ONE_SLOT ->
+                    afterRigChange(player, rigModule, worn, null, 0);
+            // カーソルの物と替える
+            case PLACE_ALL, PLACE_SOME, PLACE_ONE, SWAP_WITH_CURSOR ->
+                    afterRigChange(player, rigModule, worn, event.getCursor(), 0);
+            // 数字キー・オフハンドキーで、ホットバー (オフハンド) の物と替える
+            case HOTBAR_SWAP, HOTBAR_MOVE_AND_READD -> {
+                int hotbarSlot = event.getHotbarButton() >= 0 ? event.getHotbarButton() : OFFHAND_SLOT;
+                ItemStack other = player.getInventory().getItem(hotbarSlot);
+                yield afterRigChange(player, rigModule, worn, other, swapDelta(player, hotbarSlot, worn, other));
+            }
+            // シフトクリックで持ち物に移す
+            case MOVE_TO_OTHER_INVENTORY -> afterRigChange(player, rigModule, worn, null, CostSlotManager.stackCost(worn));
+            default -> null;
+        };
+    }
+
+    /** 外したリグ worn がスロット slot に入り、そこにあった other と入れ替わる時の使用量の変化 */
+    private static int swapDelta(Player player, int slot, ItemStack worn, ItemStack other) {
+        if (!CostSlotManager.isStorageSlot(player, player.getInventory(), slot)) return 0;
+        return CostSlotManager.stackCost(worn) - CostSlotManager.stackCost(other);
+    }
+
+    /**
+     * リグが worn から next に替わり、使用量が usedDelta 変わった後に容量を超えるか。替わる前より超え方が悪くならなければ止めない
+     */
+    private static Overflow afterRigChange(Player player, RigModule rigModule, ItemStack worn, ItemStack next, int usedDelta) {
+        if (!rigModule.isRigItem(worn)) return null;
+        int capacityBefore = CostSlotManager.capacity(player, player.getInventory());
+        if (capacityBefore == 0) return null;
+        int usedBefore = CostSlotManager.usedCost(player, player.getInventory());
+        int capacity = capacityBefore - rigModule.rigSlots(worn) + rigModule.rigSlots(next);
+        int used = usedBefore + usedDelta;
+        return used > capacity && used - capacity > usedBefore - capacityBefore ? new Overflow(used, capacity) : null;
+    }
+
+    private static RigModule rigModule() {
+        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+    }
+
     private static void reject(Overflow overflow, Player player, Runnable cancel) {
         if (overflow == null) return;
         cancel.run();
-        player.sendActionBar(Component.text("容量が足りません (入れると " + overflow.used() + " / " + overflow.capacity() + ")",
+        player.sendActionBar(Component.text("容量が足りません (入れると " + overflow.used() + " / " + overflow.capacity() + " マス)",
                 NamedTextColor.RED));
+        CapacityGauge.flash(player);
     }
 
     /** 制限がかかるプレイヤーか (クリエイティブ・観戦と、SCAVのデータパック銃用FakePlayerは除く) */
