@@ -131,22 +131,29 @@ public final class SupplyLoadout {
     }
 
     /**
-     * 受け取りの邪魔になっている持ち物 (装備・オフハンドを含む) を「欄の 名前」で返す。無ければ null。
+     * 受け取りの邪魔になっている持ち物 (持ち物・ホットバー・防具・オフハンド) を「欄の 名前」で返す。無ければ null。
      * 地図 (地図の欄の地図は名前に関係なく)・占有スロット・リグで塞がれたスロットは数えない。
+     * 鞍・体の欄は見ない (銃のデータパックが疲労の仕組みに見えない鞍を入れるため)。
      * 地図を手に持っている間は、本人の画面ではオフハンドが空に見える (MapOffhandHider) ので、その時はそう書き添える
      */
     static String blockingItem(Player player) {
         PlayerInventory inventory = player.getInventory();
-        ItemStack[] contents = inventory.getContents();
-        for (int slot = 0; slot < contents.length; slot++) {
-            ItemStack item = contents[slot];
-            if (item == null || item.getType().isAir()) continue;
-            if (RaidMapManager.isTacticalMapItem(item) || ItemFactory.isCostSlotPlaceholder(item)
-                    || RigModule.isLockedSlotPlaceholder(item)) continue;
+        ItemStack[] storage = inventory.getStorageContents();
+        for (int slot = 0; slot < storage.length; slot++) {
+            ItemStack item = storage[slot];
             // 地図の欄の地図は、名前に関係なく数えない (古い版で作られた地図など、名前で見分けられないことがある)
-            if (slot == RaidMapManager.MAP_SLOT && (item.getType() == Material.MAP || item.getType() == Material.FILLED_MAP)) continue;
-            String found = slotName(slot) + "の " + itemName(item);
-            if (slot == OFFHAND_SLOT && RaidMapManager.isTacticalMapItem(inventory.getItemInMainHand())) {
+            if (slot == RaidMapManager.MAP_SLOT && item != null && (item.getType() == Material.MAP || item.getType() == Material.FILLED_MAP)) continue;
+            if (blocks(item)) return (slot < 9 ? "ホットバー " + (slot + 1) : "持ち物") + "の " + itemName(item);
+        }
+        String[] armorSlots = {"足", "脚", "胴", "頭"};
+        ItemStack[] armor = inventory.getArmorContents();
+        for (int i = 0; i < armor.length && i < armorSlots.length; i++) {
+            if (blocks(armor[i])) return armorSlots[i] + "の " + itemName(armor[i]);
+        }
+        ItemStack offhand = inventory.getItemInOffHand();
+        if (blocks(offhand)) {
+            String found = "オフハンドの " + itemName(offhand);
+            if (RaidMapManager.isTacticalMapItem(inventory.getItemInMainHand())) {
                 found += " (地図を持っている間はオフハンドが表示されません)";
             }
             return found;
@@ -154,19 +161,11 @@ public final class SupplyLoadout {
         return null;
     }
 
-    /** PlayerInventory.getContents() の並び: 0〜8 ホットバー、9〜35 持ち物、36〜39 足・脚・胴・頭、40 オフハンド */
-    private static final int OFFHAND_SLOT = 40;
-
-    private static String slotName(int slot) {
-        if (slot < 9) return "ホットバー " + (slot + 1);
-        if (slot < 36) return "持ち物";
-        return switch (slot) {
-            case 36 -> "足";
-            case 37 -> "脚";
-            case 38 -> "胴";
-            case 39 -> "頭";
-            default -> "オフハンド";
-        };
+    /** 受け取りの邪魔になる物か (空・地図・占有スロット・リグで塞がれたスロットは邪魔にならない) */
+    private static boolean blocks(ItemStack item) {
+        if (item == null || item.getType().isAir()) return false;
+        return !RaidMapManager.isTacticalMapItem(item) && !ItemFactory.isCostSlotPlaceholder(item)
+                && !RigModule.isLockedSlotPlaceholder(item);
     }
 
     private static String itemName(ItemStack item) {
