@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndEvent;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndReason;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionStartEvent;
@@ -191,7 +192,11 @@ public class LootBackpackOverlayListener implements Listener {
         ));
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    /**
+     * 漁っている途中で死んだら、死体を作る前 (LOWEST) に表示を戻す。戻す前に死体を作ると、持ち物の欄に出していた
+     * バックパックの中身が死体に入り (バックパックの中にも残るので増える)、隠していた本来の持ち物は死体に入らない
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         if (!sessions.containsKey(player.getUniqueId())) return;
@@ -206,6 +211,82 @@ public class LootBackpackOverlayListener implements Listener {
 
     public boolean isSessionActive(Player player) {
         return sessions.containsKey(player.getUniqueId());
+    }
+
+    /** バックパックの表示中か (持ち物の欄がバックパックの中身の表示になっている) */
+    public boolean isBackpackView(Player player) {
+        OverlaySession session = sessions.get(player.getUniqueId());
+        return session != null && session.mode == ViewMode.BACKPACK;
+    }
+
+    /**
+     * 漁って取った物を、装備しているバックパックに先に入れる。入りきらなかった分を返す (全部入れば null)。
+     * バックパックのコスト (大きい物は複数スロット分) を守り、同じ物のスタックに足してから空きスロットに入れる。
+     * バックパックはバックパックに入れない。漁っていない (セッションが無い) 時は何もしない
+     */
+    public ItemStack addToBackpackFirst(Player player, ItemStack item) {
+        OverlaySession session = sessions.get(player.getUniqueId());
+        if (session == null || item == null || item.getType().isAir()) return item;
+        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+        if (backpackModule != null && backpackModule.isBackpackItem(item)) return item;
+        if (session.mode == ViewMode.BACKPACK) syncBackpackFromDisplay(player, session);
+        ItemStack rest = insertWithCost(session.backpackInventory, item);
+        if (session.mode == ViewMode.BACKPACK) renderBackpackMode(player, session);
+        return rest;
+    }
+
+    /** バックパックの表示中に入りきらなかった物を、本物の持ち物であるホットバー (1〜8) に入れる。入りきらなかった分を返す */
+    public ItemStack addToHotbar(Player player, ItemStack item) {
+        if (item == null) return null;
+        PlayerInventory inv = player.getInventory();
+        ItemStack rest = item.clone();
+        for (int slot = 0; slot < TOGGLE_SLOT && rest.getAmount() > 0; slot++) {
+            ItemStack current = inv.getItem(slot);
+            if (current == null || !current.isSimilar(rest)) continue;
+            int move = Math.min(current.getMaxStackSize() - current.getAmount(), rest.getAmount());
+            if (move <= 0) continue;
+            current.setAmount(current.getAmount() + move);
+            inv.setItem(slot, current);
+            rest.setAmount(rest.getAmount() - move);
+        }
+        for (int slot = 0; slot < TOGGLE_SLOT && rest.getAmount() > 0; slot++) {
+            ItemStack current = inv.getItem(slot);
+            if (current != null && !current.getType().isAir()) continue;
+            ItemStack stack = rest.clone();
+            stack.setAmount(Math.min(rest.getAmount(), rest.getMaxStackSize()));
+            inv.setItem(slot, stack);
+            rest.setAmount(rest.getAmount() - stack.getAmount());
+        }
+        return rest.getAmount() > 0 ? rest : null;
+    }
+
+    /** コストを守って入れる (同じ物のスタックに足す → 空きスロットに新しいスタック)。入りきらなかった分を返す */
+    private static ItemStack insertWithCost(Inventory inv, ItemStack item) {
+        ItemStack rest = item.clone();
+        for (int slot = 0; slot < inv.getSize() && rest.getAmount() > 0; slot++) {
+            ItemStack current = inv.getItem(slot);
+            if (current == null || !current.isSimilar(rest)) continue;
+            int move = Math.min(current.getMaxStackSize() - current.getAmount(), rest.getAmount());
+            if (move <= 0) continue;
+            current.setAmount(current.getAmount() + move);
+            inv.setItem(slot, current);
+            rest.setAmount(rest.getAmount() - move);
+        }
+        while (rest.getAmount() > 0) {
+            int used = 0;
+            int empty = -1;
+            for (int slot = 0; slot < inv.getSize(); slot++) {
+                ItemStack current = inv.getItem(slot);
+                used += CostSlotManager.stackCost(current);
+                if (empty < 0 && (current == null || current.getType().isAir())) empty = slot;
+            }
+            if (empty < 0 || used + CostSlotManager.stackCost(rest) > inv.getSize()) break;
+            ItemStack stack = rest.clone();
+            stack.setAmount(Math.min(rest.getAmount(), rest.getMaxStackSize()));
+            inv.setItem(empty, stack);
+            rest.setAmount(rest.getAmount() - stack.getAmount());
+        }
+        return rest.getAmount() > 0 ? rest : null;
     }
 
     private void endSession(Player player, LootSessionEndReason reason) {
@@ -413,6 +494,9 @@ public class LootBackpackOverlayListener implements Listener {
             rigModule.setLootSessionSuppressed(player.getUniqueId(), suppressed);
             if (!suppressed) {
                 Bukkit.getScheduler().runTask(plugin, () -> {
+                    // 次のtickまでに別の漁るセッションが始まっていたら、持ち物の欄はバックパックの表示なので触らない
+                    // (触ると、塞がれた欄に並べたバックパックの中身を全部足元に落とす)
+                    if (rigModule.isControlSuppressed(player)) return;
                     rigModule.enforceLockedSlots(player);
                     rigModule.syncLockedSlotPlaceholders(player);
                 });
