@@ -24,4 +24,8 @@ public class MoneyReward extends QuestReward {
     public String getDescription() {
         return "報酬金: " + amount + " ₽";
     }
+
+    public double getAmount() {
+        return amount;
+    }
 }

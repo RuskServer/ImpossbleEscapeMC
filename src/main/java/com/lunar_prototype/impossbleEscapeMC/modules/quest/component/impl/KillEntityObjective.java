@@ -85,4 +85,7 @@ public class KillEntityObjective extends AbstractQuestObjective {
         }
         return maxDistance + "m 以下";
     }
+
+    public String getEntityType() { return entityType; }
+    public int getTargetAmount() { return targetAmount; }
 }

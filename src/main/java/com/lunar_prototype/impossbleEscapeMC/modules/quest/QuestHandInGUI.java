@@ -117,7 +117,7 @@ public class QuestHandInGUI implements Listener {
         for (int slot = 0; slot < SIZE; slot++) {
             if (!isInputSlot(slot)) inventory.setItem(slot, pane);
         }
-        inventory.setItem(BACK_SLOT, button(Material.ARROW, "§7クエスト一覧に戻る", List.of("§8入れた物は返却されます")));
+        inventory.setItem(BACK_SLOT, button(Material.ARROW, "§7クエストの画面に戻る", List.of("§8入れた物は返却されます")));
         refresh();
         player.openInventory(inventory);
     }
@@ -251,7 +251,7 @@ public class QuestHandInGUI implements Listener {
                 handIn();
             } else if (slot == BACK_SLOT) {
                 player.closeInventory();
-                new TraderQuestGUI(player, trader, questModule).open();
+                QuestDialog.resume(player, trader);   // 開いていたクエストの画面 (一覧・詳細) に戻る
                 return;
             }
         }

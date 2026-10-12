@@ -33,7 +33,8 @@ import java.util.*;
  */
 public class QuestModule implements IModule {
     private final ImpossbleEscapeMC plugin;
-    private final Map<String, QuestDefinition> quests = new HashMap<>();
+    /** 定義の順 (トレーダーごとの受領の順) を保つ */
+    private final Map<String, QuestDefinition> quests = new java.util.LinkedHashMap<>();
     private final QuestEventBus eventBus = new QuestEventBus();
     private PlayerDataModule dataModule;
     private final Listener catalogReloadListener = new Listener() {
@@ -350,7 +351,7 @@ public class QuestModule implements IModule {
         if (!reportable.isEmpty()) {
             player.sendMessage(Component.text(
                     "報酬を受け取れる（報告可能）クエストがあります: " + formatQuestTitles(reportable) +
-                            "。トレーダーのクエスト一覧で左クリックして完了できます。",
+                            "。クエストの画面の「報告」で完了できます。",
                     NamedTextColor.YELLOW
             ));
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);

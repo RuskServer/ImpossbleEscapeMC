@@ -51,4 +51,8 @@ public class ExtractObjective extends AbstractQuestObjective {
         String mapName = (mapId == null) ? "任意のマップ" : mapId;
         return mapName + " から脱出する (" + targetAmount + "回)";
     }
+
+    /** 脱出するマップ (null は任意のマップ) */
+    public String getMapId() { return mapId; }
+    public int getTargetAmount() { return targetAmount; }
 }

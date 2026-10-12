@@ -22,4 +22,8 @@ public class LevelCondition implements QuestCondition {
     public String getDescription() {
         return "プレイヤーレベル " + requiredLevel + " 以上";
     }
+
+    public int getRequiredLevel() {
+        return requiredLevel;
+    }
 }
