@@ -3,17 +3,21 @@ package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
 import com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager;
+import io.papermc.paper.math.Angle;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.ShadowColor;
 import net.kyori.adventure.text.format.TextColor;
+import net.minecraft.network.protocol.game.ClientboundPlayerRotationPacket;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -36,15 +40,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 出撃時の PDA の演出: 暗転 → 電源 → 起動ログ → 戦術マップ (脱出地点) → 閉じる → 両手で持った PDA をしまう。
+ * 出撃時の PDA の演出: 暗転 → 電源 → 起動ログ → 戦術マップ (脱出地点) → 閉じる → 顔を上げる → 両手で持った PDA をしまう。
  * <ul>
  *   <li>筐体・液晶・電源と閉じる演出はポストエフェクト ({@link ScreenEffectService#playPdaIntro}、iem:post/pda)</li>
  *   <li>液晶の中身はボスバーの題名。1本目に絵と英数字 (フォント iem:pda、幅が分かる)、2本目からマップ名と脱出地点の名前
  *       (幅が分からない日本語は1本ずつ中央揃え)。色に置き場所を入れ、文字のシェーダー (text.vsh) が液晶の上へ置く</li>
  *   <li>演出の間は手に戦術マップ (地図) を持たせておく。手は画面の効果の下に描かれるので見えず、液晶が消えた時に
  *       両手で PDA を構えた姿になる。最後に元の欄に戻すと、持ち替えの動きで PDA が下がる</li>
+ *   <li>閉じる時に PDA を見下ろす向き ({@link #LOOK_DOWN_PITCH}) にし、見終わったら水平まで顔を上げる。上げる間は
+ *       レイド開始の演出の弱い段が抜けていく。向きは相対の回転のパケットを細かく送って動かす (マウスの操作は足される)</li>
  *   <li>演出の間は動けず、撃てず、ダメージも受けない</li>
  * </ul>
  * 座標は「設計の単位」(画面の高さ = 270、横は中央が 240)。筐体・液晶の位置は iem:post/pda と tools/raid_pda.py と同じ
@@ -57,8 +67,9 @@ public final class PdaIntro implements Listener {
     /** セルの記号 (raid_pda.py の CELLS・{@link PdaTerrain} の記号と同じ順) */
     private static final String CELLS = "#B=|+.:,~Tx^ ";
     private static final char MARKER_RING = '', MARKER_CROSS = '', MARKER_PLAYER = '', MARKER_RING_SMALL = '';
-    private static final char WORD_AVAILABLE = '', WORD_CLOSED = '', WORD_HERE = '';
-    private static final int WORD_AVAILABLE_W = 24, WORD_CLOSED_W = 18, WORD_HERE_W = 24;
+    private static final char MARKER_PLAYER_UNDER = '';
+    private static final char WORD_AVAILABLE = '', WORD_CLOSED = '', WORD_HERE = '', WORD_UNDER = '';
+    private static final int WORD_AVAILABLE_W = 24, WORD_CLOSED_W = 18, WORD_HERE_W = 24, WORD_UNDER_W = 18;
     private static final char SPACE_POS = '', SPACE_NEG = '';
     private static final int CHAR_W = 6, CELL_W = 6, CELL_H = 8, MARKER_W = 8;
 
@@ -73,6 +84,15 @@ public final class PdaIntro implements Listener {
     private static final int LOG_X = 50, LOG_Y = 36, LOG_STEP = 12;
 
     private static final int MAP_SLOT = RaidMapManager.MAP_SLOT;
+    /** 閉じる時の向き (下向き)。両手で持った地図 (PDA) が画面の真ん中に来る */
+    private static final float LOOK_DOWN_PITCH = 71f;
+    /** 顔を上げる間、向きを送る間隔 (ms)。tick (50ms) ごとだとカクつくので、フレームに近い細かさで送る */
+    private static final long RISE_PERIOD_MS = 10;
+    private static final ScheduledExecutorService RISE = Executors.newSingleThreadScheduledExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "IEM-PdaIntro-rise");
+        thread.setDaemon(true);
+        return thread;
+    });
     /** 演出が別の演出に置き換わった・止まった時の打ち切り (tick) */
     private static final int TIMEOUT_TICKS = 20 * 30;
 
@@ -85,7 +105,7 @@ public final class PdaIntro implements Listener {
             "DECRYPT ................ OK",
             "> LAUNCH TACMAP"};
 
-    private enum Phase { WAITING, BOOT, TACMAP, CLOSING }
+    private enum Phase { WAITING, BOOT, TACMAP, CLOSING, RISE }
 
     /** 1人分の演出 */
     private static final class Session {
@@ -101,6 +121,8 @@ public final class PdaIntro implements Listener {
         int phaseTick;
         BossBar art;
         final List<BossBar> labels = new ArrayList<>();
+        /** 顔を上げる向きを送る仕事 (送り終えたら自分で止まる。途中で抜けた時は止める) */
+        volatile ScheduledFuture<?> rise;
 
         Session(Player player, RaidMap map, List<RaidMap.ExtractionPoint> active, int timeLeft, Runnable onDone) {
             this.playerId = player.getUniqueId();
@@ -135,6 +157,7 @@ public final class PdaIntro implements Listener {
                 () -> enter(id, Phase.BOOT),
                 () -> enter(id, Phase.TACMAP),
                 () -> enter(id, Phase.CLOSING),
+                () -> enter(id, Phase.RISE),
                 () -> finish(id, true));
         if (ticker == null || ticker.isCancelled()) {
             ticker = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), PdaIntro::tickAll, 1L, 1L);
@@ -164,7 +187,10 @@ public final class PdaIntro implements Listener {
             case CLOSING -> {
                 hideBars(player, session);
                 player.playSound(player, Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.PLAYERS, 0.5f, 1.6f);
+                // 液晶が消えた時に、手元の PDA を見下ろしている
+                player.setRotation(Angle.relative(0f), Angle.absolute(LOOK_DOWN_PITCH));
             }
+            case RISE -> startRise(player, session);
             default -> {
             }
         }
@@ -194,10 +220,31 @@ public final class PdaIntro implements Listener {
         }
     }
 
+    /** 今の向きから水平まで、ゆっくり始まってゆっくり止まるように顔を上げる (顔を上げる段の長さで) */
+    private static void startRise(Player player, Session session) {
+        ServerGamePacketListenerImpl connection = ((CraftPlayer) player).getHandle().connection;
+        float total = -player.getLocation().getPitch();
+        long start = System.nanoTime();
+        long duration = TimeUnit.MILLISECONDS.toNanos(ScreenEffectService.PDA_RISE_TICKS * 50L);
+        float[] sent = {0f};
+        session.rise = RISE.scheduleAtFixedRate(() -> {
+            double t = Math.min(1.0, (System.nanoTime() - start) / (double) duration);
+            float target = (float) (total * t * t * (3 - 2 * t));
+            float delta = target - sent[0];
+            if (Math.abs(delta) >= 1e-3f) {
+                connection.send(new ClientboundPlayerRotationPacket(0f, true, delta, true));
+                sent[0] = target;
+            }
+            if (t >= 1.0 && session.rise != null) session.rise.cancel(false);
+        }, 0, RISE_PERIOD_MS, TimeUnit.MILLISECONDS);
+    }
+
     /** 演出を終える。restore なら手に持つ欄を戻し (持ち替えの動きで PDA が下がる)、終わった知らせを呼ぶ */
     private static void finish(UUID id, boolean restore) {
         Session session = SESSIONS.remove(id);
         if (session == null) return;
+        // しまい終えた時は、顔を上げ終えるまで送らせる (段の時間と実時間は少しずれる)
+        if (!restore && session.rise != null) session.rise.cancel(false);
         Player player = Bukkit.getPlayer(id);
         if (player != null) {
             hideBars(player, session);
@@ -276,9 +323,19 @@ public final class PdaIntro implements Listener {
             line.text(xy[0] + 6, xy[1] - MARKER_W / 2, "EX" + (i + 1), ok ? GREEN : RED);
         }
         if (grid != null) {
+            // 地下なら中抜きの矢印にし、「現在地」の下に深さを出す (地図は地上なので、真上の建物の中ではないと分かるように)
             int[] me = toMap(grid, session.spawn);
-            line.glyph(me[0] - MARKER_W / 2, me[1] - MARKER_W / 2, MARKER_PLAYER, MARKER_W, WHITE);
-            line.glyph(me[0] + 6, me[1] - MARKER_W / 2, WORD_HERE, WORD_HERE_W, WHITE);
+            int depth = PdaTerrain.depthBelowGround(session.spawn);
+            String meters = depth + "m";
+            int width = depth > 0 ? Math.max(WORD_HERE_W, WORD_UNDER_W + 3 + meters.length() * CHAR_W) : WORD_HERE_W;
+            // 地図の右端からはみ出す時は印の左に出す
+            int labelX = me[0] + 6 + width <= MAP_X + MAP_COLS * CELL_W ? me[0] + 6 : me[0] - 6 - width;
+            line.glyph(me[0] - MARKER_W / 2, me[1] - MARKER_W / 2, depth > 0 ? MARKER_PLAYER_UNDER : MARKER_PLAYER, MARKER_W, WHITE);
+            line.glyph(labelX, me[1] - MARKER_W / 2, WORD_HERE, WORD_HERE_W, WHITE);
+            if (depth > 0) {
+                line.glyph(labelX, me[1] + 4, WORD_UNDER, WORD_UNDER_W, AMBER);
+                line.text(labelX + WORD_UNDER_W + 3, me[1] + 4, meters, AMBER);
+            }
         }
 
         // 脱出地点のカード (使えるものを先に)

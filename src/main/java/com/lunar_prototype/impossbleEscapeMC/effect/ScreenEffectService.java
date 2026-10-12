@@ -277,14 +277,22 @@ public final class ScreenEffectService implements Listener {
     /** 起動ログ・戦術マップを出している長さ */
     private static final int PDA_BOOT_TICKS = 22;
     private static final int PDA_TACMAP_TICKS = 64;
+    /**
+     * 見終わった後、PDA を見下ろした向きから顔を上げる間の長さ。その間はレイド開始の演出の弱い段 (intro_4〜6) を
+     * 順にかけ、ぼかし・白黒・上下の黒帯が抜けていく
+     */
+    public static final int PDA_RISE_TICKS = 24;
+    private static final int[] PDA_RISE_STAGES = {4, 5, 6};
+    private static final int[] PDA_RISE_STAGE_TICKS = {7, 8, 9};
     public static final String PDA_INTRO = "pda_intro";
 
     /**
-     * 出撃時の PDA の演出: 暗転 → 電源 (液晶が開く) → 起動ログ → 戦術マップ → 閉じる (CRT が消える)。
-     * 画面の中身 (文字・絵) はボスバーで描くので、段に入った時に知らせる。演出が別の演出に置き換わった時は
-     * 最後の知らせが来ないので、呼ぶ側は {@link #isPlaying} で確かめる
+     * 出撃時の PDA の演出: 暗転 → 電源 (液晶が開く) → 起動ログ → 戦術マップ → 閉じる (CRT が消える) → 顔を上げる。
+     * 画面の中身 (文字・絵) はボスバーで描き、顔を上げる向きは呼ぶ側が動かすので、段に入った時に知らせる。
+     * 演出が別の演出に置き換わった時は最後の知らせが来ないので、呼ぶ側は {@link #isPlaying} で確かめる
      */
-    public static void playPdaIntro(Player player, Runnable onBoot, Runnable onTacmap, Runnable onClosing, Runnable onFinished) {
+    public static void playPdaIntro(Player player, Runnable onBoot, Runnable onTacmap, Runnable onClosing, Runnable onRise,
+                                    Runnable onFinished) {
         if (instance == null) {
             onFinished.run();
             return;
@@ -298,6 +306,9 @@ public final class ScreenEffectService implements Listener {
         steps.add(new Step(Key.key(NAMESPACE, "pda_screen"), PDA_TACMAP_TICKS, false, onTacmap));
         for (int i = 1; i <= PDA_OFF_STAGES; i++) {
             steps.add(new Step(Key.key(NAMESPACE, "pda_off_" + i), PDA_STAGE_TICKS, false, i == 1 ? onClosing : null));
+        }
+        for (int i = 0; i < PDA_RISE_STAGES.length; i++) {
+            steps.add(new Step(Key.key(NAMESPACE, "intro_" + PDA_RISE_STAGES[i]), PDA_RISE_STAGE_TICKS[i], false, i == 0 ? onRise : null));
         }
         steps.add(new Step(null, 1, false, onFinished));
         instance.start(player, steps, true);
