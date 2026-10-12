@@ -51,6 +51,8 @@ public class RaidModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         loadMaps();
+        // 出撃時の PDA の演出の間の操作の停止
+        Bukkit.getPluginManager().registerEvents(new PdaIntro(), plugin);
         
         // Initialize BossBars and Timers for each map
         for (String mapId : maps.keySet()) {

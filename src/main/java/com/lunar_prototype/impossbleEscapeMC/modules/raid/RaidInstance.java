@@ -770,7 +770,6 @@ public class RaidInstance {
             raidMembers.add(player.getUniqueId());
             getOrCreateRaidResult(player.getUniqueId());
             markRaidBroughtInItems(player);
-            hud.show(player);
             RaidConditions conditions = plugin.getRaidModule() != null ? plugin.getRaidModule().getConditions(map.getMapId()) : null;
             if (conditions != null) {
                 player.sendMessage(Component.text("[RAID] 現地: " + conditions.describe(), NamedTextColor.GRAY));
@@ -787,11 +786,16 @@ public class RaidInstance {
                 applySpawnProtection(player);
             }
 
-            com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playRaidIntro(player);
             playStartEffect(player);
             showExtractions(player);
             setRaidCameraDistance(player);
             plugin.getRaidMapManager().updateMapSlot(player);
+            // 出撃時の PDA の演出 (脱出地点の戦術マップ)。しまい終えてからコンパスと残り時間の HUD を出す
+            UUID playerId = player.getUniqueId();
+            PdaIntro.start(player, map, activeExtractions, getTimeLeft(), () -> {
+                Player joined = Bukkit.getPlayer(playerId);
+                if (joined != null && players.contains(playerId)) hud.show(joined);
+            });
         }
     }
 
