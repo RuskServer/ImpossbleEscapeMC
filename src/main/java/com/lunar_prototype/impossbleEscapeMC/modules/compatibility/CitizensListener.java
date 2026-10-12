@@ -1,7 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.compatibility;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
-import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule;
 import net.citizensnpcs.api.event.NPCRightClickEvent;
 import org.bukkit.event.EventHandler;
@@ -20,7 +19,7 @@ public class CitizensListener implements Listener {
         TraderDefinition trader = traderModule.getTraderByNpcId(npcId);
         
         if (trader != null) {
-            new TraderGUI(traderModule, trader, event.getClicker()).open();
+            com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDialog.open(traderModule, trader, event.getClicker());
         } else {
             // デバッグ用: クリックされたが紐付けがない場合にログを出力
             traderModule.getPlugin().getLogger().info("[Trader] NPC Clicked: ID=" + npcId + " (No trader assigned in TraderCatalog)");

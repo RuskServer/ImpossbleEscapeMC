@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.gui;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
-import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderType;
 import net.kyori.adventure.text.Component;
@@ -74,7 +73,7 @@ public class TraderSelectionGUI implements Listener {
         if (slot >= 0 && slot < traderList.size()) {
             TraderDefinition trader = traderList.get(slot);
             player.closeInventory();
-            new TraderGUI(traderModule, trader, player).open();
+            com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDialog.open(traderModule, trader, player);
         }
     }
 

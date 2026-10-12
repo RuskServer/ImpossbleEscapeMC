@@ -55,7 +55,7 @@ public class TraderCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            new TraderGUI(traderModule, trader, player).open();
+            TraderDialog.open(traderModule, trader, player);
             return true;
         }
 
