@@ -227,8 +227,6 @@ public class ScavController {
     private long fireHoldUntil = 0;
     /** フルオートで今のバーストに残っている引き金の回数 */
     private int burstPullsRemaining = 0;
-    /** 通常のSCAVがフルオートに切り替える距離 (ブロック)。これより遠くでは単発で撃つ */
-    private static final double CLOSE_RANGE_FULL_AUTO = 7.0;
 
     // --- 命中精度 ---
     /** 制圧値1.0あたりのばらつきの増加。撃ち返されるほど狙いが乱れる */
@@ -248,6 +246,11 @@ public class ScavController {
     private UUID lastVisibleTargetId = null;
     /** これより長く見えていなかった相手が見えた時だけ、反応時間をおく (tick) */
     private static final int REACQUIRE_TICKS = 30;
+    /**
+     * この距離 (ブロック) より近い相手は、見え隠れしただけ (REACQUIRE_TICKS 以内に見え直した) の時も反応時間をおく。
+     * 近くで遮蔽物から出た瞬間に撃たれるのは理不尽なため。これより遠くでピークし直してきた相手には反応し直さずに撃つ
+     */
+    private static final double CLOSE_REACQUIRE_DISTANCE = 8.0;
 
     // --- ヒートマップの「安全」記録 ---
     /** 記録間隔 (約3秒)。毎ステップ記録すると「危険」(被弾1回 +2) をすぐ打ち消してしまう */
@@ -454,13 +457,18 @@ public class ScavController {
             int nowTick = Bukkit.getCurrentTick();
             boolean freshSighting = !target.getUniqueId().equals(lastVisibleTargetId)
                     || nowTick - lastTargetVisibleTick > REACQUIRE_TICKS;
+            boolean closeReacquire = !freshSighting && target.getWorld() == scav.getWorld()
+                    && scav.getLocation().distanceSquared(target.getLocation()) <= CLOSE_REACQUIRE_DISTANCE * CLOSE_REACQUIRE_DISTANCE;
             if (canSeeTarget && !sawTargetLastStep && freshSighting) {
                 // 見つけた直後は反応時間をおいてから撃ち始める。
-                // 撃ち合い中に遮蔽物の端で見え隠れしただけの時は、反応し直さない。
+                // 撃ち合い中に遮蔽物の端で見え隠れしただけの時は、反応し直さない (中距離以上でピークし直してきた相手は咎める)。
                 // 顔出しや、いそうな方向へ照準を向けていた時は、構えているぶん反応が速い
                 long reaction = rollReactionDelayMs();
                 if (tactics.getPeekPhase() > 0 || nowTick <= preAimUntilTick) reaction /= 3;
                 fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + reaction);
+            } else if (canSeeTarget && !sawTargetLastStep && closeReacquire) {
+                // 近くで見え直した時は、構えていても普通の反応時間をおく (出た瞬間に撃たない)
+                fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + rollReactionDelayMs());
             }
             if (canSeeTarget) {
                 lastTargetVisibleTick = nowTick;
@@ -701,7 +709,7 @@ public class ScavController {
             if (canSeeTarget && actions[1] == 0) {
                 applyAimToEntity();
                 if (now >= fireHoldUntil && now - lastMobShotTime >= interval) {
-                    boolean fullAuto = useFullAuto(weapon, target);
+                    boolean fullAuto = useFullAuto(weapon);
                     // 単発で撃つ時やポンプアクションの場合は人間らしい「タップ遅延」や「次弾装填待ち」を追加
                     if (!fullAuto || weapon.isManualAction()) {
                         long extraDelay = 50 + (long)(Math.random() * 150);
@@ -962,20 +970,17 @@ public class ScavController {
      * データパック銃は引き金を引いてから数tick撃ち続けるため、間はそれより長めに取る
      */
     /**
-     * フルオートで撃つか。通常のSCAV (LOW/MID) は単発で撃ち、近くまで詰められた時だけ短く連射する。HIGHは常にフルオート
+     * フルオートで撃つか。通常のSCAV (LOW/MID) は距離にかかわらず単発で撃つ (近距離の連射は強すぎたため撃たせない)。HIGHは常にフルオート
      */
-    private boolean useFullAuto(ScavWeapon weapon, LivingEntity target) {
-        if (!weapon.isAutomatic()) return false;
-        if (brainLevel == ScavBrain.BrainLevel.HIGH) return true;
-        return target != null && target.getWorld() == scav.getWorld()
-                && scav.getLocation().distanceSquared(target.getLocation()) <= CLOSE_RANGE_FULL_AUTO * CLOSE_RANGE_FULL_AUTO;
+    private boolean useFullAuto(ScavWeapon weapon) {
+        return weapon.isAutomatic() && brainLevel == ScavBrain.BrainLevel.HIGH;
     }
 
     private void afterTriggerPull(boolean fullAuto, long now) {
         if (fullAuto) {
             if (burstPullsRemaining <= 0) {
-                // 引き金1回でデータパック銃は約5tick撃ち続けるため、回数は少なめ。
-                // 通常のSCAVの近距離での連射は1〜2回、HIGHは1〜3回
+                // 引き金1回でデータパック銃は約5tick撃ち続けるため、回数は少なめ。HIGHは1〜3回
+                // (通常のSCAVはフルオートで撃たないが、switch を網羅するため回数を残す)
                 burstPullsRemaining = switch (brainLevel) {
                     case LOW, MID -> 1 + (int) (Math.random() * 2);
                     case HIGH -> 1 + (int) (Math.random() * 3);
