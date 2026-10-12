@@ -19,7 +19,9 @@ public final class QuestTradeUnlockTest {
                 if (trader.id.equals("kovacs") && starter.contains(item.itemId)) {
                     starterFound++;
                     check(module.isUnlocked(beginner, item), "starter gear available without completed quests: " + item.itemId);
-                    check(item.dailyLimit > 0, "starter gear purchase cap");
+                    check(item.dailyLimit == 0, "starter gear has no purchase cap: " + item.itemId);
+                } else if (trader.id.equals("kovacs") && item.requiredQuestId != null) {
+                    check(item.dailyLimit > 0, "quest-unlocked gear keeps its purchase cap: " + item.itemId);
                 }
                 if (trader.id.equals("bastion")) check(item.requiredLevel <= (item.itemId.equals("FAST-MT_visor") ? 15 : 10), "Bastion equipment level cap");
                 String quest = trader.id.equals("bastion") && item.itemId.equals("mbss") ? "bastion_logistics_02" : null;
