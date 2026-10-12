@@ -22,6 +22,9 @@ commands:
   itemreload:
     description: アイテム設定をリロードします。
     permission: op
+  acoustics:
+    description: 音響の地図 (足音などの響きを決める場所の種類) を確認・手直しします。
+    permission: op
   shaderdebug:
     description: 数値の画素 (空のシェーダーが書くカメラ・太陽の向き) の確認表示を付け外しします。
     permission: op
