@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -48,8 +49,13 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
      * @param slot    インベントリ画面 (window 0) のクラフトグリッドのスロット (1〜4)
      * @param visible 表示する条件 (メインスレッドで評価)
      * @param onClick クリック時の処理 (メインスレッドで実行)
+     * @param dynamicIcon プレイヤーごとに変わるアイコン (メインスレッドで {@code refresh} のたびに作る)。null なら icon を使う
      */
-    public record Button(int slot, ItemStack icon, Predicate<Player> visible, Consumer<Player> onClick) {
+    public record Button(int slot, ItemStack icon, Predicate<Player> visible, Consumer<Player> onClick,
+                         Function<Player, ItemStack> dynamicIcon) {
+        public Button(int slot, ItemStack icon, Predicate<Player> visible, Consumer<Player> onClick) {
+            this(slot, icon, visible, onClick, null);
+        }
     }
 
     private static CraftingGridButtons instance;
@@ -60,6 +66,9 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
     private final Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> packetIcons = new ConcurrentHashMap<>();
     /** 各プレイヤーのクライアントに今ボタンを見せているスロット */
     private final Map<UUID, Set<Integer>> shown = new ConcurrentHashMap<>();
+    /** プレイヤーごとのアイコン (dynamicIcon のボタン)。比べる用の元のアイテムと、パケット用に変換した物 */
+    private final Map<UUID, Map<Integer, ItemStack>> playerIcons = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack>> playerPacketIcons = new ConcurrentHashMap<>();
 
     private CraftingGridButtons(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -94,6 +103,13 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
             refresh(player);
         }
         shown.keySet().retainAll(online);
+        playerIcons.keySet().retainAll(online);
+        playerPacketIcons.keySet().retainAll(online);
+    }
+
+    /** 次の更新を待たずに、そのプレイヤーのボタンを作り直して送る */
+    public void refreshNow(Player player) {
+        if (player.isOnline() && !DatapackGunnerManager.isGunner(player)) refresh(player);
     }
 
     private void refresh(Player player) {
@@ -106,16 +122,42 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
             }
         }
         Set<Integer> current = shown.getOrDefault(player.getUniqueId(), Set.of());
-        if (desired.equals(current)) return;
+        Set<Integer> iconChanged = updateIcons(player, desired);
+        if (desired.equals(current) && iconChanged.isEmpty()) return;
 
         Set<Integer> changed = new HashSet<>(desired);
         changed.addAll(current);
-        changed.removeIf(slot -> desired.contains(slot) && current.contains(slot));
+        changed.removeIf(slot -> desired.contains(slot) && current.contains(slot) && !iconChanged.contains(slot));
         // 先に表示状態を更新してから送る (送るパケットは onPacketSend でボタンに書き換わる)
         shown.put(player.getUniqueId(), Set.copyOf(desired));
         for (int slot : changed) {
             sendSlot(player, menu.getStateId(), slot, CraftItemStack.asBukkitCopy(menu.getSlot(slot).getItem()));
         }
+    }
+
+    /** 見せるボタンのうち dynamicIcon の物のアイコンを作り直す。変わったスロットを返す */
+    private Set<Integer> updateIcons(Player player, Set<Integer> desired) {
+        Set<Integer> changed = new HashSet<>();
+        Map<Integer, ItemStack> icons = playerIcons.computeIfAbsent(player.getUniqueId(), id -> new ConcurrentHashMap<>());
+        Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> packets =
+                playerPacketIcons.computeIfAbsent(player.getUniqueId(), id -> new ConcurrentHashMap<>());
+        for (int slot : desired) {
+            Button button = buttons.get(slot);
+            if (button.dynamicIcon() == null) continue;
+            ItemStack icon = button.dynamicIcon().apply(player);
+            if (icon.equals(icons.get(slot))) continue;
+            icons.put(slot, icon);
+            packets.put(slot, SpigotConversionUtil.fromBukkitItemStack(icon));
+            changed.add(slot);
+        }
+        return changed;
+    }
+
+    /** そのプレイヤーに見せるアイコン (パケット用) */
+    private com.github.retrooper.packetevents.protocol.item.ItemStack iconFor(User user, int slot) {
+        Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> own = playerPacketIcons.get(user.getUUID());
+        var icon = own != null ? own.get(slot) : null;
+        return icon != null ? icon : packetIcons.get(slot);
     }
 
     private void sendSlot(Player player, int stateId, int slot, ItemStack item) {
@@ -137,7 +179,7 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
         if (event.getPacketType() == PacketType.Play.Server.SET_SLOT) {
             WrapperPlayServerSetSlot packet = new WrapperPlayServerSetSlot(event);
             if (packet.getWindowId() == PLAYER_INVENTORY_WINDOW_ID && slots.contains(packet.getSlot())) {
-                packet.setItem(packetIcons.get(packet.getSlot()));
+                packet.setItem(iconFor(event.getUser(), packet.getSlot()));
                 event.markForReEncode(true);
             }
         } else if (event.getPacketType() == PacketType.Play.Server.WINDOW_ITEMS) {
@@ -145,7 +187,7 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
             if (packet.getWindowId() == PLAYER_INVENTORY_WINDOW_ID) {
                 List<com.github.retrooper.packetevents.protocol.item.ItemStack> items = new ArrayList<>(packet.getItems());
                 for (int slot : slots) {
-                    if (slot < items.size()) items.set(slot, packetIcons.get(slot));
+                    if (slot < items.size()) items.set(slot, iconFor(event.getUser(), slot));
                 }
                 packet.setItems(items);
                 event.markForReEncode(true);

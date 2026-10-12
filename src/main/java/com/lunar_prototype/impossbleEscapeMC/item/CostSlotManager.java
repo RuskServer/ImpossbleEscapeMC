@@ -14,13 +14,14 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * 持ち物の大きさ (コスト) の制限。1スタックはコストの数だけスロットを使い、合計は使えるスロットの数を超えられない。
- * 本体のスロット以外に使う分は、右下から空きスロットに占有スロット (バリア) を置いて示す。
+ * 本体のスロット以外に使う分は、空きスロットに占有スロットを置いて示す。メインの段の物の分はその物のいちばん近くの空きに
+ * (どの物の分か分かるように、占有スロットの名前にも書く)、ホットバーの物の分は右下から置く。
  * <p>
  * 占有スロットは空きスロットにしか置けないので、制限を超える操作は入る前に止める ({@code CostCapacityListener})。
  * 止められない経路 (プラグインが直接渡す・リグを外して使えるスロットが減る等) であふれた時は、ここで片付ける。
@@ -31,7 +32,7 @@ public class CostSlotManager {
     private static final int HOTBAR_SIZE = 9;
 
     /**
-     * インベントリ内の合計コストを計算し、右下から占有スロットを配置・更新します。
+     * インベントリ内の合計コストを計算し、占有スロットを配置・更新します (あふれていれば先に片付ける)。
      */
     public static void updateInventory(Player player, Inventory inventory) {
         if (inventory == null) return;
@@ -44,36 +45,83 @@ public class CostSlotManager {
         int over = usedCost(inventory, storageSlots) - storageSlots.size();
         if (over > 0) resolveOverflow(player, inventory, storageSlots, over);
 
-        // 3. 合計追加コストを計算 (cost - 1)
-        int extraSlotsNeeded = 0;
-        for (int slot : storageSlots) {
-            int cost = stackCost(inventory.getItem(slot));
-            if (cost > 1) {
-                extraSlotsNeeded += (cost - 1);
-            }
+        // 3. 占有スロットを置く場所と、どの物の分か
+        boolean playerInventory = inventory.getHolder() instanceof Player;
+        List<ItemStack> contents = new ArrayList<>();
+        for (int slot : storageSlots) contents.add(inventory.getItem(slot));
+        int firstMain = 0;
+        while (playerInventory && firstMain < storageSlots.size() && storageSlots.get(firstMain) < HOTBAR_SIZE) firstMain++;
+        int[] costs = new int[contents.size()];
+        boolean[] free = new boolean[contents.size()];
+        for (int i = 0; i < contents.size(); i++) {
+            ItemStack item = contents.get(i);
+            free[i] = item == null || item.getType() == Material.AIR || ItemFactory.isCostSlotPlaceholder(item);
+            costs[i] = free[i] ? 0 : stackCost(item);
+        }
+        int[] owners = placeholderOwners(costs, free, firstMain);
+        Map<Integer, ItemStack> wanted = new HashMap<>();
+        for (int i = 0; i < owners.length; i++) {
+            if (owners[i] < 0) continue;
+            ItemStack owner = contents.get(owners[i]);
+            wanted.put(storageSlots.get(i), ItemFactory.createCostSlotPlaceholder(
+                    PlainTextComponentSerializer.plainText().serialize(owner.effectiveName()), stackCost(owner)));
         }
 
-        // 4. 右下（リストの末尾）から、空き (または今の占有スロット) のスロットに必要な数だけ占有スロットを置く
-        Set<Integer> wanted = new HashSet<>();
-        for (int i = storageSlots.size() - 1; i >= 0 && wanted.size() < extraSlotsNeeded; i--) {
-            int slot = storageSlots.get(i);
-            ItemStack current = inventory.getItem(slot);
-            if (current == null || current.getType() == Material.AIR || ItemFactory.isCostSlotPlaceholder(current)) {
-                wanted.add(slot);
-            }
-        }
-
-        // 5. 変わるスロットだけ書き換える。全部消して置き直すと、プレイヤーのインベントリは書き換えのたびに
+        // 4. 変わるスロットだけ書き換える。全部消して置き直すと、プレイヤーのインベントリは書き換えのたびに
         // クライアントへ送られるので、ホットバーの占有スロットが毎回拾った時のように跳ねる。
         // 使えないスロット (地図のスロット・リグで塞がれた所) に残った占有スロットも消す
         for (int slot = 0; slot < inventory.getSize(); slot++) {
-            boolean placeholder = ItemFactory.isCostSlotPlaceholder(inventory.getItem(slot));
-            if (wanted.contains(slot)) {
-                if (!placeholder) inventory.setItem(slot, ItemFactory.createCostSlotPlaceholder());
+            ItemStack current = inventory.getItem(slot);
+            boolean placeholder = ItemFactory.isCostSlotPlaceholder(current);
+            ItemStack desired = wanted.get(slot);
+            if (desired != null) {
+                if (!desired.isSimilar(current)) inventory.setItem(slot, desired);
             } else if (placeholder) {
                 inventory.setItem(slot, null);
             }
         }
+    }
+
+    /**
+     * 占有スロットの割り当て。costs・free は使えるスロットの中身のコストと空きか (並び順)、firstMain はメインの段が始まる番号
+     * (それより前はホットバー。バックパックなら 0)。各番号に置く占有スロットがどの番号の物の分か (置かなければ -1) を返す。
+     * <ol>
+     *   <li>メインの段の物から順に、その物にいちばん近い空き (同じ距離なら後ろ) を、メインの段の中から取る</li>
+     *   <li>ホットバーの物の分と、メインの段に空きが足りなかった分は、右下 (末尾) の空きから取る</li>
+     * </ol>
+     * 空きは、何も無いスロットと今の占有スロット。物の場所だけで決まるので、物が動かなければ占有スロットも動かない
+     */
+    static int[] placeholderOwners(int[] costs, boolean[] freeSlots, int firstMain) {
+        int size = costs.length;
+        int[] owners = new int[size];
+        java.util.Arrays.fill(owners, -1);
+        boolean[] free = freeSlots.clone();
+        List<int[]> leftover = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            int need = costs[i] - 1;
+            if (need <= 0) continue;
+            if (i >= firstMain) {
+                for (int distance = 1; need > 0 && distance < size; distance++) {
+                    for (int j : new int[]{i + distance, i - distance}) {
+                        if (need > 0 && j >= firstMain && j < size && free[j]) {
+                            free[j] = false;
+                            owners[j] = i;
+                            need--;
+                        }
+                    }
+                }
+            }
+            if (need > 0) leftover.add(new int[]{i, need});
+        }
+        for (int[] rest : leftover) {
+            for (int j = size - 1; j >= 0 && rest[1] > 0; j--) {
+                if (!free[j]) continue;
+                free[j] = false;
+                owners[j] = rest[0];
+                rest[1]--;
+            }
+        }
+        return owners;
     }
 
     /** 1スタックが使うスロットの数。空のスロット・占有スロット・リグのロック用は数えない */
