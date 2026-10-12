@@ -25,6 +25,9 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TraderGUI implements Listener {
     private static final int[] SELL_INPUT_SLOTS = {10, 11, 12, 13, 14, 15, 16};
@@ -34,7 +37,21 @@ public class TraderGUI implements Listener {
     private static final int REPAIR_BACK_SLOT = 18;
 
     private enum GUIMode { SHOP, REPAIR }
+
+    /** 未解放の品物を隠しているプレイヤー (サーバーを再起動するまで覚える) */
+    private static final Set<UUID> hideLocked = ConcurrentHashMap.newKeySet();
+    /** 購入画面の一番下の段のボタン (段の左端から数えた位置) */
+    private static final int TOGGLE_LOCKED_COLUMN = 0;
+    private static final int REPAIR_COLUMN = 7;
+    private static final int QUEST_COLUMN = 8;
+    /** 品物を並べられる数 (一番下の段はボタン) */
+    private static final int MAX_ITEM_SLOTS = 45;
     private GUIMode mode = GUIMode.SHOP;
+    /**
+     * 今の inventory を作った時のモード。購入画面と修理画面は同じ大きさでも別の画面にする
+     * (同じ画面を開き直すと、閉じた扱いでリスナーが外れてしまうため)
+     */
+    private GUIMode inventoryMode = null;
 
     private final TraderModule traderModule;
     private final TraderDefinition trader;
@@ -50,6 +67,12 @@ public class TraderGUI implements Listener {
         if (trader.type == TraderType.SELL) {
             this.inventory = Bukkit.createInventory(null, 27, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
         }
+    }
+
+    /** 修理の画面を開く (ダイアログの画面の「修理」から) */
+    public void openRepair() {
+        mode = GUIMode.REPAIR;
+        open();
     }
 
     public void open() {
@@ -68,81 +91,68 @@ public class TraderGUI implements Listener {
         player.openInventory(inventory);
     }
 
+    /**
+     * 購入画面。買える品物を先に並べ、今買えない (未解放の) 品物は段を改めて後ろに、灰色の板にして並べる
+     * (隠すこともできる)。一番下の段はボタン専用 (左端: 未解放の表示切り替え、右から2つ目: 修理、右端: クエスト一覧)
+     */
     private void setupBuyGUI() {
         PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
         traderModule.checkAndResetDailyPurchases(data);
 
-        // アイテム数に基づいてサイズを計算 (最小9, 最大54)
-        int itemCount = trader.items.size();
-        int rows = (int) Math.ceil(itemCount / 9.0);
-        int size = Math.min(54, Math.max(9, rows * 9));
-        
-        // 修理ボタンを表示するために、最低2行は確保 (サイズ 18 以上)
-        if (trader.canRepairArmor || trader.canRepairWeapon) {
-            size = Math.max(18, size);
+        List<ItemStack> available = new ArrayList<>();
+        List<ItemStack> locked = new ArrayList<>();
+        for (TraderItem ti : trader.items) {
+            ItemStack icon = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
+            if (icon == null) continue;
+            if (traderModule.isUnlocked(data, ti)) {
+                available.add(availableIcon(icon, ti, data));
+            } else {
+                locked.add(lockedIcon(icon, ti, data));
+            }
         }
+        boolean showLocked = !hideLocked.contains(player.getUniqueId()) && !locked.isEmpty();
 
-        if (this.inventory == null || this.inventory.getSize() != size) {
+        // 品物の段 (買える物の段 + 未解放の段) と、ボタンの段
+        int availableRows = (available.size() + 8) / 9;
+        int lockedRows = showLocked ? (locked.size() + 8) / 9 : 0;
+        int itemRows = Math.max(1, Math.min(MAX_ITEM_SLOTS / 9, availableRows + lockedRows));
+        int size = (itemRows + 1) * 9;
+        if (this.inventory == null || this.inventory.getSize() != size || inventoryMode != GUIMode.SHOP) {
             this.inventory = Bukkit.createInventory(null, size, Component.text(trader.displayName).decoration(TextDecoration.ITALIC, false));
+            inventoryMode = GUIMode.SHOP;
         }
         inventory.clear();
 
         int slot = 0;
-        for (TraderItem ti : trader.items) {
-            if (slot >= size) break;
-            ItemStack icon = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
-            if (icon == null) continue;
-            boolean unlocked = traderModule.isUnlocked(data, ti);
-            int requiredLevel = traderModule.getRequiredLevel(ti);
-
-            ItemMeta meta = icon.getItemMeta();
-            List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
-            if (lore == null) lore = new ArrayList<>();
-
-            lore.add(Component.empty());
-            lore.add(Component.text("解放レベル: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text("Lv." + requiredLevel, unlocked ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
-            if (ti.requiredQuestId != null) {
-                lore.add(Component.text(traderModule.getUnlockRequirements(ti),
-                        data.isQuestCompleted(ti.requiredQuestId) ? NamedTextColor.GREEN : NamedTextColor.RED)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
-            lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text(ti.price + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
-            if (ti.dailyLimit > 0) {
-                int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
-                int remaining = Math.max(0, ti.dailyLimit - bought);
-                lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                        .append(Component.text(remaining + "/" + ti.dailyLimit, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
-            }
-            if (unlocked) {
-                lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-                lore.add(Component.text("Shift+クリックで個数を指定", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-            } else {
-                lore.add(Component.text("未解放: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
-            }
-
-            meta.lore(lore);
-            meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
-            icon.setItemMeta(meta);
-
+        for (ItemStack icon : available) {
+            if (slot >= itemRows * 9) break;
             inventory.setItem(slot++, icon);
         }
+        if (showLocked) {
+            slot = availableRows * 9;
+            for (ItemStack icon : locked) {
+                if (slot >= itemRows * 9) break;
+                inventory.setItem(slot++, icon);
+            }
+        }
 
-        // クエストボタン (右下に配置)
+        int buttonRow = itemRows * 9;
+        inventory.setItem(buttonRow + TOGGLE_LOCKED_COLUMN, toggleLockedButton(locked.size()));
+
+        // クエストボタン (右下)
         ItemStack questBtn = new ItemStack(Material.BOOK);
         ItemMeta qm = questBtn.getItemMeta();
         qm.displayName(Component.text("クエスト一覧", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         qm.lore(List.of(Component.text("受領・報告はこちらから", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
         questBtn.setItemMeta(qm);
-        inventory.setItem(inventory.getSize() - 1, questBtn);
+        inventory.setItem(buttonRow + QUEST_COLUMN, questBtn);
 
-        // 修理ボタン (左下に配置、またはクエストの隣)
+        // 修理ボタン (クエストの隣)
         if (trader.canRepairArmor || trader.canRepairWeapon) {
             ItemStack repairBtn = new ItemStack(Material.ANVIL);
             ItemMeta rm = repairBtn.getItemMeta();
             rm.displayName(Component.text("装備修理", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-            
+
             List<Component> rl = new ArrayList<>();
             if (trader.canRepairArmor && trader.canRepairWeapon) {
                 rl.add(Component.text("アーマーと武器を修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
@@ -152,16 +162,79 @@ public class TraderGUI implements Listener {
                 rl.add(Component.text("武器を専門に修理します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             }
             rl.add(Component.text("クリックで修理メニューへ", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-            
+
             rm.lore(rl);
             repairBtn.setItemMeta(rm);
-            inventory.setItem(inventory.getSize() - 2, repairBtn);
+            inventory.setItem(buttonRow + REPAIR_COLUMN, repairBtn);
         }
     }
 
+    /** 買える品物: 品物そのものの見た目に、価格・本日の残り・操作を足す */
+    private ItemStack availableIcon(ItemStack icon, TraderItem ti, PlayerData data) {
+        ItemMeta meta = icon.getItemMeta();
+        List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                .append(Component.text(ti.price + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+        boolean soldOut = false;
+        if (ti.dailyLimit > 0) {
+            int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
+            int remaining = Math.max(0, ti.dailyLimit - bought);
+            soldOut = remaining == 0;
+            lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text(remaining + "/" + ti.dailyLimit, soldOut ? NamedTextColor.RED : NamedTextColor.YELLOW)
+                            .decoration(TextDecoration.ITALIC, false)));
+        }
+        if (soldOut) {
+            lore.add(Component.text("本日は売り切れ", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("クリックで購入", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Shift+クリックで個数を指定", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+        }
+        meta.lore(lore);
+        meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
+        icon.setItemMeta(meta);
+        return icon;
+    }
+
+    /** 未解放の品物: 灰色の板に名前と解放条件 (どこまで満たしたか) */
+    private ItemStack lockedIcon(ItemStack sample, TraderItem ti, PlayerData data) {
+        String name = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(sample.effectiveName());
+        ItemStack icon = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = icon.getItemMeta();
+        meta.displayName(Component.text("[未解放] " + name, NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        int requiredLevel = traderModule.getRequiredLevel(ti);
+        lore.add(Component.text("解放レベル: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                .append(Component.text("Lv." + requiredLevel, data.getLevel() >= requiredLevel ? NamedTextColor.GREEN : NamedTextColor.RED)
+                        .decoration(TextDecoration.ITALIC, false)));
+        if (ti.requiredQuestId != null) {
+            lore.add(Component.text(traderModule.getUnlockRequirements(ti),
+                    data.isQuestCompleted(ti.requiredQuestId) ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        }
+        lore.add(Component.text("価格: " + ti.price + "₽", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+        meta.lore(lore);
+        meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
+        icon.setItemMeta(meta);
+        return icon;
+    }
+
+    /** 未解放の品物を表示する・隠すの切り替え */
+    private ItemStack toggleLockedButton(int lockedCount) {
+        boolean hidden = hideLocked.contains(player.getUniqueId());
+        ItemStack button = new ItemStack(hidden ? Material.ENDER_EYE : Material.ENDER_PEARL);
+        ItemMeta meta = button.getItemMeta();
+        meta.displayName(Component.text(hidden ? "未解放の品物を表示する" : "未解放の品物を隠す", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        meta.lore(List.of(Component.text("未解放の品物: " + lockedCount + " 件", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false)));
+        button.setItemMeta(meta);
+        return button;
+    }
+
     private void setupRepairGUI() {
-        if (this.inventory == null || this.inventory.getSize() != 27) {
+        if (this.inventory == null || this.inventory.getSize() != 27 || inventoryMode != GUIMode.REPAIR) {
             this.inventory = Bukkit.createInventory(null, 27, Component.text(trader.displayName + " - 修理").decoration(TextDecoration.ITALIC, false));
+            inventoryMode = GUIMode.REPAIR;
         }
         inventory.clear();
 
@@ -406,8 +479,19 @@ public class TraderGUI implements Listener {
             event.setCancelled(true);
             int slot = event.getRawSlot();
             
+            int buttonRow = inventory.getSize() - 9;
+            // 未解放の品物の表示切り替え
+            if (slot == buttonRow + TOGGLE_LOCKED_COLUMN) {
+                if (!hideLocked.remove(player.getUniqueId())) hideLocked.add(player.getUniqueId());
+                Inventory before = inventory;
+                setupBuyGUI();
+                // 大きさが変わった時だけ開き直す (同じ画面ならその場で並べ替わっている)
+                if (inventory != before) player.openInventory(inventory);
+                return;
+            }
+
             // クエストボタン
-            if (slot == inventory.getSize() - 1) {
+            if (slot == buttonRow + QUEST_COLUMN) {
                 player.closeInventory();
                 com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule qm = traderModule.getPlugin().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
                 new com.lunar_prototype.impossbleEscapeMC.modules.quest.TraderQuestGUI(player, trader, qm).open();
@@ -415,13 +499,13 @@ public class TraderGUI implements Listener {
             }
             
             // 修理ボタン
-            if ((trader.canRepairArmor || trader.canRepairWeapon) && slot == inventory.getSize() - 2) {
+            if ((trader.canRepairArmor || trader.canRepairWeapon) && slot == buttonRow + REPAIR_COLUMN) {
                 mode = GUIMode.REPAIR;
                 open();
                 return;
             }
 
-            if (slot < inventory.getSize()) {
+            if (slot < buttonRow) {
                 ItemStack clicked = event.getCurrentItem();
                 if (clicked != null && clicked.getType() != Material.AIR) {
                     PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
@@ -530,80 +614,9 @@ public class TraderGUI implements Listener {
     public void handleBuy(String itemId, PlayerData data, int quantity) {
         TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
         if (ti == null) return;
-        if (quantity <= 0) return;
-        if (!traderModule.isUnlocked(data, ti)) {
-            player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED));
-            return;
-        }
-
-        traderModule.checkAndResetDailyPurchases(data);
-        int finalQuantity = quantity;
-        boolean limitAdjusted = false;
-        if (ti.dailyLimit > 0) {
-            int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
-            int allowed = Math.max(0, ti.dailyLimit - bought);
-            
-            if (allowed <= 0) {
-                player.sendMessage(Component.text("本日の購入制限に達しています。", NamedTextColor.RED));
-                return;
-            }
-            
-            if (quantity > allowed) {
-                finalQuantity = allowed;
-                limitAdjusted = true;
-            }
-        }
-
-        double totalPrice = ti.price * finalQuantity;
-        if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), totalPrice)) {
-            // アイテムをスタック数に合わせて配布
-            ItemStack sample = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
-            if (sample == null) {
-                // 万が一アイテムが見つからない場合は返金
-                traderModule.getEconomyModule().deposit(player.getUniqueId(), totalPrice);
-                return;
-            }
-            
-            int maxStack = sample.getType().getMaxStackSize();
-            int remainingToGive = finalQuantity;
-            boolean inventoryFull = false;
-
-            while (remainingToGive > 0) {
-                int amount = Math.min(remainingToGive, maxStack);
-                ItemStack item = sample.clone(); // 使い回す
-                item.setAmount(amount);
-                if (!player.getInventory().addItem(item).isEmpty()) {
-                    inventoryFull = true;
-                    break;
-                }
-                remainingToGive -= amount;
-            }
-
-            int actualGiven = finalQuantity - remainingToGive;
-            if (actualGiven > 0) {
-                if (ti.dailyLimit > 0) {
-                    for (int i = 0; i < actualGiven; i++) {
-                        data.incrementPurchase(trader.id + "_" + ti.itemId);
-                    }
-                    traderModule.getDataModule().saveAsync(player.getUniqueId());
-                }
-                
-                if (limitAdjusted) {
-                    player.sendMessage(Component.text("購入制限により、残りの購入可能数である " + actualGiven + " 個を購入しました。", NamedTextColor.YELLOW));
-                } else {
-                    player.sendMessage(Component.text(ti.itemId + " を " + actualGiven + " 個購入しました。", NamedTextColor.GREEN));
-                }
-                setupBuyGUI();
-            }
-
-            // 余った分を返金
-            if (remainingToGive > 0) {
-                traderModule.getEconomyModule().deposit(player.getUniqueId(), remainingToGive * ti.price);
-                player.sendMessage(Component.text("インベントリがいっぱいだったため、" + remainingToGive + " 個分の代金を返金しました。", NamedTextColor.RED));
-            }
-        } else {
-            player.sendMessage(Component.text("所持金が足りません。", NamedTextColor.RED));
-        }
+        TraderModule.Purchase result = traderModule.purchase(player, trader, ti, quantity);
+        result.messages().forEach(player::sendMessage);
+        if (result.bought() > 0) setupBuyGUI();
     }
 
     private void handleBulkSell() {

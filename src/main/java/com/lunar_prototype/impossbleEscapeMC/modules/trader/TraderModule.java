@@ -7,6 +7,11 @@ import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
 import java.util.*;
@@ -28,7 +33,9 @@ public class TraderModule implements IModule {
         this.economyModule = container.get(EconomyModule.class);
         
         loadTraders();
-        
+        // 買うトレーダーの画面 (ダイアログ) の操作を受ける
+        TraderDialog.init(this);
+
         // 登録
         container.register(TraderModule.class, this);
     }
@@ -150,6 +157,85 @@ public class TraderModule implements IModule {
             lastReset.get(Calendar.YEAR) != current.get(Calendar.YEAR)) {
             data.clearDailyPurchases();
         }
+    }
+
+    /** 本日あと何個買えるか (制限が無ければ Integer.MAX_VALUE) */
+    public int remainingToday(PlayerData data, TraderDefinition trader, TraderItem item) {
+        if (item.dailyLimit <= 0) return Integer.MAX_VALUE;
+        checkAndResetDailyPurchases(data);
+        int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + item.itemId, 0);
+        return Math.max(0, item.dailyLimit - bought);
+    }
+
+    /**
+     * 購入の結果。bought は買えた数、messages はプレイヤーに伝える文 (チャット)、notice は短い一言 (ダイアログのタイトル用)
+     */
+    public record Purchase(int bought, List<Component> messages, String notice) {
+    }
+
+    /**
+     * 品物を買う (チェストの画面・ダイアログの画面の両方から)。解放条件・本日の残り・所持金を確かめ、
+     * 持ち物に入りきらなかった分は代金を返す
+     */
+    public Purchase purchase(Player player, TraderDefinition trader, TraderItem ti, int quantity) {
+        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        List<Component> messages = new ArrayList<>();
+        if (data == null || quantity <= 0) return new Purchase(0, messages, null);
+        if (!isUnlocked(data, ti)) {
+            messages.add(Component.text("この取引の解放条件: " + getUnlockRequirements(ti), NamedTextColor.RED));
+            return new Purchase(0, messages, "未解放です");
+        }
+        int allowed = remainingToday(data, trader, ti);
+        if (allowed <= 0) {
+            messages.add(Component.text("本日の購入制限に達しています。", NamedTextColor.RED));
+            return new Purchase(0, messages, "本日は売り切れです");
+        }
+        int finalQuantity = Math.min(quantity, allowed);
+        boolean limitAdjusted = finalQuantity < quantity;
+
+        double totalPrice = ti.price * finalQuantity;
+        if (!economyModule.withdraw(player.getUniqueId(), totalPrice)) {
+            messages.add(Component.text("所持金が足りません。", NamedTextColor.RED));
+            return new Purchase(0, messages, "所持金が足りません");
+        }
+        ItemStack sample = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
+        if (sample == null) {
+            economyModule.deposit(player.getUniqueId(), totalPrice);
+            return new Purchase(0, messages, null);
+        }
+        String name = PlainTextComponentSerializer.plainText().serialize(sample.effectiveName());
+
+        int maxStack = sample.getMaxStackSize();
+        int remainingToGive = finalQuantity;
+        while (remainingToGive > 0) {
+            ItemStack item = sample.clone();
+            item.setAmount(Math.min(remainingToGive, maxStack));
+            int amount = item.getAmount();
+            var left = player.getInventory().addItem(item);
+            int notGiven = left.values().stream().mapToInt(ItemStack::getAmount).sum();
+            remainingToGive -= amount - notGiven;
+            if (notGiven > 0) break;
+        }
+
+        int actualGiven = finalQuantity - remainingToGive;
+        if (actualGiven > 0) {
+            if (ti.dailyLimit > 0) {
+                for (int i = 0; i < actualGiven; i++) data.incrementPurchase(trader.id + "_" + ti.itemId);
+                dataModule.saveAsync(player.getUniqueId());
+            }
+            if (limitAdjusted) {
+                messages.add(Component.text("購入制限により、残りの購入可能数である " + actualGiven + " 個を購入しました。", NamedTextColor.YELLOW));
+            } else {
+                messages.add(Component.text(name + " を " + actualGiven + " 個購入しました。", NamedTextColor.GREEN));
+            }
+        }
+        if (remainingToGive > 0) {
+            economyModule.deposit(player.getUniqueId(), remainingToGive * ti.price);
+            messages.add(Component.text("インベントリがいっぱいだったため、" + remainingToGive + " 個分の代金を返金しました。", NamedTextColor.RED));
+        }
+        String notice = actualGiven <= 0 ? "持ち物に空きがありません"
+                : "購入: " + name + " x" + actualGiven + (remainingToGive > 0 ? " (一部返金)" : "");
+        return new Purchase(actualGiven, messages, notice);
     }
 
     public PlayerDataModule getDataModule() {
