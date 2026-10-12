@@ -315,9 +315,7 @@ public class PDAGUI implements Listener {
             TraderModule traderModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
             new TraderSelectionGUI(player, traderModule).open();
         } else if (slot == 16) {
-            player.closeInventory();
-            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
-            new com.lunar_prototype.impossbleEscapeMC.modules.quest.PDAQuestGUI(player, questModule).open();
+            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog.openPda(player);
         } else if (slot == 17) {
             player.closeInventory();
             openDatapackSettings();

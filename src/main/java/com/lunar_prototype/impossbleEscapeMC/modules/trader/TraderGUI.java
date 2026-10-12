@@ -492,9 +492,7 @@ public class TraderGUI implements Listener {
 
             // クエストボタン
             if (slot == buttonRow + QUEST_COLUMN) {
-                player.closeInventory();
-                com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule qm = traderModule.getPlugin().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
-                new com.lunar_prototype.impossbleEscapeMC.modules.quest.TraderQuestGUI(player, trader, qm).open();
+                com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog.openTrader(player, trader);
                 return;
             }
             

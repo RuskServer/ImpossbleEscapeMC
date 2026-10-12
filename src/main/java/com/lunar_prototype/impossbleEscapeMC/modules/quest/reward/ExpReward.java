@@ -25,4 +25,8 @@ public class ExpReward extends QuestReward {
     public String getDescription() {
         return "経験値: " + amount;
     }
+
+    public int getAmount() {
+        return amount;
+    }
 }

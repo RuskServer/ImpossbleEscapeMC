@@ -14,7 +14,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
-import com.lunar_prototype.impossbleEscapeMC.modules.quest.TraderQuestGUI;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog;
 import com.lunar_prototype.impossbleEscapeMC.util.FontWidths;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
@@ -773,8 +773,7 @@ public final class TraderDialog implements Listener {
             case "quest" -> {
                 SESSIONS.remove(player.getUniqueId());
                 player.closeDialog();
-                QuestModule quests = module.getPlugin().getServiceContainer().get(QuestModule.class);
-                if (quests != null) new TraderQuestGUI(player, trader, quests).open();
+                QuestDialog.openTrader(player, trader);
                 return;
             }
             case "repair" -> {
