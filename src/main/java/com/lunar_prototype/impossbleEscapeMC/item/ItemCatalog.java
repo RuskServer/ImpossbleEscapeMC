@@ -48,6 +48,11 @@ final class ItemCatalog {
         ItemDefinition screwdriver = item("screwdriver", "LOOT", Material.IRON_INGOT, "ドライバー", 2, 3, 0, 180, 1);
         items.add(screwdriver);
 
+        // --- 道具 ---
+        // フラッシュライト: 手 (メイン・オフハンド) に持っている間、視線の先を照らす (Flashlight・ポストエフェクト iem:flashlight)
+        ItemDefinition flashlight = item("flashlight", "TOOL", Material.IRON_INGOT, "フラッシュライト", 2, 21, 0, 150, 1);
+        items.add(flashlight);
+
         ItemDefinition dry_fuel = item("dry_fuel", "LOOT", Material.IRON_INGOT, "§f固形燃料", 2, 19, 0, 300, 1);
         // weight: 0.3kg
         // cost: 1スロット占有（スタック不可）

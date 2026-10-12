@@ -140,7 +140,7 @@ public class ScavVision {
         if (eye.getWorld() != targetLoc.getWorld()) return false;
         double effectiveMaxVisionDistance = MAX_VISION_DISTANCE * (0.85 + (0.35 * alertness));
         // 暗がりに逃げ込まれると、追っていても見失いやすい (見つける時より緩い)
-        if (!recentlyFired(target)) effectiveMaxVisionDistance *= trackingVisibility(effectiveLight(targetLoc.getBlock()));
+        if (!recentlyFired(target)) effectiveMaxVisionDistance *= trackingVisibility(targetLight(target, targetLoc.getBlock()));
         if (eye.distanceSquared(targetLoc) > effectiveMaxVisionDistance * effectiveMaxVisionDistance) return false;
         return hasAdvancedLoS(target);
     }
@@ -153,6 +153,11 @@ public class ScavVision {
         org.bukkit.World world = block.getWorld();
         int sky = block.getLightFromSky() - skyDarken(world.getTime(), world.hasStorm(), world.isThundering());
         return Math.max(block.getLightFromBlocks(), Math.max(0, sky));
+    }
+
+    /** 相手の明るさ。点けたフラッシュライトを持っていれば、暗がりでも明るい所と同じ (光で居場所が分かる) */
+    static int targetLight(LivingEntity target, org.bukkit.block.Block block) {
+        return com.lunar_prototype.impossbleEscapeMC.item.Flashlight.isLit(target) ? 15 : effectiveLight(block);
     }
 
     /** 空の光の暗くなり方 (0 昼〜11 夜。雨・雷雨でさらに暗い)。バニラの Level#getSkyDarken と同じ式 */
@@ -184,7 +189,7 @@ public class ScavVision {
     /** 暗い所の相手を撃つ時に増えるばらつき (撃った直後は銃口の光で見えるので増えない) */
     public static double darknessSpread(LivingEntity target) {
         if (target == null || recentlyFired(target)) return 0.0;
-        int light = effectiveLight(target.getEyeLocation().getBlock());
+        int light = targetLight(target, target.getEyeLocation().getBlock());
         return light < 4 ? 0.06 : light < 8 ? 0.03 : 0.0;
     }
 
@@ -221,7 +226,7 @@ public class ScavVision {
         double awareness = !sneaking && horizontalSpeed(target) > 0.1 ? MOVING_AWARENESS_DISTANCE : CLOSE_AWARENESS_DISTANCE;
         if (angle > currentFov / 2.0 && dist > awareness) return false;
 
-        double visibility = spotVisibility(effectiveLight(targetLoc.getBlock()));
+        double visibility = spotVisibility(targetLight(target, targetLoc.getBlock()));
 
         if (sneaking) visibility *= 0.6;
         if (horizontalSpeed(target) > 0.1) visibility *= 1.2; // 歩き (約0.22ブロック/tick) 以上で動いている相手は目立つ
