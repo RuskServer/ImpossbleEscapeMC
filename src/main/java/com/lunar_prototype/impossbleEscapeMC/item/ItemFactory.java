@@ -512,7 +512,7 @@ public class ItemFactory {
     }
 
     /** 支給品 (PDCKeys.SUPPLIED) の説明の行 */
-    public static final String SUPPLIED_LORE_LINE = "§c支給品 §8(売却・納品不可、生還時に回収)";
+    public static final String SUPPLIED_LORE_LINE = "§c支給品 §8(売値 0₽、納品不可)";
 
     /** 弾のアイコン (リソースパックの assets/iem/items/ammo/&lt;id&gt;.json、IEM_shader/tools/ammo_icons.py が作る) */
     public static NamespacedKey ammoModel(String ammoId) {

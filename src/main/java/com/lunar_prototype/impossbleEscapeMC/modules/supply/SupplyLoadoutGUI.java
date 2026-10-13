@@ -108,7 +108,7 @@ public class SupplyLoadoutGUI implements Listener {
         List<Component> lore = new ArrayList<>();
         lore.add(line("無料の最低限の装備 (弾は貫通クラス" + SupplyLoadout.AMMO_CLASS + ")", NamedTextColor.GRAY));
         lore.add(line("防具の無い手足を狙えば SCAV に勝てます", NamedTextColor.GRAY));
-        lore.add(line("支給品は売却・納品できず、生還すると回収されます", NamedTextColor.GRAY));
+        lore.add(line("支給品は売値 0₽ (処分はできる)・納品できません", NamedTextColor.GRAY));
         lore.add(line("次に受け取れるのは " + SupplyLoadout.COOLDOWN_MILLIS / 60000 + " 分後", NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(reason == null ? line("クリックで受け取る", NamedTextColor.AQUA) : line(reason, NamedTextColor.RED));

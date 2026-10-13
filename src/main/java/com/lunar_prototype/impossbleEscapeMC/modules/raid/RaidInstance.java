@@ -533,7 +533,7 @@ public class RaidInstance {
         } else {
             extractionTimer.remove(p.getUniqueId());
             // 開いている画面 (漁る画面・バッグ) を先に閉じる。漁っている間は持ち物の欄がバックパックの表示になっていて、
-            // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (支給装備の回収・クエスト・持ち込みの印)
+            // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (クエスト・持ち込みの印)
             p.closeInventory();
 
             // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
@@ -574,8 +574,6 @@ public class RaidInstance {
                 }
             }
 
-            // 支給装備は生還したら回収する (拾った物は残る)
-            com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(p);
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
             resetCameraDistance(p);
             showIndividualRaidResult(p);
@@ -628,10 +626,9 @@ public class RaidInstance {
                     result.outcome = RaidOutcome.MIA;
                 }
                 // 開いている画面 (漁る画面・バッグ) を先に閉じる。漁っている間は持ち物の欄がバックパックの表示になっていて、
-                // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (支給装備の回収・クエスト・持ち込みの印)
+                // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (クエスト・持ち込みの印)
                 p.closeInventory();
                 clearRaidMarkersFromCurrentInventory(p);
-                com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(p); // 支給装備はロビーに戻る時に回収する
                 hud.hide(p);
                 resetCameraDistance(p);
                 showIndividualRaidResult(p);
@@ -718,10 +715,9 @@ public class RaidInstance {
             result.outcome = RaidOutcome.LEFT;
         }
         // 開いている画面 (漁る画面・バッグ) を先に閉じる。漁っている間は持ち物の欄がバックパックの表示になっていて、
-        // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (支給装備の回収・クエスト・持ち込みの印)
+        // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (クエスト・持ち込みの印)
         player.closeInventory();
         clearRaidMarkersFromCurrentInventory(player);
-        com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.reclaim(player); // 支給装備はロビーに戻る時に回収する
         players.remove(player.getUniqueId());
         resetCameraDistance(player);
         if (players.isEmpty()) {
