@@ -8,6 +8,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import org.bukkit.GameMode;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -56,7 +58,7 @@ public class StatusEffectManager implements Listener {
         if (data.getBleedingLevel() <= 0) return;
 
         // 1分間に2ダメージ = 1秒間に 2/60 (約0.033) ダメージ
-        double damage = data.getBleedingLevel() * (2.0 / 60.0);
+        double damage = data.getBleedingLevel() * (2.0 / 60.0) * Math.max(0, SkillModule.multiplier(player, SkillStat.BLEED_DAMAGE));
         player.damage(damage);
         
         // 血のパーティクル
@@ -69,7 +71,8 @@ public class StatusEffectManager implements Listener {
     private void handleFractureEffects(Player player, PlayerData data) {
         // 足の骨折: 走るとダメージ (鎮痛剤なしの場合)
         if (data.hasLegFracture() && player.isSprinting() && !data.isPainkillerActive()) {
-            player.damage(0.5);
+            double damage = Math.max(0, 0.5 + SkillModule.value(player, SkillStat.FRACTURE_SPRINT_DAMAGE));
+            if (damage > 0) player.damage(damage);
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_HURT, 0.5f, 0.8f);
             player.sendActionBar(Component.text("足の骨折: 走るとダメージを受けます！", NamedTextColor.RED));
         }
@@ -111,13 +114,15 @@ public class StatusEffectManager implements Listener {
 
         long now = System.currentTimeMillis();
 
-        // 1. 自動鎮痛効果 (5分クールダウン, 5秒持続)
-        if (now - data.getLastPainkillerTrigger() > 300_000) {
-            data.setPainkillerUntil(now + 5000);
+        // 1. 自動鎮痛効果 (5分クールダウン, 5秒持続。どちらもスキルで変わる)
+        long cooldown = 300_000 + (long) SkillModule.value(victim, SkillStat.ADRENALINE_COOLDOWN_MS);
+        long duration = 5000 + (long) SkillModule.value(victim, SkillStat.ADRENALINE_DURATION_MS);
+        if (now - data.getLastPainkillerTrigger() > cooldown) {
+            data.setPainkillerUntil(now + duration);
             data.setLastPainkillerTrigger(now);
-            victim.sendMessage(Component.text("アドレナリン放出！ (5秒間の鎮痛効果)", NamedTextColor.AQUA));
+            victim.sendMessage(Component.text("アドレナリン放出！ (" + duration / 1000 + "秒間の鎮痛効果)", NamedTextColor.AQUA));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.0f, 0.5f);
-            com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playAdrenaline(victim, 5000);
+            com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playAdrenaline(victim, duration);
         }
 
         // 2. 負傷判定
@@ -127,9 +132,14 @@ public class StatusEffectManager implements Listener {
 
     private void applyInjuryChance(Player victim, PlayerData data, String hitLocation, boolean penetrated) {
         double roll = Math.random();
+        // スキル: 確率を下げる (脚の骨折・出血は個別に、骨折・出血まとめての割合も)
+        double injury = Math.max(0, SkillModule.multiplier(victim, SkillStat.INJURY_CHANCE));
+        double legChance = Math.max(0, 0.25 + SkillModule.value(victim, SkillStat.LEG_FRACTURE_CHANCE)) * injury;
+        double armChance = 0.15 * injury;
+        double bleedChance = Math.max(0, 0.10 + SkillModule.value(victim, SkillStat.BLEED_CHANCE)) * injury;
 
         // 1. 足の骨折 (足に当たった場合のみ)
-        if ("legs".equals(hitLocation) && roll < 0.25) {
+        if ("legs".equals(hitLocation) && roll < legChance) {
             if (!data.hasLegFracture()) {
                 data.setLegFracture(true);
                 victim.sendMessage(Component.text("足に重傷を負いました！ (骨折)", NamedTextColor.RED));
@@ -137,7 +147,7 @@ public class StatusEffectManager implements Listener {
             }
         } 
         // 2. 腕の骨折 (腕に当たった場合のみ)
-        else if ("arms".equals(hitLocation) && roll < 0.15) {
+        else if ("arms".equals(hitLocation) && roll < armChance) {
             if (!data.hasArmFracture()) {
                 data.setArmFracture(true);
                 victim.sendMessage(Component.text("腕に重傷を負いました！ (骨折)", NamedTextColor.RED));
@@ -147,7 +157,7 @@ public class StatusEffectManager implements Listener {
 
         // 3. 出血 (貫通した場合、またはアーマーのない部位ヒット時のみ)
         boolean unarmoredHit = "legs".equals(hitLocation);
-        if ((penetrated || unarmoredHit) && roll < 0.10) {
+        if ((penetrated || unarmoredHit) && roll < bleedChance) {
             data.setBleedingLevel(data.getBleedingLevel() + 1);
             victim.sendMessage(Component.text("出血しています！", NamedTextColor.RED));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH, 1.0f, 1.0f);

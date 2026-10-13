@@ -69,7 +69,7 @@ public class TraderQuantityGUI implements Listener {
         inventory.setItem(16, createButton(Material.DARK_PRISMARINE, "§2+64", "§7個数を64増やす"));
 
         // 決定・キャンセル
-        inventory.setItem(22, createButton(Material.EMERALD_BLOCK, "§a§l購入を確定", "§7合計: " + (traderItem.price * quantity) + "₽"));
+        inventory.setItem(22, createButton(Material.EMERALD_BLOCK, "§a§l購入を確定", "§7合計: " + ((long) TraderModule.buyPrice(player.getUniqueId(), trader, traderItem) * quantity) + "₽"));
         inventory.setItem(18, createButton(Material.BARRIER, "§c戻る", "§7トレーダー画面に戻ります"));
     }
 
@@ -86,7 +86,7 @@ public class TraderQuantityGUI implements Listener {
         lore.add(Component.text("現在の選択個数: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                 .append(Component.text(quantity + " 個", NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false)));
         lore.add(Component.text("合計価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                .append(Component.text((traderItem.price * quantity) + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+                .append(Component.text(((long) TraderModule.buyPrice(player.getUniqueId(), trader, traderItem) * quantity) + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
         meta.lore(lore);
         item.setItemMeta(meta);
         inventory.setItem(13, item);
@@ -97,7 +97,7 @@ public class TraderQuantityGUI implements Listener {
             ItemMeta cMeta = confirm.getItemMeta();
             List<Component> cLore = new ArrayList<>();
             cLore.add(Component.text("合計価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text((traderItem.price * quantity) + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+                    .append(Component.text(((long) TraderModule.buyPrice(player.getUniqueId(), trader, traderItem) * quantity) + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
             cMeta.lore(cLore);
             confirm.setItemMeta(cMeta);
         }

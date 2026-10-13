@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
@@ -107,7 +109,12 @@ public final class SupplyLoadout {
     /** 次に受け取れるまでのミリ秒 (受け取れるなら 0) */
     public static long remainingCooldown(PlayerData data) {
         if (data == null || data.getLastSupplyTime() <= 0) return 0;
-        return Math.max(0, data.getLastSupplyTime() + COOLDOWN_MILLIS - System.currentTimeMillis());
+        return Math.max(0, data.getLastSupplyTime() + cooldownMillis(data) - System.currentTimeMillis());
+    }
+
+    /** 次に受け取れるまでの間隔 (スキルで短くなる。1 分より短くはしない) */
+    public static long cooldownMillis(PlayerData data) {
+        return Math.max(60_000L, COOLDOWN_MILLIS + (long) (SkillModule.value(data, SkillStat.SUPPLY_COOLDOWN_MIN) * 60_000));
     }
 
     /** 受け取れない理由。受け取れるなら null */
@@ -195,7 +202,7 @@ public final class SupplyLoadout {
     }
 
     /** 中身 (表示用と受け取り用で同じ)。並び: 銃, 弾 (1つ以上), ヘルメット, アーマー, バッグ, リグ, 医療品, 止血帯 */
-    public static List<ItemStack> contents(World world, Weapon weapon) {
+    public static List<ItemStack> contents(World world, Weapon weapon, PlayerData data) {
         List<ItemStack> items = new ArrayList<>();
         DatapackGunProfile profile = DatapackGunCatalog.get(weapon.gunId);
         ItemStack gun = profile != null ? GameItems.create(world, weapon.gunId, null) : null;
@@ -225,7 +232,11 @@ public final class SupplyLoadout {
             if (item != null) items.add(mark(item));
         }
         ItemStack med = ItemFactory.create(MED);
-        if (med != null) items.add(mark(withDurability(med, MED_DURABILITY)));
+        // AI-2 の残りはスキルで増える (最大の耐久まで)
+        int medDurability = MED_DURABILITY + (int) SkillModule.value(data, SkillStat.SUPPLY_AI2);
+        ItemDefinition medDef = ItemRegistry.get(MED);
+        if (medDef != null && medDef.maxDurability > 0) medDurability = Math.min(medDurability, medDef.maxDurability);
+        if (med != null) items.add(mark(withDurability(med, medDurability)));
         ItemStack tourniquet = ItemFactory.create(TOURNIQUET);
         if (tourniquet != null) items.add(mark(tourniquet));
         return items;
@@ -238,7 +249,7 @@ public final class SupplyLoadout {
     public static String give(Player player, PlayerData data, Weapon weapon) {
         String reason = blockingReason(player, data);
         if (reason != null) return reason;
-        List<ItemStack> items = contents(player.getWorld(), weapon);
+        List<ItemStack> items = contents(player.getWorld(), weapon, data);
         if (items.isEmpty() || DatapackGunCatalog.gunIdOf(items.getFirst()) == null) return "支給装備を用意できませんでした";
 
         PlayerInventory inventory = player.getInventory();

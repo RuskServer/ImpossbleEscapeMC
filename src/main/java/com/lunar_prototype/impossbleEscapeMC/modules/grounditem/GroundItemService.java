@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.grounditem;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -215,7 +217,8 @@ public final class GroundItemService implements Listener {
     private static Item targetItem(Player player) {
         Location eye = player.getEyeLocation();
         Vector direction = eye.getDirection();
-        RayTraceResult hit = player.getWorld().rayTraceEntities(eye, direction, PICKUP_RANGE, PICKUP_RAY_SIZE,
+        double range = PICKUP_RANGE + SkillModule.value(player, SkillStat.PICKUP_RANGE);   // スキルで延びる
+        RayTraceResult hit = player.getWorld().rayTraceEntities(eye, direction, range, PICKUP_RAY_SIZE,
                 entity -> entity instanceof Item item && item.isValid());
         if (hit == null || !(hit.getHitEntity() instanceof Item item)) return null;
         double itemDistance = hit.getHitPosition().distance(eye.toVector());

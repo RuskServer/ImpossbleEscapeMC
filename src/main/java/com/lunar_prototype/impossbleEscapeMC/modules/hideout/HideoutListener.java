@@ -66,6 +66,11 @@ public class HideoutListener implements Listener {
             if (stash != null) new StashPageSelectorGUI(event.getPlayer(), stash).open();
             return;
         }
+        if (facility == HideoutFacility.SKILL_TREE) {
+            event.setCancelled(true);
+            com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillTreeDialog.open(event.getPlayer());
+            return;
+        }
 
         if (!(block.getState() instanceof Sign sign)) return;
 

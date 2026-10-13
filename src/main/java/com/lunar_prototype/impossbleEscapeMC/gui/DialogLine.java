@@ -52,7 +52,12 @@ public final class DialogLine {
 
     /** 絵の字を今の位置に描いて進む (幅 + 1)。click・hover は null なら付けない */
     public DialogLine glyph(Key font, char c, int width, ClickEvent click, Component hover) {
-        Component g = Component.text(String.valueOf(c)).font(font).color(NamedTextColor.WHITE).shadowColor(ShadowColor.none());
+        return glyph(font, c, width, NamedTextColor.WHITE, click, hover);
+    }
+
+    /** 色を付けた絵の字 (白で描いた絵は、字の色がそのまま絵の色になる) */
+    public DialogLine glyph(Key font, char c, int width, TextColor color, ClickEvent click, Component hover) {
+        Component g = Component.text(String.valueOf(c)).font(font).color(color).shadowColor(ShadowColor.none());
         if (click != null) g = g.clickEvent(click);
         if (hover != null) g = g.hoverEvent(HoverEvent.showText(hover));
         out.append(g);
@@ -63,9 +68,14 @@ public final class DialogLine {
 
     /** 絵の字を at に描き、今の位置に戻る */
     public DialogLine stamp(Key font, char c, int width, int at) {
+        return stamp(font, c, width, at, NamedTextColor.WHITE);
+    }
+
+    /** 色を付けた絵の字を at に描き、今の位置に戻る */
+    public DialogLine stamp(Key font, char c, int width, int at, TextColor color) {
         int back = x;
         moveTo(at);
-        glyph(font, c, width, null, null);
+        glyph(font, c, width, color, null, null);
         return moveTo(back);
     }
 

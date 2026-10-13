@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
@@ -120,6 +122,9 @@ public class PlayerListener implements Listener {
             // 歩きは2秒、走りは0.5秒以上音を出している場合
             // SCAV自身の足音で仲間のSCAVを警戒させない (足音の効果音はプレイヤー向けにこの後も鳴らす)
             int alertTicks = isSprinting ? FOOTSTEP_ALERT_SPRINT_TICKS : FOOTSTEP_ALERT_WALK_TICKS;
+            if (entity instanceof Player p) {   // スキルで気づかれるまで延びる
+                alertTicks += (int) SkillModule.value(p, isSprinting ? SkillStat.SPRINT_ALERT_TICKS : SkillStat.WALK_ALERT_TICKS);
+            }
             if (ticks >= alertTicks && !ScavSpawner.isScav(entity.getUniqueId())) {
                 int now = org.bukkit.Bukkit.getCurrentTick();
                 Integer last = lastFootstepAlertTick.get(entity.getUniqueId());
@@ -136,8 +141,12 @@ public class PlayerListener implements Listener {
             // 足元の材質と場所の響きで鳴らし分ける (modules/acoustics)。しゃがみは小さく、走りは大きく、重いほど大きい
             // (音量が 1 を超えると、聞こえる距離が延びる)
             float volume = isSneaking ? 0.35f : isSprinting ? 1.0f : 0.8f;
+            if (entity instanceof Player p && !isSneaking && !isSprinting) {   // 歩きの足音はスキルで小さくなる
+                volume = (float) Math.max(0.1, volume + SkillModule.value(p, SkillStat.WALK_STEP_VOLUME));
+            }
             if (data != null) {
-                volume *= data.getWeightStage().getFootstepVolumeMultiplier(data.getCurrentWeight());
+                WeightStage stage = entity instanceof Player p ? SkillModule.weightStage(p, data.getCurrentWeight()) : data.getWeightStage();
+                volume *= stage.getFootstepVolumeMultiplier(data.getCurrentWeight());
             }
             float pitch = 0.95f + random.nextFloat() * 0.1f;
             FootstepSounds.play(entity, entity instanceof Player ? SoundCategory.PLAYERS : SoundCategory.HOSTILE, volume, pitch);
@@ -149,9 +158,11 @@ public class PlayerListener implements Listener {
         // 草むら・茂みをかき分ける音。入った時にすぐ鳴らし、中では一定の距離ごとに鳴らす
         String foliage = FoliageSounds.kindAround(entity);
         if (foliage != null) {
-            double rustle = foliageDistanceMap.getOrDefault(uuid, RUSTLE_DISTANCE)
+            // かき分ける音の間隔はスキルで延びる
+            double rustleDistance = RUSTLE_DISTANCE + (entity instanceof Player p ? SkillModule.value(p, SkillStat.RUSTLE_DISTANCE) : 0);
+            double rustle = foliageDistanceMap.getOrDefault(uuid, rustleDistance)
                     + distance * (isSneaking ? 0.6 : isSprinting ? 1.3 : 1.0);
-            if (rustle >= RUSTLE_DISTANCE) {
+            if (rustle >= rustleDistance) {
                 float volume = isSneaking ? 0.2f : isSprinting ? 0.85f : 0.55f;
                 float pitch = 0.9f + random.nextFloat() * 0.2f;
                 FoliageSounds.play(entity, foliage, entity instanceof Player ? SoundCategory.PLAYERS : SoundCategory.HOSTILE, volume, pitch);
@@ -165,7 +176,8 @@ public class PlayerListener implements Listener {
 
     private void alertNearbyScavsOfFootsteps(LivingEntity source, PlayerData data, Vector movementDirection, double movementSpeed,
                                              int continuousTicks, double walkedDistance, boolean sprinting, boolean sneaking) {
-        double baseRadius = 32.0;
+        // 足音で SCAV を呼ぶ範囲 (スキルで狭まる)
+        double baseRadius = Math.max(4, 32.0 + (source instanceof Player p ? SkillModule.value(p, SkillStat.FOOTSTEP_ALERT_RADIUS) : 0));
         double radius = baseRadius;
         
         if (data != null) {

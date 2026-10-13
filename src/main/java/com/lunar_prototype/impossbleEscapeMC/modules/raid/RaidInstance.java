@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
@@ -90,7 +93,7 @@ public class RaidInstance {
     }
 
     private static final String EXP_SURVIVED = "SURVIVED", EXP_DEAD = "DEAD", EXP_MIA = "MIA", EXP_LEFT = "LEFT",
-            EXP_SCAV = "SCAV", EXP_BOSS = "BOSS", EXP_PMC = "PMC";
+            EXP_SCAV = "SCAV", EXP_BOSS = "BOSS", EXP_PMC = "PMC", EXP_SKILL = "SKILL";
 
     /** 経験値を足す (レイド終了時に付与する分) と、リザルトの内訳 */
     private static void grant(RaidResult result, String reason, long amount) {
@@ -525,7 +528,8 @@ public class RaidInstance {
         count++;
         extractionTimer.put(p.getUniqueId(), count);
 
-        int remaining = 10 - count;
+        // 脱出にかかる時間 10 秒 (スキルで縮む)
+        int remaining = Math.max(1, 10 + (int) SkillModule.value(p, SkillStat.EXTRACT_SECONDS)) - count;
         if (remaining > 0) {
             p.sendActionBar(Component.text("脱出中... " + remaining + "s (" + ep.getName() + ")", NamedTextColor.GREEN));
             // カウントダウン音 (1秒ごと)
@@ -992,6 +996,12 @@ public class RaidInstance {
                 grant(result, result.outcome.name(), levelModule.getRaidOutcomeReward(levelModule.getLevel(uuid), result.outcome.name()));
             }
 
+            // スキル (交易の記録係): 経験値の合計に割合で足す
+            PlayerDataModule dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
+            double skillBonus = dataModule != null ? SkillModule.value(dataModule.getPlayerData(uuid), SkillStat.RAID_EXP) : 0;
+            long bonus = Math.round(result.experienceToGrant * skillBonus);
+            if (bonus > 0) grant(result, EXP_SKILL, bonus);
+
             result.levelBefore = levelModule.getLevel(uuid);
             result.expBefore = levelModule.getExperience(uuid);
             result.granted = true;
@@ -1036,6 +1046,16 @@ public class RaidInstance {
         if ((e = result.expBreakdown.get(EXP_SCAV)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "SCAV を排除", "×" + e[0], e[1]));
         if ((e = result.expBreakdown.get(EXP_BOSS)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "BOSS を排除", "×" + e[0], e[1]));
         if ((e = result.expBreakdown.get(EXP_PMC)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "PMC を排除", "×" + e[0], e[1]));
+        // スキルの経験値の上乗せ (付与する前なら、ここまでの合計からの見込み)
+        double skillBonus = SkillModule.value(player, SkillStat.RAID_EXP);
+        String bonusNote = "+" + Math.round(skillBonus * 100) + "%";
+        if ((e = result.expBreakdown.get(EXP_SKILL)) != null) {
+            lines.add(new RaidReport.ExpLine(UiIcon.EXP, "スキル (記録係)", bonusNote, e[1]));
+        } else if (!result.granted && skillBonus > 0) {
+            long sum = lines.stream().mapToLong(RaidReport.ExpLine::amount).sum();
+            long bonus = Math.round(sum * skillBonus);
+            if (bonus > 0) lines.add(new RaidReport.ExpLine(UiIcon.EXP, "スキル (記録係)", bonusNote, bonus));
+        }
 
         long end = result.endMillis > 0 ? result.endMillis : System.currentTimeMillis();
         RaidReport report = new RaidReport(map.getMapId(), result.outcome == RaidOutcome.SURVIVED,

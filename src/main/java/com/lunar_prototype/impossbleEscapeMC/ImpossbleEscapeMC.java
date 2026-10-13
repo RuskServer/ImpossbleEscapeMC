@@ -163,6 +163,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.scoreboard.ScoreboardModule());
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule(this));
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule(this));
 
         // モジュールの有効化
         moduleBootstrap.enableModules();

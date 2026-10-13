@@ -171,7 +171,8 @@ public final class TraderDialog implements Listener {
      * levelMet・questMet は解放の条件のそれぞれを満たしたか (未解放の行で色を分ける)
      */
     private record Entry(int index, TraderItem item, ItemStack icon, String name, Category category,
-                         AmmoDefinition ammo, int size, boolean unlocked, boolean levelMet, boolean questMet, int remaining) {
+                         AmmoDefinition ammo, int size, boolean unlocked, boolean levelMet, boolean questMet, int remaining,
+                         double price, int limit) {
     }
 
     private static final class Session {
@@ -292,12 +293,12 @@ public final class TraderDialog implements Listener {
     private static void showConfirm(Player player, Session session, TraderDefinition trader, PlayerData data, Entry entry) {
         int maxStack = Math.max(1, entry.icon().getMaxStackSize());
         double balance = module.getEconomyModule().getBalance(player.getUniqueId());
-        int affordable = entry.item().price <= 0 ? Integer.MAX_VALUE : (int) Math.floor(balance / entry.item().price);
+        int affordable = entry.price() <= 0 ? Integer.MAX_VALUE : (int) Math.floor(balance / entry.price());
         int max = Math.min(Math.min(entry.remaining(), affordable), maxStack * SLIDER_STACKS);
 
         List<DialogBody> body = new ArrayList<>();
         int free = Math.max(0, CostSlotManager.capacity(player, player.getInventory()) - CostSlotManager.usedCost(player, player.getInventory()));
-        ConfirmView view = new ConfirmView(entry.name(), price(entry.item().price), price(balance), free, maxStack,
+        ConfirmView view = new ConfirmView(entry.name(), price(entry.price()), price(balance), free, maxStack,
                 stockText(entry), entry.remaining() <= 0);
         body.add(DialogBody.item(entry.icon()).description(DialogBody.plainMessage(confirmRow(view), ROW_BODY_W))
                 .showTooltip(true).showDecorations(false).width(ITEM_BOX).height(ITEM_BOX).build());
@@ -313,7 +314,7 @@ public final class TraderDialog implements Listener {
                 .body(body);
         if (max > 0) {
             for (int quantity : quickQuantities(maxStack, max)) {
-                String label = (maxStack == 1 && quantity == 1 ? "購入" : "×" + quantity) + "  " + price(entry.item().price * quantity);
+                String label = (maxStack == 1 && quantity == 1 ? "購入" : "×" + quantity) + "  " + price(entry.price() * quantity);
                 buttons.add(ActionButton.create(Component.text(label), null, 98, action("buy/" + entry.index() + "/" + quantity)));
             }
             if (max > 1) {
@@ -336,11 +337,11 @@ public final class TraderDialog implements Listener {
     /** スライダーで選んだ個数の確かめ: 合計と購入後の所持金を見せて、もう一度押して買う */
     private static void showPurchaseCheck(Player player, Session session, Entry entry, int quantity) {
         double balance = module.getEconomyModule().getBalance(player.getUniqueId());
-        double total = entry.item().price * quantity;
+        double total = entry.price() * quantity;
         List<DialogBody> body = new ArrayList<>();
         body.add(DialogBody.item(entry.icon()).description(DialogBody.plainMessage(
                 Component.text(entry.name(), NAME).append(Component.newline())
-                        .append(Component.text(quantity + unitOf(entry) + "  ×  " + price(entry.item().price), NOTE)), ROW_BODY_W))
+                        .append(Component.text(quantity + unitOf(entry) + "  ×  " + price(entry.price()), NOTE)), ROW_BODY_W))
                 .showTooltip(true).showDecorations(false).width(ITEM_BOX).height(ITEM_BOX).build());
         body.add(DialogBody.plainMessage(Component.text("合計  ", NOTE).append(Component.text(price(total), AMBER))
                 .append(Component.text("     購入後の所持金  ", NOTE))
@@ -466,10 +467,10 @@ public final class TraderDialog implements Listener {
                 String questName = quest != null ? quest.getDisplayName() : e.item().requiredQuestId;
                 requirements.add(new Part("クエスト「" + questName + "」", e.questMet() ? OK : NG));
             }
-            return new RowView(e.name(), price(e.item().price), true, false, null, requirements, null, false);
+            return new RowView(e.name(), price(e.price()), true, false, null, requirements, null, false);
         }
         boolean sold = e.remaining() <= 0;
-        return new RowView(e.name(), price(e.item().price), false, sold, sold ? null : "item/" + e.index(),
+        return new RowView(e.name(), price(e.price()), false, sold, sold ? null : "item/" + e.index(),
                 subParts(e), stockText(e), sold);
     }
 
@@ -557,8 +558,8 @@ public final class TraderDialog implements Listener {
     }
 
     private static String stockText(Entry e) {
-        if (e.item().dailyLimit <= 0) return "制限なし";
-        return e.remaining() <= 0 ? "売り切れ (本日 0/" + e.item().dailyLimit + ")" : "本日 残り " + e.remaining() + "/" + e.item().dailyLimit;
+        if (e.limit() <= 0) return "制限なし";
+        return e.remaining() <= 0 ? "売り切れ (本日 0/" + e.limit() + ")" : "本日 残り " + e.remaining() + "/" + e.limit();
     }
 
     private static String traderName(TraderDefinition trader) {
@@ -580,7 +581,8 @@ public final class TraderDialog implements Listener {
                     Math.max(1, ItemWeights.costOf(icon)), module.isUnlocked(data, ti),
                     data.getLevel() >= module.getRequiredLevel(ti),
                     ti.requiredQuestId == null || data.isQuestCompleted(ti.requiredQuestId),
-                    module.remainingToday(data, trader, ti)));
+                    module.remainingToday(data, trader, ti),
+                    TraderModule.buyPrice(player.getUniqueId(), trader, ti), TraderModule.dailyLimit(player.getUniqueId(), ti)));
         }
         return entries;
     }
@@ -632,7 +634,7 @@ public final class TraderDialog implements Listener {
             case CALIBER -> Comparator.comparingInt((Entry e) -> e.ammo() != null ? caliberRank(e.ammo().caliber) : Integer.MAX_VALUE)
                     .thenComparingInt(e -> e.ammo() != null ? e.ammo().ammoClass : 0)
                     .thenComparing(byType);
-            case PRICE -> Comparator.comparingDouble((Entry e) -> e.item().price).thenComparing(byType);
+            case PRICE -> Comparator.comparingDouble((Entry e) -> e.price()).thenComparing(byType);
             case PENETRATION -> Comparator.comparingInt((Entry e) -> e.ammo() != null ? -e.ammo().ammoClass : 1)
                     .thenComparing(byType);
         };
