@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.stash.StashPageSelectorGUI;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -42,7 +44,18 @@ public class HideoutListener implements Listener {
         // 右クリックは手ごとに来ることがあるので、メインハンドの時だけ (画面を2回開かない)
         if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         Block block = event.getClickedBlock();
-        if (block == null || !(block.getState() instanceof Sign sign)) return;
+        if (block == null) return;
+
+        // 自分の隠れ家の、設備が置いたブロック: その設備の画面を開く (チェストなどの元の動作はさせない)
+        HideoutFacility facility = module.facilityAt(event.getPlayer(), block);
+        if (facility == HideoutFacility.STASH) {
+            event.setCancelled(true);
+            StashModule stash = module.getPlugin().getServiceContainer().get(StashModule.class);
+            if (stash != null) new StashPageSelectorGUI(event.getPlayer(), stash).open();
+            return;
+        }
+
+        if (!(block.getState() instanceof Sign sign)) return;
 
         // 看板の1行目をチェックして種類を判別 (エディターで書いてNBT保存する想定)
         String line1 = PlainTextComponentSerializer.plainText().serialize(sign.line(0)).toLowerCase();
