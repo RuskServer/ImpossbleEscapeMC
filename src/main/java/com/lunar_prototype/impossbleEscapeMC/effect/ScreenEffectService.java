@@ -275,6 +275,8 @@ public final class ScreenEffectService implements Listener {
     // --- 出撃時の PDA (iem:pda_*。IEM_shader/tools/raid_pda.py) ---
     /** 電源が入るまでの暗転 (クライアントの読み込み待ちの間も表示する) */
     private static final int PDA_BLACK_TICKS = 16;
+    /** 電源を入れる手元のスイッチの音を、液晶が開く何 tick 前に鳴らすか */
+    private static final int PDA_SWITCH_LEAD_TICKS = 4;
     private static final int PDA_POWER_STAGES = 4;
     private static final int PDA_OFF_STAGES = 4;
     private static final int PDA_STAGE_TICKS = 2;
@@ -291,20 +293,21 @@ public final class ScreenEffectService implements Listener {
     public static final String PDA_INTRO = "pda_intro";
 
     /**
-     * 出撃時の PDA の演出: 暗転 → 電源 (液晶が開く) → 起動ログ → 戦術マップ → 閉じる (CRT が消える) → 顔を上げる。
-     * 画面の中身 (文字・絵) はボスバーで描き、顔を上げる向きは呼ぶ側が動かすので、段に入った時に知らせる。
+     * 出撃時の PDA の演出: 暗転 → (スイッチ) → 電源 (液晶が開く) → 起動ログ → 戦術マップ → 閉じる (CRT が消える) → 顔を上げる。
+     * 画面の中身 (文字・絵)・効果音・顔を上げる向きは呼ぶ側が受け持つので、段に入った時に知らせる。
      * 演出が別の演出に置き換わった時は最後の知らせが来ないので、呼ぶ側は {@link #isPlaying} で確かめる
      */
-    public static void playPdaIntro(Player player, Runnable onBoot, Runnable onTacmap, Runnable onClosing, Runnable onRise,
-                                    Runnable onFinished) {
+    public static void playPdaIntro(Player player, Runnable onSwitch, Runnable onPower, Runnable onBoot, Runnable onTacmap,
+                                    Runnable onClosing, Runnable onRise, Runnable onFinished) {
         if (instance == null) {
             onFinished.run();
             return;
         }
         List<Step> steps = new ArrayList<>();
-        steps.add(new Step(Key.key(NAMESPACE, "pda_black"), PDA_BLACK_TICKS, false));
+        steps.add(new Step(Key.key(NAMESPACE, "pda_black"), PDA_BLACK_TICKS - PDA_SWITCH_LEAD_TICKS, false));
+        steps.add(new Step(Key.key(NAMESPACE, "pda_black"), PDA_SWITCH_LEAD_TICKS, false, onSwitch));
         for (int i = 1; i <= PDA_POWER_STAGES; i++) {
-            steps.add(new Step(Key.key(NAMESPACE, "pda_power_" + i), PDA_STAGE_TICKS, false));
+            steps.add(new Step(Key.key(NAMESPACE, "pda_power_" + i), PDA_STAGE_TICKS, false, i == 1 ? onPower : null));
         }
         steps.add(new Step(Key.key(NAMESPACE, "pda_screen"), PDA_BOOT_TICKS, false, onBoot));
         steps.add(new Step(Key.key(NAMESPACE, "pda_screen"), PDA_TACMAP_TICKS, false, onTacmap));
