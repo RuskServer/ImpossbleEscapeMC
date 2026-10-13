@@ -303,7 +303,7 @@ public class RaidSelectionGUI implements Listener {
         long remaining = data != null ? SupplyLoadout.remainingCooldown(data) : 0;
         return Component.join(net.kyori.adventure.text.JoinConfiguration.newlines(),
                 Component.text("装備が無くても出撃できる、無料の最低限の装備", NamedTextColor.GRAY),
-                Component.text("売却・納品はできず、生還すると回収されます", NamedTextColor.GRAY),
+                Component.text("売値は 0₽ (処分はできる)・納品はできません", NamedTextColor.GRAY),
                 remaining > 0 ? Component.text("次に受け取れるまで " + SupplyLoadout.formatDuration(remaining), NamedTextColor.YELLOW)
                         : Component.text("今すぐ受け取れます", NamedTextColor.GREEN));
     }

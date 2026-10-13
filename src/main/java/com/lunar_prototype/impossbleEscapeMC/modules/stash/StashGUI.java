@@ -31,8 +31,6 @@ public class StashGUI implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getInventory().equals(inventory)) {
-            // 支給品はスタッシュに入れられない (持ち物に戻してから保存する)
-            com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.ejectFrom(inventory, player);
             module.saveStash(player, page, inventory);
             HandlerList.unregisterAll(this);
             // Optionally return to PDA after short delay to avoid close/reopen flicker

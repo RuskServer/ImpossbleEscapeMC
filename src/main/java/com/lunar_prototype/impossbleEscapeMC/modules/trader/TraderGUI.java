@@ -401,14 +401,19 @@ public class TraderGUI implements Listener {
 
     private void updateSellButton() {
         double total = calculateTotalSellValue();
-        ItemStack button = new ItemStack(total > 0 ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK);
+        int supplied = countSupplied();
+        boolean any = total > 0 || supplied > 0;
+        ItemStack button = new ItemStack(any ? Material.EMERALD_BLOCK : Material.REDSTONE_BLOCK);
         ItemMeta meta = button.getItemMeta();
-        meta.displayName(Component.text("一括売却を実行", total > 0 ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        meta.displayName(Component.text("一括売却を実行", any ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
         lore.add(Component.text("合計買取価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                 .append(Component.text(total + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+        if (supplied > 0) {
+            lore.add(Component.text("支給品 " + supplied + " 点は 0₽ で処分します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        }
         lore.add(Component.empty());
-        if (total > 0) {
+        if (any) {
             lore.add(Component.text("クリックで売却を確定します", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         } else {
             lore.add(Component.text("中央のスロットに売却したいアイテムを入れてください", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
@@ -424,7 +429,7 @@ public class TraderGUI implements Listener {
      */
     private static String sellableIdOf(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
-        // 支給品は売れない (値段 0 で、閉じた時に持ち物へ戻る)
+        // 支給品は値段が付かない (0₽ で処分する。countSupplied)
         if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) return null;
         String itemId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         if (itemId != null) return itemId;
@@ -617,19 +622,33 @@ public class TraderGUI implements Listener {
         if (result.bought() > 0) setupBuyGUI();
     }
 
+    /** 売る欄の支給品の数 (どのトレーダーでも 0₽ で引き取る) */
+    private int countSupplied() {
+        int count = 0;
+        for (int slot : SELL_INPUT_SLOTS) {
+            if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(inventory.getItem(slot))) count++;
+        }
+        return count;
+    }
+
     private void handleBulkSell() {
         double total = calculateTotalSellValue();
-        if (total <= 0) {
+        int supplied = countSupplied();
+        if (total <= 0 && supplied == 0) {
             player.sendMessage(Component.text("売却可能なアイテムがありません。", NamedTextColor.RED));
             return;
         }
 
-        traderModule.getEconomyModule().deposit(player.getUniqueId(), total);
+        if (total > 0) traderModule.getEconomyModule().deposit(player.getUniqueId(), total);
         
-        // アイテムを消去
+        // アイテムを消去 (支給品は 0₽ で処分)
         for (int slot : SELL_INPUT_SLOTS) {
             ItemStack item = inventory.getItem(slot);
             if (item == null || item.getType() == Material.AIR) continue;
+            if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) {
+                inventory.setItem(slot, null);
+                continue;
+            }
             
             String itemId = sellableIdOf(item);
             if (itemId != null && trader.items.stream().anyMatch(i -> i.itemId.equals(itemId))) {
@@ -637,7 +656,12 @@ public class TraderGUI implements Listener {
             }
         }
 
-        player.sendMessage(Component.text("アイテムを売却し、" + total + "₽ を受け取りました。", NamedTextColor.GREEN));
+        if (total > 0) {
+            player.sendMessage(Component.text("アイテムを売却し、" + total + "₽ を受け取りました。", NamedTextColor.GREEN));
+        }
+        if (supplied > 0) {
+            player.sendMessage(Component.text("支給品 " + supplied + " 点を 0₽ で処分しました。", NamedTextColor.GRAY));
+        }
         updateSellButton();
     }
 }
