@@ -79,8 +79,6 @@ public final class ScreenEffectService implements Listener {
     private static final Key CONTROL = Key.key(NAMESPACE, "control");
     private static final Key CONTROL_DEBUG = Key.key(NAMESPACE, "control_debug");
     private static final Key FLASHLIGHT = Key.key(NAMESPACE, "flashlight");
-    /** 差し込む光 (窓・木の間から差す光の筋。IEM_shader/tools/sunlight.py)。画作りの層と一緒にかける */
-    private static final Key SUNLIGHT = Key.key(NAMESPACE, "sunlight");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
@@ -505,7 +503,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → 差し込む光 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -516,7 +514,6 @@ public final class ScreenEffectService implements Listener {
         if (controlDebug.contains(playerId)) effects.add(CONTROL_DEBUG);
         Key skyEffect = sky.get(playerId);
         if (skyEffect != null) effects.add(skyEffect);
-        if (graded.contains(playerId)) effects.add(SUNLIGHT);
         if (flashlit.contains(playerId)) effects.add(FLASHLIGHT);
         Key flashEffect = muzzleFlash.get(playerId);
         if (flashEffect != null) effects.add(flashEffect);
