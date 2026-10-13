@@ -85,6 +85,9 @@ public class BackpackModule implements IModule {
 
         sessions.put(player.getUniqueId(), new BackpackSession(uid));
         player.openInventory(finalInv);
+        // ジッパーを開ける音 (本人にだけ聞こえる。リソースパックの IEM_shader/tools/backpack_sounds.py)
+        player.playSound(player.getLocation(), "iem:backpack.open", org.bukkit.SoundCategory.PLAYERS, 0.8f,
+                0.95f + java.util.concurrent.ThreadLocalRandom.current().nextFloat() * 0.1f);
     }
 
     public void handleClose(Player player, Inventory inventory) {
