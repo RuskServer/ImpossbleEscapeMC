@@ -7,15 +7,11 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.Color;
-import org.bukkit.FireworkEffect;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
-import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -34,6 +30,7 @@ import java.util.function.Consumer;
  * 段階はマップの残り時間で決める。サイレンと照明弾の位置は、既存のマップデータ (スポーン・脱出・Scav・コンテナ) の
  * 範囲の外側に向けて求めるので、マップごとの追加設定はいらない。
  * 音はリソースパックの iem:raid_end.*、予兆の空の色と起爆の閃光は {@link ScreenEffectService} がこのクラスを見てかける。
+ * 照明弾は {@link SignalFlares} (光の玉と、周りを照らす光はリソースパックのシェーダーが描く)。
  * ミサイルから先の空と雲はリソースパックのシェーダーが描き、{@link EmpSkySignal} がその開始を伝える。
  */
 public final class RaidEndSequence {
@@ -69,7 +66,7 @@ public final class RaidEndSequence {
     private static final double SIREN_DISTANCE = 24.0;
     private static final double SIREN_HEIGHT = 12.0;
     private static final float SIREN_VOLUME = 4.0f;
-    /** 照明弾はプレイヤーからこの範囲の距離で打ち上げ、爆発に巻き込まないよう全員からこれ以上離す */
+    /** 照明弾はプレイヤーからこの範囲の距離で打ち上げ、誰かの真上で燃えないよう全員からこれ以上離す */
     private static final double FLARE_MIN_DISTANCE = 48.0;
     private static final double FLARE_MAX_DISTANCE = 72.0;
     private static final double FLARE_CLEARANCE = 16.0;
@@ -91,6 +88,7 @@ public final class RaidEndSequence {
     private final int precursorSeconds;
     private final int empSeconds;
     private final Random random = new Random();
+    private final SignalFlares flares;
     /** 終盤の音を聞かせたプレイヤー。レイドを抜けたら音を止める */
     private final Set<UUID> audible = new HashSet<>();
     /** マップの範囲の中心 (x, z)。最初に使う時に求める */
@@ -109,12 +107,14 @@ public final class RaidEndSequence {
         this.warningSeconds = plugin.getConfig().getInt("raid-end-sequence.warning-seconds", 180);
         this.precursorSeconds = plugin.getConfig().getInt("raid-end-sequence.precursor-seconds", 90);
         this.empSeconds = plugin.getConfig().getInt("raid-end-sequence.emp-seconds", 45);
+        this.flares = new SignalFlares(plugin);
     }
 
     /** 毎秒、マップの残り時間と今の参加者で段階を進める */
     public void tick(int timeLeft, Set<UUID> players) {
         this.timeLeft = timeLeft;
         stopForDeparted(players);
+        flares.setPlayers(players);
         List<Player> online = new ArrayList<>();
         for (UUID id : players) {
             Player player = Bukkit.getPlayer(id);
@@ -157,8 +157,14 @@ public final class RaidEndSequence {
         return progress < 2.0 / 3.0 ? PRECURSOR_2 : PRECURSOR_3;
     }
 
+    /** 照明弾がこのプレイヤーの周りを照らす光のポストエフェクト (照らしていなければ null) */
+    public Key flareLightEffect(Player player) {
+        return flares.lightEffect(player.getUniqueId());
+    }
+
     /** レイドの終了時に、終盤の音と空の演出を全員分止める */
     public void stop() {
+        flares.stop();
         for (UUID id : audible) {
             EmpSkySignal.stop(id);
             Player player = Bukkit.getPlayer(id);
@@ -292,17 +298,7 @@ public final class RaidEndSequence {
             if (!world.isChunkLoaded(x >> 4, z >> 4) || isNearAnyone(online, target)) continue;
 
             Location ground = new Location(world, x + 0.5, world.getHighestBlockYAt(x, z) + 1, z + 0.5);
-            world.spawn(ground, Firework.class, firework -> {
-                FireworkMeta meta = firework.getFireworkMeta();
-                meta.addEffect(FireworkEffect.builder()
-                        .with(FireworkEffect.Type.BALL_LARGE)
-                        .withColor(Color.fromRGB(255, 60, 40))
-                        .withFade(Color.fromRGB(255, 150, 70))
-                        .flicker(true)
-                        .build());
-                meta.setPower(2);
-                firework.setFireworkMeta(meta);
-            });
+            flares.launch(ground);
             return;
         }
     }

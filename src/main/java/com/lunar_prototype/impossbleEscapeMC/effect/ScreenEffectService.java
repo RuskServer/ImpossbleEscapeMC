@@ -47,6 +47,8 @@ import java.util.UUID;
  *   <li>確認用: iem:control_debug ({@link #toggleControlDebug}、/shaderdebug)。空のシェーダーが画面の左下の端に書いた数値
  *       (カメラの向き・太陽の向きなど。リソースパックの shaders/include/iem_control.glsl) を読んで重ねて描く</li>
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
+ *   <li>照明弾: レイド終盤の照明弾が見えている間 iem:flare_light_&lt;段階&gt; (照明弾の位置から周りを照らす光。段階は強さで、
+ *       見えなくなった時にゆっくり消す。RaidEndSequence の照明弾が決める)</li>
  *   <li>フラッシュライト: 点けたフラッシュライトを手に持っている間 iem:flashlight (周りを照らす光なので色味より下)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
  *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)。
@@ -170,6 +172,8 @@ public final class ScreenEffectService implements Listener {
     private final Set<UUID> menuClear = new HashSet<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
+    /** 照明弾の層のエフェクト (レイド終盤の照明弾が見えている間) */
+    private final Map<UUID, Key> flareLight = new HashMap<>();
     /** フラッシュライトの層をかけているプレイヤー (点けたフラッシュライトを手に持っている間) */
     private final Set<UUID> flashlit = new HashSet<>();
     /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間。雨に濡れていれば水滴の付いた物) */
@@ -439,12 +443,15 @@ public final class ScreenEffectService implements Listener {
 
         RaidInstance raid = alive && plugin.getRaidModule() != null ? plugin.getRaidModule().getRaidOf(player) : null;
         Key skyEffect = raid != null ? raid.getEndSequence().skyEffect() : null;
+        Key flareEffect = raid != null ? raid.getEndSequence().flareLightEffect(player) : null;
         Key woundEffect = alive ? woundEffectOf(player) : null;
         Key visorEffect = withRain(player, alive ? HelmetVisors.postEffectOf(player.getInventory().getHelmet()) : null);
 
         boolean changed = alive ? graded.add(playerId) : graded.remove(playerId);
         Key previousSky = skyEffect != null ? sky.put(playerId, skyEffect) : sky.remove(playerId);
         changed |= previousSky != skyEffect;
+        Key previousFlare = flareEffect != null ? flareLight.put(playerId, flareEffect) : flareLight.remove(playerId);
+        changed |= !java.util.Objects.equals(previousFlare, flareEffect);
         Key previous = woundEffect != null ? wound.put(playerId, woundEffect) : wound.remove(playerId);
         changed |= previous != woundEffect;
         Key previousVisor = visorEffect != null ? visor.put(playerId, visorEffect) : visor.remove(playerId);
@@ -557,7 +564,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー (濡れていれば水滴付き) → 画作り → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → 照明弾 → フラッシュライト → マズルフラッシュ → バイザー (濡れていれば水滴付き) → 画作り → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -568,6 +575,8 @@ public final class ScreenEffectService implements Listener {
         if (controlDebug.contains(playerId)) effects.add(CONTROL_DEBUG);
         Key skyEffect = sky.get(playerId);
         if (skyEffect != null) effects.add(skyEffect);
+        Key flareEffect = flareLight.get(playerId);
+        if (flareEffect != null) effects.add(flareEffect);
         if (flashlit.contains(playerId)) effects.add(FLASHLIGHT);
         Key flashEffect = muzzleFlash.get(playerId);
         if (flashEffect != null) effects.add(flashEffect);
@@ -604,6 +613,7 @@ public final class ScreenEffectService implements Listener {
         menuClear.remove(playerId);
         playing.remove(playerId);
         sky.remove(playerId);
+        flareLight.remove(playerId);
         visor.remove(playerId);
         visorWet.remove(playerId);
         flashlit.remove(playerId);
@@ -626,6 +636,7 @@ public final class ScreenEffectService implements Listener {
         UUID playerId = player.getUniqueId();
         awaitingRespawn.add(playerId);
         sky.remove(playerId);
+        flareLight.remove(playerId);
         visor.remove(playerId);
         flashlit.remove(playerId);
         graded.remove(playerId);
