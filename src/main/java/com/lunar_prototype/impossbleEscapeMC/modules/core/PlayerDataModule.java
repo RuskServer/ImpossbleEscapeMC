@@ -120,6 +120,12 @@ public class PlayerDataModule implements IModule, Listener {
             loadFailed.remove(uuid);
         }
         if (result.fromBackup()) result.data().setDirty(true);
+        if (result.created()) {
+            // 初めてのプレイヤー: 参加した時に初期物資を入れる (StarterKit)。
+            // 新しいデータは今まで通り、何か変わるまでは保存しない (参加しないまま読まれただけのデータをファイルにしない)
+            result.data().setStarterKitPending(true);
+            result.data().setDirty(false);
+        }
         return result.data();
     }
 

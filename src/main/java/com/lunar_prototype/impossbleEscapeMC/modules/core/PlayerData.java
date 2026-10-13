@@ -58,6 +58,8 @@ public class PlayerData {
     private boolean hideExtractMarkers;
     /** 最後に支給装備を受け取った時刻 (ミリ秒。受け取ったことが無ければ 0) */
     private long lastSupplyTime;
+    /** 初期物資をまだ受け取っていない (初めてのプレイヤーのデータを作った時だけ立てる。StarterKit が入れたら下ろす) */
+    private boolean starterKitPending;
     private java.util.Map<String, String> keybinds;
 
     // 隠れ家システム
@@ -390,6 +392,17 @@ public class PlayerData {
     public void setLastSupplyTime(long lastSupplyTime) {
         if (this.lastSupplyTime != lastSupplyTime) {
             this.lastSupplyTime = lastSupplyTime;
+            this.dirty = true;
+        }
+    }
+
+    public boolean isStarterKitPending() {
+        return starterKitPending;
+    }
+
+    public void setStarterKitPending(boolean starterKitPending) {
+        if (this.starterKitPending != starterKitPending) {
+            this.starterKitPending = starterKitPending;
             this.dirty = true;
         }
     }

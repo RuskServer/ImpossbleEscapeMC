@@ -40,11 +40,12 @@ public final class PlayerDataStorageTest {
 
         // 初めてのプレイヤー
         PlayerDataStorage.LoadResult fresh = storage.load(uuid);
-        check(!fresh.failed() && !fresh.fromBackup() && fresh.data().getBalance() == 0, "fresh player");
+        check(!fresh.failed() && !fresh.fromBackup() && fresh.created() && fresh.data().getBalance() == 0, "fresh player");
 
         // 書いて読む
         check(storage.write(uuid, 1, storage.toJson(data(uuid, 100))), "write 1");
         check(storage.load(uuid).data().getBalance() == 100, "read back");
+        check(!storage.load(uuid).created(), "existing player is not created");
 
         // 古い番号は書かない
         check(storage.write(uuid, 3, storage.toJson(data(uuid, 300))), "write 3");
@@ -62,7 +63,7 @@ public final class PlayerDataStorageTest {
         // 本体も控えも壊れていたら失敗 (保存してはいけない)
         for (File f : storage.backupDir(uuid).listFiles()) Files.writeString(f.toPath(), "not json", StandardCharsets.UTF_8);
         PlayerDataStorage.LoadResult failed = storage.load(uuid);
-        check(failed.failed(), "all broken -> failed");
+        check(failed.failed() && !failed.created(), "all broken -> failed (not a new player)");
 
         // 別のプレイヤーのデータが入っていたら読まない
         UUID other = UUID.randomUUID();
