@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.util.FontWidths;
@@ -58,18 +60,25 @@ public final class HideoutDialog implements Listener {
 
     static final int BODY_W = 452;
     static final int LINE_W = BODY_W - 8;
-    /** パネル (高さ 162) が入るだけの行 */
-    static final int LINES = 19;
+    /** 液晶より上の行 (見出し・切り替え・点)。液晶の行は行 6 から */
+    static final int HEAD_LINES = 6;
     /** 行の頭から見たパネルの左 */
     private static final int PANEL = -4;
 
     // フォント iem:hideout の字 (hideout_font.py と同じ)
-    private static final char CASING = '';     // + 行 x 2 + 列
-    private static final int CASING_TILE_W = 95;
-    private static final char LCD = '';        // + 列
-    private static final int LCD_TILE_W = 86;
+    // パネルは上の部分 (行 0)・液晶の行ごとの帯・下の部分を重ねる (高さは液晶の行の数で変わる)。どれも 2 枚 (+ 列)
+    private static final char TOP = '\uE000';
+    private static final char STRIP = '\uE002';
+    private static final char BOTTOM = '\uE004';
+    private static final int PANEL_TILE_W = 80;
     private static final char NAME = '';       // + 列
-    private static final int NAME_TILE_W = 71;
+    private static final int NAME_TILE_W = 56;
+    /** パネルの横の真ん中 (パネルの左から) と、液晶の右の内側 */
+    private static final int CENTER = 80;
+    private static final int RIGHT = 146;
+    /** 液晶の行の、値を書き始める所と、持っている数の右端 */
+    private static final int VALUE = 36;
+    private static final int HAVE_RIGHT = 131;
     private static final char ARROW_LEFT = '';
     private static final char ARROW_RIGHT = '';
     private static final int ARROW_W = 18;
@@ -145,7 +154,11 @@ public final class HideoutDialog implements Listener {
 
     /** パネルに出す値 */
     record PanelView(String label, int level, int maxLevel, int index, boolean[] built, String description,
-                     boolean hasRequirements, long cost, long money, String blocking) {
+                     boolean requirementsDefined, List<Requirement> requirements, String blocking) {
+    }
+
+    /** 必要な物 1 つ (お金か素材) と、持っている数 */
+    record Requirement(String label, long need, long have, boolean money) {
     }
 
     private PanelView view(Player player, PlayerData data, int index) {
@@ -155,18 +168,39 @@ public final class HideoutDialog implements Listener {
         int level = data.getHideoutLevel(facility.id);
         EconomyModule economy = module.getPlugin().getServiceContainer().get(EconomyModule.class);
         long money = economy != null ? (long) economy.getBalance(player.getUniqueId()) : 0;
-        long cost = facility.moneyCost(level + 1);
+        List<Requirement> requirements = requirements(player, data, facility, money);
         return new PanelView(facility.label, level, facility.maxLevel(module.getLayout()), index, built, facility.description(),
-                facility.hasRequirements(), cost, money, blocking(data, facility, money));
+                facility.hasRequirements(level + 1), requirements, blocking(data, facility, requirements));
+    }
+
+    /** 次のレベルに必要な物 (お金、素材の順) と、持っている数 (素材はスタッシュと持ち物) */
+    private List<Requirement> requirements(Player player, PlayerData data, HideoutFacility facility, long money) {
+        int next = data.getHideoutLevel(facility.id) + 1;
+        List<Requirement> requirements = new ArrayList<>();
+        long cost = facility.moneyCost(next);
+        if (cost > 0) requirements.add(new Requirement("₽", cost, money, true));
+        List<HideoutFacility.ItemCost> items = facility.itemCosts(next);
+        Map<String, Integer> have = module.countMaterials(player, data, items);
+        for (HideoutFacility.ItemCost item : items) {
+            requirements.add(new Requirement(itemName(item.itemId()), item.amount(), have.getOrDefault(item.itemId(), 0), false));
+        }
+        return requirements;
+    }
+
+    private static String itemName(String itemId) {
+        ItemDefinition def = ItemRegistry.get(itemId);
+        return def != null && def.displayName != null ? def.displayName.replaceAll("§.", "") : itemId;
     }
 
     /** 上げられない理由 (上げられるなら null) */
-    private String blocking(PlayerData data, HideoutFacility facility, long money) {
+    private String blocking(PlayerData data, HideoutFacility facility, List<Requirement> requirements) {
         int level = data.getHideoutLevel(facility.id);
         int max = facility.maxLevel(module.getLayout());
         if (level >= max) return max == 0 ? "まだ建てられません" : "最大レベルです";
-        if (!module.getLayout().hasLayer(facility, level + 1)) return "Lv." + (level + 1) + " の建築はまだ作られていません";
-        if (money < facility.moneyCost(level + 1)) return "所持金が足りません";
+        if (!module.getLayout().hasLayer(facility, level + 1)) return "Lv." + (level + 1) + " の建築が未作成";
+        for (Requirement r : requirements) {
+            if (r.have() < r.need()) return r.money() ? "所持金が足りません" : "素材が足りません";
+        }
         return null;
     }
 
@@ -198,35 +232,32 @@ public final class HideoutDialog implements Listener {
     /** パネルの行 (サーバーなしで組み立てられる。HideoutDialogLayoutTest が幅を確かめる) */
     static List<Line> panelLines(PanelView v) {
         List<Line> lines = new ArrayList<>();
-        for (int i = 0; i < LINES; i++) lines.add(new Line());
+        for (int i = 0; i < HEAD_LINES; i++) lines.add(new Line());
 
-        // 行 0: 筐体 (2 x 2) と大きい液晶 (2 枚)
+        // 行 0: パネルの上の部分 (筐体の上と、液晶の上の縁まで)
         Line l0 = lines.get(0);
-        for (int r = 0; r < 2; r++) {
-            for (int c = 0; c < 2; c++) l0.stamp((char) (CASING + r * 2 + c), CASING_TILE_W, PANEL + c * CASING_TILE_W);
-        }
-        for (int c = 0; c < 2; c++) l0.stamp((char) (LCD + c), LCD_TILE_W, PANEL + 9 + c * LCD_TILE_W);
+        for (int c = 0; c < 2; c++) l0.stamp((char) (TOP + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
 
         // 行 1: 見出し
-        lines.get(1).moveTo(PANEL + 9).text("HIDEOUT", AMBER).moveTo(PANEL + 64).text("隠れ家の設備", AMBER_DIM);
+        lines.get(1).moveTo(PANEL + 8).text("HIDEOUT", AMBER).moveTo(PANEL + 60).text("隠れ家の設備", AMBER_DIM);
 
         // 行 2: ◀ 名前の液晶 ▶
         Line l2 = lines.get(2);
         l2.moveTo(PANEL + 5).glyph(ARROW_LEFT, ARROW_W, click("prev"));
         for (int c = 0; c < 2; c++) l2.stamp((char) (NAME + c), NAME_TILE_W, PANEL + 24 + c * NAME_TILE_W);
-        l2.moveTo(PANEL + 167).glyph(ARROW_RIGHT, ARROW_W, click("next"));
+        l2.moveTo(PANEL + 137).glyph(ARROW_RIGHT, ARROW_W, click("next"));
 
         // 行 3: 設備の名前とレベル (名前の液晶の真ん中に)
         String state = v.level() == 0 && HideoutFacility.values()[v.index()] != HideoutFacility.BASE ? "未設置" : "Lv." + v.level();
         int nameW = FontWidths.width(v.label()) + 6 + FontWidths.width(state);
         Line l3 = lines.get(3);
-        l3.moveTo(PANEL + 95 - nameW / 2).text(v.label(), AMBER).shift(6).text(state, INK);
+        l3.moveTo(PANEL + CENTER - nameW / 2).text(v.label(), AMBER).shift(6).text(state, INK);
 
         // 行 4: 何番目の設備か (点。今見ている物は大きく、建ててある物は明るく)
         Line l4 = lines.get(4);
         int count = v.built().length;
         for (int i = 0; i < count; i++) {
-            int center = 95 + (i * 2 - (count - 1)) * 9 / 2;
+            int center = CENTER + (i * 2 - (count - 1)) * 9 / 2;
             if (i == v.index()) {
                 l4.stamp(DOT_CURRENT, 5, PANEL + center - 2);
             } else {
@@ -234,47 +265,67 @@ public final class HideoutDialog implements Listener {
             }
         }
 
-        // 行 6: 次のレベルと目盛り
-        Line l6 = lines.get(6);
+        // 液晶の行 (行 6 から): レベルと目盛り、効果 (あれば)、必要な物、空き、上げられるか
         boolean maxed = v.level() >= v.maxLevel();
-        l6.moveTo(PANEL + 14).text("次のレベル", AMBER_DIM).moveTo(PANEL + 64)
+        List<Line> rows = new ArrayList<>();
+        Line levelRow = stripRow();
+        levelRow.moveTo(PANEL + 13)
                 .text(maxed ? (v.maxLevel() == 0 ? "まだありません" : "最大レベル") : "Lv." + v.level() + " → Lv." + (v.level() + 1), INK);
         // 目盛りは右寄せ。文字に重なるほど多い時 (建物の改良など) は出さない
-        boolean pipsFit = PANEL + 176 - v.maxLevel() * (PIP_W + 2) >= l6.x + 4;
+        boolean pipsFit = PANEL + RIGHT - v.maxLevel() * (PIP_W + 2) >= levelRow.x + 4;
         for (int k = 0; pipsFit && k < v.maxLevel(); k++) {
             char pip = k < v.level() ? PIP_ON : (k == v.level() ? PIP_NEXT : PIP_OFF);
-            l6.stamp(pip, PIP_W, PANEL + 176 - (v.maxLevel() - k) * (PIP_W + 2));
+            levelRow.stamp(pip, PIP_W, PANEL + RIGHT + 2 - (v.maxLevel() - k) * (PIP_W + 2));
         }
-
-        // 行 8: 効果
-        lines.get(8).moveTo(PANEL + 14).text("効果", AMBER_DIM).moveTo(PANEL + 40)
-                .text(FontWidths.truncate(v.description() != null ? v.description() : "―", 136), INK);
-
-        // 行 11: 必要な物
-        Line l11 = lines.get(11);
-        l11.moveTo(PANEL + 14).text("必要", AMBER_DIM).moveTo(PANEL + 40);
-        if (maxed) {
-            l11.text("―", INK);
-        } else if (!v.hasRequirements() || v.cost() <= 0) {
-            l11.text("なし (条件は未定)", INK);
+        rows.add(levelRow);
+        if (v.description() != null) {
+            rows.add(stripRow().moveTo(PANEL + 13).text("効果", AMBER_DIM).moveTo(PANEL + VALUE)
+                    .text(FontWidths.truncate(v.description(), RIGHT - VALUE), INK));
+        }
+        if (maxed || !v.requirementsDefined() || v.requirements().isEmpty()) {
+            rows.add(stripRow().moveTo(PANEL + 13).text("必要", AMBER_DIM).moveTo(PANEL + VALUE)
+                    .text(maxed ? "―" : "なし (条件は未定)", INK));
         } else {
-            boolean ok = v.money() >= v.cost();
-            String have = String.format("%,d", v.money());
-            l11.text(String.format("₽ %,d", v.cost()), INK).moveTo(PANEL + 160 - FontWidths.width(have)).text(have, ok ? GREEN : RED)
-                    .moveTo(PANEL + 166).text(ok ? "✓" : "✕", ok ? GREEN : RED);
+            for (int i = 0; i < v.requirements().size(); i++) {
+                Requirement r = v.requirements().get(i);
+                boolean ok = r.have() >= r.need();
+                Line row = stripRow();
+                if (i == 0) row.moveTo(PANEL + 13).text("必要", AMBER_DIM);
+                // 右に持っている数 (お金は所持金、素材は 持っている数/必要な数) と ✓ ✕
+                String have = r.money() ? String.format("%,d", r.have()) : r.have() + "/" + r.need();
+                int haveX = PANEL + HAVE_RIGHT - FontWidths.width(have);
+                String label = r.money() ? String.format("₽ %,d", r.need()) : r.label();
+                row.moveTo(PANEL + VALUE).text(FontWidths.truncate(label, haveX - 4 - (PANEL + VALUE)), INK)
+                        .moveTo(haveX).text(have, ok ? GREEN : RED)
+                        .moveTo(PANEL + HAVE_RIGHT + 5).text(ok ? "✓" : "✕", ok ? GREEN : RED);
+                rows.add(row);
+            }
         }
-
-        // 行 15: 上げられるか
-        Line l15 = lines.get(15);
-        l15.moveTo(PANEL + 14);
+        rows.add(stripRow());
+        Line status = stripRow().moveTo(PANEL + 13);
         if (v.blocking() != null) {
-            l15.text(FontWidths.truncate(v.blocking(), 162), RED);
+            status.text(FontWidths.truncate(v.blocking(), RIGHT - 13), RED);
         } else {
-            l15.text("強化できます", GREEN);
+            status.text("強化できます", GREEN);
         }
+        rows.add(status);
+
+        // 最後の行の次に下の部分
+        lines.addAll(rows);
+        Line bottom = new Line();
+        for (int c = 0; c < 2; c++) bottom.stamp((char) (BOTTOM + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
+        lines.add(bottom);
+        lines.add(new Line());   // 下の部分 (13) が次の行にかかる分
 
         for (Line line : lines) line.moveTo(LINE_W);
         return lines;
+    }
+
+    /** 液晶の行: 先に帯 (筐体と液晶の 1 行ぶん) を敷く (後から敷くと文字が隠れる) */
+    private static Line stripRow() {
+        Line row = new Line();
+        for (int c = 0; c < 2; c++) row.stamp((char) (STRIP + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
+        return row;
     }
 
     private static Component join(List<Line> lines) {
@@ -328,7 +379,7 @@ public final class HideoutDialog implements Listener {
         HideoutFacility facility = FACILITIES[session.index];
         EconomyModule economy = module.getPlugin().getServiceContainer().get(EconomyModule.class);
         long money = economy != null ? (long) economy.getBalance(player.getUniqueId()) : 0;
-        String blocking = blocking(data, facility, money);
+        String blocking = blocking(data, facility, requirements(player, data, facility, money));
         if (blocking != null) {
             notice(session, Component.text(blocking, NamedTextColor.RED));
             return;
@@ -337,6 +388,19 @@ public final class HideoutDialog implements Listener {
         long cost = facility.moneyCost(next);
         if (cost > 0 && (economy == null || !economy.withdraw(player.getUniqueId(), cost))) {
             notice(session, Component.text("所持金が足りません", NamedTextColor.RED));
+            return;
+        }
+        // 素材はお金の後に取る。取れなければお金を返す
+        try {
+            if (!module.takeMaterials(player, data, facility.itemCosts(next))) {
+                if (cost > 0) economy.deposit(player.getUniqueId(), cost);
+                notice(session, Component.text("素材が足りません", NamedTextColor.RED));
+                return;
+            }
+        } catch (IOException e) {
+            if (cost > 0) economy.deposit(player.getUniqueId(), cost);
+            module.getPlugin().getLogger().log(Level.WARNING, "隠れ家の強化の素材を取れませんでした", e);
+            notice(session, Component.text("素材を取れませんでした", NamedTextColor.RED));
             return;
         }
         try {

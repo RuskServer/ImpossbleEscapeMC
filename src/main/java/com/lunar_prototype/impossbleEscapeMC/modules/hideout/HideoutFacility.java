@@ -2,6 +2,8 @@ package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
 import org.bukkit.Material;
 
+import java.util.List;
+
 /**
  * 隠れ家の設備。どれも最初は未設置 (Lv.0) で、レベルごとの建築はベースへの差分 ({@link HideoutLayout})。
  * 差分は「ベース → ベースの建築改良の各レベル → 各設備の各レベル (この並び順)」で重ねる。
@@ -59,9 +61,21 @@ public enum HideoutFacility {
         return 0;
     }
 
-    /** 強化の条件が決まっているか (決まっていない設備は、今は条件なしで上げられる) */
-    public boolean hasRequirements() {
-        return this == STASH;
+    /** 素材 1 種類 (アイテム ID と数)。スタッシュと持ち物から取る (支給品は使えない) */
+    public record ItemCost(String itemId, int amount) {
+    }
+
+    /** そのレベルにする素材 (決まっていなければ空) */
+    public List<ItemCost> itemCosts(int level) {
+        if (this == SKILL_TREE && level == 1) {
+            return List.of(new ItemCost("tool_box", 1), new ItemCost("mini_battery", 3), new ItemCost("bolts", 4), new ItemCost("usb", 1));
+        }
+        return List.of();
+    }
+
+    /** そのレベルの強化の条件が決まっているか (決まっていなければ、今は条件なしで上げられる) */
+    public boolean hasRequirements(int level) {
+        return moneyCost(level) > 0 || !itemCosts(level).isEmpty();
     }
 
     /** 画面に出す説明 (決まっていなければ null) */
