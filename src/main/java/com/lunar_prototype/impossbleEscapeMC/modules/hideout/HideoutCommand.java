@@ -156,7 +156,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             return;
         }
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        boolean inside = player.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME);
+        boolean inside = module.getWorldManager().isPlayerWorld(player.getWorld());
         try {
             module.reset(player, data);
         } catch (IOException e) {

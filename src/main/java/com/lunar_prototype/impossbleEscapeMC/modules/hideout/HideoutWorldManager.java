@@ -59,6 +59,16 @@ public class HideoutWorldManager {
         return Bukkit.getWorld(EDITOR_WORLD_NAME);
     }
 
+    /** プレイヤーの隠れ家のワールドか (名前ではなく、読み込んだワールドそのもので比べる) */
+    public boolean isPlayerWorld(World world) {
+        return world != null && world.equals(getPlayerWorld());
+    }
+
+    /** エディターのワールドか */
+    public boolean isEditorWorld(World world) {
+        return world != null && world.equals(getEditorWorld());
+    }
+
     /**
      * プレイヤーのインデックスに基づいた中心座標を取得
      */

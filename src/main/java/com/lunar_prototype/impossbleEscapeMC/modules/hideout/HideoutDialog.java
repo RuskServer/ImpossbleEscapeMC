@@ -129,6 +129,11 @@ public final class HideoutDialog implements Listener {
         if (instance != null) instance.camera.stopAll();
     }
 
+    /** 隠れ家の画面のカメラを使っている (スペクテイターになっている) か */
+    static boolean isCameraActive(Player player) {
+        return instance != null && instance.camera.isActive(player);
+    }
+
     /** 画面を開く。自分の隠れ家にいればカメラで設備を映す */
     public static void open(Player player) {
         if (instance == null) return;
@@ -147,7 +152,7 @@ public final class HideoutDialog implements Listener {
 
     private boolean inOwnHideout(Player player, PlayerData data) {
         return data != null && data.getHideoutIndex() >= 0 && module.getLayout().base() != null
-                && player.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME);
+                && module.getWorldManager().isPlayerWorld(player.getWorld());
     }
 
     // ---- 表示 ----
