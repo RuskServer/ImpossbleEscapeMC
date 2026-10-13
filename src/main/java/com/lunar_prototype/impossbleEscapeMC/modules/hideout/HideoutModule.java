@@ -90,6 +90,25 @@ public class HideoutModule implements IModule {
         dataModule.saveAsync(player.getUniqueId());
     }
 
+    /**
+     * 今いる所の原点 (ベースの最小の角が来る所)。エディターのワールドならいちばん近い区画、隠れ家のワールドなら自分の隠れ家。
+     * どちらでもなければ null
+     */
+    public BlockVector3 originAt(Player player, PlayerData data) {
+        String world = player.getWorld().getName();
+        Location at = player.getLocation();
+        if (world.equals(HideoutWorldManager.EDITOR_WORLD_NAME)) {
+            int facility = (int) Math.round(at.getX() / HideoutBuilder.EDITOR_STRIDE);
+            int level = (int) Math.round(at.getZ() / HideoutBuilder.EDITOR_STRIDE);
+            if (facility < 0 || facility >= HideoutFacility.values().length || level < 0) return null;
+            return HideoutBuilder.editorOrigin(HideoutFacility.values()[facility], level);
+        }
+        if (world.equals(HideoutWorldManager.PLAYER_WORLD_NAME) && data != null && data.getHideoutIndex() >= 0) {
+            return origin(data.getHideoutIndex());
+        }
+        return null;
+    }
+
     /** カメラが設備を画面の右寄りに映すよう、設備の方向から左へずらす角度 (度) */
     private static final float CAMERA_YAW_OFFSET = -15f;
 
@@ -102,6 +121,12 @@ public class HideoutModule implements IModule {
         World world = worldManager.getPlayerWorld();
         if (base == null || world == null || data.getHideoutIndex() < 0) return null;
         BlockVector3 origin = origin(data.getHideoutIndex());
+        // /hideout camera で記録した位置があればそれ
+        HideoutLayout.CameraPose recorded = layout.camera(facility);
+        if (recorded != null) {
+            return new Location(world, origin.getX() + recorded.x, origin.getY() + recorded.y, origin.getZ() + recorded.z,
+                    recorded.yaw, recorded.pitch);
+        }
         Vector spawn = new Vector(origin.getX() + base.spawnX, origin.getY() + base.spawnY + 1.6, origin.getZ() + base.spawnZ);
         int level = data.getHideoutLevel(facility.id);
         Set<BlockVector3> blocks = facility == HideoutFacility.BASE ? Set.of()

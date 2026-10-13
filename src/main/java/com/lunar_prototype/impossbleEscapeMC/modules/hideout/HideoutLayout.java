@@ -18,6 +18,7 @@ import java.util.List;
  *       増えたエンティティ・消えたエンティティ (キー)。ブロックが変わらないレベルには .schem が無い</li>
  *   <li>layout.json: 版。ベースか差分を保存するたびに上がり、建てた時の版と違う隠れ家は次に入った時に建て直す</li>
  *   <li>editor/&lt;設備&gt;_&lt;レベル&gt;.ref.schem / .ref.json: エディターで編集を始めた時の状態 (差分はこれと比べる)</li>
+ *   <li>cameras.json: 隠れ家の画面で設備を映すカメラの位置と向き (設備ごと。/hideout camera で記録。建物は変わらないので版は上げない)</li>
  * </ul>
  */
 public final class HideoutLayout {
@@ -106,6 +107,19 @@ public final class HideoutLayout {
         int version;
     }
 
+    /** カメラの位置 (目の位置。ベースの原点から) と向き */
+    public static final class CameraPose {
+        public double x;
+        public double y;
+        public double z;
+        public float yaw;
+        public float pitch;
+    }
+
+    private static final class Cameras {
+        java.util.Map<String, CameraPose> poses = new java.util.HashMap<>();
+    }
+
     private final File folder;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
@@ -178,6 +192,21 @@ public final class HideoutLayout {
 
     public void saveReference(HideoutFacility facility, int level, Reference reference) throws IOException {
         write(referenceJson(facility, level), reference);
+    }
+
+    // --- カメラ ---
+
+    /** 記録したカメラ (無ければ null: 自動で決める) */
+    public CameraPose camera(HideoutFacility facility) {
+        Cameras cameras = read(new File(folder, "cameras.json"), Cameras.class);
+        return cameras != null && cameras.poses != null ? cameras.poses.get(facility.id) : null;
+    }
+
+    public void saveCamera(HideoutFacility facility, CameraPose pose) throws IOException {
+        Cameras cameras = read(new File(folder, "cameras.json"), Cameras.class);
+        if (cameras == null || cameras.poses == null) cameras = new Cameras();
+        cameras.poses.put(facility.id, pose);
+        write(new File(folder, "cameras.json"), cameras);
     }
 
     // --- 版 ---

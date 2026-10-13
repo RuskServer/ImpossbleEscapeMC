@@ -41,6 +41,20 @@ public final class HideoutLayoutTest {
         layout.saveLayer(HideoutFacility.BASE, 1, new HideoutLayout.Layer());
         check(HideoutFacility.BASE.maxLevel(layout) == 1 && HideoutFacility.WORKBENCH.maxLevel(layout) == 4, "max levels");
 
+        // カメラの記録: 設備ごと。建物は変わらないので版は上げない
+        int before = layout.version();
+        check(layout.camera(HideoutFacility.STASH) == null, "no camera yet");
+        HideoutLayout.CameraPose pose = new HideoutLayout.CameraPose();
+        pose.x = 4.5;
+        pose.y = 2.62;
+        pose.z = -1.25;
+        pose.yaw = 135f;
+        pose.pitch = 12f;
+        layout.saveCamera(HideoutFacility.STASH, pose);
+        HideoutLayout.CameraPose back = layout.camera(HideoutFacility.STASH);
+        check(back != null && back.x == 4.5 && back.z == -1.25 && back.yaw == 135f, "camera round trip");
+        check(layout.camera(HideoutFacility.MEDICAL) == null && layout.version() == before, "camera is per facility and keeps the version");
+
         // ブロックの比べ方: いちばん外側の x, y, z だけを除く
         String chest = "minecraft:chest[facing=north]{Items:[{Slot:0b,id:\"minecraft:stone\",count:1,components:{x:1}}],x:10,y:64,z:-3,id:\"minecraft:chest\",CustomName:'{\"text\":\"a,x:1\"}'}";
         String moved = "minecraft:chest[facing=north]{Items:[{Slot:0b,id:\"minecraft:stone\",count:1,components:{x:1}}],x:522,y:70,z:9,id:\"minecraft:chest\",CustomName:'{\"text\":\"a,x:1\"}'}";
