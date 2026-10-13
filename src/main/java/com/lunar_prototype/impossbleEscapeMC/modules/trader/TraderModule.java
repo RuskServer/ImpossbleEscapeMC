@@ -12,6 +12,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 
 import java.io.File;
 import java.util.*;
@@ -161,10 +163,39 @@ public class TraderModule implements IModule {
 
     /** 本日あと何個買えるか (制限が無ければ Integer.MAX_VALUE) */
     public int remainingToday(PlayerData data, TraderDefinition trader, TraderItem item) {
-        if (item.dailyLimit <= 0) return Integer.MAX_VALUE;
+        int limit = dailyLimit(data.getUuid(), item);
+        if (limit <= 0) return Integer.MAX_VALUE;
         checkAndResetDailyPurchases(data);
         int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + item.itemId, 0);
-        return Math.max(0, item.dailyLimit - bought);
+        return Math.max(0, limit - bought);
+    }
+
+    /** そのプレイヤーの 1 日の上限 (0 以下なら制限なし。スキルで増える、端数は切り上げ) */
+    public static int dailyLimit(UUID player, TraderItem item) {
+        if (item.dailyLimit <= 0) return item.dailyLimit;
+        return (int) Math.ceil(item.dailyLimit * SkillModule.multiplier(player, SkillStat.DAILY_LIMIT) - 1e-9);
+    }
+
+    /** そのプレイヤーの買値 (スキルで安くなる。1₽ 単位に丸める) */
+    public static double buyPrice(UUID player, TraderDefinition trader, TraderItem item) {
+        SkillStat own = switch (trader.id) {
+            case "kovacs" -> SkillStat.BUY_KOVACS;
+            case "pharmakon" -> SkillStat.BUY_PHARMAKON;
+            case "bastion" -> SkillStat.BUY_BASTION;
+            default -> null;
+        };
+        double discount = SkillModule.value(player, SkillStat.BUY_ALL) + (own != null ? SkillModule.value(player, own) : 0);
+        return Math.round(item.price * Math.max(0, 1 + discount));
+    }
+
+    /** ブローカーの買取の倍率 (スキルで上がる) */
+    public static double sellMultiplier(UUID player) {
+        return SkillModule.multiplier(player, SkillStat.SELL_BROKER);
+    }
+
+    /** 修理代の倍率 (スキルで下がる) */
+    public static double repairMultiplier(UUID player) {
+        return Math.max(0, SkillModule.multiplier(player, SkillStat.REPAIR_COST));
     }
 
     /**
@@ -193,7 +224,8 @@ public class TraderModule implements IModule {
         int finalQuantity = Math.min(quantity, allowed);
         boolean limitAdjusted = finalQuantity < quantity;
 
-        double totalPrice = ti.price * finalQuantity;
+        double unitPrice = buyPrice(player.getUniqueId(), trader, ti);
+        double totalPrice = unitPrice * finalQuantity;
         if (!economyModule.withdraw(player.getUniqueId(), totalPrice)) {
             messages.add(Component.text("所持金が足りません。", NamedTextColor.RED));
             return new Purchase(0, messages, "所持金が足りません");
@@ -230,7 +262,7 @@ public class TraderModule implements IModule {
             }
         }
         if (remainingToGive > 0) {
-            economyModule.deposit(player.getUniqueId(), remainingToGive * ti.price);
+            economyModule.deposit(player.getUniqueId(), remainingToGive * unitPrice);
             messages.add(Component.text("インベントリがいっぱいだったため、" + remainingToGive + " 個分の代金を返金しました。", NamedTextColor.RED));
         }
         String notice = actualGiven <= 0 ? "持ち物に空きがありません"

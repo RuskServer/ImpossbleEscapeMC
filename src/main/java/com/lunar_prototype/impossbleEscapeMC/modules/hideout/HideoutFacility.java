@@ -70,6 +70,14 @@ public enum HideoutFacility {
         if (this == SKILL_TREE && level == 1) {
             return List.of(new ItemCost("tool_box", 1), new ItemCost("mini_battery", 3), new ItemCost("bolts", 4), new ItemCost("usb", 1));
         }
+        // 仮の値 (docs/SKILL_TREE.md)
+        if (this == SKILL_TREE && level == 2) {
+            return List.of(new ItemCost("tool_box", 2), new ItemCost("water_filter", 2), new ItemCost("wrench", 4), new ItemCost("usb", 2));
+        }
+        if (this == SKILL_TREE && level == 3) {
+            return List.of(new ItemCost("graphics_card", 1), new ItemCost("tool_box", 3), new ItemCost("mini_battery", 6),
+                    new ItemCost("mechanical_golden_watch", 1));
+        }
         return List.of();
     }
 
@@ -80,6 +88,7 @@ public enum HideoutFacility {
 
     /** 画面に出す説明 (決まっていなければ null) */
     public String description() {
+        if (this == SKILL_TREE) return "スキルを習得する端末";
         return this == STASH ? "スタッシュを開ける棚" : null;
     }
 

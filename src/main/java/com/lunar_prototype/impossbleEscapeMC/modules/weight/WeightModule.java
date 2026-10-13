@@ -9,6 +9,8 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.attribute.Attribute;
@@ -230,8 +232,8 @@ public class WeightModule implements IModule, Listener {
         // 1. 移動速度の補正
         updateSpeedModifier(player, weight);
 
-        // 2. ダッシュ制限 (Critical: 35kg〜)
-        if (weight >= 35000) {
+        // 2. ダッシュ制限 (Critical: 35kg〜。スキルで上がる)
+        if (weight >= 35000 + SkillModule.value(player, SkillStat.SPRINT_BLOCK_G)) {
             if (player.isSprinting()) {
                 player.setSprinting(false);
             }
@@ -252,7 +254,7 @@ public class WeightModule implements IModule, Listener {
         moveSpeed.removeModifier(SPEED_MODIFIER_KEY);
 
         double penalty = 0.0;
-        final int SPEED_DEBUFF_START_WEIGHT = 40000; // 40kg
+        final int SPEED_DEBUFF_START_WEIGHT = 40000 + (int) SkillModule.value(player, SkillStat.SLOW_START_G); // 40kg (スキルで上がる)
         final int SPEED_DEBUFF_MAX_WEIGHT = 60000; // 60kg
         final double MAX_SPEED_PENALTY = 0.75; // -75% speed reduction
 

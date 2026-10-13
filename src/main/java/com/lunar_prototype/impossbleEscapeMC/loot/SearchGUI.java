@@ -9,6 +9,8 @@ import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionStartEvent;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -43,6 +45,9 @@ import java.util.Map;
 import java.util.Set;
 
 public class SearchGUI implements Listener {
+    /** 1 マスの探索にかかる時間 (tick) */
+    private static final int SEARCH_TICKS = 10;
+
     private final ImpossbleEscapeMC plugin;
     private final NamespacedKey SEARCHED_SLOTS_KEY;
 
@@ -341,9 +346,10 @@ public class SearchGUI implements Listener {
             return;
         }
 
+        // 1 マス 10 tick (スキルで縮む)。1 tick ごとに進める
+        final int searchTicks = Math.max(1, SEARCH_TICKS + (int) SkillModule.value(player, SkillStat.SEARCH_TICKS));
         new BukkitRunnable() {
-            int progress = 0;
-            final int maxProgress = 20;
+            int elapsed = 0;
 
             @Override
             public void run() {
@@ -352,13 +358,14 @@ public class SearchGUI implements Listener {
                     return;
                 }
 
-                if (progress < maxProgress) {
+                if (elapsed < searchTicks) {
+                    int percent = elapsed * 100 / searchTicks;
                     ItemStack progressItem = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
                     ItemMeta meta = progressItem.getItemMeta();
-                    meta.displayName(Component.text("サーチ中... " + (progress * 5) + "%", NamedTextColor.GREEN));
-                    progressItem.setAmount(Math.max(1, progress));
+                    meta.displayName(Component.text("サーチ中... " + percent + "%", NamedTextColor.GREEN));
+                    progressItem.setAmount(Math.max(1, percent / 5));
                     guiInv.setItem(slot, progressItem);
-                    progress += 4;
+                    elapsed++;
                 } else {
                     markAsSearched(holder, source, slot);
                     updateInventory(guiInv, source);
@@ -366,7 +373,7 @@ public class SearchGUI implements Listener {
                     this.cancel();
                 }
             }
-        }.runTaskTimer(plugin, 0, 2);
+        }.runTaskTimer(plugin, 0, 1);
     }
 
     private Set<Integer> getSearchedSlots(PersistentDataContainer pdc) {

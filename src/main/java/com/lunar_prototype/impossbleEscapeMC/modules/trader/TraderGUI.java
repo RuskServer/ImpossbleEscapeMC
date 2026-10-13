@@ -175,14 +175,16 @@ public class TraderGUI implements Listener {
         List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
         lore.add(Component.empty());
         lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                .append(Component.text(ti.price + "₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+                .append(Component.text((long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.GOLD)
+                        .decoration(TextDecoration.ITALIC, false)));
         boolean soldOut = false;
-        if (ti.dailyLimit > 0) {
+        int limit = TraderModule.dailyLimit(player.getUniqueId(), ti);
+        if (limit > 0) {
             int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
-            int remaining = Math.max(0, ti.dailyLimit - bought);
+            int remaining = Math.max(0, limit - bought);
             soldOut = remaining == 0;
             lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text(remaining + "/" + ti.dailyLimit, soldOut ? NamedTextColor.RED : NamedTextColor.YELLOW)
+                    .append(Component.text(remaining + "/" + limit, soldOut ? NamedTextColor.RED : NamedTextColor.YELLOW)
                             .decoration(TextDecoration.ITALIC, false)));
         }
         if (soldOut) {
@@ -212,7 +214,8 @@ public class TraderGUI implements Listener {
             lore.add(Component.text(traderModule.getUnlockRequirements(ti),
                     data.isQuestCompleted(ti.requiredQuestId) ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         }
-        lore.add(Component.text("価格: " + ti.price + "₽", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("価格: " + (long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.DARK_GRAY)
+                .decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
         icon.setItemMeta(meta);
@@ -347,7 +350,7 @@ public class TraderGUI implements Listener {
             basePrice = TraderModule.getBaseWeaponRepairCost(def.rarity);
         }
         
-        return basePrice * damageRatio;
+        return basePrice * damageRatio * TraderModule.repairMultiplier(player.getUniqueId());   // スキルで安くなる
     }
 
     private void handleRepair() {
@@ -452,7 +455,7 @@ public class TraderGUI implements Listener {
                 total += ti.price * item.getAmount();
             }
         }
-        return total;
+        return Math.floor(total * TraderModule.sellMultiplier(player.getUniqueId()));   // ブローカーの買取はスキルで上がる
     }
 
     @EventHandler

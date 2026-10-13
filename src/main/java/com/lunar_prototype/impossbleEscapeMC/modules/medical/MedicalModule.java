@@ -7,6 +7,8 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -67,7 +69,8 @@ public class MedicalModule implements IModule, Listener {
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long now = System.currentTimeMillis();
             for (UUID uuid : new java.util.HashSet<>(lastInteract.keySet())) {
-                if (now - lastInteract.get(uuid) > 250) { // 250ms (約5チック) 経過で離したと判定
+                // 250ms (約5チック) 経過で離したと判定 (スキルで延びる)
+                if (now - lastInteract.get(uuid) > 250 + SkillModule.value(uuid, SkillStat.USE_GRACE_MS)) {
                     stopUsing(Bukkit.getPlayer(uuid));
                 }
             }
@@ -124,16 +127,19 @@ public class MedicalModule implements IModule, Listener {
             progressTicks.put(uuid, 0);
             boolean cat = CAT_ID.equals(def.id);
             if (cat) playMedSound(player, "iem:med.cat.velcro");
+            // CAT の使用時間はスキルで短くなる
+            int duration = cat ? Math.max(1, def.medStats.durationTicks + (int) SkillModule.value(player, SkillStat.CAT_TICKS))
+                    : def.medStats.durationTicks;
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 int current = progressTicks.getOrDefault(uuid, 0) + 1;
                 progressTicks.put(uuid, current);
 
                 // 残り時間をアクションバーに表示 (撃ち合いの中で「あと何秒で動けるか」が分かるように)
-                double remainingSeconds = Math.max(0, def.medStats.durationTicks - current) / 20.0;
+                double remainingSeconds = Math.max(0, duration - current) / 20.0;
                 player.sendActionBar(net.kyori.adventure.text.Component.text(
                         String.format("使用中… %.1fs", remainingSeconds), net.kyori.adventure.text.format.NamedTextColor.YELLOW));
 
-                if (current >= def.medStats.durationTicks) {
+                if (current >= duration) {
                     finishOneTimeUsing(player, def);
                 } else if (cat) {
                     String step = CAT_STEPS.get(current);
@@ -215,12 +221,13 @@ public class MedicalModule implements IModule, Listener {
             }
         }
 
-        // 回復タスクがなければ開始 (0.5s = 10ticks 周期)
+        // 回復タスクがなければ開始 (0.5s = 10ticks 周期。AI-2 はスキルで短くなる)
         if (!activeTasks.containsKey(uuid)) {
             progressTicks.put(uuid, 0);
+            long period = AI2_ID.equals(def.id) ? Math.max(1, 10 + (long) SkillModule.value(player, SkillStat.AI2_INTERVAL_TICKS)) : 10L;
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 handleHeal(player, def);
-            }, 10L, 10L).getTaskId();
+            }, period, period).getTaskId();
             activeTasks.put(uuid, taskId);
         }
     }
@@ -248,7 +255,9 @@ public class MedicalModule implements IModule, Listener {
             return;
         }
 
-        double newHealth = Math.min(maxHealth, currentHealth + def.medStats.healPerUse);
+        boolean ai2 = AI2_ID.equals(def.id);
+        double heal = def.medStats.healPerUse + (ai2 ? SkillModule.value(player, SkillStat.AI2_HEAL) : 0);
+        double newHealth = Math.min(maxHealth, currentHealth + heal);
         player.setHealth(newHealth);
         if (AI2_ID.equals(def.id)) {
             // 錠剤を振る・シートから押し出すを交互に
@@ -264,7 +273,8 @@ public class MedicalModule implements IModule, Listener {
             stopUsing(player);
         }
 
-        // 耐久消費
+        // 耐久消費 (AI-2 はスキルで、確率で減らさない)
+        if (ai2 && Math.random() < SkillModule.value(player, SkillStat.AI2_SAVE_CHANCE)) return;
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         int currentDurability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
         int nextDurability = currentDurability - def.medStats.durabilityPerUse;

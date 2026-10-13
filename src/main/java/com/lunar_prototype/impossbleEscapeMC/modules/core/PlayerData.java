@@ -67,6 +67,9 @@ public class PlayerData {
     private int hideoutIndex; // 隠れ家の配置場所を決めるインデックス (-1: 未割り当て)
     private int hideoutBuiltVersion; // 隠れ家を建てた時の建築データの版 (HideoutLayout#version。違えば次に入った時に建て直す)
 
+    // スキルツリー (習得したノードの id。SkillCatalog)
+    private java.util.Set<String> skills;
+
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
         this.balance = 0.0;
@@ -435,6 +438,20 @@ public class PlayerData {
 
     public String getKeybindForAction(String action) {
         return getKeybinds().getOrDefault(action, "");
+    }
+
+    // スキルツリー
+    public java.util.Set<String> getSkills() {
+        if (skills == null) skills = new java.util.LinkedHashSet<>();
+        return skills;
+    }
+
+    public boolean hasSkill(String id) {
+        return getSkills().contains(id);
+    }
+
+    public void addSkill(String id) {
+        if (getSkills().add(id)) this.dirty = true;
     }
 
     // 隠れ家システム
