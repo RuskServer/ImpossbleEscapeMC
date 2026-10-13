@@ -5,7 +5,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,11 +16,17 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 
+/** 隠れ家の画面: 建物 (ベースの建築改良) と各設備のレベル。クリックで 1 レベル上げる (その建築の差分を重ねる) */
 public class HideoutGUI implements Listener {
+    /** 建物は上の段の真ん中、設備は 2 段目に並べる */
+    private static final int BASE_SLOT = 4;
+    private static final int FIRST_FACILITY_SLOT = 9;
+
     private final HideoutModule module;
     private final Player player;
     private final Inventory inventory;
@@ -38,6 +43,10 @@ public class HideoutGUI implements Listener {
         player.openInventory(inventory);
     }
 
+    private static int slotOf(HideoutFacility facility) {
+        return facility == HideoutFacility.BASE ? BASE_SLOT : FIRST_FACILITY_SLOT + facility.ordinal() - 1;
+    }
+
     private void updateInventory() {
         inventory.clear();
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
@@ -49,72 +58,68 @@ public class HideoutGUI implements Listener {
         bg.setItemMeta(bgMeta);
         for (int i = 0; i < inventory.getSize(); i++) inventory.setItem(i, bg);
 
-        // 各設備のスロット
-        setupModuleIcon("generator", 11, Material.BLAST_FURNACE, "発電機", data);
-        setupModuleIcon("workbench", 13, Material.CRAFTING_TABLE, "ワークベンチ", data);
-        setupModuleIcon("lighting", 15, Material.LANTERN, "照明", data);
+        for (HideoutFacility facility : HideoutFacility.values()) {
+            inventory.setItem(slotOf(facility), icon(facility, data));
+        }
     }
 
-    private void setupModuleIcon(String type, int slot, Material material, String displayName, PlayerData data) {
-        int currentLevel = data.getHideoutLevel(type);
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(displayName, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-        
-        List<Component> lore = new ArrayList<>();
-        lore.add(Component.text("現在のレベル: Lv." + currentLevel, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.empty());
-        lore.add(Component.text("クリックでアップグレード (Lv." + (currentLevel + 1) + ")", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.text("必要費用: 10,000₽", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)); // 固定値テスト
+    /** 上げられない理由 (上げられるなら null) */
+    private String blocking(HideoutFacility facility, PlayerData data) {
+        int level = data.getHideoutLevel(facility.id);
+        int max = facility.maxLevel(module.getLayout());
+        if (level >= max) return max == 0 ? "まだ建てられません" : "最大レベルです";
+        if (!module.getLayout().hasLayer(facility, level + 1)) return "Lv." + (level + 1) + " の建築はまだ作られていません";
+        return null;
+    }
 
+    private ItemStack icon(HideoutFacility facility, PlayerData data) {
+        int level = data.getHideoutLevel(facility.id);
+        int max = facility.maxLevel(module.getLayout());
+        ItemStack item = new ItemStack(facility.icon);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text(facility.label, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.text(level == 0 ? "未設置" : "Lv." + level + " / " + max, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.empty());
+        String blocking = blocking(facility, data);
+        lore.add(blocking == null
+                ? Component.text("クリックで " + (level == 0 ? "設置" : "Lv." + (level + 1) + " にアップグレード"), NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false)
+                : Component.text(blocking, NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         item.setItemMeta(meta);
-        inventory.setItem(slot, item);
+        return item;
     }
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
         event.setCancelled(true);
-
         int slot = event.getRawSlot();
-        if (slot == 11) handleUpgrade("generator");
-        else if (slot == 13) handleUpgrade("workbench");
-        else if (slot == 15) handleUpgrade("lighting");
+        for (HideoutFacility facility : HideoutFacility.values()) {
+            if (slotOf(facility) == slot) handleUpgrade(facility);
+        }
     }
 
-    private void handleUpgrade(String type) {
+    private void handleUpgrade(HideoutFacility facility) {
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        int nextLevel = data.getHideoutLevel(type) + 1;
-
-        // コストチェック (本来は EconomyModule を使用)
-        // ここでは簡易的に実行
-        
-        File structureFile = new File(module.getPlugin().getDataFolder(), "structures/" + type + "_" + nextLevel + ".nbt");
-        if (!structureFile.exists()) {
-            player.sendMessage(Component.text("エラー: Lv." + nextLevel + " のデータが見つかりません。", NamedTextColor.RED));
+        String blocking = blocking(facility, data);
+        if (blocking != null) {
+            player.sendMessage(Component.text(facility.label + ": " + blocking, NamedTextColor.RED));
             return;
         }
-
-        // レベル更新
-        data.setHideoutLevel(type, nextLevel);
-        
-        // パッチ適用 (座標オフセット)
-        Location center = module.getWorldManager().getPlayerCenter(data.getHideoutIndex());
-        Location offset = getOffset(type);
-        module.getStructureService().placeSmart(structureFile, center.clone().add(offset), true);
-
-        player.sendMessage(Component.text(type + " を Lv." + nextLevel + " にアップグレードしました！", NamedTextColor.GREEN));
-        updateInventory();
-    }
-
-    private Location getOffset(String type) {
-        switch (type) {
-            case "generator": return new Location(null, -5, 0, -5);
-            case "workbench": return new Location(null, 5, 0, -5);
-            case "lighting": return new Location(null, 0, 5, 0);
-            default: return new Location(null, 0, 0, 0);
+        try {
+            module.upgrade(player, data, facility);
+        } catch (IOException e) {
+            module.getPlugin().getLogger().log(Level.WARNING, "隠れ家の設備を建てられませんでした", e);
+            player.sendMessage(Component.text("レベルは上がりましたが、建築を反映できませんでした (次に入った時に建て直します): "
+                    + e.getMessage(), NamedTextColor.RED));
+            updateInventory();
+            return;
         }
+        int level = data.getHideoutLevel(facility.id);
+        player.sendMessage(Component.text(facility.label + " を " + (level == 1 ? "設置しました" : "Lv." + level + " にアップグレードしました"),
+                NamedTextColor.GREEN));
+        updateInventory();
     }
 
     @EventHandler

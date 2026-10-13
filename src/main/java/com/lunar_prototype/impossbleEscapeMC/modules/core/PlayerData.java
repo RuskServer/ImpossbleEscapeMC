@@ -65,6 +65,7 @@ public class PlayerData {
     // 隠れ家システム
     private java.util.Map<String, Integer> hideoutLevels;
     private int hideoutIndex; // 隠れ家の配置場所を決めるインデックス (-1: 未割り当て)
+    private int hideoutBuiltVersion; // 隠れ家を建てた時の建築データの版 (HideoutLayout#version。違えば次に入った時に建て直す)
 
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
@@ -449,6 +450,17 @@ public class PlayerData {
     public void setHideoutLevel(String type, int level) {
         getHideoutLevels().put(type, level);
         this.dirty = true;
+    }
+
+    public int getHideoutBuiltVersion() {
+        return hideoutBuiltVersion;
+    }
+
+    public void setHideoutBuiltVersion(int hideoutBuiltVersion) {
+        if (this.hideoutBuiltVersion != hideoutBuiltVersion) {
+            this.hideoutBuiltVersion = hideoutBuiltVersion;
+            this.dirty = true;
+        }
     }
 
     public int getHideoutIndex() {

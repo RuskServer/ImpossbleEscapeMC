@@ -1,10 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.sk89q.worldedit.math.BlockVector3;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -13,11 +15,24 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+/**
+ * /hideout: 隠れ家の画面。visit で自分の隠れ家へ。
+ * 建築を作る (OP):
+ * <ul>
+ *   <li>/hideout base save: WorldEdit で選んだ範囲をベースとして保存 (原点は範囲の最小の角、立つ位置は今いる所)</li>
+ *   <li>/hideout edit &lt;設備&gt; &lt;レベル&gt; [reset]: エディターのその区画へ。初めて (か reset) なら
+ *       「ベース + ほかの設備は作ってある最大レベル + その設備の 1 つ前まで」を建てて、その状態を覚える</li>
+ *   <li>/hideout save &lt;設備&gt; &lt;レベル&gt;: 区画の今の状態を、覚えた状態との差分 (ブロックとエンティティ) として保存</li>
+ * </ul>
+ */
 public class HideoutCommand implements CommandExecutor, TabCompleter {
     private final HideoutModule module;
 
@@ -37,129 +52,167 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        String subCommand = args[0].toLowerCase();
-        switch (subCommand) {
-            case "visit":
-                handleVisit(player);
-                break;
-            case "editor":
-                handleEditor(player, args);
-                break;
-            case "save":
-                handleSave(player, args);
-                break;
-            default:
-                sendHelp(player);
-                break;
+        switch (args[0].toLowerCase()) {
+            case "visit" -> handleVisit(player);
+            case "base" -> handleBase(player, args);
+            case "edit" -> handleEdit(player, args);
+            case "save" -> handleSave(player, args);
+            default -> sendHelp(player);
         }
-
         return true;
     }
 
     private void handleVisit(Player player) {
-        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        int index = data.getHideoutIndex();
-
-        // 未割り当ての場合は新規割り当て
-        if (index < 0) {
-            // カウンター管理 (簡易的にUUIDのハッシュか何かでバラけさせるか、全プレイヤー数)
-            index = Bukkit.getOfflinePlayers().length; 
-            data.setHideoutIndex(index);
-            module.getDataModule().saveAsync(player.getUniqueId());
-
-            // 初回訪問: ベース（空き部屋）の配置
-            java.io.File baseFile = new java.io.File(module.getPlugin().getDataFolder(), "structures/base.schem");
-            if (baseFile.exists()) {
-                Location center = module.getWorldManager().getPlayerCenter(index);
-                module.getStructureService().placeSmart(baseFile, center, false); // 空気を無視しない (地盤を固めるため)
-                player.sendMessage(Component.text("新しい隠れ家を準備しました！", NamedTextColor.YELLOW));
-            }
+        if (module.getLayout().base() == null) {
+            player.sendMessage(Component.text("隠れ家はまだ準備中です。", NamedTextColor.RED));
+            return;
         }
-
-        Location loc = module.getWorldManager().getPlayerCenter(index);
-        if (loc != null) {
-            player.teleport(loc);
+        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
+        if (data.getHideoutIndex() < 0) {
+            data.setHideoutIndex(Bukkit.getOfflinePlayers().length);
+        }
+        try {
+            module.ensureBuilt(data);
+        } catch (IOException e) {
+            fail(player, "隠れ家を建てられませんでした", e);
+            return;
+        }
+        module.getDataModule().saveAsync(player.getUniqueId());
+        Location spawn = module.spawn(data.getHideoutIndex());
+        if (spawn != null) {
+            player.teleport(spawn);
             player.sendMessage(Component.text("自分の隠れ家に移動しました。", NamedTextColor.GREEN));
         }
     }
 
-    private void handleEditor(Player player, String[] args) {
+    private void handleBase(Player player, String[] args) {
         if (!player.isOp()) {
             player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
             return;
         }
-
-        // /hideout editor <module> <level>
-        if (args.length < 3) {
-            player.sendMessage(Component.text("使用法: /hideout editor <module> <level>", NamedTextColor.RED));
+        if (args.length < 2 || !args[1].equalsIgnoreCase("save")) {
+            player.sendMessage(Component.text("使用法: /hideout base save (WorldEdit で範囲を選んでから。立っている所が隠れ家に入った時の位置)", NamedTextColor.RED));
             return;
         }
-
-        String moduleType = args[1];
-        int level;
         try {
-            level = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("レベルは数字で指定してください。", NamedTextColor.RED));
+            HideoutLayout.Base base = module.getBuilder().saveBase(player);
+            player.sendMessage(Component.text("ベースを保存しました (" + base.sizeX + "x" + base.sizeY + "x" + base.sizeZ
+                    + "、エンティティ " + base.entities.size() + ")。編集中の区画は reset で作り直してください。", NamedTextColor.GREEN));
+        } catch (com.sk89q.worldedit.IncompleteRegionException e) {
+            player.sendMessage(Component.text("WorldEdit で範囲を選んでください (//wand)。", NamedTextColor.RED));
+        } catch (Exception e) {
+            fail(player, "ベースを保存できませんでした", e);
+        }
+    }
+
+    private void handleEdit(Player player, String[] args) {
+        if (!player.isOp()) {
+            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
             return;
         }
-
-        // エディターワールドの座標計算 (簡易)
-        // x = level * 100, z = moduleHash * 100
-        int zOffset = Math.abs(moduleType.hashCode() % 10) * 100;
-        Location loc = new Location(module.getWorldManager().getEditorWorld(), level * 100 + 0.5, 64, zOffset + 0.5);
-        player.teleport(loc);
-        player.sendMessage(Component.text("エディターモード: " + moduleType + " Lv." + level + " の区画に移動しました。", NamedTextColor.YELLOW));
+        Target target = target(player, args, "/hideout edit <設備> <レベル> [reset]");
+        if (target == null) return;
+        HideoutLayout layout = module.getLayout();
+        HideoutLayout.Base base = layout.base();
+        World world = module.getWorldManager().getEditorWorld();
+        if (base == null || world == null) {
+            player.sendMessage(Component.text("先に /hideout base save でベースを保存してください。", NamedTextColor.RED));
+            return;
+        }
+        boolean reset = args.length > 3 && args[3].equalsIgnoreCase("reset");
+        HideoutLayout.Reference reference = layout.reference(target.facility, target.level);
+        if (reference == null || reset) {
+            try {
+                module.getBuilder().prepareEditor(world, target.facility, target.level);
+            } catch (IOException e) {
+                fail(player, "編集の区画を用意できませんでした", e);
+                return;
+            }
+            player.sendMessage(Component.text(target.facility.label + " Lv." + target.level
+                    + " の区画を用意しました。建て終えたら /hideout save " + target.facility.id + " " + target.level, NamedTextColor.YELLOW));
+        } else if (reference.version != layout.version()) {
+            player.sendMessage(Component.text("編集を始めた後にベースかほかの差分が保存されています。今の状態に合わせるなら "
+                    + "/hideout edit " + target.facility.id + " " + target.level + " reset (この区画の編集は消えます)", NamedTextColor.GOLD));
+        }
+        BlockVector3 origin = HideoutBuilder.editorOrigin(target.facility, target.level);
+        player.teleport(new Location(world, origin.getX() + base.spawnX, origin.getY() + base.spawnY, origin.getZ() + base.spawnZ,
+                base.spawnYaw, base.spawnPitch));
     }
 
     private void handleSave(Player player, String[] args) {
         if (!player.isOp()) return;
-        
-        // /hideout save <module> <level>
-        if (args.length < 3) {
-            player.sendMessage(Component.text("使用法: /hideout save <module> <level>", NamedTextColor.RED));
-            return;
-        }
-
-        String moduleType = args[1].toLowerCase();
-        int level;
+        Target target = target(player, args, "/hideout save <設備> <レベル>");
+        if (target == null) return;
+        World world = module.getWorldManager().getEditorWorld();
         try {
-            level = Integer.parseInt(args[2]);
-        } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("レベルは数字で指定してください。", NamedTextColor.RED));
-            return;
+            HideoutBuilder.SaveResult result = module.getBuilder().saveLayer(world, target.facility, target.level);
+            player.sendMessage(Component.text(target.facility.label + " Lv." + target.level + " の差分を保存しました (ブロック "
+                    + result.blocks() + "、エンティティ +" + result.addedEntities() + " / -" + result.removedEntities() + ")",
+                    NamedTextColor.GREEN));
+            if (target.level > 1 && !module.getLayout().hasLayer(target.facility, target.level - 1)) {
+                player.sendMessage(Component.text("Lv." + (target.level - 1) + " がまだ無いので、このレベルは Lv."
+                        + (target.level - 1) + " を保存するまで使われません。", NamedTextColor.GOLD));
+            }
+        } catch (IOException e) {
+            fail(player, "差分を保存できませんでした", e);
         }
+    }
 
-        // 保存先ファイルパス (.schem)
-        java.io.File file = new java.io.File(module.getPlugin().getDataFolder(), "structures/" + moduleType + "_" + level + ".schem");
-        
-        // アンカー (Origin) はプレイヤーの足元
-        Location anchor = player.getLocation();
-        
-        // 広域スキャン範囲 (例: 半径32, 下に16、上に32)
-        Location p1 = anchor.clone().add(-32, -16, -32);
-        Location p2 = anchor.clone().add(32, 32, 32);
+    private record Target(HideoutFacility facility, int level) {
+    }
 
-        module.getStructureService().saveOptimizedSchematic(file, anchor, p1, p2);
-        player.sendMessage(Component.text("最適化保存(非同期)を開始しました: " + file.getName(), NamedTextColor.GREEN));
+    private Target target(Player player, String[] args, String usage) {
+        HideoutFacility facility = args.length > 1 ? HideoutFacility.byId(args[1]) : null;
+        int level = -1;
+        if (args.length > 2) {
+            try {
+                level = Integer.parseInt(args[2]);
+            } catch (NumberFormatException ignored) {
+                // 下で使い方を出す
+            }
+        }
+        if (facility == null || level < 1 || level > facility.editLimit()) {
+            player.sendMessage(Component.text("使用法: " + usage + " (設備: " + Arrays.stream(HideoutFacility.values())
+                    .map(f -> f.id + " 1-" + f.editLimit()).collect(Collectors.joining(", ")) + ")", NamedTextColor.RED));
+            return null;
+        }
+        return new Target(facility, level);
+    }
+
+    private void fail(Player player, String what, Exception e) {
+        module.getPlugin().getLogger().log(Level.WARNING, what, e);
+        player.sendMessage(Component.text(what + ": " + e.getMessage(), NamedTextColor.RED));
     }
 
     private void sendHelp(Player player) {
         player.sendMessage(Component.text("--- Hideout Commands ---", NamedTextColor.GOLD));
         player.sendMessage(Component.text("/hideout visit - 自分の隠れ家へ移動", NamedTextColor.YELLOW));
         if (player.isOp()) {
-            player.sendMessage(Component.text("/hideout editor <module> <level> - 設備を編集する", NamedTextColor.YELLOW));
-            player.sendMessage(Component.text("/hideout save <module> <level> - 編集内容を保存", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("/hideout base save - WorldEdit で選んだ範囲をベースとして保存", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("/hideout edit <設備> <レベル> [reset] - そのレベルの建築を作る区画へ", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("/hideout save <設備> <レベル> - 区画の変更を差分として保存", NamedTextColor.YELLOW));
         }
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+        List<String> options = new ArrayList<>();
         if (args.length == 1) {
-            return Arrays.asList("visit", "editor", "save").stream()
-                    .filter(s -> s.startsWith(args[0].toLowerCase()))
-                    .collect(Collectors.toList());
+            options.add("visit");
+            if (sender.isOp()) options.addAll(List.of("base", "edit", "save"));
+        } else if (sender.isOp() && args.length == 2 && args[0].equalsIgnoreCase("base")) {
+            options.add("save");
+        } else if (sender.isOp() && (args[0].equalsIgnoreCase("edit") || args[0].equalsIgnoreCase("save"))) {
+            if (args.length == 2) {
+                Arrays.stream(HideoutFacility.values()).map(f -> f.id).forEach(options::add);
+            } else if (args.length == 3) {
+                HideoutFacility facility = HideoutFacility.byId(args[1]);
+                if (facility != null) IntStream.rangeClosed(1, facility.editLimit()).mapToObj(String::valueOf).forEach(options::add);
+            } else if (args.length == 4 && args[0].equalsIgnoreCase("edit")) {
+                options.add("reset");
+            }
         }
-        return new ArrayList<>();
+        String typed = args[args.length - 1].toLowerCase();
+        return options.stream().filter(s -> s.startsWith(typed)).collect(Collectors.toList());
     }
 }
