@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
@@ -7,13 +8,32 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 public class HideoutListener implements Listener {
     private final HideoutModule module;
 
     public HideoutListener(HideoutModule module) {
         this.module = module;
+    }
+
+    /** 隠れ家のワールドに入った時 (隠れ家の中で参加し直した時も) はアドベンチャーにする (ブロックを壊させない) */
+    @EventHandler
+    public void onChangedWorld(PlayerChangedWorldEvent event) {
+        enforceAdventure(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        enforceAdventure(event.getPlayer());
+    }
+
+    private void enforceAdventure(Player player) {
+        if (!player.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME)) return;
+        if (player.getGameMode() != GameMode.ADVENTURE) player.setGameMode(GameMode.ADVENTURE);
     }
 
     @EventHandler
