@@ -79,11 +79,14 @@ public class HideoutGUI implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(facility.label, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text(level == 0 ? "未設置" : "Lv." + level + " / " + max, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        // 建物は Lv.0 でもベースが建っている
+        String state = facility == HideoutFacility.BASE ? "Lv." + level + (level == 0 ? " (初期)" : "") + " / " + max
+                : level == 0 ? "未設置" : "Lv." + level + " / " + max;
+        lore.add(Component.text(state, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         lore.add(Component.empty());
         String blocking = blocking(facility, data);
         lore.add(blocking == null
-                ? Component.text("クリックで " + (level == 0 ? "設置" : "Lv." + (level + 1) + " にアップグレード"), NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false)
+                ? Component.text("クリックで " + (level == 0 && facility != HideoutFacility.BASE ? "設置" : "Lv." + (level + 1) + " にアップグレード"), NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false)
                 : Component.text(blocking, NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         item.setItemMeta(meta);
@@ -117,7 +120,7 @@ public class HideoutGUI implements Listener {
             return;
         }
         int level = data.getHideoutLevel(facility.id);
-        player.sendMessage(Component.text(facility.label + " を " + (level == 1 ? "設置しました" : "Lv." + level + " にアップグレードしました"),
+        player.sendMessage(Component.text(facility.label + " を " + (level == 1 && facility != HideoutFacility.BASE ? "設置しました" : "Lv." + level + " にアップグレードしました"),
                 NamedTextColor.GREEN));
         updateInventory();
     }
