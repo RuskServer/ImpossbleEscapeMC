@@ -26,8 +26,8 @@ commands:
     description: 音響の地図 (足音などの響きを決める場所の種類) を確認・手直しします。
     permission: op
   shaderdebug:
-    description: 数値の画素 (空のシェーダーが書くカメラ・太陽の向き) の確認表示を付け外しします。camera でカメラ風の見え方を試します。
-    usage: /shaderdebug [camera]
+    description: 数値の画素 (空のシェーダーが書くカメラ・太陽の向き) の確認表示を付け外しします。
+    usage: /shaderdebug
     permission: op
   raid:
     description: レイドシステム管理・出撃コマンド
