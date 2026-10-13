@@ -3,6 +3,8 @@ package com.lunar_prototype.impossbleEscapeMC.gui;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutDialog;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketMainGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
@@ -33,6 +35,8 @@ public class PDAGUI implements Listener {
     /** Toi's Armoryのダイアログ入力。2で設定ダイアログを開く */
     private static final String DATAPACK_DIALOG_INPUT_OBJECTIVE = "toisarm.trigger.input";
     private static final int DATAPACK_SETTINGS_INPUT = 2;
+    /** 隠れ家のボタン (中の段の左端。支給装備は出撃画面から開く) */
+    private static final int HIDEOUT_SLOT = 9;
 
     private final Player player;
     private final Inventory inventory;
@@ -198,26 +202,22 @@ public class PDAGUI implements Listener {
         // Partyボタン
         inventory.setItem(10, createPartyButton());
 
-        // 支給装備ボタン (無料の最低限の装備)
-        ItemStack supply = new ItemStack(inRaid ? Material.BARRIER : Material.BARREL);
-        ItemMeta supplyMeta = supply.getItemMeta();
-        supplyMeta.displayName(Component.text("Supply (支給装備)", inRaid ? NamedTextColor.RED : NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
-        List<Component> supplyLore = new ArrayList<>();
-        supplyLore.add(Component.text("装備が無くても出撃できる、無料の最低限の装備。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
-        supplyLore.add(Component.text("売却・納品はできず、生還すると回収されます。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
-        supplyLore.add(Component.empty());
+        // Hideoutボタン (左クリックで隠れ家へ移動、右クリックで設備の画面)
+        ItemStack hideout = new ItemStack(inRaid ? Material.BARRIER : Material.CAMPFIRE);
+        ItemMeta hideoutMeta = hideout.getItemMeta();
+        hideoutMeta.displayName(Component.text("Hideout (隠れ家)", inRaid ? NamedTextColor.RED : NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
+        List<Component> hideoutLore = new ArrayList<>();
+        hideoutLore.add(Component.text("自分の隠れ家へ移動し、設備を設置・強化します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        hideoutLore.add(Component.empty());
         if (inRaid) {
-            supplyLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+            hideoutLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         } else {
-            long remaining = com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.remainingCooldown(data);
-            if (remaining > 0) {
-                supplyLore.add(Component.text("次に受け取れるまで " + com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.formatDuration(remaining), NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-            }
-            supplyLore.add(Component.text("クリックして開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            hideoutLore.add(Component.text("左クリック: 隠れ家へ移動", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            hideoutLore.add(Component.text("右クリック: 設備の画面を開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
         }
-        supplyMeta.lore(supplyLore);
-        supply.setItemMeta(supplyMeta);
-        inventory.setItem(9, supply);
+        hideoutMeta.lore(hideoutLore);
+        hideout.setItemMeta(hideoutMeta);
+        inventory.setItem(HIDEOUT_SLOT, hideout);
 
         // 閉じるボタン
         ItemStack close = new ItemStack(Material.BARRIER);
@@ -272,7 +272,7 @@ public class PDAGUI implements Listener {
         
         int slot = event.getRawSlot();
         // PDA のボタン (IEM_shader/tools/pda_sfx.py の iem:pda.click)
-        if (java.util.Set.of(9, 10, 11, 12, 14, 15, 16, 17, 22).contains(slot)) {
+        if (java.util.Set.of(HIDEOUT_SLOT, 10, 11, 12, 14, 15, 16, 17, 22).contains(slot)) {
             player.playSound(player, "iem:pda.click", org.bukkit.SoundCategory.MASTER, 1.0f, 1.0f);
         }
         if (slot == 22) {
@@ -280,15 +280,6 @@ public class PDAGUI implements Listener {
         } else if (slot == 10) {
             player.closeInventory();
             new PartyGUI(player).open();
-        } else if (slot == 9) {
-            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
-            if (raidModule.isInRaid(player)) {
-                player.sendMessage(Component.text("§cレイド中は支給装備を開くことができません！", NamedTextColor.RED));
-                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
-                return;
-            }
-            player.closeInventory();
-            new com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI(player).open();
         } else if (slot == 11) {
             RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
             if (raidModule.isInRaid(player)) {
@@ -318,6 +309,19 @@ public class PDAGUI implements Listener {
             player.closeInventory();
             TraderModule traderModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
             new TraderSelectionGUI(player, traderModule).open();
+        } else if (slot == HIDEOUT_SLOT) {
+            RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+            if (raidModule.isInRaid(player)) {
+                player.sendMessage(Component.text("§cレイド中は隠れ家に行くことができません！", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                return;
+            }
+            player.closeInventory();
+            if (event.isRightClick()) {
+                HideoutDialog.open(player);
+            } else {
+                ImpossbleEscapeMC.getInstance().getServiceContainer().get(HideoutModule.class).visit(player);
+            }
         } else if (slot == 16) {
             com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog.openPda(player);
         } else if (slot == 17) {

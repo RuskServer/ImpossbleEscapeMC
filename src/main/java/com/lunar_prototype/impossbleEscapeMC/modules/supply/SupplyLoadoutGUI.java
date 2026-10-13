@@ -2,9 +2,10 @@ package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
-import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -26,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 支給装備の画面 (PDA から開く)。背景は GuiBackground.SUPPLY (IEM_shader/tools/gui_backgrounds.py の "supply")。
+ * 支給装備の画面 (出撃画面から開く。戻るか受け取ると出撃画面に戻る)。背景は GuiBackground.SUPPLY (IEM_shader/tools/gui_backgrounds.py の "supply")。
  * <ul>
  *   <li>上の段 ({@link #WEAPON_SLOTS}): 武器を選ぶ (選んでいる物は光る)</li>
  *   <li>中の段 ({@link #CONTENT_SLOTS}): 選んだ武器での中身</li>
@@ -123,7 +124,7 @@ public class SupplyLoadoutGUI implements Listener {
         int slot = event.getRawSlot();
         if (slot == BACK_SLOT) {
             player.closeInventory();
-            new PDAGUI(player).open();
+            openRaidSelection();
             return;
         }
         for (int i = 0; i < WEAPON_SLOTS.length; i++) {
@@ -147,7 +148,14 @@ public class SupplyLoadoutGUI implements Listener {
             player.closeInventory();
             player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 1.0f, 1.0f);
             player.sendMessage(Component.text("支給装備 (" + selected.label + ") を受け取りました", NamedTextColor.GREEN));
+            openRaidSelection();
         }
+    }
+
+    /** 出撃画面に戻る */
+    private void openRaidSelection() {
+        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+        if (raidModule != null) new RaidSelectionGUI(raidModule).open(player);
     }
 
     @EventHandler

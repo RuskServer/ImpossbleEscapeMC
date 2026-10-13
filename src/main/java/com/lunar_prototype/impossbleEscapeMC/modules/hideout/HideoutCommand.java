@@ -4,7 +4,6 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.sk89q.worldedit.math.BlockVector3;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -70,26 +69,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
     }
 
     private void handleVisit(Player player) {
-        if (module.getLayout().base() == null) {
-            player.sendMessage(Component.text("隠れ家はまだ準備中です。", NamedTextColor.RED));
-            return;
-        }
-        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        if (data.getHideoutIndex() < 0) {
-            data.setHideoutIndex(Bukkit.getOfflinePlayers().length);
-        }
-        try {
-            module.ensureBuilt(data);
-        } catch (IOException e) {
-            fail(player, "隠れ家を建てられませんでした", e);
-            return;
-        }
-        module.getDataModule().saveAsync(player.getUniqueId());
-        Location spawn = module.spawn(data.getHideoutIndex());
-        if (spawn != null) {
-            player.teleport(spawn);
-            player.sendMessage(Component.text("自分の隠れ家に移動しました。", NamedTextColor.GREEN));
-        }
+        module.visit(player);
     }
 
     private void handleBase(Player player, String[] args) {

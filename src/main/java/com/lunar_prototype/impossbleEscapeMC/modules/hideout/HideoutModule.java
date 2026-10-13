@@ -13,6 +13,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.block.Block;
 import org.bukkit.inventory.Inventory;
@@ -28,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 
 /**
  * 隠れ家システムのメインモジュール。
@@ -84,6 +86,31 @@ public class HideoutModule implements IModule {
         if (base == null) return new Location(world, origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5);
         return new Location(world, origin.getX() + base.spawnX, origin.getY() + base.spawnY, origin.getZ() + base.spawnZ,
                 base.spawnYaw, base.spawnPitch);
+    }
+
+    /** 自分の隠れ家へ移す (初めてなら場所を割り当てて建てる)。移せなかった時は、その理由をプレイヤーに伝えて false */
+    public boolean visit(Player player) {
+        if (layout.base() == null) {
+            player.sendMessage(Component.text("隠れ家はまだ準備中です。", NamedTextColor.RED));
+            return false;
+        }
+        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        if (data.getHideoutIndex() < 0) {
+            data.setHideoutIndex(Bukkit.getOfflinePlayers().length);
+        }
+        try {
+            ensureBuilt(data);
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING, "隠れ家を建てられませんでした", e);
+            player.sendMessage(Component.text("隠れ家を建てられませんでした: " + e.getMessage(), NamedTextColor.RED));
+            return false;
+        }
+        dataModule.saveAsync(player.getUniqueId());
+        Location spawn = spawn(data.getHideoutIndex());
+        if (spawn == null) return false;
+        player.teleport(spawn);
+        player.sendMessage(Component.text("自分の隠れ家に移動しました。", NamedTextColor.GREEN));
+        return true;
     }
 
     /** 建てた時の建築データの版が今と違えば (まだ建てていなければ) 、今のレベルで建て直す */
