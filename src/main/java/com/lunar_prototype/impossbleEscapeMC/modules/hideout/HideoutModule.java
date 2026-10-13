@@ -23,6 +23,7 @@ import org.bukkit.entity.Player;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -211,8 +212,9 @@ public class HideoutModule implements IModule {
         Map<String, Integer> counts = new HashMap<>();
         for (HideoutFacility.ItemCost cost : costs) counts.put(cost.itemId(), 0);
         if (counts.isEmpty()) return counts;
-        List<ItemStack> all = new ArrayList<>(List.of(player.getInventory().getStorageContents()));
-        for (Inventory page : stashPages(data).values()) all.addAll(List.of(page.getContents()));
+        // 空の欄は null (List.of は null を受けないので Arrays.asList)
+        List<ItemStack> all = new ArrayList<>(Arrays.asList(player.getInventory().getStorageContents()));
+        for (Inventory page : stashPages(data).values()) all.addAll(Arrays.asList(page.getContents()));
         for (ItemStack item : all) {
             String id = materialId(item);
             if (id != null && counts.containsKey(id)) counts.merge(id, item.getAmount(), Integer::sum);
