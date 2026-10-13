@@ -178,6 +178,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.init();
         // フラッシュライトの点け消し
         com.lunar_prototype.impossbleEscapeMC.item.Flashlight.init(this);
+        // 初めて参加したプレイヤーのスタッシュに初期物資を入れる
+        com.lunar_prototype.impossbleEscapeMC.modules.starter.StarterKit.init(this);
         // データパック銃の命中もプラグイン銃と同じBulletHitEventとして通知する (負傷・アドレナリン・SCAVの命中記録)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletHitBridge(), this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);

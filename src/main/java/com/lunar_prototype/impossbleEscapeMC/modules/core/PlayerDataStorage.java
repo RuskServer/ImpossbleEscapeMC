@@ -32,9 +32,9 @@ final class PlayerDataStorage {
 
     /**
      * 読んだ結果。failed は「ファイルはあるのに、本体からも控えからも読めなかった」(このデータは保存してはいけない)。
-     * fromBackup は控えから読んだ (本体を書き直すべき)
+     * fromBackup は控えから読んだ (本体を書き直すべき)。created は本体も控えも 1 つも無く、新しいデータを作った (初めてのプレイヤー)
      */
-    record LoadResult(PlayerData data, boolean failed, boolean fromBackup) {
+    record LoadResult(PlayerData data, boolean failed, boolean fromBackup, boolean created) {
     }
 
     private final File dataFolder;
@@ -95,7 +95,7 @@ final class PlayerDataStorage {
                 if (file != main) {
                     logger.warning("プレイヤーデータ " + uuid + " を控え " + file.getName() + " から読みました (本体が読めませんでした)");
                 }
-                return new LoadResult(data, false, file != main);
+                return new LoadResult(data, false, file != main, false);
             } catch (IOException | RuntimeException e) {
                 logger.severe("プレイヤーデータ " + uuid + " の " + file.getName() + " を読めませんでした: " + e.getMessage());
                 if (file == main) keepCorrupt(uuid, main);
@@ -104,7 +104,7 @@ final class PlayerDataStorage {
         if (anyFile) {
             logger.severe("プレイヤーデータ " + uuid + " を本体からも控えからも読めませんでした。このプレイヤーの保存を止めます");
         }
-        return new LoadResult(new PlayerData(uuid), anyFile, false);
+        return new LoadResult(new PlayerData(uuid), anyFile, false, !anyFile);
     }
 
     /** 読めなかったファイルを corrupt/ に写しておく (後で調べる・手で直す用) */
