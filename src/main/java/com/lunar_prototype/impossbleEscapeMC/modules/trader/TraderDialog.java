@@ -134,6 +134,11 @@ public final class TraderDialog implements Listener {
     private static final int NOTICE_TICKS = 80;
     /** 確認の画面のスライダーの上限 (スタック何個分まで) */
     private static final int SLIDER_STACKS = 10;
+    /**
+     * スライダーの最初の個数。この値のまま「購入」を押したら、ボタンに書いてある合計でそのまま買う。
+     * 動かしてから押したら (スライダーの値は押した時にしか届かない)、その個数の合計を見せる確認の画面を出す
+     */
+    private static final int SLIDER_INITIAL = 1;
 
     /** 品物の分類 (タブの並び順) */
     enum Category {
@@ -177,6 +182,8 @@ public final class TraderDialog implements Listener {
         Sort sort;
         /** 確認の画面を開いている品物 (-1 は一覧) */
         int confirming = -1;
+        /** スライダーで選んだ個数の、購入前の確かめ (0 は無し) */
+        int pendingQuantity;
         String notice;
         int noticeUntil;
 
@@ -233,10 +240,12 @@ public final class TraderDialog implements Listener {
         if (session.confirming >= 0) {
             Entry entry = entries.stream().filter(e -> e.index() == session.confirming).findFirst().orElse(null);
             if (entry != null && entry.unlocked()) {
-                showConfirm(player, session, trader, data, entry);
+                if (session.pendingQuantity > 0) showPurchaseCheck(player, session, entry, session.pendingQuantity);
+                else showConfirm(player, session, trader, data, entry);
                 return;
             }
             session.confirming = -1;
+            session.pendingQuantity = 0;
         }
         showList(player, session, trader, data, entries);
     }
@@ -308,9 +317,12 @@ public final class TraderDialog implements Listener {
                 buttons.add(ActionButton.create(Component.text(label), null, 98, action("buy/" + entry.index() + "/" + quantity)));
             }
             if (max > 1) {
+                // 最初は 1 個。そのまま押せばボタンの合計で買い、動かしてから押したら確認の画面 (handle の "slider")
                 base.inputs(List.of(DialogInput.numberRange("count", Component.text("個数"), 1, max)
-                        .step(1f).initial((float) Math.min(maxStack, max)).width(200).build()));
-                buttons.add(ActionButton.create(Component.text("スライダーの個数で購入"), null, 200, action("slider/" + entry.index())));
+                        .step(1f).initial((float) SLIDER_INITIAL).width(200).build()));
+                buttons.add(ActionButton.create(Component.text("購入"),
+                        Component.text("スライダーの個数で購入する (1 個のままならそのまま、動かした時は合計を確かめてから)", NOTE), 200,
+                        action("slider/" + entry.index())));
             }
         }
         ActionButton back = ActionButton.create(Component.text("戻る"), null, 150, action("back"));
@@ -319,6 +331,31 @@ public final class TraderDialog implements Listener {
         DialogType type = buttons.isEmpty() ? DialogType.notice(back)
                 : DialogType.multiAction(buttons).columns(3).exitAction(back).build();
         player.showDialog(Dialog.create(builder -> builder.empty().base(built).type(type)));
+    }
+
+    /** スライダーで選んだ個数の確かめ: 合計と購入後の所持金を見せて、もう一度押して買う */
+    private static void showPurchaseCheck(Player player, Session session, Entry entry, int quantity) {
+        double balance = module.getEconomyModule().getBalance(player.getUniqueId());
+        double total = entry.item().price * quantity;
+        List<DialogBody> body = new ArrayList<>();
+        body.add(DialogBody.item(entry.icon()).description(DialogBody.plainMessage(
+                Component.text(entry.name(), NAME).append(Component.newline())
+                        .append(Component.text(quantity + unitOf(entry) + "  ×  " + price(entry.item().price), NOTE)), ROW_BODY_W))
+                .showTooltip(true).showDecorations(false).width(ITEM_BOX).height(ITEM_BOX).build());
+        body.add(DialogBody.plainMessage(Component.text("合計  ", NOTE).append(Component.text(price(total), AMBER))
+                .append(Component.text("     購入後の所持金  ", NOTE))
+                .append(Component.text(price(balance - total), balance >= total ? OK : NG))));
+        DialogBase base = DialogBase.builder(Component.text("購入 ― " + entry.name()).append(noticeText(session)))
+                .canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).body(body).build();
+        ActionButton buy = ActionButton.create(Component.text(quantity + unitOf(entry) + "を購入  " + price(total)), null, 150,
+                action("buy/" + entry.index() + "/" + quantity));
+        ActionButton recount = ActionButton.create(Component.text("個数を変える"), null, 150, action("recount"));
+        player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(DialogType.confirmation(buy, recount))));
+    }
+
+    /** 数え方 (弾は「発」、ほかは「個」) */
+    private static String unitOf(Entry entry) {
+        return entry.ammo() != null ? "発" : "個";
     }
 
     private static Component title(TraderDefinition trader, Session session) {
@@ -812,12 +849,27 @@ public final class TraderDialog implements Listener {
                 session.tab = parts.length > 1 && !parts[1].equals("all") ? Category.valueOf(parts[1].toUpperCase(java.util.Locale.ROOT)) : null;
                 session.sort = null;
             }
-            case "item" -> session.confirming = Integer.parseInt(parts[1]);
-            case "back" -> session.confirming = -1;
+            case "item" -> {
+                session.confirming = Integer.parseInt(parts[1]);
+                session.pendingQuantity = 0;
+            }
+            case "back" -> {
+                session.confirming = -1;
+                session.pendingQuantity = 0;
+            }
+            case "recount" -> session.pendingQuantity = 0;
             case "buy", "slider" -> {
                 int index = Integer.parseInt(parts[1]);
                 int quantity = parts[0].equals("buy") ? Integer.parseInt(parts[2]) : slider != null ? Math.round(slider) : 0;
                 if (index < 0 || index >= trader.items.size() || quantity <= 0) return;
+                // スライダーを動かしてから押した: 合計を見せる確認の画面へ (最初の個数のままなら、ボタンの合計でそのまま買う)
+                if (parts[0].equals("slider") && quantity != SLIDER_INITIAL) {
+                    session.pendingQuantity = quantity;
+                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.3f);
+                    show(player, session);
+                    return;
+                }
+                session.pendingQuantity = 0;
                 TraderModule.Purchase result = module.purchase(player, trader, trader.items.get(index), quantity);
                 result.messages().forEach(player::sendMessage);
                 session.notice = result.notice();
