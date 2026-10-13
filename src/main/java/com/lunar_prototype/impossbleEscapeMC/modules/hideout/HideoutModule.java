@@ -74,6 +74,15 @@ public class HideoutModule implements IModule {
         data.setHideoutBuiltVersion(version);
     }
 
+    /** 設備と建物のレベルをすべて 0 に戻し、ベースだけの状態に建て直す (運営用) */
+    public void reset(Player player, PlayerData data) throws IOException {
+        data.getHideoutLevels().clear();
+        data.setHideoutBuiltVersion(-1);
+        dataModule.saveAsync(player.getUniqueId());
+        ensureBuilt(data);
+        dataModule.saveAsync(player.getUniqueId());
+    }
+
     /** 自分の隠れ家のブロックなら、それを置いた設備 (ベースのブロック・ほかの場所なら null) */
     public HideoutFacility facilityAt(Player player, Block block) {
         if (!block.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME)) return null;

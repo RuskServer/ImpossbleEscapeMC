@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
  *   <li>/hideout edit &lt;設備&gt; &lt;レベル&gt; [reset]: エディターのその区画へ。初めて (か reset) なら
  *       「ベース + ほかの設備は作ってある最大レベル + その設備の 1 つ前まで」を建てて、その状態を覚える</li>
  *   <li>/hideout save &lt;設備&gt; &lt;レベル&gt;: 区画の今の状態を、覚えた状態との差分 (ブロックとエンティティ) として保存</li>
+ *   <li>/hideout reset: 自分の隠れ家の設備と建物のレベルをすべて 0 に戻し、ベースだけの状態に建て直す</li>
  *   <li>建物の Lv.0 (edit base 0 / save base 0) はベースそのもの: ベースだけの区画で直し、保存するとベースを置き換える</li>
  * </ul>
  */
@@ -58,6 +59,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             case "base" -> handleBase(player, args);
             case "edit" -> handleEdit(player, args);
             case "save" -> handleSave(player, args);
+            case "reset" -> handleReset(player);
             default -> sendHelp(player);
         }
         return true;
@@ -145,6 +147,27 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
                 base.spawnYaw, base.spawnPitch));
     }
 
+    private void handleReset(Player player) {
+        if (!player.isOp()) {
+            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+            return;
+        }
+        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
+        boolean inside = player.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME);
+        try {
+            module.reset(player, data);
+        } catch (IOException e) {
+            fail(player, "隠れ家を建て直せませんでした (レベルは 0 に戻しました。次に入った時に建て直します)", e);
+            return;
+        }
+        // 中にいたら、建て直した建物に埋まらないよう入った時の位置へ
+        if (inside && data.getHideoutIndex() >= 0) {
+            Location spawn = module.spawn(data.getHideoutIndex());
+            if (spawn != null) player.teleport(spawn);
+        }
+        player.sendMessage(Component.text("自分の隠れ家をリセットしました (設備と建物はすべて Lv.0)。", NamedTextColor.GREEN));
+    }
+
     private void handleSave(Player player, String[] args) {
         if (!player.isOp()) return;
         Target target = target(player, args, "/hideout save <設備> <レベル>");
@@ -213,6 +236,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text("/hideout base save - WorldEdit で選んだ範囲をベースとして保存", NamedTextColor.YELLOW));
             player.sendMessage(Component.text("/hideout edit <設備> <レベル> [reset] - そのレベルの建築を作る区画へ", NamedTextColor.YELLOW));
             player.sendMessage(Component.text("/hideout save <設備> <レベル> - 区画の変更を差分として保存", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("/hideout reset - 自分の隠れ家を Lv.0 に戻して建て直す", NamedTextColor.YELLOW));
         }
     }
 
@@ -221,7 +245,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
         List<String> options = new ArrayList<>();
         if (args.length == 1) {
             options.add("visit");
-            if (sender.isOp()) options.addAll(List.of("base", "edit", "save"));
+            if (sender.isOp()) options.addAll(List.of("base", "edit", "save", "reset"));
         } else if (sender.isOp() && args.length == 2 && args[0].equalsIgnoreCase("base")) {
             options.add("save");
         } else if (sender.isOp() && (args[0].equalsIgnoreCase("edit") || args[0].equalsIgnoreCase("save"))) {
