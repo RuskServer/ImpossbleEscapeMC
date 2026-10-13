@@ -49,8 +49,16 @@ public final class GroundItemService implements Listener {
     private static final double PICKUP_RANGE = 3.5;
     /** 視線とアイテムの当たりの太さ (ブロック)。寝かせた見た目は本物の当たり判定より広いので、少し太くする */
     private static final double PICKUP_RAY_SIZE = 0.35;
-    /** 止まったとみなす速さ (ブロック/tick) */
+    /**
+     * 止まった・動いたの判定。地面に乗ったアイテムは毎 tick 重力で少し下向きの速さを持つので、横の速さだけを見る。
+     * 境目で寝かせる・戻すを繰り返すと、本物のアイテムと見た目が入れ替わってちかちかするので、続いた tick 数で決める
+     */
     private static final double REST_SPEED = 0.02;
+    /** これより速く横に動いたら、動いているとみなす (ブロック/tick) */
+    private static final double MOVE_SPEED = 0.06;
+    /** 寝かせるまでに止まっている tick 数と、戻すまでに動いている tick 数 */
+    private static final int REST_TICKS = 4;
+    private static final int MOVE_TICKS = 3;
     private static final float DISPLAY_SCALE = 0.5f;
     private static final int SCAN_INTERVAL_TICKS = 20;
 
@@ -61,6 +69,8 @@ public final class GroundItemService implements Listener {
     private final Map<UUID, ItemDisplay> displays = new HashMap<>();
     /** 見張っているアイテム (落ちてから止まるまで、と、寝かせている間) */
     private final Map<UUID, Item> watched = new HashMap<>();
+    /** 止まっている (寝かせる前) か、動いている (寝かせている時) tick 数 */
+    private final Map<UUID, Integer> streak = new HashMap<>();
     /** 右クリックした tick (右クリックでも腕を振るので、その tick の腕振りは左クリックとみなさない) */
     private final Map<UUID, Integer> lastRightClick = new HashMap<>();
 
@@ -109,26 +119,42 @@ public final class GroundItemService implements Listener {
             UUID id = entry.getKey();
             if (!item.isValid()) {
                 unflatten(id, null);
+                streak.remove(id);
                 it.remove();
                 continue;
             }
-            boolean resting = item.isOnGround() && item.getVelocity().lengthSquared() < REST_SPEED * REST_SPEED && !item.isInWater();
+            boolean onGround = item.isOnGround() && !item.isInWater();
+            org.bukkit.util.Vector v = item.getVelocity();
+            double horizontal = v.getX() * v.getX() + v.getZ() * v.getZ();
             ItemDisplay display = displays.get(id);
             if (display != null && !display.isValid()) {
                 // 見た目だけが消された (/kill など)。次の tick に作り直す
                 displays.remove(id);
+                streak.remove(id);
                 item.setVisibleByDefault(true);
                 continue;
             }
-            if (resting && display == null) {
-                flatten(id, item);
-            } else if (!resting && display == null && !item.isVisibleByDefault()) {
-                // 隠したまま保存されていたアイテム (止まっていないので見た目を作らない)
-                item.setVisibleByDefault(true);
-            } else if (!resting && display != null) {
-                unflatten(id, item);
-            } else if (display != null && display.getLocation().distanceSquared(item.getLocation()) > 0.01) {
-                display.teleport(item.getLocation());
+            if (display == null) {
+                boolean still = onGround && horizontal < REST_SPEED * REST_SPEED;
+                int count = still ? streak.merge(id, 1, Integer::sum) : 0;
+                if (!still) streak.remove(id);
+                if (count >= REST_TICKS) {
+                    streak.remove(id);
+                    flatten(id, item);
+                } else if (!item.isVisibleByDefault() && !still) {
+                    // 隠したまま保存されていたアイテム (止まっていないので見た目を作らない)
+                    item.setVisibleByDefault(true);
+                }
+            } else {
+                boolean moving = !onGround || horizontal > MOVE_SPEED * MOVE_SPEED;
+                int count = moving ? streak.merge(id, 1, Integer::sum) : 0;
+                if (!moving) streak.remove(id);
+                if (count >= MOVE_TICKS) {
+                    streak.remove(id);
+                    unflatten(id, item);
+                } else if (display.getLocation().distanceSquared(item.getLocation()) > 0.01) {
+                    display.teleport(item.getLocation());
+                }
             }
         }
     }
