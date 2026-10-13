@@ -63,6 +63,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             case "save" -> handleSave(player, args);
             case "reset" -> handleReset(player);
             case "camera" -> handleCamera(player, args);
+            case "inspect" -> handleInspect(player);
             default -> sendHelp(player);
         }
         return true;
@@ -169,6 +170,38 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             if (spawn != null) player.teleport(spawn);
         }
         player.sendMessage(Component.text("自分の隠れ家をリセットしました (設備と建物はすべて Lv.0)。", NamedTextColor.GREEN));
+    }
+
+    /** (確認用・一時的) 見ているブロックが、どの設備の差分で置かれた物と判定されるか */
+    private void handleInspect(Player player) {
+        if (!player.isOp()) return;
+        org.bukkit.block.Block block = player.getTargetBlockExact(8);
+        if (block == null) {
+            player.sendMessage(Component.text("見ているブロックがありません", NamedTextColor.RED));
+            return;
+        }
+        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
+        HideoutWorldManager worlds = module.getWorldManager();
+        World hideoutWorld = worlds.getPlayerWorld();
+        player.sendMessage(Component.text("ワールド: " + block.getWorld().getName() + " / 隠れ家のワールド: "
+                + (hideoutWorld != null ? hideoutWorld.getName() : "null") + " / 一致: " + worlds.isPlayerWorld(block.getWorld()), NamedTextColor.GOLD));
+        BlockVector3 origin = module.origin(data.getHideoutIndex());
+        int x = block.getX() - origin.getX(), y = block.getY() - origin.getY(), z = block.getZ() - origin.getZ();
+        player.sendMessage(Component.text("隠れ家の番号: " + data.getHideoutIndex() + " / 原点: " + origin + " / ブロック: "
+                + block.getType() + " at (" + x + ", " + y + ", " + z + ")", NamedTextColor.GOLD));
+        player.sendMessage(Component.text("持ち主の判定: " + module.facilityAt(player, block) + " / 建てた時の版: "
+                + data.getHideoutBuiltVersion() + " / 今の版: " + module.getLayout().version(), NamedTextColor.GOLD));
+        BlockVector3 rel = BlockVector3.at(x, y, z);
+        for (HideoutFacility facility : HideoutFacility.values()) {
+            int level = data.getHideoutLevel(facility.id);
+            int highest = module.getLayout().highestLevel(facility);
+            if (level == 0 && highest == 0) continue;
+            var built = module.getBuilder().placedBlocks(facility, level);
+            var all = module.getBuilder().placedBlocks(facility, highest);
+            player.sendMessage(Component.text("  " + facility.id + ": Lv." + level + " / 作ってある Lv." + highest
+                    + " / 置いたマス " + built.size() + " (全レベル " + all.size() + ") / このマス: "
+                    + (built.contains(rel) ? "今のレベルまでに含む" : all.contains(rel) ? "上のレベルだけに含む" : "含まない"), NamedTextColor.YELLOW));
+        }
     }
 
     private void handleCamera(Player player, String[] args) {
@@ -283,7 +316,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
         List<String> options = new ArrayList<>();
         if (args.length == 1) {
             options.add("visit");
-            if (sender.isOp()) options.addAll(List.of("base", "edit", "save", "reset", "camera"));
+            if (sender.isOp()) options.addAll(List.of("base", "edit", "save", "reset", "camera", "inspect"));
         } else if (sender.isOp() && args.length == 2 && args[0].equalsIgnoreCase("base")) {
             options.add("save");
         } else if (sender.isOp() && args.length == 2 && args[0].equalsIgnoreCase("camera")) {
