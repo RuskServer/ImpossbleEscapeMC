@@ -154,17 +154,62 @@ public final class HideoutBuilder {
         return BlockVector3.at(facility.ordinal() * EDITOR_STRIDE, EDITOR_Y, level * EDITOR_STRIDE);
     }
 
-    /** 編集を始める: 区画に「ベース + ほかの設備は作ってある最大レベル + その設備の 1 つ前まで」を建て、その状態を覚える */
+    /**
+     * 編集を始める: 区画に「ベース + ほかの設備は作ってある最大レベル + その設備の 1 つ前まで」を建て、その状態を覚える。
+     * 建物の Lv.0 (ベースそのもの) はベースだけを建てる (ほかを並べると、保存した時にベースに入ってしまう)
+     */
     public void prepareEditor(World world, HideoutFacility target, int level) throws IOException {
         HideoutLayout.Base base = requireBase();
         BlockVector3 origin = editorOrigin(target, level);
-        build(world, origin, facility -> facility == target ? level - 1 : layout.highestLevel(facility));
+        if (isBaseItself(target, level)) {
+            build(world, origin, facility -> 0);
+        } else {
+            build(world, origin, facility -> facility == target ? level - 1 : layout.highestLevel(facility));
+        }
         CuboidRegion region = area(world, origin, base);
         copyToFile(world, region, origin, layout.referenceSchematic(target, level));
         HideoutLayout.Reference reference = new HideoutLayout.Reference();
         reference.version = layout.version();
         reference.entities = capture(world, origin, area(origin, base));
         layout.saveReference(target, level, reference);
+    }
+
+    /** 建物の Lv.0 = ベースそのもの */
+    public static boolean isBaseItself(HideoutFacility facility, int level) {
+        return facility == HideoutFacility.BASE && level == 0;
+    }
+
+    /**
+     * 建物の Lv.0 の区画で直したベースを保存する。範囲・大きさ・立つ位置は今のベースのまま (広げる時は /hideout base save)。
+     * エンティティは今のキーを保つ (後のレベルが消すエンティティをキーで指しているため)。キーの無い物には新しいキーを付ける
+     */
+    public HideoutLayout.Base saveBaseFromEditor(World world) throws IOException {
+        HideoutLayout.Base base = requireBase();
+        BlockVector3 origin = editorOrigin(HideoutFacility.BASE, 0);
+        loadChunks(world, origin, base);
+        CuboidRegion region = new CuboidRegion(BukkitAdapter.adapt(world), origin,
+                origin.add(base.sizeX - 1, base.sizeY - 1, base.sizeZ - 1));
+        copyToFile(world, region, origin, layout.baseSchematic());
+        BoundingBox box = new BoundingBox(origin.getX(), origin.getY(), origin.getZ(),
+                origin.getX() + base.sizeX, origin.getY() + base.sizeY, origin.getZ() + base.sizeZ);
+        List<HideoutLayout.EntityEntry> captured = capture(world, origin, box);
+        Set<String> used = new HashSet<>();
+        for (HideoutLayout.EntityEntry entry : captured) {
+            if (entry.key() != null) used.add(entry.key());
+        }
+        base.entities = new ArrayList<>();
+        int n = 0;
+        for (HideoutLayout.EntityEntry entry : captured) {
+            if (entry.key() != null) {
+                base.entities.add(entry);
+                continue;
+            }
+            while (used.contains("base_" + n)) n++;
+            used.add("base_" + n);
+            base.entities.add(withKey(entry, "base_" + n));
+        }
+        layout.saveBase(base);
+        return base;
     }
 
     /** 編集した区画を、編集を始めた時の状態と比べて差分として保存する */

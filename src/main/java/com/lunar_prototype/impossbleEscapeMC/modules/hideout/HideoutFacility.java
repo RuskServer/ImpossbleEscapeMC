@@ -41,6 +41,11 @@ public enum HideoutFacility {
         return this == BASE ? layout.highestLevel(this) : maxLevel;
     }
 
+    /** エディターで作れるレベルの下限 (建物は 0 = ベースそのもの) */
+    public int minEditLevel() {
+        return this == BASE ? 0 : 1;
+    }
+
     /** エディターで作れるレベルの上限 */
     public int editLimit() {
         return this == BASE ? BASE_EDIT_LIMIT : maxLevel;

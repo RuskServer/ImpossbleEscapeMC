@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
  *   <li>/hideout edit &lt;設備&gt; &lt;レベル&gt; [reset]: エディターのその区画へ。初めて (か reset) なら
  *       「ベース + ほかの設備は作ってある最大レベル + その設備の 1 つ前まで」を建てて、その状態を覚える</li>
  *   <li>/hideout save &lt;設備&gt; &lt;レベル&gt;: 区画の今の状態を、覚えた状態との差分 (ブロックとエンティティ) として保存</li>
+ *   <li>建物の Lv.0 (edit base 0 / save base 0) はベースそのもの: ベースだけの区画で直し、保存するとベースを置き換える</li>
  * </ul>
  */
 public class HideoutCommand implements CommandExecutor, TabCompleter {
@@ -128,8 +129,13 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
                 fail(player, "編集の区画を用意できませんでした", e);
                 return;
             }
-            player.sendMessage(Component.text(target.facility.label + " Lv." + target.level
-                    + " の区画を用意しました。建て終えたら /hideout save " + target.facility.id + " " + target.level, NamedTextColor.YELLOW));
+            if (HideoutBuilder.isBaseItself(target.facility, target.level)) {
+                player.sendMessage(Component.text("建物の初期状態 (ベース) の区画を用意しました。直したら /hideout save base 0"
+                        + " (ベースの範囲の外は保存されません。広げる時は /hideout base save)", NamedTextColor.YELLOW));
+            } else {
+                player.sendMessage(Component.text(target.facility.label + " Lv." + target.level
+                        + " の区画を用意しました。建て終えたら /hideout save " + target.facility.id + " " + target.level, NamedTextColor.YELLOW));
+            }
         } else if (reference.version != layout.version()) {
             player.sendMessage(Component.text("編集を始めた後にベースかほかの差分が保存されています。今の状態に合わせるなら "
                     + "/hideout edit " + target.facility.id + " " + target.level + " reset (この区画の編集は消えます)", NamedTextColor.GOLD));
@@ -144,6 +150,21 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
         Target target = target(player, args, "/hideout save <設備> <レベル>");
         if (target == null) return;
         World world = module.getWorldManager().getEditorWorld();
+        if (HideoutBuilder.isBaseItself(target.facility, target.level)) {
+            // 用意していない区画 (空) をベースにしてしまわないよう、edit base 0 で用意した後だけ
+            if (module.getLayout().reference(target.facility, target.level) == null) {
+                player.sendMessage(Component.text("先に /hideout edit base 0 で区画を用意してください。", NamedTextColor.RED));
+                return;
+            }
+            try {
+                HideoutLayout.Base base = module.getBuilder().saveBaseFromEditor(world);
+                player.sendMessage(Component.text("ベース (建物の初期状態) を更新しました (エンティティ " + base.entities.size()
+                        + ")。隠れ家は次に入った時に建て直されます。", NamedTextColor.GREEN));
+            } catch (IOException e) {
+                fail(player, "ベースを保存できませんでした", e);
+            }
+            return;
+        }
         try {
             HideoutBuilder.SaveResult result = module.getBuilder().saveLayer(world, target.facility, target.level);
             player.sendMessage(Component.text(target.facility.label + " Lv." + target.level + " の差分を保存しました (ブロック "
@@ -171,9 +192,10 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
                 // 下で使い方を出す
             }
         }
-        if (facility == null || level < 1 || level > facility.editLimit()) {
+        if (facility == null || level < facility.minEditLevel() || level > facility.editLimit()) {
             player.sendMessage(Component.text("使用法: " + usage + " (設備: " + Arrays.stream(HideoutFacility.values())
-                    .map(f -> f.id + " 1-" + f.editLimit()).collect(Collectors.joining(", ")) + ")", NamedTextColor.RED));
+                    .map(f -> f.id + " " + f.minEditLevel() + "-" + f.editLimit()).collect(Collectors.joining(", "))
+                    + "。base 0 は建物の初期状態)", NamedTextColor.RED));
             return null;
         }
         return new Target(facility, level);
@@ -207,7 +229,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
                 Arrays.stream(HideoutFacility.values()).map(f -> f.id).forEach(options::add);
             } else if (args.length == 3) {
                 HideoutFacility facility = HideoutFacility.byId(args[1]);
-                if (facility != null) IntStream.rangeClosed(1, facility.editLimit()).mapToObj(String::valueOf).forEach(options::add);
+                if (facility != null) IntStream.rangeClosed(facility.minEditLevel(), facility.editLimit()).mapToObj(String::valueOf).forEach(options::add);
             } else if (args.length == 4 && args[0].equalsIgnoreCase("edit")) {
                 options.add("reset");
             }
