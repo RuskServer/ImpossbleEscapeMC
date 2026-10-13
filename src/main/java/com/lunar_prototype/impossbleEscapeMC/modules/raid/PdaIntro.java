@@ -15,7 +15,6 @@ import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
@@ -154,6 +153,8 @@ public final class PdaIntro implements Listener {
 
         UUID id = player.getUniqueId();
         ScreenEffectService.playPdaIntro(player,
+                () -> sound(id, "pda.switch"),
+                () -> sound(id, "pda.power_on"),
                 () -> enter(id, Phase.BOOT),
                 () -> enter(id, Phase.TACMAP),
                 () -> enter(id, Phase.CLOSING),
@@ -178,15 +179,15 @@ public final class PdaIntro implements Listener {
             case BOOT -> {
                 session.art = BossBar.bossBar(Component.empty(), 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
                 player.showBossBar(session.art);
-                player.playSound(player, Sound.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.5f, 1.8f);
+                sound(id, "pda.boot");
             }
             case TACMAP -> {
-                player.playSound(player, Sound.UI_BUTTON_CLICK, SoundCategory.PLAYERS, 0.6f, 1.6f);
+                sound(id, "pda.tacmap");
                 showLabels(player, session);
             }
             case CLOSING -> {
                 hideBars(player, session);
-                player.playSound(player, Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.PLAYERS, 0.5f, 1.6f);
+                sound(id, "pda.power_off");
                 // 液晶が消えた時に、手元の PDA を見下ろしている
                 player.setRotation(Angle.relative(0f), Angle.absolute(LOOK_DOWN_PITCH));
             }
@@ -195,6 +196,14 @@ public final class PdaIntro implements Listener {
             }
         }
         render(session);
+    }
+
+    /**
+     * PDA の効果音 (リソースパックの iem:pda.*。IEM_shader/tools/pda_sfx.py)。本人にだけ聞こえる
+     */
+    private static void sound(UUID id, String name) {
+        Player player = Bukkit.getPlayer(id);
+        if (player != null) player.playSound(player, "iem:" + name, SoundCategory.PLAYERS, 1.0f, 1.0f);
     }
 
     private static void tickAll() {
@@ -251,6 +260,7 @@ public final class PdaIntro implements Listener {
             if (restore && player.getInventory().getHeldItemSlot() == MAP_SLOT && session.previousSlot != MAP_SLOT) {
                 player.getInventory().setHeldItemSlot(session.previousSlot);
             }
+            if (restore) sound(id, "pda.stow");
         }
         if (restore) session.onDone.run();
     }

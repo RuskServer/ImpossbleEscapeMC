@@ -271,6 +271,10 @@ public class PDAGUI implements Listener {
         event.setCancelled(true);
         
         int slot = event.getRawSlot();
+        // PDA のボタン (IEM_shader/tools/pda_sfx.py の iem:pda.click)
+        if (java.util.Set.of(9, 10, 11, 12, 14, 15, 16, 17, 22).contains(slot)) {
+            player.playSound(player, "iem:pda.click", org.bukkit.SoundCategory.MASTER, 1.0f, 1.0f);
+        }
         if (slot == 22) {
             player.closeInventory();
         } else if (slot == 10) {

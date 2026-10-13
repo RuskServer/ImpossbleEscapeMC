@@ -1089,7 +1089,7 @@ public final class QuestDialog implements Listener {
                 return;
             }
         }
-        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.3f);
+        player.playSound(player, "iem:pda.click", org.bukkit.SoundCategory.MASTER, 1.0f, 1.0f);   // PDA のボタン (IEM_shader/tools/pda_sfx.py)
         show(player, session);
     }
 
