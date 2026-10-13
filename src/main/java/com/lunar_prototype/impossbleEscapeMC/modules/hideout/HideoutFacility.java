@@ -22,6 +22,8 @@ public enum HideoutFacility {
 
     /** ベースの建築改良を作れる上限 (エディターで選べるレベル) */
     public static final int BASE_EDIT_LIMIT = 9;
+    /** 保管庫の各レベルの費用 (Lv.1 から。仮の値) */
+    private static final long[] STASH_COST = {5_000, 25_000, 60_000, 120_000};
 
     public final String id;
     public final String label;
@@ -49,6 +51,22 @@ public enum HideoutFacility {
     /** エディターで作れるレベルの上限 */
     public int editLimit() {
         return this == BASE ? BASE_EDIT_LIMIT : maxLevel;
+    }
+
+    /** そのレベルにする費用 (₽)。条件の決まっていない設備は 0 */
+    public long moneyCost(int level) {
+        if (this == STASH && level >= 1 && level <= STASH_COST.length) return STASH_COST[level - 1];
+        return 0;
+    }
+
+    /** 強化の条件が決まっているか (決まっていない設備は、今は条件なしで上げられる) */
+    public boolean hasRequirements() {
+        return this == STASH;
+    }
+
+    /** 画面に出す説明 (決まっていなければ null) */
+    public String description() {
+        return this == STASH ? "スタッシュを開ける棚" : null;
     }
 
     public static HideoutFacility byId(String id) {
