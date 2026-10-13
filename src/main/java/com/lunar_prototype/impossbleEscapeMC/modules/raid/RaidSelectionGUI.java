@@ -1,6 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout;
+import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI;
 import com.lunar_prototype.impossbleEscapeMC.party.Party;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
@@ -47,7 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>押した後も開いたまま (after_action NONE)。サーバーが状況の変わるたびに送り直す。閉じるボタンと Esc は
  *       サーバーに知らせる (それで閉じたことが分かる)</li>
  * </ul>
- * パーティではリーダーだけが待機列を操作できる
+ * パーティではリーダーだけが待機列を操作できる。下のボタンで支給装備の画面を開ける (受け取るか戻ると、この画面に戻る)
  */
 public class RaidSelectionGUI implements Listener {
 
@@ -55,6 +59,7 @@ public class RaidSelectionGUI implements Listener {
     private static final String KEY_NAMESPACE = "iem";
     private static final String CLOSE = "raid/close";
     private static final String AUTO_MATCH = "raid/auto";
+    private static final String SUPPLY = "raid/supply";
     private static final String MAP_PREFIX = "raid/map_";
 
     // ---- 絵の寸法・文字の番号 (raid_dialog.py と同じ) ----
@@ -164,9 +169,11 @@ public class RaidSelectionGUI implements Listener {
                 .afterAction(DialogBase.DialogAfterAction.NONE)
                 .body(List.of(DialogBody.plainMessage(board(statuses), BODY_WIDTH)))
                 .build();
+        ActionButton supply = ActionButton.create(Component.text("支給装備"), supplyTooltip(player), 150,
+                DialogAction.customClick(Key.key(KEY_NAMESPACE, SUPPLY), null));
         ActionButton close = ActionButton.create(Component.text("閉じる"), null, 150,
                 DialogAction.customClick(Key.key(KEY_NAMESPACE, CLOSE), null));
-        player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(DialogType.notice(close))));
+        player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(DialogType.confirmation(supply, close))));
     }
 
     /** マップ1つの今の状況 */
@@ -289,6 +296,18 @@ public class RaidSelectionGUI implements Listener {
                 Component.text("▶ クリックでマッチング開始", NamedTextColor.YELLOW));
     }
 
+    /** 支給装備のボタンの吹き出し (次に受け取れるまでの時間) */
+    private static Component supplyTooltip(Player player) {
+        var dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        PlayerData data = dataModule != null ? dataModule.getPlayerData(player.getUniqueId()) : null;
+        long remaining = data != null ? SupplyLoadout.remainingCooldown(data) : 0;
+        return Component.join(net.kyori.adventure.text.JoinConfiguration.newlines(),
+                Component.text("装備が無くても出撃できる、無料の最低限の装備", NamedTextColor.GRAY),
+                Component.text("売却・納品はできず、生還すると回収されます", NamedTextColor.GRAY),
+                remaining > 0 ? Component.text("次に受け取れるまで " + SupplyLoadout.formatDuration(remaining), NamedTextColor.YELLOW)
+                        : Component.text("今すぐ受け取れます", NamedTextColor.GREEN));
+    }
+
     private static Component line(String label, String value) {
         return Component.text(label + ": ", NamedTextColor.GRAY).append(Component.text(value, NamedTextColor.WHITE));
     }
@@ -319,6 +338,12 @@ public class RaidSelectionGUI implements Listener {
         }
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null) return;
+        if (SUPPLY.equals(action)) {
+            // チェスト画面を開くとダイアログは置き換わる (onInventoryOpen で送り直しを止める)
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            new SupplyLoadoutGUI(player).open();
+            return;
+        }
         if (AUTO_MATCH.equals(action)) {
             SESSIONS.remove(player.getUniqueId());
             player.closeDialog();
