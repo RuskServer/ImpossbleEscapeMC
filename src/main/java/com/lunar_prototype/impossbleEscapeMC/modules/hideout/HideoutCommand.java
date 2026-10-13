@@ -32,6 +32,8 @@ import java.util.stream.IntStream;
  *       「ベース + ほかの設備は作ってある最大レベル + その設備の 1 つ前まで」を建てて、その状態を覚える</li>
  *   <li>/hideout save &lt;設備&gt; &lt;レベル&gt;: 区画の今の状態を、覚えた状態との差分 (ブロックとエンティティ) として保存</li>
  *   <li>/hideout reset: 自分の隠れ家の設備と建物のレベルをすべて 0 に戻し、ベースだけの状態に建て直す</li>
+ *   <li>/hideout camera &lt;設備&gt;: 今の目の位置と向きを、隠れ家の画面でその設備を映すカメラとして記録する
+ *       (エディターの区画か自分の隠れ家で。記録していない設備は自動で決める)</li>
  *   <li>建物の Lv.0 (edit base 0 / save base 0) はベースそのもの: ベースだけの区画で直し、保存するとベースを置き換える</li>
  * </ul>
  */
@@ -60,6 +62,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             case "edit" -> handleEdit(player, args);
             case "save" -> handleSave(player, args);
             case "reset" -> handleReset(player);
+            case "camera" -> handleCamera(player, args);
             default -> sendHelp(player);
         }
         return true;
@@ -168,6 +171,40 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(Component.text("自分の隠れ家をリセットしました (設備と建物はすべて Lv.0)。", NamedTextColor.GREEN));
     }
 
+    private void handleCamera(Player player, String[] args) {
+        if (!player.isOp()) {
+            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+            return;
+        }
+        HideoutFacility facility = args.length > 1 ? HideoutFacility.byId(args[1]) : null;
+        if (facility == null) {
+            player.sendMessage(Component.text("使用法: /hideout camera <設備> (" + Arrays.stream(HideoutFacility.values())
+                    .map(f -> f.id).collect(Collectors.joining(", ")) + ")", NamedTextColor.RED));
+            return;
+        }
+        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
+        BlockVector3 origin = module.originAt(player, data);
+        if (origin == null) {
+            player.sendMessage(Component.text("エディターの区画か、自分の隠れ家の中で実行してください。", NamedTextColor.RED));
+            return;
+        }
+        Location eye = player.getEyeLocation();
+        HideoutLayout.CameraPose pose = new HideoutLayout.CameraPose();
+        pose.x = eye.getX() - origin.getX();
+        pose.y = eye.getY() - origin.getY();
+        pose.z = eye.getZ() - origin.getZ();
+        pose.yaw = eye.getYaw();
+        pose.pitch = eye.getPitch();
+        try {
+            module.getLayout().saveCamera(facility, pose);
+        } catch (IOException e) {
+            fail(player, "カメラを記録できませんでした", e);
+            return;
+        }
+        player.sendMessage(Component.text(facility.label + " を映すカメラを、今の目の位置と向きで記録しました"
+                + " (画面の左側はパネルで隠れるので、設備は右寄りに)。", NamedTextColor.GREEN));
+    }
+
     private void handleSave(Player player, String[] args) {
         if (!player.isOp()) return;
         Target target = target(player, args, "/hideout save <設備> <レベル>");
@@ -237,6 +274,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text("/hideout edit <設備> <レベル> [reset] - そのレベルの建築を作る区画へ", NamedTextColor.YELLOW));
             player.sendMessage(Component.text("/hideout save <設備> <レベル> - 区画の変更を差分として保存", NamedTextColor.YELLOW));
             player.sendMessage(Component.text("/hideout reset - 自分の隠れ家を Lv.0 に戻して建て直す", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("/hideout camera <設備> - 今の視点を、隠れ家の画面でその設備を映すカメラにする", NamedTextColor.YELLOW));
         }
     }
 
@@ -245,9 +283,11 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
         List<String> options = new ArrayList<>();
         if (args.length == 1) {
             options.add("visit");
-            if (sender.isOp()) options.addAll(List.of("base", "edit", "save", "reset"));
+            if (sender.isOp()) options.addAll(List.of("base", "edit", "save", "reset", "camera"));
         } else if (sender.isOp() && args.length == 2 && args[0].equalsIgnoreCase("base")) {
             options.add("save");
+        } else if (sender.isOp() && args.length == 2 && args[0].equalsIgnoreCase("camera")) {
+            Arrays.stream(HideoutFacility.values()).map(f -> f.id).forEach(options::add);
         } else if (sender.isOp() && (args[0].equalsIgnoreCase("edit") || args[0].equalsIgnoreCase("save"))) {
             if (args.length == 2) {
                 Arrays.stream(HideoutFacility.values()).map(f -> f.id).forEach(options::add);
