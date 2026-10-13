@@ -22,7 +22,10 @@ public class HideoutListener implements Listener {
         this.module = module;
     }
 
-    /** 隠れ家のワールドに入った時 (隠れ家の中で参加し直した時も) はアドベンチャーにする (ブロックを壊させない) */
+    /**
+     * 隠れ家のワールドに入った時 (隠れ家の中で参加し直した時も) はアドベンチャーにする (ブロックを壊させない)。
+     * ほかの所で戻されることがあるので、隠れ家にいる間も見張る ({@link #enforceAll}。レイドと同じ)
+     */
     @EventHandler
     public void onChangedWorld(PlayerChangedWorldEvent event) {
         enforceAdventure(event.getPlayer());
@@ -34,8 +37,17 @@ public class HideoutListener implements Listener {
     }
 
     private void enforceAdventure(Player player) {
-        if (!player.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME)) return;
+        if (!module.getWorldManager().isPlayerWorld(player.getWorld())) return;
+        // 隠れ家の画面のカメラ (スペクテイター) の間はそのまま
+        if (HideoutDialog.isCameraActive(player)) return;
         if (player.getGameMode() != GameMode.ADVENTURE) player.setGameMode(GameMode.ADVENTURE);
+    }
+
+    /** 隠れ家のワールドにいる全員をアドベンチャーにする (HideoutModule が一定の間隔で呼ぶ) */
+    void enforceAll() {
+        org.bukkit.World world = module.getWorldManager().getPlayerWorld();
+        if (world == null) return;
+        for (Player player : world.getPlayers()) enforceAdventure(player);
     }
 
     @EventHandler

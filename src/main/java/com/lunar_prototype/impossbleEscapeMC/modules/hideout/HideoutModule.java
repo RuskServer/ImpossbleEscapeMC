@@ -54,7 +54,10 @@ public class HideoutModule implements IModule {
         worldManager.initWorlds();
 
         // リスナーの登録
-        Bukkit.getPluginManager().registerEvents(new HideoutListener(this), plugin);
+        HideoutListener listener = new HideoutListener(this);
+        Bukkit.getPluginManager().registerEvents(listener, plugin);
+        // 隠れ家にいる間はアドベンチャー (入った時だけでなく、ほかの所で戻されても)
+        Bukkit.getScheduler().runTaskTimer(plugin, listener::enforceAll, 20L, 10L);
         HideoutDialog.init(this);
 
         Bukkit.getLogger().info("HideoutModule enabled.");
@@ -105,15 +108,14 @@ public class HideoutModule implements IModule {
      * どちらでもなければ null
      */
     public BlockVector3 originAt(Player player, PlayerData data) {
-        String world = player.getWorld().getName();
         Location at = player.getLocation();
-        if (world.equals(HideoutWorldManager.EDITOR_WORLD_NAME)) {
+        if (worldManager.isEditorWorld(player.getWorld())) {
             int facility = (int) Math.round(at.getX() / HideoutBuilder.EDITOR_STRIDE);
             int level = (int) Math.round(at.getZ() / HideoutBuilder.EDITOR_STRIDE);
             if (facility < 0 || facility >= HideoutFacility.values().length || level < 0) return null;
             return HideoutBuilder.editorOrigin(HideoutFacility.values()[facility], level);
         }
-        if (world.equals(HideoutWorldManager.PLAYER_WORLD_NAME) && data != null && data.getHideoutIndex() >= 0) {
+        if (worldManager.isPlayerWorld(player.getWorld()) && data != null && data.getHideoutIndex() >= 0) {
             return origin(data.getHideoutIndex());
         }
         return null;
@@ -261,7 +263,7 @@ public class HideoutModule implements IModule {
 
     /** 自分の隠れ家のブロックなら、それを置いた設備 (ベースのブロック・ほかの場所なら null) */
     public HideoutFacility facilityAt(Player player, Block block) {
-        if (!block.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME)) return null;
+        if (!worldManager.isPlayerWorld(block.getWorld())) return null;
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         if (data == null || data.getHideoutIndex() < 0) return null;
         BlockVector3 origin = origin(data.getHideoutIndex());
