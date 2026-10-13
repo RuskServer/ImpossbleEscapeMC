@@ -4,6 +4,10 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
+import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidKillTracker;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidReport;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidResults;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -68,6 +72,32 @@ public class RaidInstance {
         private int pmcKills = 0;
         private int bossKills = 0;
         private boolean extractionCountIncremented = false;
+        /** 経験値の内訳 (理由 → {回数, 経験値})。リザルトの画面に出す */
+        private final Map<String, long[]> expBreakdown = new LinkedHashMap<>();
+        /** 倒した相手と、自分を倒した相手 (リザルトのキルログ) */
+        private final List<RaidReport.Kill> kills = new ArrayList<>();
+        private RaidReport.Kill death;
+        private String extractName;
+        /** 結果が決まった時刻 (レイドにいた時間) */
+        private long endMillis;
+        /** 持ち帰った物 (脱出した時に数える) と、失った物 (持ち込んで、死亡・MIA で失った物) の価値 */
+        private List<RaidReport.LootStack> loot = List.of();
+        private long lostValue;
+        /** 経験値を付与した (付与する前のレベル・経験値を覚えておく) */
+        private boolean granted;
+        private int levelBefore;
+        private long expBefore;
+    }
+
+    private static final String EXP_SURVIVED = "SURVIVED", EXP_DEAD = "DEAD", EXP_MIA = "MIA", EXP_LEFT = "LEFT",
+            EXP_SCAV = "SCAV", EXP_BOSS = "BOSS", EXP_PMC = "PMC";
+
+    /** 経験値を足す (レイド終了時に付与する分) と、リザルトの内訳 */
+    private static void grant(RaidResult result, String reason, long amount) {
+        result.experienceToGrant += amount;
+        long[] entry = result.expBreakdown.computeIfAbsent(reason, k -> new long[2]);
+        entry[0]++;
+        entry[1] += amount;
     }
 
     /**
@@ -309,8 +339,10 @@ public class RaidInstance {
             extractionTimer.remove(uuid);
             RaidResult result = getOrCreateRaidResult(uuid);
             result.outcome = RaidOutcome.MIA;
+            result.endMillis = System.currentTimeMillis();
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
+                result.lostValue = broughtInValue(p);
                 forfeitLoadout(p);
                 p.setGameMode(org.bukkit.GameMode.ADVENTURE);
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
@@ -438,19 +470,13 @@ public class RaidInstance {
         if (brainLevel == ScavBrain.BrainLevel.HIGH) {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.bossKills += 1;
-            if (levelModule != null) {
-                result.experienceToGrant += levelModule.getScaledKillReward(playerLevel, 250L);
-            } else {
-                result.experienceToGrant += 250L;
-            }
+            grant(result, EXP_BOSS, levelModule != null ? levelModule.getScaledKillReward(playerLevel, 250L) : 250L);
+            result.kills.add(killRecord(scavEntityId, killerUuid, RaidReport.Kind.BOSS, null));
         } else {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.scavKills += 1;
-            if (levelModule != null) {
-                result.experienceToGrant += levelModule.getScaledKillReward(playerLevel, 50L);
-            } else {
-                result.experienceToGrant += 50L;
-            }
+            grant(result, EXP_SCAV, levelModule != null ? levelModule.getScaledKillReward(playerLevel, 50L) : 50L);
+            result.kills.add(killRecord(scavEntityId, killerUuid, RaidReport.Kind.SCAV, null));
         }
     }
 
@@ -513,14 +539,14 @@ public class RaidInstance {
             // 脱出成功のリザルトを記録 (経験値はレイド終了時に付与)
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());
             result.outcome = RaidOutcome.SURVIVED;
-            
+            result.extractName = ep.getName();
+            result.endMillis = System.currentTimeMillis();
+            result.loot = foundLoot(p);
+
             com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                     plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
-            if (levelModule != null) {
-                result.experienceToGrant += levelModule.getRaidOutcomeReward(levelModule.getLevel(p.getUniqueId()), "SURVIVED");
-            } else {
-                result.experienceToGrant += 250L;
-            }
+            grant(result, EXP_SURVIVED, levelModule != null
+                    ? levelModule.getRaidOutcomeReward(levelModule.getLevel(p.getUniqueId()), "SURVIVED") : 250L);
 
             // 脱出回数加算
             com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
@@ -642,24 +668,24 @@ public class RaidInstance {
         // 死亡のリザルトを記録 (経験値はレイド終了時に付与)
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
         result.outcome = RaidOutcome.DEAD;
-        
-        if (levelModule != null) {
-            result.experienceToGrant += levelModule.getRaidOutcomeReward(playerLevel, "DEAD");
-        } else {
-            result.experienceToGrant += 150L;
+        result.endMillis = System.currentTimeMillis();
+        result.lostValue = broughtInValue(player);
+        grant(result, EXP_DEAD, levelModule != null ? levelModule.getRaidOutcomeReward(playerLevel, "DEAD") : 150L);
+        RaidKillTracker.Hit lastHit = RaidKillTracker.lastHitOn(player.getUniqueId());
+        if (lastHit != null) {
+            result.death = new RaidReport.Kill(result.endMillis - startTime, lastHit.shooterName(), lastHit.shooterKind(),
+                    lastHit.weapon(), lastHit.weaponName(), lastHit.ammoName(), lastHit.distance(), lastHit.part());
         }
+        RaidKillTracker.forget(player.getUniqueId());
 
         // PMCキルの集計 (もしキラーがプレイヤーなら)
         Player killer = player.getKiller();
         if (killer != null && !killer.equals(player) && players.contains(killer.getUniqueId())) {
             RaidResult killerResult = getOrCreateRaidResult(killer.getUniqueId());
             killerResult.pmcKills += 1;
-            if (levelModule != null) {
-                int killerLevel = levelModule.getLevel(killer.getUniqueId());
-                killerResult.experienceToGrant += levelModule.getScaledKillReward(killerLevel, 100L);
-            } else {
-                killerResult.experienceToGrant += 100L;
-            }
+            grant(killerResult, EXP_PMC, levelModule != null
+                    ? levelModule.getScaledKillReward(levelModule.getLevel(killer.getUniqueId()), 100L) : 100L);
+            killerResult.kills.add(killRecord(player.getUniqueId(), killer.getUniqueId(), RaidReport.Kind.PMC, player.getName()));
         }
 
         players.remove(player.getUniqueId());
@@ -967,9 +993,12 @@ public class RaidInstance {
 
             // Outcomeに応じた追加EXPを最後に計算 (生還・死亡は既に加算済み)
             if (result.outcome == RaidOutcome.MIA || result.outcome == RaidOutcome.LEFT) {
-                result.experienceToGrant += levelModule.getRaidOutcomeReward(levelModule.getLevel(uuid), result.outcome.name());
+                grant(result, result.outcome.name(), levelModule.getRaidOutcomeReward(levelModule.getLevel(uuid), result.outcome.name()));
             }
 
+            result.levelBefore = levelModule.getLevel(uuid);
+            result.expBefore = levelModule.getExperience(uuid);
+            result.granted = true;
             if (result.experienceToGrant > 0) {
                 levelModule.addExperience(uuid, result.experienceToGrant);
             }
@@ -984,74 +1013,77 @@ public class RaidInstance {
         }
     }
 
+    /**
+     * リザルトの画面 ({@link RaidResults}) を出す。チャットには 1 行 (押すと開き直せる) だけ出す。
+     * 経験値はレイド全体の終了時に付与するので、まだなら付与する前の値から見込みを出す
+     */
     private void showIndividualRaidResult(Player player) {
+        RaidResult result = getOrCreateRaidResult(player.getUniqueId());
+        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
+                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        int level = result.granted ? result.levelBefore : levelModule != null ? levelModule.getLevel(player.getUniqueId()) : 1;
+        long exp = result.granted ? result.expBefore : levelModule != null ? levelModule.getExperience(player.getUniqueId()) : 0;
+
+        List<RaidReport.ExpLine> lines = new ArrayList<>();
+        long[] e;
+        if ((e = result.expBreakdown.get(EXP_SURVIVED)) != null) lines.add(new RaidReport.ExpLine(UiIcon.EXTRACT, "脱出成功", result.extractName, e[1]));
+        if ((e = result.expBreakdown.get(EXP_DEAD)) != null) lines.add(new RaidReport.ExpLine(UiIcon.FAILED, "死亡", null, e[1]));
+        if ((e = result.expBreakdown.get(EXP_MIA)) != null) lines.add(new RaidReport.ExpLine(UiIcon.TIMER, "MIA (時間切れ)", null, e[1]));
+        if ((e = result.expBreakdown.get(EXP_LEFT)) != null) lines.add(new RaidReport.ExpLine(UiIcon.FAILED, "離脱", null, e[1]));
+        // MIA・離脱の経験値はレイド全体の終了時に足すので、まだなら見込みを出す
+        if (!result.granted && levelModule != null && (result.outcome == RaidOutcome.MIA || result.outcome == RaidOutcome.LEFT)
+                && !result.expBreakdown.containsKey(result.outcome.name())) {
+            lines.add(new RaidReport.ExpLine(result.outcome == RaidOutcome.MIA ? UiIcon.TIMER : UiIcon.FAILED,
+                    result.outcome == RaidOutcome.MIA ? "MIA (時間切れ)" : "離脱", null,
+                    levelModule.getRaidOutcomeReward(level, result.outcome.name())));
+        }
+        if ((e = result.expBreakdown.get(EXP_SCAV)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "SCAV を排除", "×" + e[0], e[1]));
+        if ((e = result.expBreakdown.get(EXP_BOSS)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "BOSS を排除", "×" + e[0], e[1]));
+        if ((e = result.expBreakdown.get(EXP_PMC)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "PMC を排除", "×" + e[0], e[1]));
+
+        long end = result.endMillis > 0 ? result.endMillis : System.currentTimeMillis();
+        RaidReport report = new RaidReport(map.getMapId(), result.outcome == RaidOutcome.SURVIVED,
+                result.outcome == RaidOutcome.SURVIVED ? "脱出成功" : result.outcome.displayName, result.extractName, end - startTime,
+                List.copyOf(lines), level, exp, !result.granted, result.loot, result.lostValue, List.copyOf(result.kills), result.death);
+        RaidResults.show(player, report);
+    }
+
+    /** 倒した記録 (弾が当たった時の様子から)。name が null なら当たった時の相手の名前 */
+    private RaidReport.Kill killRecord(UUID victim, UUID killer, RaidReport.Kind kind, String name) {
+        RaidKillTracker.Hit hit = RaidKillTracker.lastHit(victim, killer);
+        String who = name != null ? name : hit != null ? hit.victimName() : kind.name();
+        long at = System.currentTimeMillis() - startTime;
+        if (hit == null) return new RaidReport.Kill(at, who, kind, null, null, null, -1, null);
+        return new RaidReport.Kill(at, who, kind, hit.weapon(), hit.weaponName(), hit.ammoName(), hit.distance(), hit.part());
+    }
+
+    /** 持ち帰った物: FIR (レイド内で入手) の物を欄ごとに、価値の高い順 (バッグの中も数える) */
+    private List<RaidReport.LootStack> foundLoot(Player player) {
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
                 plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
         com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
                 plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule != null ? dataModule.getPlayerData(player.getUniqueId()) : null;
+        List<RaidReport.LootStack> loot = new ArrayList<>();
+        visitPlayerItems(player, item -> {
+            if (!com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn.isFir(item)) return;
+            boolean usable = questModule != null && data != null
+                    && com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn.usable(data, questModule, item);
+            loot.add(new RaidReport.LootStack(item.clone(), RaidResults.valueOf(item), usable));
+        }, plugin.getServiceContainer().get(BackpackModule.class));
+        loot.sort(Comparator.comparingLong(RaidReport.LootStack::value).reversed());
+        return List.copyOf(loot);
+    }
 
-        RaidResult result = getOrCreateRaidResult(player.getUniqueId());
-        boolean isSuccess = result.outcome == RaidOutcome.SURVIVED;
-
-        // 境界線の構築 (半角空白 + 取り消し線)
-        Component borderLine = Component.text(" ".repeat(40), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH);
-        
-        // 1行目: -脱出成功 [Strikethrough Spaces]
-        NamedTextColor statusColor = isSuccess ? NamedTextColor.GREEN : NamedTextColor.RED;
-        String statusHeader = isSuccess ? "脱出成功" : "脱出失敗";
-        
-        Component header = Component.text("-", NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH)
-                .append(Component.text(statusHeader, statusColor).decoration(net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH, false))
-                .append(Component.text(" ".repeat(30), NamedTextColor.GRAY, net.kyori.adventure.text.format.TextDecoration.STRIKETHROUGH));
-
-        // 生還/死亡 行
-        Component outcomeLine = Component.text(result.outcome.displayName, statusColor);
-
-        player.sendMessage(header);
-        player.sendMessage(outcomeLine);
-
-        // キルカウント表示
-        Component grayColon = Component.text(":", NamedTextColor.GRAY);
-        if (result.scavKills > 0) {
-            player.sendMessage(Component.text("SCAVキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.scavKills, NamedTextColor.WHITE)));
-        }
-        if (result.pmcKills > 0) {
-            player.sendMessage(Component.text("PMCキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.pmcKills, NamedTextColor.WHITE)));
-        }
-        if (result.bossKills > 0) {
-            player.sendMessage(Component.text("BOSSキル", NamedTextColor.WHITE).append(grayColon).append(Component.text(" " + result.bossKills, NamedTextColor.WHITE)));
-        }
-
-        // 下部境界線
-        player.sendMessage(borderLine);
-
-        // クエスト通知
-        if (questModule != null && dataModule != null) {
-            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
-            if (data != null) {
-                List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> reportable = questModule.getReportableQuests(data);
-                List<com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition> startable = questModule.getStartableQuests(data);
-
-                if (!reportable.isEmpty() || !startable.isEmpty()) {
-                    if (!reportable.isEmpty()) {
-                        player.sendMessage(Component.text("！", NamedTextColor.GREEN).append(Component.text("完了したクエストがあります", NamedTextColor.WHITE)));
-                    }
-                    if (!startable.isEmpty()) {
-                        Component goldExcl = Component.text("！", NamedTextColor.GOLD);
-                        Component grayBracketOpen = Component.text("[", NamedTextColor.GRAY);
-                        Component grayBracketClose = Component.text("]", NamedTextColor.GRAY);
-                        Component yellowClick = Component.text("クリックしてクエストを開く", NamedTextColor.YELLOW)
-                                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/quest open"));
-                        
-                        player.sendMessage(goldExcl
-                                .append(Component.text("受注できるクエストがあります ", NamedTextColor.WHITE))
-                                .append(grayBracketOpen)
-                                .append(yellowClick)
-                                .append(grayBracketClose));
-                    }
-                    player.sendMessage(borderLine);
-                }
+    /** 持ち込んだ物 (失うと損失になる物) の価値 */
+    private long broughtInValue(Player player) {
+        long[] total = {0};
+        visitPlayerItems(player, item -> {
+            if (item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer()
+                    .getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1) {
+                total[0] += RaidResults.valueOf(item);
             }
-        }
+        }, plugin.getServiceContainer().get(BackpackModule.class));
+        return total[0];
     }
 }
