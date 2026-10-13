@@ -10,6 +10,7 @@ import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -23,17 +24,34 @@ import org.bukkit.persistence.PersistentDataContainer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class MedicalModule implements IModule, Listener {
     private ImpossbleEscapeMC plugin;
     private final Map<UUID, Long> lastInteract = new HashMap<>();
     private final Map<UUID, Integer> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> usingSlots = new HashMap<>();
+    /** 使い切り: 使い始めてからのチック数 / 押し続け: 回復した回数 */
     private final Map<UUID, Integer> progressTicks = new HashMap<>();
     private com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule;
     private StatusEffectManager statusEffectManager;
 
+    // CAT と AI-2 を使う時の音 (リソースパックの iem:med.*、IEM_shader/tools/med_sounds.py が作る)
+    private static final String CAT_ID = "CAT";
+    private static final String AI2_ID = "ai2";
+    /** CAT: 使い始めてからのチック数と鳴らす音 (マジックテープ → ベルトを締める → 巻き上げ棒 → 留め具) */
+    private static final Map<Integer, String> CAT_STEPS = Map.of(
+            9, "iem:med.cat.strap",
+            20, "iem:med.cat.windlass",
+            38, "iem:med.cat.clip");
+
     public MedicalModule() {
+    }
+
+    /** 使っている本人にだけ、高さを少し揺らして鳴らす */
+    private static void playMedSound(Player player, String sound) {
+        player.playSound(player.getLocation(), sound, SoundCategory.PLAYERS, 1.0f,
+                0.95f + ThreadLocalRandom.current().nextFloat() * 0.1f);
     }
 
     @Override
@@ -104,6 +122,8 @@ public class MedicalModule implements IModule, Listener {
 
         if (!activeTasks.containsKey(uuid)) {
             progressTicks.put(uuid, 0);
+            boolean cat = CAT_ID.equals(def.id);
+            if (cat) playMedSound(player, "iem:med.cat.velcro");
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 int current = progressTicks.getOrDefault(uuid, 0) + 1;
                 progressTicks.put(uuid, current);
@@ -115,6 +135,9 @@ public class MedicalModule implements IModule, Listener {
 
                 if (current >= def.medStats.durationTicks) {
                     finishOneTimeUsing(player, def);
+                } else if (cat) {
+                    String step = CAT_STEPS.get(current);
+                    if (step != null) playMedSound(player, step);
                 } else if (current % 10 == 0) {
                     player.playSound(player.getLocation(), Sound.BLOCK_STONE_PLACE, 0.5f, 1.2f);
                 }
@@ -132,7 +155,10 @@ public class MedicalModule implements IModule, Listener {
             StatusEffectIcons.sync(player, data);
             
             player.sendMessage(net.kyori.adventure.text.Component.text(def.displayName + " を使用して手当を行いました。", net.kyori.adventure.text.format.NamedTextColor.GREEN));
-            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+            // CAT は留め具の音で終わる
+            if (!CAT_ID.equals(def.id)) {
+                player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+            }
         }
 
         // アイテムを一個消費
@@ -182,11 +208,16 @@ public class MedicalModule implements IModule, Listener {
         if (meta.getCustomModelData() != def.medStats.usingCustomModelData) {
             meta.setCustomModelData(def.medStats.usingCustomModelData);
             item.setItemMeta(meta);
-            player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.5f);
+            if (AI2_ID.equals(def.id)) {
+                playMedSound(player, "iem:med.ai2.open");
+            } else {
+                player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.5f);
+            }
         }
 
         // 回復タスクがなければ開始 (0.5s = 10ticks 周期)
         if (!activeTasks.containsKey(uuid)) {
+            progressTicks.put(uuid, 0);
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 handleHeal(player, def);
             }, 10L, 10L).getTaskId();
@@ -219,7 +250,13 @@ public class MedicalModule implements IModule, Listener {
 
         double newHealth = Math.min(maxHealth, currentHealth + def.medStats.healPerUse);
         player.setHealth(newHealth);
-        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.0f);
+        if (AI2_ID.equals(def.id)) {
+            // 錠剤を振る・シートから押し出すを交互に
+            int heals = progressTicks.merge(player.getUniqueId(), 1, Integer::sum);
+            playMedSound(player, heals % 2 == 1 ? "iem:med.ai2.pills" : "iem:med.ai2.blister");
+        } else {
+            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.0f);
+        }
         player.spawnParticle(org.bukkit.Particle.HEART, player.getLocation().add(0, 1.5, 0), 3, 0.3, 0.3, 0.3, 0.1);
 
         // 回復後に満タンになったら停止
@@ -267,7 +304,11 @@ public class MedicalModule implements IModule, Listener {
                 if (meta.getCustomModelData() == def.medStats.usingCustomModelData) {
                     meta.setCustomModelData(def.customModelData);
                     item.setItemMeta(meta);
-                    player.playSound(player.getLocation(), Sound.BLOCK_CHEST_CLOSE, 0.5f, 1.5f);
+                    if (AI2_ID.equals(def.id)) {
+                        playMedSound(player, "iem:med.ai2.close");
+                    } else {
+                        player.playSound(player.getLocation(), Sound.BLOCK_CHEST_CLOSE, 0.5f, 1.5f);
+                    }
                 }
             }
         }
