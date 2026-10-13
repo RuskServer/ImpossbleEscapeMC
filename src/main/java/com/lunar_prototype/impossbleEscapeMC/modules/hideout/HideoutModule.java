@@ -9,6 +9,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
 import java.io.IOException;
@@ -71,6 +72,16 @@ public class HideoutModule implements IModule {
         if (data.getHideoutBuiltVersion() == version) return;
         builder.build(worldManager.getPlayerWorld(), origin(data.getHideoutIndex()), facility -> data.getHideoutLevel(facility.id));
         data.setHideoutBuiltVersion(version);
+    }
+
+    /** 自分の隠れ家のブロックなら、それを置いた設備 (ベースのブロック・ほかの場所なら null) */
+    public HideoutFacility facilityAt(Player player, Block block) {
+        if (!block.getWorld().getName().equals(HideoutWorldManager.PLAYER_WORLD_NAME)) return null;
+        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        if (data == null || data.getHideoutIndex() < 0) return null;
+        BlockVector3 origin = origin(data.getHideoutIndex());
+        return builder.ownerAt(facility -> data.getHideoutLevel(facility.id),
+                block.getX() - origin.getX(), block.getY() - origin.getY(), block.getZ() - origin.getZ());
     }
 
     /**

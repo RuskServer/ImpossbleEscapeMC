@@ -67,6 +67,9 @@ public final class HideoutBuilder {
 
     private final HideoutLayout layout;
     private final Logger logger;
+    /** 差分ごとの、ブロックを置いたマス (空気と structure_void 以外。原点から)。建築データの版が変わったら読み直す */
+    private final Map<String, Set<BlockVector3>> placedCache = new HashMap<>();
+    private int placedCacheVersion = -1;
 
     public HideoutBuilder(HideoutLayout layout, Logger logger) {
         this.layout = layout;
@@ -112,6 +115,47 @@ public final class HideoutBuilder {
         File schematic = layout.layerSchematic(facility, level);
         if (schematic.isFile()) paste(world, origin, schematic, true);
         if (layer != null) spawn(world, origin, layer.added);
+    }
+
+    // ---- どの設備のブロックか ----
+
+    /**
+     * 原点からの位置 (x, y, z) のブロックを置いた設備。levels のレベルまでの差分を重ねる順に見て、最後にそのマスへブロックを置いた物。
+     * ベースのブロックなら null (建物の改良のブロックなら BASE)
+     */
+    public HideoutFacility ownerAt(ToIntFunction<HideoutFacility> levels, int x, int y, int z) {
+        int version = layout.version();
+        if (version != placedCacheVersion) {
+            placedCache.clear();
+            placedCacheVersion = version;
+        }
+        BlockVector3 position = BlockVector3.at(x, y, z);
+        HideoutFacility owner = null;
+        for (HideoutFacility facility : HideoutFacility.values()) {
+            int level = Math.min(levels.applyAsInt(facility), layout.highestLevel(facility));
+            for (int l = 1; l <= level; l++) {
+                if (placed(facility, l).contains(position)) owner = facility;
+            }
+        }
+        return owner;
+    }
+
+    private Set<BlockVector3> placed(HideoutFacility facility, int level) {
+        return placedCache.computeIfAbsent(facility.id + "_" + level, key -> {
+            Set<BlockVector3> positions = new HashSet<>();
+            File schematic = layout.layerSchematic(facility, level);
+            if (!schematic.isFile()) return positions;
+            try (Clipboard clipboard = read(schematic)) {
+                BlockVector3 origin = clipboard.getOrigin();
+                for (BlockVector3 p : clipboard.getRegion()) {
+                    var type = clipboard.getBlock(p).getBlockType();
+                    if (type != BlockTypes.STRUCTURE_VOID && !type.getMaterial().isAir()) positions.add(p.subtract(origin));
+                }
+            } catch (IOException e) {
+                logger.warning("隠れ家の差分 " + key + " を読めませんでした: " + e.getMessage());
+            }
+            return positions;
+        });
     }
 
     // ---- ベースの保存 ----
