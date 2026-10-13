@@ -84,6 +84,8 @@ public final class TraderDialog implements Listener {
     private static final char CHIP = '';
     private static final char CHIP_SOLD = '';
     private static final int CHIP_W = 36;
+    /** 札の字のフォント: バニラの字を 5 ずらしたもの (札の縦の真ん中に来る) */
+    private static final Key CHIP_TEXT_FONT = Key.key("iem", "shift_5");
     private static final char LOCK = '';
     private static final int LOCK_W = 7;
     private static final char BOX_BASE = '';
@@ -453,7 +455,8 @@ public final class TraderDialog implements Listener {
         line1.moveTo(nameX).text(FontWidths.truncate(v.name(), priceX - 6 - nameX), v.locked() ? DIM : NAME);
         line1.moveTo(priceX).text(v.price(), v.locked() ? DIM : AMBER);
         if (!v.locked()) {
-            line1.moveTo(CHIP_X).glyph(v.sold() ? CHIP_SOLD : CHIP, CHIP_W, v.buyAction() != null ? click(v.buyAction()) : null,
+            line1.moveTo(CHIP_X).chip(v.sold() ? CHIP_SOLD : CHIP, CHIP_W, "購入", v.sold() ? TextColor.color(0x645C50) : AMBER,
+                    false, v.buyAction() != null ? click(v.buyAction()) : null,
                     Component.text(v.sold() ? "本日は売り切れ" : "クリックで個数を選んで購入", v.sold() ? NG : NOTE));
         }
         line1.moveTo(ROW_LINE_W);
@@ -685,6 +688,25 @@ public final class TraderDialog implements Listener {
             max = Math.max(max, x);
             return this;
         }
+
+        /**
+         * 札の絵 (幅 width、2 行にまたがる) と、その真ん中に字。字はバニラの字を 5 ずらしたフォント (iem:shift_5。
+         * IEM_shader/tools/shift_fonts.py) で、札の縦の真ん中に来る。札も字も押せる
+         */
+        Line chip(char c, int width, String label, TextColor color, boolean noShadow, ClickEvent click, Component hover) {
+            int start = x;
+            glyph(c, width, click, hover);
+            moveTo(start + (width - FontWidths.width(label)) / 2);
+            Component t = Component.text(label, color).font(CHIP_TEXT_FONT);
+            if (noShadow) t = t.shadowColor(ShadowColor.none());
+            if (click != null) t = t.clickEvent(click);
+            if (hover != null) t = t.hoverEvent(HoverEvent.showText(hover));
+            out.append(t);
+            x += FontWidths.width(label);
+            max = Math.max(max, x);
+            return moveTo(start + width + 1);
+        }
+
 
         /** 箱 (タブ・札) と、その中央に字。箱は字の幅 + 8 が入る一番小さい物 */
         Line box(String label, int kind, TextColor color, ClickEvent click, Component hover) {

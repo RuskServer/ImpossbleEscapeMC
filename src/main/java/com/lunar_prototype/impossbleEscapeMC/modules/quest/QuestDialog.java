@@ -98,6 +98,8 @@ public final class QuestDialog implements Listener {
     private static final char CHIP_BASE = '';
     private static final int CHIP_REPORT = 0, CHIP_ACTIVE = 1, CHIP_START = 2, CHIP_DONE = 3, CHIP_HAND_IN = 4;
     private static final int CHIP_W = 36;
+    /** 札の字のフォント: バニラの字を 5 ずらしたもの (札の縦の真ん中に来る) */
+    private static final Key CHIP_TEXT_FONT = Key.key("iem", "shift_5");
     private static final char PLATE_REPORT_BASE = '';
     private static final char PLATE_DONE_BASE = '';
     private static final char SEG_BASE = '';
@@ -560,7 +562,20 @@ public final class QuestDialog implements Listener {
         if (v.trader() != null) line1.shift(4).box(v.trader(), BOX_CHIP, NOTE, null, null);
         if (v.value() != null) line1.moveTo(valueX).text(v.value(), v.valueColor());
         if (v.status().chip >= 0) {
-            line1.moveTo(CHIP_X).glyph(QUEST_FONT, (char) (CHIP_BASE + v.status().chip), CHIP_W, click(v.chipAction()),
+            String label = switch (v.status()) {
+                case REPORT -> "報告";
+                case ACTIVE -> "進行中";
+                case START -> "受領";
+                default -> "完了";
+            };
+            TextColor labelColor = switch (v.status()) {
+                case REPORT -> DARK;
+                case START -> OK;
+                case DONE -> DIM;
+                default -> AMBER;
+            };
+            line1.moveTo(CHIP_X).chip(QUEST_FONT, (char) (CHIP_BASE + v.status().chip), CHIP_W, label, labelColor,
+                    v.status() == Status.REPORT, click(v.chipAction()),
                     Component.text(switch (v.status()) {
                         case REPORT -> "報告して報酬を受け取る";
                         case START -> "このクエストを受領する";
@@ -654,8 +669,8 @@ public final class QuestDialog implements Listener {
         int limit = (v.handInAction() != null ? CHIP_X - 6 : LOCKED_VALUE_RIGHT) - OBJECTIVE_X;
         line1.moveTo(OBJECTIVE_X).text(FontWidths.truncate(v.text(), limit), v.done() ? OK_TEXT : NAME);
         if (v.handInAction() != null) {
-            line1.moveTo(CHIP_X).glyph(QUEST_FONT, (char) (CHIP_BASE + CHIP_HAND_IN), CHIP_W, click(v.handInAction()),
-                    Component.text("納品の画面を開く", NOTE));
+            line1.moveTo(CHIP_X).chip(QUEST_FONT, (char) (CHIP_BASE + CHIP_HAND_IN), CHIP_W, "納品", AMBER, false,
+                    click(v.handInAction()), Component.text("納品の画面を開く", NOTE));
         }
         line1.moveTo(ROW_LINE_W);
 
@@ -756,6 +771,25 @@ public final class QuestDialog implements Listener {
         Line text(String s, TextColor color) {
             return text(s, color, null, null);
         }
+
+        /**
+         * 札の絵 (幅 width、2 行にまたがる) と、その真ん中に字。字はバニラの字を 5 ずらしたフォント (iem:shift_5。
+         * IEM_shader/tools/shift_fonts.py) で、札の縦の真ん中に来る。札も字も押せる
+         */
+        Line chip(Key font, char c, int width, String label, TextColor color, boolean noShadow, ClickEvent click, Component hover) {
+            int start = x;
+            glyph(font, c, width, click, hover);
+            moveTo(start + (width - FontWidths.width(label)) / 2);
+            Component t = Component.text(label, color).font(CHIP_TEXT_FONT);
+            if (noShadow) t = t.shadowColor(ShadowColor.none());
+            if (click != null) t = t.clickEvent(click);
+            if (hover != null) t = t.hoverEvent(HoverEvent.showText(hover));
+            out.append(t);
+            x += FontWidths.width(label);
+            max = Math.max(max, x);
+            return moveTo(start + width + 1);
+        }
+
 
         Line text(String s, TextColor color, ClickEvent click, Component hover) {
             Component t = Component.text(s, color);
