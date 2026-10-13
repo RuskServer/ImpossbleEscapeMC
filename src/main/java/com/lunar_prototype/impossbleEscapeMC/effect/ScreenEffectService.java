@@ -49,7 +49,8 @@ import java.util.UUID;
  *   <li>空: レイド終盤の起爆前に空だけを赤く染める iem:emp_precursor_* ({@link RaidEndSequence} が段階を決める)</li>
  *   <li>フラッシュライト: 点けたフラッシュライトを手に持っている間 iem:flashlight (周りを照らす光なので色味より下)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
- *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)</li>
+ *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)。
+ *       雨に濡れると、水滴の付いた物 (iem:visor_rain_&lt;段階&gt;。水滴とバイザーを 1 つの効果にした物) に替える</li>
  *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)。太陽のフレアの位置は数値から求める
  *       (ここより下の層は数値の画素をそのまま通す)</li>
  *   <li>数値の画素: 画作りの無い時だけ iem:control。数値の画素を隣の行の色で隠す (画作りがある時は画作りが隠している)</li>
@@ -116,6 +117,12 @@ public final class ScreenEffectService implements Listener {
     private static final double CRITICAL_HEALTH_RATIO = 0.3;
     /** 画作り・負傷の層を見直す間隔 (tick) */
     private static final int STATE_UPDATE_INTERVAL_TICKS = 5;
+    /** バイザーの水滴: 水滴の付くバイザーの効果 (iem:visor_rain_<段階> がある物。IEM_shader/tools/rain_drops.py) と段階の数 */
+    private static final String RAIN_VISOR = "iem:visor";
+    private static final int RAIN_LEVELS = 6;
+    /** 雨の中で 1 段濡れるまで (tick)。雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く */
+    private static final int RAIN_TICKS_PER_LEVEL = 60;
+    private static final int RAIN_DRY_RATE = 2;
     /** クライアントの読み込み完了の通知が来ない場合に待つのをやめるまで */
     private static final int LOAD_WAIT_TIMEOUT_TICKS = 400;
     /** 読み込み完了から演出を始めるまでの間。読み込み画面が閉じた直後は周りの描画が追いついていない */
@@ -165,8 +172,10 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Key> sky = new HashMap<>();
     /** フラッシュライトの層をかけているプレイヤー (点けたフラッシュライトを手に持っている間) */
     private final Set<UUID> flashlit = new HashSet<>();
-    /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間) */
+    /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間。雨に濡れていれば水滴の付いた物) */
     private final Map<UUID, Key> visor = new HashMap<>();
+    /** バイザーの濡れ具合 (tick。雨の中で増え、雨の当たらない所で減る。バイザーを外すと乾く) */
+    private final Map<UUID, Integer> visorWet = new HashMap<>();
     /** 画作りの層 (レンズフレア + 色味) をかけているプレイヤー */
     private final Set<UUID> graded = new HashSet<>();
     /** 負傷の層のエフェクト (出血中・瀕死) */
@@ -431,7 +440,7 @@ public final class ScreenEffectService implements Listener {
         RaidInstance raid = alive && plugin.getRaidModule() != null ? plugin.getRaidModule().getRaidOf(player) : null;
         Key skyEffect = raid != null ? raid.getEndSequence().skyEffect() : null;
         Key woundEffect = alive ? woundEffectOf(player) : null;
-        Key visorEffect = alive ? HelmetVisors.postEffectOf(player.getInventory().getHelmet()) : null;
+        Key visorEffect = withRain(player, alive ? HelmetVisors.postEffectOf(player.getInventory().getHelmet()) : null);
 
         boolean changed = alive ? graded.add(playerId) : graded.remove(playerId);
         Key previousSky = skyEffect != null ? sky.put(playerId, skyEffect) : sky.remove(playerId);
@@ -443,6 +452,39 @@ public final class ScreenEffectService implements Listener {
         boolean lit = alive && com.lunar_prototype.impossbleEscapeMC.item.Flashlight.isLit(player);
         changed |= lit ? flashlit.add(playerId) : flashlit.remove(playerId);
         if (changed) refresh(player);
+    }
+
+    /**
+     * バイザーが雨に濡れていれば、水滴の付いたバイザーの効果 (iem:visor_rain_<段階>) にする。濡れ具合はここで進める
+     * (雨の中で RAIN_TICKS_PER_LEVEL ごとに 1 段、雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く)
+     */
+    private Key withRain(Player player, Key visorEffect) {
+        UUID playerId = player.getUniqueId();
+        if (visorEffect == null || !RAIN_VISOR.equals(visorEffect.asString())) {
+            visorWet.remove(playerId);
+            return visorEffect;
+        }
+        int wet = visorWet.getOrDefault(playerId, 0);
+        wet = inRain(player)
+                ? Math.min(RAIN_LEVELS * RAIN_TICKS_PER_LEVEL, wet + STATE_UPDATE_INTERVAL_TICKS)
+                : Math.max(0, wet - STATE_UPDATE_INTERVAL_TICKS * RAIN_DRY_RATE);
+        if (wet == 0) {
+            visorWet.remove(playerId);
+            return visorEffect;
+        }
+        visorWet.put(playerId, wet);
+        int level = (wet + RAIN_TICKS_PER_LEVEL - 1) / RAIN_TICKS_PER_LEVEL;
+        return Key.key(visorEffect.namespace(), visorEffect.value() + "_rain_" + level);
+    }
+
+    /** 雨に打たれているか: 雨が降っていて、頭の上に雨を遮るブロックが無く、雪や乾いた所 (砂漠など) でない */
+    private static boolean inRain(Player player) {
+        org.bukkit.World world = player.getWorld();
+        if (!world.hasStorm()) return false;
+        org.bukkit.Location eye = player.getEyeLocation();
+        if (world.getHighestBlockYAt(eye.getBlockX(), eye.getBlockZ(), org.bukkit.HeightMap.MOTION_BLOCKING) > eye.getBlockY()) return false;
+        org.bukkit.block.Block block = eye.getBlock();
+        return block.getTemperature() >= 0.15 && block.getHumidity() > 0.0;
     }
 
     private Key woundEffectOf(Player player) {
@@ -515,7 +557,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー (濡れていれば水滴付き) → 画作り → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -563,6 +605,7 @@ public final class ScreenEffectService implements Listener {
         playing.remove(playerId);
         sky.remove(playerId);
         visor.remove(playerId);
+        visorWet.remove(playerId);
         flashlit.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
