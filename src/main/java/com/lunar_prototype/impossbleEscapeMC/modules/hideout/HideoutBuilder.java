@@ -64,6 +64,11 @@ public final class HideoutBuilder {
     /** エディターの区画の間隔 (ブロック) */
     static final int EDITOR_STRIDE = 512;
     static final int EDITOR_Y = 64;
+    /**
+     * 保存する時に、編集を始めた時の状態を貼って比べる区画 (エディターのワールド。どの区画とも重ならない所)。
+     * .schem を読み戻してブロックを 1 マスずつ取ると、FAWE の版によって位置がずれる (貼るのは正しい) ので、貼った物をワールドから読む
+     */
+    private static final BlockVector3 COMPARE_ORIGIN = BlockVector3.at(-EDITOR_STRIDE, EDITOR_Y, 0);
 
     private final HideoutLayout layout;
     private final Logger logger;
@@ -155,17 +160,12 @@ public final class HideoutBuilder {
     private Set<BlockVector3> placed(HideoutFacility facility, int level) {
         return placedCache.computeIfAbsent(facility.id + "_" + level, key -> {
             Set<BlockVector3> positions = new HashSet<>();
-            File schematic = layout.layerSchematic(facility, level);
-            if (!schematic.isFile()) return positions;
-            try (Clipboard clipboard = read(schematic)) {
-                BlockVector3 origin = clipboard.getOrigin();
-                for (BlockVector3 p : clipboard.getRegion()) {
-                    var type = clipboard.getBlock(p).getBlockType();
-                    if (type != BlockTypes.STRUCTURE_VOID && !type.getMaterial().isAir()) positions.add(p.subtract(origin));
-                }
-            } catch (IOException e) {
-                logger.warning("隠れ家の差分 " + key + " を読めませんでした: " + e.getMessage());
+            // 保存した時に書いておいたマス
+            HideoutLayout.Layer layer = layout.layer(facility, level);
+            if (layer != null && layer.placed != null) {
+                for (int[] p : layer.placed) positions.add(BlockVector3.at(p[0], p[1], p[2]));
             }
+            // 前の版の差分は置いたマスを書いていない (.schem の読み戻しは位置がずれるので使わない)。保存し直すと書かれる
             return positions;
         });
     }
@@ -276,15 +276,18 @@ public final class HideoutBuilder {
         if (reference == null || !referenceFile.isFile()) throw new IOException("先に /hideout edit " + target.id + " " + level + " で編集を始めてください");
         BlockVector3 origin = editorOrigin(target, level);
         loadChunks(world, origin, base);
+        // 編集を始めた時の状態を、比べる区画に貼る
+        loadChunks(world, COMPARE_ORIGIN, base);
+        paste(world, COMPARE_ORIGIN, referenceFile, false);
 
         // ブロック: 変わったマスと、その今のブロック
         Map<BlockVector3, BaseBlock> changed = new HashMap<>();
-        try (Clipboard before = read(referenceFile); EditSession session = session(world)) {
+        try (EditSession session = session(world)) {
             for (int x = -MARGIN; x < base.sizeX + MARGIN; x++) {
                 for (int y = -MARGIN; y < base.sizeY + MARGIN; y++) {
                     for (int z = -MARGIN; z < base.sizeZ + MARGIN; z++) {
                         BaseBlock now = session.getFullBlock(origin.add(x, y, z));
-                        BaseBlock old = before.getFullBlock(before.getOrigin().add(x, y, z));
+                        BaseBlock old = session.getFullBlock(COMPARE_ORIGIN.add(x, y, z));
                         if (!sameBlock(now, old)) changed.put(BlockVector3.at(x, y, z), now);
                     }
                 }
@@ -303,6 +306,12 @@ public final class HideoutBuilder {
             if (entry.key() != null) old.put(entry.key(), entry);
         }
         HideoutLayout.Layer layer = new HideoutLayout.Layer();
+        layer.placed = new ArrayList<>();
+        for (Map.Entry<BlockVector3, BaseBlock> e : changed.entrySet()) {
+            if (!e.getValue().getBlockType().getMaterial().isAir()) {
+                layer.placed.add(new int[]{e.getKey().getX(), e.getKey().getY(), e.getKey().getZ()});
+            }
+        }
         Set<String> kept = new HashSet<>();
         int n = 0;
         for (HideoutLayout.EntityEntry now : capture(world, origin, area(origin, base))) {

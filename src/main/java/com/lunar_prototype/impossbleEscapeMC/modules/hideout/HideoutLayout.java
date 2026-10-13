@@ -95,6 +95,11 @@ public final class HideoutLayout {
     public static final class Layer {
         public List<EntityEntry> added = new ArrayList<>();
         public List<String> removed = new ArrayList<>();
+        /**
+         * ブロックを置いたマス (空気以外。ベースの原点から x, y, z)。どの設備のブロックかの判定とカメラに使う。
+         * 前の版で保存した差分には無い (null。保存し直すと書かれる)
+         */
+        public List<int[]> placed;
     }
 
     /** エディターで編集を始めた時の状態のエンティティと、その時の版 */
