@@ -52,7 +52,7 @@ import java.util.UUID;
  *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)</li>
  *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)。太陽のフレアの位置は数値から求める
  *       (ここより下の層は数値の画素をそのまま通す)</li>
- *   <li>数値の画素: 常に iem:control。数値の画素を隣の行の色で隠す (画作りが無い時のため。ある時は画作りが隠している)</li>
+ *   <li>数値の画素: 画作りの無い時だけ iem:control。数値の画素を隣の行の色で隠す (画作りがある時は画作りが隠している)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
@@ -515,7 +515,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -532,7 +532,8 @@ public final class ScreenEffectService implements Listener {
         Key visorEffect = visor.get(playerId);
         if (visorEffect != null) effects.add(visorEffect);
         if (graded.contains(playerId)) effects.add(GRADE);
-        effects.add(CONTROL);
+        // 画作り (grade.fsh) は数値の画素を自分で隠すので、数値の画素を隠す層は画作りの無い時だけ
+        if (!graded.contains(playerId)) effects.add(CONTROL);
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
         Playback playback = playing.get(playerId);
