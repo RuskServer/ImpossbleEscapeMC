@@ -79,6 +79,8 @@ public final class ScreenEffectService implements Listener {
     private static final Key CONTROL = Key.key(NAMESPACE, "control");
     private static final Key CONTROL_DEBUG = Key.key(NAMESPACE, "control_debug");
     private static final Key FLASHLIGHT = Key.key(NAMESPACE, "flashlight");
+    /** 隠れ家の画面を開いている間、メニューの後ろをぼかさない印 (IEM_shader/tools/menu_clear.py)。いちばん後ろの層 */
+    private static final Key MENU_CLEAR = Key.key(NAMESPACE, "menu_clear");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
@@ -157,6 +159,8 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Playback> playing = new HashMap<>();
     /** 数値の画素の確認用エフェクトを重ねているプレイヤー */
     private final Set<UUID> controlDebug = new HashSet<>();
+    /** メニューの後ろをぼかさないプレイヤー (隠れ家の画面を開いている間) */
+    private final Set<UUID> menuClear = new HashSet<>();
     /** 空の層のエフェクト (レイド終盤) */
     private final Map<UUID, Key> sky = new HashMap<>();
     /** フラッシュライトの層をかけているプレイヤー (点けたフラッシュライトを手に持っている間) */
@@ -229,6 +233,14 @@ public final class ScreenEffectService implements Listener {
         if (!enabled) instance.controlDebug.remove(playerId);
         instance.refresh(player);
         return enabled;
+    }
+
+    /** メニューの後ろをぼかさない (隠れ家の画面でカメラが映す設備を見せる) を付け外しする */
+    public static void setMenuClear(Player player, boolean clear) {
+        if (instance == null) return;
+        UUID playerId = player.getUniqueId();
+        boolean changed = clear ? instance.menuClear.add(playerId) : instance.menuClear.remove(playerId);
+        if (changed) instance.refresh(player);
     }
 
     /** アドレナリン放出の演出 (強い一撃 → 心拍で脈打つ → 弱めて終わる) を、効果時間に合わせて流す */
@@ -503,7 +515,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → フラッシュライト → マズルフラッシュ → バイザー → 画作り → 数値の画素 → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -529,6 +541,8 @@ public final class ScreenEffectService implements Listener {
         }
         Key hitEffect = hitEffectOf(playerId);
         if (hitEffect != null) effects.add(hitEffect);
+        // 印は数値の画素を隠す層より後ろ (隠す層が左下の画素を書き換えるため)
+        if (menuClear.contains(playerId)) effects.add(MENU_CLEAR);
 
         if (!effects.equals(current)) player.postEffects().set(effects);
     }
@@ -544,6 +558,7 @@ public final class ScreenEffectService implements Listener {
 
     private void forget(UUID playerId) {
         controlDebug.remove(playerId);
+        menuClear.remove(playerId);
         playing.remove(playerId);
         sky.remove(playerId);
         visor.remove(playerId);

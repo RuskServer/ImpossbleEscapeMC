@@ -50,7 +50,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 0) {
-            new HideoutGUI(module, player).open();
+            HideoutDialog.open(player);
             return true;
         }
 

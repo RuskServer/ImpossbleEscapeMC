@@ -140,6 +140,18 @@ public final class HideoutBuilder {
         return owner;
     }
 
+    /** 設備の Lv.1 から level までの差分がブロックを置いたマス (原点から)。カメラで映す所を決めるのに使う */
+    public Set<BlockVector3> placedBlocks(HideoutFacility facility, int level) {
+        int version = layout.version();
+        if (version != placedCacheVersion) {
+            placedCache.clear();
+            placedCacheVersion = version;
+        }
+        Set<BlockVector3> all = new HashSet<>();
+        for (int l = 1; l <= Math.min(level, layout.highestLevel(facility)); l++) all.addAll(placed(facility, l));
+        return all;
+    }
+
     private Set<BlockVector3> placed(HideoutFacility facility, int level) {
         return placedCache.computeIfAbsent(facility.id + "_" + level, key -> {
             Set<BlockVector3> positions = new HashSet<>();

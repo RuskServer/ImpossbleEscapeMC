@@ -67,7 +67,7 @@ public class HideoutListener implements Listener {
             event.getPlayer().sendMessage("ワークベンチのクラフトメニュー（未実装）を開きます。");
             // new WorkbenchGUI(module, event.getPlayer()).open();
         } else if (line1.contains("hideout")) {
-            new HideoutGUI(module, event.getPlayer()).open();
+            HideoutDialog.open(event.getPlayer());
         }
     }
 }
