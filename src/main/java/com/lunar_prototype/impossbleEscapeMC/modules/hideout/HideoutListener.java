@@ -11,6 +11,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityExhaustionEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -41,6 +42,14 @@ public class HideoutListener implements Listener {
         // 隠れ家の画面のカメラ (スペクテイター) の間はそのまま
         if (HideoutDialog.isCameraActive(player)) return;
         if (player.getGameMode() != GameMode.ADVENTURE) player.setGameMode(GameMode.ADVENTURE);
+    }
+
+    /** 集水設備: ロビーと隠れ家にいる間は空腹が減りにくい */
+    @EventHandler(ignoreCancelled = true)
+    public void onExhaustion(EntityExhaustionEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        double multiplier = module.foodDrainMultiplier(player);
+        if (multiplier < 1.0) event.setExhaustion((float) (event.getExhaustion() * multiplier));
     }
 
     /** 隠れ家のワールドにいる全員をアドベンチャーにする (HideoutModule が一定の間隔で呼ぶ) */
