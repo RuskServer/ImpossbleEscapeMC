@@ -20,8 +20,8 @@ import java.util.logging.Level;
 
 /**
  * 持ち物とスタッシュの FIR (レイド内で入手) の物を、進行中のクエストの納品の目標に自動で充てる (チェストの画面を開かない)。
- * 割り当ての決まりはチェストの納品画面 ({@link QuestHandInGUI}) と同じ: クエストの順・目標の順に、持ち物 → スタッシュの順で。
- * 支給品は使わない ({@link QuestHandInGUI#handInIdOf})
+ * 割り当ての決まり: クエストの順・目標の順に、持ち物 → スタッシュの順で (選ばずに使う。選べる納品はトレーダーから開く {@link QuestHandInDialog})。
+ * 支給品は使わない ({@link QuestHandInDialog#handInIdOf})
  */
 public final class QuestAutoHandIn {
 
@@ -63,7 +63,7 @@ public final class QuestAutoHandIn {
 
     /** 物の ID (支給品・ID の無い物は null) */
     public static String itemIdOf(ItemStack item) {
-        return QuestHandInGUI.handInIdOf(item);
+        return QuestHandInDialog.handInIdOf(item);
     }
 
     public static boolean isFir(ItemStack item) {
