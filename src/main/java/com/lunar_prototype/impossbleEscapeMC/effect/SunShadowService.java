@@ -25,7 +25,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * サーバーで計算した太陽の影を、リソースパックのシェーダーへ送る (試作。/shaderdebug sun で付け外し)。
+ * サーバーで計算した太陽の影を、リソースパックのシェーダーへ送る。レイド中 (生きている間) だけ送る ({@link #setInRaid}。
+ * ScreenEffectService が知らせる)。/shaderdebug sun で付け外しを決められる (確認用。{@link #toggle}、{@link #clearOverride} で自動に戻す)。
  * <p>
  * プレイヤーの周りの {@link #SPAN_X} x {@link #SPAN_Y} x {@link #SPAN_Z} ブロックの空気のブロックごとに、太陽の向きへブロックをたどって
  * 日なた・日陰を決め (空の光がほとんど届かない室内は、日が差し込む所だけ「室内の日なた」、ほかは対象外)、2 段の格子にする:
@@ -33,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 鉄格子・葉・柵などは光を一部だけ通す (通る割合を掛けていき、残った割合でブロックごとに日なた・日陰を振り分ける。
  * シェーダーが周りのブロックと混ぜるので、木漏れ日のような薄い影になる)。
  * データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・iem_sun.glsl。並びはそちらと同じ) として、
- * 本人にだけ見えるテキストディスプレイの文字で送る。ポストエフェクト (ao.fsh・grade.fsh・shafts.fsh) が
+ * 本人にだけ見えるテキストディスプレイの文字で送る。ポストエフェクト (light.fsh・grade.fsh・shafts.fsh) が
  * 画面の画素の位置からこの格子を読んで日陰を暗くする。シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、
  * 止める時・夜は「影なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
  * <p>
@@ -87,6 +88,8 @@ public final class SunShadowService {
     }
 
     private static final Map<UUID, State> states = new ConcurrentHashMap<>();
+    /** /shaderdebug sun で決めた付け外し (無ければレイド中だけ自動) */
+    private static final Map<UUID, Boolean> overrides = new ConcurrentHashMap<>();
     private static BukkitTask task;
     /** 種類ごとの光の通り方 (0 = さえぎる、255 = 通す。間は通る割合) */
     private static byte[] transmitTable;
@@ -94,19 +97,46 @@ public final class SunShadowService {
     private SunShadowService() {
     }
 
-    /** 付け外し。付けたら true */
+    /**
+     * レイド中 (生きていて画作りがある間) かどうかを知らせる (ScreenEffectService が毎 tick)。レイド中だけ送り、外れたら止める
+     * (死亡中・観戦中は画作りが無く、データの画素を隠すものが無いため)。/shaderdebug sun で決めた時はそちらに従う
+     */
+    public static void setInRaid(Player player, boolean inRaid) {
+        Boolean override = overrides.get(player.getUniqueId());
+        boolean want = override != null ? override : inRaid;
+        if (want != isEnabled(player)) setEnabled(player, want);
+    }
+
+    /** 確認用の付け外し (/shaderdebug sun)。レイドに関係なくこの状態にする ({@link #clearOverride} まで)。付けたら true */
     public static boolean toggle(Player player) {
-        State old = states.remove(player.getUniqueId());
-        if (old != null) {
+        boolean on = !isEnabled(player);
+        overrides.put(player.getUniqueId(), on);
+        setEnabled(player, on);
+        return on;
+    }
+
+    /** 確認用の付け外しをやめて、レイド中だけ自動で送るのに戻す */
+    public static void clearOverride(Player player) {
+        overrides.remove(player.getUniqueId());
+    }
+
+    /** 退出した時 */
+    public static void forget(UUID playerId) {
+        overrides.remove(playerId);
+    }
+
+    private static void setEnabled(Player player, boolean on) {
+        if (!on) {
+            State old = states.remove(player.getUniqueId());
+            if (old == null) return;
             // 覚えている影を消させてから (1 秒後に) 表示を消す
             setData(old, null, null);
             TextDisplay display = old.display;
             if (display != null) Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), display::remove, 20L);
-            return false;
+            return;
         }
-        states.put(player.getUniqueId(), new State());
+        states.putIfAbsent(player.getUniqueId(), new State());
         if (task == null) task = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), SunShadowService::tick, 1L, 10L);
-        return true;
     }
 
     public static boolean isEnabled(Player player) {

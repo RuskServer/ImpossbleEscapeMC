@@ -30,7 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * {@code /shaderdebug data}: データの画素 (サーバーからシェーダーへデータを送る試作。リソースパックの iem_control.glsl の IEM_DATA_*) の
  * テスト用のテキストディスプレイを出す・消す。確認用エフェクトの左下の帯が緑になれば、値が正しい場所に届いている。
- * {@code /shaderdebug sun}: サーバーで計算した太陽の影を送る (試作。{@link SunShadowService})。データの画素を使うので、テストとはどちらか一方
+ * {@code /shaderdebug sun}: サーバーで計算した太陽の影 ({@link SunShadowService}。ふだんはレイド中だけ自動) を、レイドに関係なく付け外しする。
+ * {@code /shaderdebug sun auto} で自動に戻す。データの画素を使うので、テストとはどちらか一方
  */
 public class ShaderDebugCommand implements CommandExecutor {
 
@@ -63,14 +64,19 @@ public class ShaderDebugCommand implements CommandExecutor {
             return true;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
+            if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {
+                SunShadowService.clearOverride(player);
+                player.sendMessage(Component.text("サーバーの太陽の影をレイド中だけ自動で送るのに戻しました", NamedTextColor.AQUA));
+                return true;
+            }
             TextDisplay test = dataTests.remove(player.getUniqueId());
             if (test != null) test.remove();
             boolean on = SunShadowService.toggle(player);
             player.sendMessage(Component.text(on
                     ? "サーバーの太陽の影を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
                     + " ブロックはブロックごと、" + SunShadowService.SPAN_X + "x" + SunShadowService.SPAN_Y + "x" + SunShadowService.SPAN_Z
-                    + " ブロックまでは 2 ブロックごと。夜・朝夕は送りません)"
-                    : "サーバーの太陽の影を止めました", NamedTextColor.AQUA));
+                    + " ブロックまでは 2 ブロックごと。夜・朝夕は送りません。/shaderdebug sun auto でレイド中だけに戻す)"
+                    : "サーバーの太陽の影を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)", NamedTextColor.AQUA));
             return true;
         }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
