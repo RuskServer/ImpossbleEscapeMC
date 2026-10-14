@@ -33,14 +33,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ShaderDebugCommand implements CommandExecutor {
 
     // ---- データの画素のテスト (IEM_shader の tools/data_font.py・core/text.vsh・post/control_debug.fsh と同じ決まり) ----
-    /** フォント iem:data: 文字 U+4E00 + 値 (14bit) */
+    /** フォント iem:data: 文字 U+4E00 + 値 (14bit、送り 2)。値の後に毎回すき間の文字 (送り 6) を置き、値 1 つの間隔を 8 にする */
     private static final Key DATA_FONT = Key.key("iem", "data");
     private static final int DATA_BASE = 0x4E00;
+    private static final char DATA_GAP = '\u3000';
+    private static final int DATA_PITCH = 8;
     /** データの文字の色 (text.vsh がこの色の文字だけを移す) */
     private static final TextColor DATA_COLOR = TextColor.color(212, 122, 1);
     private static final int DATA_TEST_COUNT = 1024;
-    /** 文字の間隔を 1/256 ブロックにする大きさ (送り 2 x 文字の大きさ 0.025 x この値 = 1/256) */
-    private static final float DATA_SCALE = 1f / (256f * 2f * 0.025f);
+    /** 値の間隔を 1/256 ブロックにする大きさ (間隔 8 x 文字の大きさ 0.025 x この値 = 1/256) */
+    private static final float DATA_SCALE = 1f / (256f * DATA_PITCH * 0.025f);
     private static final Map<UUID, TextDisplay> dataTests = new ConcurrentHashMap<>();
 
     static int dataTestValue(int i) {
@@ -76,11 +78,11 @@ public class ShaderDebugCommand implements CommandExecutor {
             player.sendMessage(Component.text("データの画素のテストを消しました", NamedTextColor.AQUA));
             return;
         }
-        StringBuilder text = new StringBuilder(DATA_TEST_COUNT);
-        for (int i = 0; i < DATA_TEST_COUNT; i++) text.append((char) (DATA_BASE + dataTestValue(i)));
+        StringBuilder text = new StringBuilder(DATA_TEST_COUNT * 2);
+        for (int i = 0; i < DATA_TEST_COUNT; i++) text.append((char) (DATA_BASE + dataTestValue(i))).append(DATA_GAP);
         Location at = player.getLocation();
         Location anchor = new Location(player.getWorld(), Math.round(at.getX() / 64.0) * 64.0, at.getY() + 1.5, at.getZ() + 2.0, 0f, 0f);
-        float halfWidth = (DATA_TEST_COUNT * 2f / 2f - 1f) * 0.025f * DATA_SCALE;
+        float halfWidth = (DATA_TEST_COUNT * DATA_PITCH / 2f - 1f) * 0.025f * DATA_SCALE;
         TextDisplay display = player.getWorld().spawn(anchor, TextDisplay.class, d -> {
             d.setPersistent(false);
             d.setVisibleByDefault(false);
