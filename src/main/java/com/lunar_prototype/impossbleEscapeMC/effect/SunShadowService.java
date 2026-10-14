@@ -30,7 +30,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * プレイヤーの周りの格子 ({@link #W} x {@link #H} x {@link #D} ブロック) の空気のブロックごとに、太陽の向きへブロックをたどって
  * 日なた・日陰・対象外 (空の光がほとんど届かない室内など) を決め、データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・
  * iem_sun.glsl。並びはそちらと同じ) として、本人にだけ見えるテキストディスプレイの文字で送る。ポストエフェクト (ao.fsh・grade.fsh) が
- * 画面の画素の位置からこの格子を読んで日陰を暗くする。
+ * 画面の画素の位置からこの格子を読んで日陰を暗くする。シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、
+ * 止める時・夜は「影なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
  * <p>
  * 太陽の向きはクライアントの空と同じ: 26.3 のタイムライン (data/minecraft/timeline/day.json の visual/sun_angle) の角度で、
  * 正午 (6000) に 0° から 1 日で 360°、3 次ベジェの緩急。向きは (-sin 角度, cos 角度, 0) (SkyRenderer: Y で -90°、X で角度)
@@ -80,7 +81,10 @@ public final class SunShadowService {
     public static boolean toggle(Player player) {
         State old = states.remove(player.getUniqueId());
         if (old != null) {
-            if (old.display != null) old.display.remove();
+            // 覚えている影を消させてから (1 秒後に) 表示を消す
+            setData(old, null);
+            TextDisplay display = old.display;
+            if (display != null) Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), display::remove, 20L);
             return false;
         }
         states.put(player.getUniqueId(), new State());
@@ -126,7 +130,7 @@ public final class SunShadowService {
         state.angle = angle;
         state.computedAt = System.currentTimeMillis();
         if (sun[1] < MIN_SUN_Y) {
-            setData(state, null);   // 夜・朝夕は送らない (シェーダーは印が無ければ何もしない)
+            setData(state, null);   // 夜・朝夕は「影なし」を送る (シェーダーが覚えている影を消す)
             return;
         }
         Snapshot snapshot = Snapshot.take(world, ox, oy, oz, sun);
@@ -291,16 +295,13 @@ public final class SunShadowService {
 
     // ---- 送る ----
 
-    /** 格子の値をデータの文字にしてテキストディスプレイに書く (null なら空にする = 送らない) */
+    /** 格子の値をデータの文字にしてテキストディスプレイに書く (null なら「影なし」: ヘッダーの印のマスを 0 にして、覚えている影を消させる) */
     private static void setData(State state, int[] values) {
         if (state.display == null) return;
-        if (values == null) {
-            state.display.text(Component.empty());
-            return;
-        }
+        if (values == null) values = new int[0];
         int cells = Math.min(DATA_CAPACITY, PAYLOAD + values.length);
         int[] data = new int[cells];
-        data[HEADER] = MAGIC;
+        data[HEADER] = values.length > 0 ? MAGIC : 0;
         data[HEADER + 1] = state.ox & 1023;
         data[HEADER + 2] = state.oy & 1023;
         data[HEADER + 3] = state.oz & 1023;
