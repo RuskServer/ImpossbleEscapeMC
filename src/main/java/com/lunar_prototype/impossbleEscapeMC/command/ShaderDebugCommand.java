@@ -1,19 +1,51 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
+import org.bukkit.util.Transformation;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 数値の画素 (空のシェーダーが画面に書くカメラ・太陽の向きなど) の確認用エフェクトを、自分の画面に付け外しする。
  * 正しく読めていれば、地平線・方角・太陽の輪が絵とずれずに重なる。左下の四角が緑なら数値がそろっている。
+ * <p>
+ * {@code /shaderdebug data}: データの画素 (サーバーからシェーダーへデータを送る試作。リソースパックの iem_control.glsl の IEM_DATA_*) の
+ * テスト用のテキストディスプレイを出す・消す。確認用エフェクトの左下の帯が緑になれば、値が正しい場所に届いている
  */
 public class ShaderDebugCommand implements CommandExecutor {
+
+    // ---- データの画素のテスト (IEM_shader の tools/data_font.py・core/text.vsh・post/control_debug.fsh と同じ決まり) ----
+    /** フォント iem:data: 文字 U+4E00 + 値 (14bit) */
+    private static final Key DATA_FONT = Key.key("iem", "data");
+    private static final int DATA_BASE = 0x4E00;
+    /** データの文字の色 (text.vsh がこの色の文字だけを移す) */
+    private static final TextColor DATA_COLOR = TextColor.color(212, 122, 1);
+    private static final int DATA_TEST_COUNT = 1024;
+    /** 文字の間隔を 1/256 ブロックにする大きさ (送り 2 x 文字の大きさ 0.025 x この値 = 1/256) */
+    private static final float DATA_SCALE = 1f / (256f * 2f * 0.025f);
+    private static final Map<UUID, TextDisplay> dataTests = new ConcurrentHashMap<>();
+
+    static int dataTestValue(int i) {
+        return i == 0 ? 0x2A5A : (i * 7919 + 13) & 0x3FFF;
+    }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
@@ -21,10 +53,51 @@ public class ShaderDebugCommand implements CommandExecutor {
             sender.sendMessage("プレイヤーだけが使えます");
             return true;
         }
+        if (args.length > 0 && args[0].equalsIgnoreCase("data")) {
+            toggleDataTest(player);
+            return true;
+        }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
         player.sendMessage(Component.text(enabled
                 ? "数値の画素の確認を表示 (左下: 緑 = 空と太陽の数値あり / 黄 = 空だけ / 赤 = 無し)"
                 : "数値の画素の確認を消しました", NamedTextColor.AQUA));
         return true;
+    }
+
+    /**
+     * テスト用のテキストディスプレイ: 0 文字目が x = 64 の倍数 (プレイヤーに一番近い所) に来るように置き、文字を +x の向きに 1/256 ブロックずつ並べる。
+     * テキストディスプレイは 1 行を真ん中にそろえるので、文字の幅の半分だけ +x にずらす。自分にだけ見せる
+     */
+    private static void toggleDataTest(Player player) {
+        TextDisplay old = dataTests.remove(player.getUniqueId());
+        if (old != null) {
+            old.remove();
+            player.sendMessage(Component.text("データの画素のテストを消しました", NamedTextColor.AQUA));
+            return;
+        }
+        StringBuilder text = new StringBuilder(DATA_TEST_COUNT);
+        for (int i = 0; i < DATA_TEST_COUNT; i++) text.append((char) (DATA_BASE + dataTestValue(i)));
+        Location at = player.getLocation();
+        Location anchor = new Location(player.getWorld(), Math.round(at.getX() / 64.0) * 64.0, at.getY() + 1.5, at.getZ() + 2.0, 0f, 0f);
+        float halfWidth = DATA_TEST_COUNT * 2f * 0.025f * DATA_SCALE / 2f;
+        TextDisplay display = player.getWorld().spawn(anchor, TextDisplay.class, d -> {
+            d.setPersistent(false);
+            d.setVisibleByDefault(false);
+            d.text(Component.text(text.toString(), DATA_COLOR).font(DATA_FONT));
+            d.setSeeThrough(true);
+            d.setShadowed(false);
+            d.setDefaultBackground(false);
+            d.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+            d.setLineWidth(1_000_000);
+            d.setAlignment(TextDisplay.TextAlignment.LEFT);
+            d.setBillboard(Display.Billboard.FIXED);
+            d.setViewRange(4f);
+            d.setTransformation(new Transformation(new Vector3f(halfWidth, 0f, 0f), new Quaternionf(),
+                    new Vector3f(DATA_SCALE, DATA_SCALE, DATA_SCALE), new Quaternionf()));
+        });
+        player.showEntity(ImpossbleEscapeMC.getInstance(), display);
+        dataTests.put(player.getUniqueId(), display);
+        player.sendMessage(Component.text("データの画素のテストを出しました (x = " + (int) anchor.getX()
+                + ")。/shaderdebug の左下の帯: 緑 = 正しい、黄 = 逆順、青 = ずれ、赤 = 違う値、灰 = 届いていない", NamedTextColor.AQUA));
     }
 }
