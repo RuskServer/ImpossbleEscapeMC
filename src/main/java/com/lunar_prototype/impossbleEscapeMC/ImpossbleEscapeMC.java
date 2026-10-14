@@ -208,6 +208,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         );
         // レイド終盤の EMP を空と雲のシェーダーに伝える (全員の時刻パケットを書き換える)
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.init();
+        // レイド中のプレイヤーだけ、デバッグ画面 (F3) の座標などを出さない
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.init(this);
         // 足音などの響きを場所ごとに選ぶ音響の地図
         com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AcousticMap.init(this);
         // レイド中の背景音 (場所と時間帯で選ぶ)
@@ -327,6 +329,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
         com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
