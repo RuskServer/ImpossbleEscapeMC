@@ -54,10 +54,11 @@ public final class SunShadowServiceTest {
         check(state(values, 10, 0, 10) == 0, "ground: none");
         for (int v : values) check(v >= 0 && v < (1 << 14), "14 bit");
 
-        // 空の光が暗い所 (室内) は対象外
+        // 空の光が暗い所 (室内): 日陰は対象外、日が差し込む所は室内の日なた
         java.util.Arrays.fill(sky, (byte) 5);
         int[] indoor = SunShadowService.compute(snapshot, 0, 0, 0, new double[]{s, s, 0});
-        check(state(indoor, 35, 1, 10) == 0, "indoor: none");
+        check(state(indoor, 25, 1, 10) == 0, "indoor shade: none");
+        check(state(indoor, 35, 1, 10) == 3, "indoor sunbeam");
         System.out.println("SunShadowServiceTest OK");
     }
 }
