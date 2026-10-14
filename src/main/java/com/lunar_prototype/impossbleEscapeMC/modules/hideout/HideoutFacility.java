@@ -24,6 +24,8 @@ public enum HideoutFacility {
 
     /** ベースの建築改良を作れる上限 (エディターで選べるレベル) */
     public static final int BASE_EDIT_LIMIT = 9;
+    /** 集水設備: ロビーと隠れ家にいる間、空腹の減りを 1 レベルごとにこの割合だけ減らす (仮の値) */
+    public static final double WATER_FOOD_SAVING_PER_LEVEL = 0.15;
     /** 保管庫の各レベルの費用 (Lv.1 から。仮の値) */
     private static final long[] STASH_COST = {5_000, 25_000, 60_000, 120_000};
 
@@ -89,6 +91,7 @@ public enum HideoutFacility {
     /** 画面に出す説明 (決まっていなければ null) */
     public String description() {
         if (this == SKILL_TREE) return "スキルを習得する端末";
+        if (this == WATER) return "ロビーと隠れ家で空腹が減りにくい";
         return this == STASH ? "スタッシュを開ける棚" : null;
     }
 

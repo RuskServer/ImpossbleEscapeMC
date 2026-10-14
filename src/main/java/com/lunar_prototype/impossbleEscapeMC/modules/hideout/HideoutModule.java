@@ -119,6 +119,19 @@ public class HideoutModule implements IModule {
         player.sendMessage(Component.text("ロビーに戻りました。", NamedTextColor.GREEN));
     }
 
+    /**
+     * 集水設備の効果: ロビーか自分の隠れ家にいる間の、空腹の減りの倍率 (Lv ごとに {@link HideoutFacility#WATER_FOOD_SAVING_PER_LEVEL} 減る)。
+     * レイド中・ほかの所では 1
+     */
+    public double foodDrainMultiplier(Player player) {
+        boolean lobby = player.getWorld().equals(Bukkit.getWorlds().get(0))
+                && (plugin.getRaidModule() == null || !plugin.getRaidModule().isInRaid(player));
+        if (!lobby && !worldManager.isPlayerWorld(player.getWorld())) return 1.0;
+        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
+        int level = data != null ? data.getHideoutLevel(HideoutFacility.WATER.id) : 0;
+        return Math.max(0.0, 1.0 - HideoutFacility.WATER_FOOD_SAVING_PER_LEVEL * level);
+    }
+
     /** 建てた時の建築データの版が今と違えば (まだ建てていなければ) 、今のレベルで建て直す */
     public void ensureBuilt(PlayerData data) throws IOException {
         if (data.getHideoutIndex() < 0) return;
