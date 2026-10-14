@@ -1,39 +1,28 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.HandInObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
-import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
-import net.kyori.adventure.text.Component;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 
 /**
- * 持ち物とスタッシュの FIR (レイド内で入手) の物を、進行中のクエストの納品の目標に自動で充てる (チェストの画面を開かない)。
- * 割り当ての決まり: クエストの順・目標の順に、持ち物 → スタッシュの順で (選ばずに使う。選べる納品はトレーダーから開く {@link QuestHandInDialog})。
- * 支給品は使わない ({@link QuestHandInDialog#handInIdOf})
+ * 持ち物・バックパックの中・スタッシュの FIR (レイド内で入手) の物を、進行中のクエストの納品の目標に自動で充てる (レイド結果の画面から)。
+ * 割り当ての決まり: クエストの順・目標の順に、物の並びの順 ({@link HandInPlaces#scan}: 持ち物 → バックパックの中 → スタッシュ) で
+ * (選ばずに使う。選べる納品はトレーダーから開く {@link QuestHandInDialog})。支給品は使わない ({@link QuestHandInDialog#handInIdOf})
  */
 public final class QuestAutoHandIn {
 
-    /** 物のある場所: 持ち物の欄、またはスタッシュのページと欄 */
-    public record Where(int stashPage, int slot) {
-        boolean inventory() {
-            return stashPage == 0;
-        }
-    }
-
-    /** 1 つの割り当て: どの物 (場所) を、どのクエストのどの目標に、いくつ */
-    public record Allocation(QuestDefinition quest, int objective, Where where, String itemId, String itemType, int amount) {
+    /** 1 つの割り当て: どの物 (場所と、画面に出す場所の名前) を、どのクエストのどの目標に、いくつ */
+    public record Allocation(QuestDefinition quest, int objective, HandInPlaces.Source where, String place, String itemId,
+                             String itemType, int amount) {
     }
 
     /** 目標ごとの見通し: 今の数・納品した後の数・必要な数、使う物の見本、納品後にクエストを報告できるか */
@@ -44,21 +33,11 @@ public final class QuestAutoHandIn {
     private final Player player;
     private final PlayerData data;
     private final QuestModule questModule;
-    /** スタッシュのページ (読んだもの)。割り当ての数を減らしながら使う */
-    private final Map<Integer, Inventory> stash = new LinkedHashMap<>();
 
     public QuestAutoHandIn(Player player, PlayerData data, QuestModule questModule) {
         this.player = player;
         this.data = data;
         this.questModule = questModule;
-        for (Map.Entry<Integer, String> page : data.getStashPages().entrySet()) {
-            if (page.getValue() == null) continue;
-            try {
-                stash.put(page.getKey(), SerializationUtil.deserializeInventory(page.getValue(), Component.empty()));
-            } catch (Exception e) {
-                ImpossbleEscapeMC.getInstance().getLogger().log(Level.WARNING, "スタッシュのページを読めませんでした: " + page.getKey(), e);
-            }
-        }
     }
 
     /** 物の ID (支給品・ID の無い物は null) */
@@ -92,7 +71,8 @@ public final class QuestAutoHandIn {
 
     /** 目標ごとの割り当ての見通し (物はまだ動かさない) */
     public List<Target> plan() {
-        Map<Where, Integer> remaining = new LinkedHashMap<>();
+        Map<HandInPlaces.Source, Integer> remaining = new LinkedHashMap<>();
+        List<HandInPlaces.Entry> candidates = HandInPlaces.scan(player, data);
         List<Target> targets = new ArrayList<>();
         for (QuestDefinition quest : questModule.getAllQuests()) {
             ActiveQuest active = data.getActiveQuests().get(quest.getId());
@@ -104,18 +84,18 @@ public final class QuestAutoHandIn {
                 int needed = handIn.getTargetAmount() - before;
                 List<Allocation> allocations = new ArrayList<>();
                 ItemStack sample = null;
-                for (Map.Entry<Where, ItemStack> c : candidates().entrySet()) {
+                for (HandInPlaces.Entry c : candidates) {
                     if (needed <= 0) break;
-                    ItemStack item = c.getValue();
-                    int left = remaining.getOrDefault(c.getKey(), item.getAmount());
+                    ItemStack item = c.item();
+                    int left = remaining.getOrDefault(c.source(), item.getAmount());
                     if (left <= 0 || !isFir(item)) continue;
                     String id = itemIdOf(item);
                     QuestItems.Definition def = QuestItems.resolve(id);
                     if (def == null || !handIn.matches(id, def.type(), true)) continue;
                     int take = Math.min(left, needed);
-                    remaining.put(c.getKey(), left - take);
+                    remaining.put(c.source(), left - take);
                     needed -= take;
-                    allocations.add(new Allocation(quest, i, c.getKey(), id, def.type(), take));
+                    allocations.add(new Allocation(quest, i, c.source(), c.place(), id, def.type(), take));
                     if (sample == null) sample = item.asOne();
                 }
                 if (allocations.isEmpty()) continue;
@@ -149,58 +129,20 @@ public final class QuestAutoHandIn {
      */
     public int apply(List<Allocation> allocations) {
         int done = 0;
-        java.util.Set<Integer> changedPages = new java.util.HashSet<>();
+        HandInPlaces.Store store = new HandInPlaces.Store(player, data);
         for (Allocation a : allocations) {
-            ItemStack item = itemAt(a.where());
+            ItemStack item = store.get(a.where());
             if (item == null || item.getAmount() < a.amount() || !a.itemId().equals(itemIdOf(item)) || !isFir(item)) continue;
             ActiveQuest active = data.getActiveQuests().get(a.quest().getId());
             if (active == null || !(a.quest().getObjectives().get(a.objective()) instanceof HandInObjective handIn)) continue;
             Map<String, Object> params = Map.of("itemId", a.itemId(), "itemType", a.itemType(), "isFIR", true, "amount", a.amount());
             if (!handIn.updateProgress(player, data, active, a.objective(), QuestTrigger.HAND_IN, params)) continue;
             item.setAmount(item.getAmount() - a.amount());
-            setItemAt(a.where(), item.getAmount() > 0 ? item : null);
-            if (!a.where().inventory()) changedPages.add(a.where().stashPage());
+            store.set(a.where(), item.getAmount() > 0 ? item : null);
             done += a.amount();
         }
-        for (int page : changedPages) {
-            try {
-                data.setStashPage(page, SerializationUtil.serializeInventory(stash.get(page)));
-            } catch (Exception e) {
-                ImpossbleEscapeMC.getInstance().getLogger().log(Level.WARNING, "スタッシュのページを書けませんでした: " + page, e);
-            }
-        }
+        store.save();
         if (done > 0) data.setDirty(true);
         return done;
-    }
-
-    /** 使える物の候補: 持ち物 (ホットバー・持ち物の欄)、続いてスタッシュのページ順 */
-    private Map<Where, ItemStack> candidates() {
-        Map<Where, ItemStack> out = new LinkedHashMap<>();
-        ItemStack[] contents = player.getInventory().getStorageContents();
-        for (int slot = 0; slot < contents.length; slot++) {
-            if (contents[slot] != null && !contents[slot].getType().isAir()) out.put(new Where(0, slot), contents[slot]);
-        }
-        for (Map.Entry<Integer, Inventory> page : stash.entrySet()) {
-            ItemStack[] items = page.getValue().getContents();
-            for (int slot = 0; slot < items.length; slot++) {
-                if (items[slot] != null && !items[slot].getType().isAir()) out.put(new Where(page.getKey(), slot), items[slot]);
-            }
-        }
-        return out;
-    }
-
-    private ItemStack itemAt(Where where) {
-        if (where.inventory()) return player.getInventory().getItem(where.slot());
-        Inventory page = stash.get(where.stashPage());
-        return page == null ? null : page.getItem(where.slot());
-    }
-
-    private void setItemAt(Where where, ItemStack item) {
-        if (where.inventory()) {
-            player.getInventory().setItem(where.slot(), item);
-        } else {
-            Inventory page = stash.get(where.stashPage());
-            if (page != null) page.setItem(where.slot(), item);
-        }
     }
 }
