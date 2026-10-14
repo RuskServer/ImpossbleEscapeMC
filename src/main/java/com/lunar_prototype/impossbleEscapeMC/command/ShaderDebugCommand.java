@@ -66,7 +66,8 @@ public class ShaderDebugCommand implements CommandExecutor {
 
     /**
      * テスト用のテキストディスプレイ: 0 文字目が x = 64 の倍数 (プレイヤーに一番近い所) に来るように置き、文字を +x の向きに 1/256 ブロックずつ並べる。
-     * テキストディスプレイは 1 行を真ん中にそろえるので、文字の幅の半分だけ +x にずらす。自分にだけ見せる
+     * テキストディスプレイは行を「1 - 幅 / 2」から描く (DisplayRenderer.TextDisplayRenderer。文字の単位、0.025 倍) ので、
+     * 0 文字目の左の端が置いた所にちょうど来るよう、(幅 / 2 - 1) だけ +x にずらす。自分にだけ見せる
      */
     private static void toggleDataTest(Player player) {
         TextDisplay old = dataTests.remove(player.getUniqueId());
@@ -79,7 +80,7 @@ public class ShaderDebugCommand implements CommandExecutor {
         for (int i = 0; i < DATA_TEST_COUNT; i++) text.append((char) (DATA_BASE + dataTestValue(i)));
         Location at = player.getLocation();
         Location anchor = new Location(player.getWorld(), Math.round(at.getX() / 64.0) * 64.0, at.getY() + 1.5, at.getZ() + 2.0, 0f, 0f);
-        float halfWidth = DATA_TEST_COUNT * 2f * 0.025f * DATA_SCALE / 2f;
+        float halfWidth = (DATA_TEST_COUNT * 2f / 2f - 1f) * 0.025f * DATA_SCALE;
         TextDisplay display = player.getWorld().spawn(anchor, TextDisplay.class, d -> {
             d.setPersistent(false);
             d.setVisibleByDefault(false);
