@@ -459,6 +459,8 @@ public final class ScreenEffectService implements Listener {
         boolean lit = alive && com.lunar_prototype.impossbleEscapeMC.item.Flashlight.isLit(player);
         changed |= lit ? flashlit.add(playerId) : flashlit.remove(playerId);
         if (changed) refresh(player);
+        // サーバーの太陽の影はレイド中 (生きている間) だけ
+        SunShadowService.setInRaid(player, raid != null);
     }
 
     /**
@@ -691,6 +693,7 @@ public final class ScreenEffectService implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         forget(event.getPlayer().getUniqueId());
+        SunShadowService.forget(event.getPlayer().getUniqueId());
         // 保存されて次回の参加時に残らないよう、保存前に外しておく
         clearIem(event.getPlayer());
     }
