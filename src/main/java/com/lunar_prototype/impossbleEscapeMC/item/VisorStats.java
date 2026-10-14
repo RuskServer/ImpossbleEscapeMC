@@ -6,5 +6,5 @@ package com.lunar_prototype.impossbleEscapeMC.item;
  */
 public class VisorStats {
     public double ricochetChance; // 正面の頭部被弾を跳弾させる確率 (0..1)
-    public String postEffect; // かぶっている間のポストエフェクト (リソースパックの post_effect/<path>.json)
+    public String postEffect; // かぶっている間のバイザーの効果。画作りを post_effect/grade_<path>.json に替える (IEM_shader/tools/post_effects.py)
 }
