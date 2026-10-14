@@ -3,9 +3,14 @@ package com.lunar_prototype.impossbleEscapeMC.modules.grounditem;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -33,6 +38,7 @@ import org.joml.Vector3f;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -44,6 +50,8 @@ import java.util.concurrent.ThreadLocalRandom;
  *       向きはランダム。ブロックは寝かせずに置く。転がっている・水に浮いている間は普通の見た目に戻す</li>
  *   <li>拾い方: 近づいただけでは拾わず (サバイバル・アドベンチャー)、左クリックした時に視線の先 (PICKUP_RANGE、壁越しは不可) のアイテムを拾う。
  *       拾う時は EntityPickupItemEvent を自分で呼ぶので、リグで塞がれた欄・容量・FIR の印などの今の決まりはそのまま効く</li>
+ *   <li>強調: 左クリックで拾う物 (視線の先のアイテム) を、その人にだけ光る縁取りで見せる。光る印 (エンティティのデータの光るビット) を
+ *       その人にだけパケットで送る (寝かせている物は見た目の方、それ以外はアイテムそのもの)</li>
  * </ul>
  */
 public final class GroundItemService implements Listener {
@@ -63,6 +71,11 @@ public final class GroundItemService implements Listener {
     private static final int MOVE_TICKS = 3;
     private static final float DISPLAY_SCALE = 0.5f;
     private static final int SCAN_INTERVAL_TICKS = 20;
+    /** 拾う物の強調を見直す間隔 (tick) と、縁取りの色 (寝かせた見た目) */
+    private static final int HIGHLIGHT_INTERVAL_TICKS = 2;
+    private static final Color HIGHLIGHT_COLOR = Color.fromRGB(0xFFE08A);
+    /** エンティティのデータの 0 番 (状態のビット) の、光る縁取りのビット */
+    private static final byte GLOWING_FLAG = 0x40;
 
     private static GroundItemService instance;
 
@@ -73,6 +86,8 @@ public final class GroundItemService implements Listener {
     private final Map<UUID, Item> watched = new HashMap<>();
     /** 止まっている (寝かせる前) か、動いている (寝かせている時) tick 数 */
     private final Map<UUID, Integer> streak = new HashMap<>();
+    /** 強調しているエンティティ (プレイヤーごと。エンティティの番号) */
+    private final Map<UUID, Integer> highlighted = new HashMap<>();
     /** 右クリックした tick (右クリックでも腕を振るので、その tick の腕振りは左クリックとみなさない) */
     private final Map<UUID, Integer> lastRightClick = new HashMap<>();
 
@@ -114,6 +129,7 @@ public final class GroundItemService implements Listener {
     }
 
     private void tick() {
+        if (Bukkit.getCurrentTick() % HIGHLIGHT_INTERVAL_TICKS == 0) updateHighlights();
         Iterator<Map.Entry<UUID, Item>> it = watched.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<UUID, Item> entry = it.next();
@@ -173,6 +189,7 @@ public final class GroundItemService implements Listener {
             d.setPersistent(false);
             d.setItemStack(stack);
             d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+            d.setGlowColorOverride(HIGHLIGHT_COLOR);
             d.setTransformation(new Transformation(translation, rotation,
                     new Vector3f(DISPLAY_SCALE, DISPLAY_SCALE, DISPLAY_SCALE), new Quaternionf()));
         });
@@ -184,6 +201,37 @@ public final class GroundItemService implements Listener {
         ItemDisplay display = displays.remove(id);
         if (display != null && display.isValid()) display.remove();
         if (item != null && item.isValid()) item.setVisibleByDefault(true);
+    }
+
+    // --- 拾う物の強調 ---
+
+    /** 各プレイヤーの拾う物 (視線の先のアイテム) が替わったら、前の物の縁取りを消して今の物を縁取る (その人にだけ) */
+    private void updateHighlights() {
+        highlighted.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            GameMode mode = player.getGameMode();
+            Item target = mode == GameMode.SURVIVAL || mode == GameMode.ADVENTURE ? targetItem(player) : null;
+            Integer now = null;
+            if (target != null) {
+                ItemDisplay display = displays.get(target.getUniqueId());
+                now = display != null && display.isValid() ? display.getEntityId() : target.getEntityId();
+            }
+            Integer before = highlighted.get(player.getUniqueId());
+            if (java.util.Objects.equals(before, now)) continue;
+            if (before != null) sendGlowing(player, before, false);
+            if (now != null) {
+                sendGlowing(player, now, true);
+                highlighted.put(player.getUniqueId(), now);
+            } else {
+                highlighted.remove(player.getUniqueId());
+            }
+        }
+    }
+
+    /** エンティティの光る縁取りを、このプレイヤーにだけ付ける・消す (落ちている物と見た目は、ほかのビットを使わない) */
+    private static void sendGlowing(Player player, int entityId, boolean glowing) {
+        PacketEvents.getAPI().getPlayerManager().sendPacket(player, new WrapperPlayServerEntityMetadata(entityId,
+                List.of(new EntityData<>(0, EntityDataTypes.BYTE, glowing ? GLOWING_FLAG : (byte) 0))));
     }
 
     // --- 拾い方 ---
