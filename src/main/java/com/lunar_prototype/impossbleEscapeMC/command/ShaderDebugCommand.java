@@ -67,7 +67,9 @@ public class ShaderDebugCommand implements CommandExecutor {
             if (test != null) test.remove();
             boolean on = SunShadowService.toggle(player);
             player.sendMessage(Component.text(on
-                    ? "サーバーの太陽の影を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D + " ブロック。夜・朝夕は送りません)"
+                    ? "サーバーの太陽の影を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
+                    + " ブロックはブロックごと、" + SunShadowService.SPAN_X + "x" + SunShadowService.SPAN_Y + "x" + SunShadowService.SPAN_Z
+                    + " ブロックまでは 2 ブロックごと。夜・朝夕は送りません)"
                     : "サーバーの太陽の影を止めました", NamedTextColor.AQUA));
             return true;
         }
