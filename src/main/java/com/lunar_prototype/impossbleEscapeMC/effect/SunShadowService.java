@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * サーバーで計算した太陽の影を、リソースパックのシェーダーへ送る (試作。/shaderdebug sun で付け外し)。
  * <p>
  * プレイヤーの周りの格子 ({@link #W} x {@link #H} x {@link #D} ブロック) の空気のブロックごとに、太陽の向きへブロックをたどって
- * 日なた・日陰・対象外 (空の光がほとんど届かない室内など) を決め、データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・
+ * 日なた・日陰を決め (空の光がほとんど届かない室内は、日が差し込む所だけ「室内の日なた」、ほかは対象外)、データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・
  * iem_sun.glsl。並びはそちらと同じ) として、本人にだけ見えるテキストディスプレイの文字で送る。ポストエフェクト (ao.fsh・grade.fsh) が
  * 画面の画素の位置からこの格子を読んで日陰を暗くする。シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、
  * 止める時・夜は「影なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
@@ -54,7 +54,7 @@ public final class SunShadowService {
     public static final int W = 48, H = 24, D = 48;
     /** 太陽へたどる長さ (ブロック) */
     private static final int REACH = 48;
-    /** この空の光より暗い空気のブロックは対象外 (室内の奥。光の表の暗さだけにする) */
+    /** この空の光より暗い空気のブロックは室内 (日陰なら対象外 = 光の表の暗さだけ、日が差し込めば室内の日なた) */
     private static final int OUTDOOR_SKY_LIGHT = 12;
     /** 太陽がこれより低い (向きの y) 時は送らない */
     private static final double MIN_SUN_Y = 0.08;
@@ -240,7 +240,8 @@ public final class SunShadowService {
         return table;
     }
 
-    /** 格子のブロックごとの状態 (0 = 対象外、1 = 日陰、2 = 日なた) を 7 個ずつ 14bit に詰めた値 */
+    /** 格子のブロックごとの状態 (0 = 対象外 (固体・室内の日陰)、1 = 屋外の日陰、2 = 屋外の日なた、3 = 室内の日なた (窓などから差し込む日)) を
+     * 7 個ずつ 14bit に詰めた値 */
     static int[] compute(Snapshot s, int ox, int oy, int oz, double[] sun) {
         int count = W * H * D;
         int[] values = new int[(count + PER_VALUE - 1) / PER_VALUE];
@@ -249,11 +250,11 @@ public final class SunShadowService {
                 for (int x = 0; x < W; x++) {
                     int index = x + W * (z + D * y);
                     int wx = ox + x, wy = oy + y, wz = oz + z;
-                    int state;
-                    if (s.solid(wx, wy, wz) || s.skyLight()[index] < OUTDOOR_SKY_LIGHT) {
-                        state = 0;
-                    } else {
-                        state = sunBlocked(s, wx + 0.5, wy + 0.5, wz + 0.5, sun) ? 1 : 2;
+                    int state = 0;
+                    if (!s.solid(wx, wy, wz)) {
+                        boolean outdoor = s.skyLight()[index] >= OUTDOOR_SKY_LIGHT;
+                        boolean blocked = sunBlocked(s, wx + 0.5, wy + 0.5, wz + 0.5, sun);
+                        state = outdoor ? (blocked ? 1 : 2) : (blocked ? 0 : 3);
                     }
                     values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
                 }
