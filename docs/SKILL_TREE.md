@@ -187,7 +187,7 @@
 ### 効果の差し込み先
 | 系統 | 場所 |
 |---|---|
-| 射撃 | プラグインが倍率を `toisarm.mod.<名前>` のスコア (千分率) に置き、データパック (Tois-Armory-Dev) の `toisarm:player/load_gun_data/get/modifiers` が銃を読み込んだ時に掛ける。次に銃を持ち替えた時から効く。アニメーションは時間に合わせて伸び縮みする |
+| 射撃 | データパックは変えない。データパックが銃を持ち替えた時にスコア `toisarm.state.*` に読み込んだ値へ、プラグインが毎 tick 倍率を掛ける (`GunSkillScores`。読み込みは持ち替えの残り `toisarm.timer.swap` が増えたか、書いた値から変わったかで見つける)。読み込んだ tick だけは元の値。アニメーションは時間に合わせて伸び縮みする |
 | 体力 | `StaminaModule` (上限は減り方・回復を割って表す)、`SkillModule.weightStage` (「軽い」の上限)、`WeightModule` (走れなくなる重さ・遅くなる重さ) |
 | 医療 | `StatusEffectManager` (出血・骨折・自動の痛み止め)、`MedicalModule` (CAT の時間・AI-2 の回復と間隔と耐久・中断の猶予) |
 | 隠密・探索 | `SearchGUI` (1 tick ごとに進むようにした)、`PlayerListener` (足音・気づかれるまで・範囲・草の音)、`ScavVision`、`RaidInstance` (脱出)、`GroundItemService` |

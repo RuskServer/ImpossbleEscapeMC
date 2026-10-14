@@ -13,13 +13,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.scoreboard.Criteria;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Score;
-import org.bukkit.scoreboard.Scoreboard;
-import net.kyori.adventure.text.Component;
 
 import java.io.IOException;
 import java.util.EnumMap;
@@ -40,6 +34,7 @@ public final class SkillModule implements IModule, Listener {
     private PlayerDataModule dataModule;
     /** 習得したノードの値の合計 (習得した時・抜けた時に作り直す) */
     private final Map<UUID, EnumMap<SkillStat, Double>> totals = new ConcurrentHashMap<>();
+    private final GunSkillScores gunScores = new GunSkillScores();
 
     public SkillModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -52,7 +47,8 @@ public final class SkillModule implements IModule, Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
         SkillTreeDialog.init(this);
         instance = this;
-        for (Player player : Bukkit.getOnlinePlayers()) syncGunScores(player);
+        // 射撃のスキル: データパックが銃を読み込んだ値に、毎 tick 倍率を掛ける
+        Bukkit.getScheduler().runTaskTimer(plugin, gunScores, 1L, 1L);
     }
 
     @Override
@@ -122,42 +118,7 @@ public final class SkillModule implements IModule, Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         totals.remove(event.getPlayer().getUniqueId());
-    }
-
-    @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
-        syncGunScores(event.getPlayer());
-    }
-
-    // ---- 射撃のスキル (データパック Toi's Armory の銃の数値) ----
-
-    /**
-     * 射撃のスキルの値と、データパックの倍率のスコア (toisarm.mod.<名前>、千分率) の対応。データパックは銃を読み込んだ時に
-     * toisarm:player/load_gun_data/get/modifiers でこの倍率を掛ける (次に銃を持ち替えた時から効く)
-     */
-    private static final Map<SkillStat, String> GUN_SCORES = Map.ofEntries(
-            Map.entry(SkillStat.RELOAD_TIME, "reload"), Map.entry(SkillStat.EMPTY_RELOAD_TIME, "empty_reload"),
-            Map.entry(SkillStat.SWAP_TIME, "swap"), Map.entry(SkillStat.ADS_TIME, "ads"), Map.entry(SkillStat.SPRINT_TO_FIRE, "sprint"),
-            Map.entry(SkillStat.BOLT_ACTION, "bolt_action"), Map.entry(SkillStat.RECOIL_PITCH, "pitch_recoil"),
-            Map.entry(SkillStat.RECOIL_YAW, "yaw_recoil"), Map.entry(SkillStat.HIPFIRE_SPREAD, "accuracy_idle"),
-            Map.entry(SkillStat.MOVE_SPREAD, "accuracy_move"), Map.entry(SkillStat.BLOOM_INCREASE, "bloom_increase"),
-            Map.entry(SkillStat.BLOOM_DECAY, "bloom_decay"), Map.entry(SkillStat.SWAY, "sway"), Map.entry(SkillStat.SHAKE, "shake"));
-
-    /** プレイヤーの射撃のスキルを、データパックの倍率のスコアに書く (スキルが無ければスコアを消す = そのまま) */
-    void syncGunScores(Player player) {
-        Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
-        for (Map.Entry<SkillStat, String> e : GUN_SCORES.entrySet()) {
-            String name = "toisarm.mod." + e.getValue();
-            Objective objective = board.getObjective(name);
-            if (objective == null) objective = board.registerNewObjective(name, Criteria.DUMMY, Component.text(name));
-            double multiplier = Math.max(0.05, multiplier(player, e.getKey()));
-            Score score = objective.getScore(player);
-            if (Math.abs(multiplier - 1) < 1e-9) {
-                score.resetScore();
-            } else {
-                score.setScore((int) Math.round(multiplier * 1000));
-            }
-        }
+        gunScores.forget(event.getPlayer().getUniqueId());
     }
 
     // ---- 習得 ----
@@ -243,7 +204,6 @@ public final class SkillModule implements IModule, Listener {
         }
         data.addSkill(node.id());
         totals.remove(player.getUniqueId());
-        syncGunScores(player);
         dataModule.saveAsync(player.getUniqueId());
         return null;
     }
