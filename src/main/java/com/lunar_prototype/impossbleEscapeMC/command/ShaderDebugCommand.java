@@ -2,6 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.command;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
+import com.lunar_prototype.impossbleEscapeMC.effect.SunShadowService;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -28,7 +29,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 正しく読めていれば、地平線・方角・太陽の輪が絵とずれずに重なる。左下の四角が緑なら数値がそろっている。
  * <p>
  * {@code /shaderdebug data}: データの画素 (サーバーからシェーダーへデータを送る試作。リソースパックの iem_control.glsl の IEM_DATA_*) の
- * テスト用のテキストディスプレイを出す・消す。確認用エフェクトの左下の帯が緑になれば、値が正しい場所に届いている
+ * テスト用のテキストディスプレイを出す・消す。確認用エフェクトの左下の帯が緑になれば、値が正しい場所に届いている。
+ * {@code /shaderdebug sun}: サーバーで計算した太陽の影を送る (試作。{@link SunShadowService})。データの画素を使うので、テストとはどちらか一方
  */
 public class ShaderDebugCommand implements CommandExecutor {
 
@@ -56,7 +58,17 @@ public class ShaderDebugCommand implements CommandExecutor {
             return true;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("data")) {
+            if (SunShadowService.isEnabled(player)) SunShadowService.toggle(player);
             toggleDataTest(player);
+            return true;
+        }
+        if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
+            TextDisplay test = dataTests.remove(player.getUniqueId());
+            if (test != null) test.remove();
+            boolean on = SunShadowService.toggle(player);
+            player.sendMessage(Component.text(on
+                    ? "サーバーの太陽の影を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D + " ブロック。夜・朝夕は送りません)"
+                    : "サーバーの太陽の影を止めました", NamedTextColor.AQUA));
             return true;
         }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
