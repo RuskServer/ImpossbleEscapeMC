@@ -51,7 +51,7 @@ import static com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidResu
  *   <li>経験値: 内訳が 1 行ずつ足され、レベルの棒が伸びる (ダイアログを 2 tick ごとに送り直す。送り直しても
  *       クライアントは同じ描画の間に画面を差し替えるので、ちらつかない)</li>
  *   <li>戦利品 (チェストの画面)</li>
- *   <li>クエスト納品: 持ち物とスタッシュの FIR の物で納品できる目標 ({@link QuestAutoHandIn})。行ごと・まとめて (確認を挟む)</li>
+ *   <li>クエスト納品: 持ち物・バックパックの中・スタッシュの FIR の物で納品できる目標 ({@link QuestAutoHandIn})。行ごと・まとめて (確認を挟む)</li>
  *   <li>キルログ: 倒した相手を時刻順に (武器・弾・距離・部位)。倒された時はその相手も</li>
  * </ol>
  * 見た目の部品はクエストの画面と同じ (フォント iem:trader・iem:quest) と、iem:result ({@link RaidResultFont})。
@@ -292,7 +292,7 @@ public final class RaidResultDialog implements Listener {
         if (plan.isEmpty()) {
             body.add(DialogBody.plainMessage(Component.text("持ち帰った物で納品できる目標はありません", NOTE), BODY_W));
         } else {
-            body.add(DialogBody.plainMessage(Component.text("納品する物は持ち物とスタッシュから自動で選びます (FIR の物だけ。持ち込んだ物・支給品は使いません)", NOTE), BODY_W));
+            body.add(DialogBody.plainMessage(Component.text("納品する物は持ち物・バックパックの中・スタッシュから自動で選びます (FIR の物だけ。持ち込んだ物・支給品は使いません)", NOTE), BODY_W));
         }
         ActionButton next = ActionButton.create(Component.text("次へ: キルログ"), null, 150, action("page/kills"));
         ActionButton first = plan.isEmpty()
@@ -342,7 +342,7 @@ public final class RaidResultDialog implements Listener {
         lines.add(Component.text("次の物を使って納品します。", INK));
         for (QuestAutoHandIn.Target t : plan) {
             for (QuestAutoHandIn.Allocation a : t.allocations()) {
-                String where = a.where().stashPage() == 0 ? "持ち物" : "スタッシュ " + a.where().stashPage();
+                String where = a.place();
                 lines.add(Component.text("・" + (t.sample() != null ? plain(t.sample()) : a.itemId()) + " ×" + a.amount(), NAME)
                         .append(Component.text("  (" + where + ")  → ", NOTE))
                         .append(Component.text(t.quest().getDisplayName(), AMBER)));
