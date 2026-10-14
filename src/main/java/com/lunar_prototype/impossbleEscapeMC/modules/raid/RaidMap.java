@@ -35,12 +35,21 @@ public class RaidMap {
         if (loc.getWorld() == null) {
             throw new IllegalArgumentException("Location world must not be null");
         }
-        String currentWorldName = loc.getWorld().getName();
         if (worldName == null) {
-            worldName = currentWorldName;
-        } else if (!worldName.equals(currentWorldName)) {
-            throw new IllegalArgumentException("RaidMap cannot contain points from multiple worlds");
+            worldName = loc.getWorld().getName();
+        } else if (!isWorld(loc.getWorld())) {
+            throw new IllegalArgumentException("RaidMap cannot contain points from multiple worlds (map: " + worldName
+                    + ", location: " + loc.getWorld().getName() + ")");
         }
+    }
+
+    /**
+     * world がこのマップのワールドか。保存してある名前と今の名前の文字列が違っても (サーバーの版でワールドの名前の形が変わった時など)、
+     * その名前で探したワールドが同じならこのマップのワールドとみなす (レイドも同じ探し方でワールドを使っている)
+     */
+    public boolean isWorld(World world) {
+        if (world == null || worldName == null) return false;
+        return worldName.equals(world.getName()) || world.equals(Bukkit.getWorld(worldName));
     }
 
     public void addSpawnPoint(Location loc) {
@@ -95,7 +104,7 @@ public class RaidMap {
 
     /** block と同じブロックの位置のルートコンテナの登録を外す (このマップのワールドの時だけ)。外した数 */
     public int removeLootContainersAt(Location block) {
-        if (lootContainers == null || block.getWorld() == null || !block.getWorld().getName().equals(getWorldName())) return 0;
+        if (lootContainers == null || !isWorld(block.getWorld())) return 0;
         int before = lootContainers.size();
         lootContainers.removeIf(lc -> lc.isAt(block));
         return before - lootContainers.size();
