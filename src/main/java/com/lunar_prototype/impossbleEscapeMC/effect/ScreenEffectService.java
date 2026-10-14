@@ -51,10 +51,10 @@ import java.util.UUID;
  *       見えなくなった時にゆっくり消す。RaidEndSequence の照明弾が決める)</li>
  *   <li>フラッシュライト: 点けたフラッシュライトを手に持っている間 iem:flashlight (周りを照らす光なので色味より下)</li>
  *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
- *   <li>バイザー: バイザーを付けたヘルメットをかぶっている間 (iem:visor など、バイザーごと。目の手前のガラスなのでレンズフレアより下)。
- *       雨に濡れると、水滴の付いた物 (iem:visor_rain_&lt;段階&gt;。水滴とバイザーを 1 つの効果にした物) に替える</li>
- *   <li>画作り: ロビーでもレイド中でも常に iem:grade (レンズフレア + 色味)。太陽のフレアの位置は数値から求める
- *       (ここより下の層は数値の画素をそのまま通す)</li>
+ *   <li>画作り: ロビーでもレイド中でも常に iem:grade (太陽の影・接地の影・光の筋・レンズフレア・色味)。太陽のフレアの位置は数値から求める
+ *       (ここより下の層は数値の画素をそのまま通す)。バイザーを付けたヘルメットをかぶっている間は、バイザー付きの画作り
+ *       (iem:grade_&lt;バイザーの効果&gt;。最初の段でバイザーをかける。目の手前のガラスなのでレンズフレアより下)。
+ *       雨に濡れると水滴付きの物 (iem:grade_visor_rain_&lt;段階&gt;) に替える。効果は IEM_shader/tools/post_effects.py が作る</li>
  *   <li>数値の画素: 画作りの無い時だけ iem:control。数値の画素を隣の行の色で隠す (画作りがある時は画作りが隠している)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
@@ -119,7 +119,7 @@ public final class ScreenEffectService implements Listener {
     private static final double CRITICAL_HEALTH_RATIO = 0.3;
     /** 画作り・負傷の層を見直す間隔 (tick) */
     private static final int STATE_UPDATE_INTERVAL_TICKS = 5;
-    /** バイザーの水滴: 水滴の付くバイザーの効果 (iem:visor_rain_<段階> がある物。IEM_shader/tools/rain_drops.py) と段階の数 */
+    /** バイザーの水滴: 水滴の付くバイザー (画作り iem:grade_visor_rain_<段階> がある物。IEM_shader/tools/post_effects.py) と段階の数 */
     private static final String RAIN_VISOR = "iem:visor";
     private static final int RAIN_LEVELS = 6;
     /** 雨の中で 1 段濡れるまで (tick)。雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く */
@@ -462,7 +462,7 @@ public final class ScreenEffectService implements Listener {
     }
 
     /**
-     * バイザーが雨に濡れていれば、水滴の付いたバイザーの効果 (iem:visor_rain_<段階>) にする。濡れ具合はここで進める
+     * バイザーが雨に濡れていれば、水滴の付いたバイザー (iem:visor_rain_<段階>。画作りは iem:grade_visor_rain_<段階>) にする。濡れ具合はここで進める
      * (雨の中で RAIN_TICKS_PER_LEVEL ごとに 1 段、雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く)
      */
     private Key withRain(Player player, Key visorEffect) {
@@ -564,7 +564,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → 照明弾 → フラッシュライト → マズルフラッシュ → バイザー (濡れていれば水滴付き) → 画作り → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → 照明弾 → フラッシュライト → マズルフラッシュ → 画作り (バイザー・水滴付きもある) → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -580,9 +580,9 @@ public final class ScreenEffectService implements Listener {
         if (flashlit.contains(playerId)) effects.add(FLASHLIGHT);
         Key flashEffect = muzzleFlash.get(playerId);
         if (flashEffect != null) effects.add(flashEffect);
+        // バイザーは画作りの最初の段でかける (画面全体の段と写し戻しを 1 組減らす)。画作りの無い時 (死亡中など) はかけない
         Key visorEffect = visor.get(playerId);
-        if (visorEffect != null) effects.add(visorEffect);
-        if (graded.contains(playerId)) effects.add(GRADE);
+        if (graded.contains(playerId)) effects.add(visorEffect != null ? Key.key(NAMESPACE, "grade_" + visorEffect.value()) : GRADE);
         // 画作り (grade.fsh) は数値の画素を自分で隠すので、数値の画素を隠す層は画作りの無い時だけ
         if (!graded.contains(playerId)) effects.add(CONTROL);
         Key woundEffect = wound.get(playerId);
