@@ -113,6 +113,12 @@ public class HideoutModule implements IModule {
         return true;
     }
 
+    /** ロビー (メインのワールドのスポーン。レイドから戻る所と同じ) へ戻す */
+    public void returnToLobby(Player player) {
+        player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        player.sendMessage(Component.text("ロビーに戻りました。", NamedTextColor.GREEN));
+    }
+
     /** 建てた時の建築データの版が今と違えば (まだ建てていなければ) 、今のレベルで建て直す */
     public void ensureBuilt(PlayerData data) throws IOException {
         if (data.getHideoutIndex() < 0) return;

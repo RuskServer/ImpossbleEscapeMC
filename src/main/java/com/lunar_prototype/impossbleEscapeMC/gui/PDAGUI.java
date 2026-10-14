@@ -202,7 +202,9 @@ public class PDAGUI implements Listener {
         // Partyボタン
         inventory.setItem(10, createPartyButton());
 
-        // Hideoutボタン (左クリックで隠れ家へ移動、右クリックで設備の画面)
+        // Hideoutボタン (左クリックで隠れ家へ移動 (隠れ家にいる時はロビーへ戻る)、右クリックで設備の画面)
+        HideoutModule hideoutModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(HideoutModule.class);
+        boolean inHideout = hideoutModule != null && hideoutModule.getWorldManager().isPlayerWorld(player.getWorld());
         ItemStack hideout = new ItemStack(inRaid ? Material.BARRIER : Material.CAMPFIRE);
         ItemMeta hideoutMeta = hideout.getItemMeta();
         hideoutMeta.displayName(Component.text("Hideout (隠れ家)", inRaid ? NamedTextColor.RED : NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
@@ -212,7 +214,7 @@ public class PDAGUI implements Listener {
         if (inRaid) {
             hideoutLore.add(Component.text("レイド中は開くことができません！", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         } else {
-            hideoutLore.add(Component.text("左クリック: 隠れ家へ移動", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            hideoutLore.add(Component.text(inHideout ? "左クリック: ロビーへ戻る" : "左クリック: 隠れ家へ移動", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             hideoutLore.add(Component.text("右クリック: 設備の画面を開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
         }
         hideoutMeta.lore(hideoutLore);
@@ -317,10 +319,13 @@ public class PDAGUI implements Listener {
                 return;
             }
             player.closeInventory();
+            HideoutModule hideoutModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(HideoutModule.class);
             if (event.isRightClick()) {
                 HideoutDialog.open(player);
+            } else if (hideoutModule.getWorldManager().isPlayerWorld(player.getWorld())) {
+                hideoutModule.returnToLobby(player);
             } else {
-                ImpossbleEscapeMC.getInstance().getServiceContainer().get(HideoutModule.class).visit(player);
+                hideoutModule.visit(player);
             }
         } else if (slot == 16) {
             com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog.openPda(player);
