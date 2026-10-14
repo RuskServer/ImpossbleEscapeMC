@@ -67,7 +67,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>一覧: トレーダーから開くとそのトレーダーのクエスト (状態のタブ)、PDA から開くとすべてのトレーダーの進行中・受領可
  *       (トレーダーのタブ)。行に状態の札と目標の目盛り。「報告」「受領」の札はその場で押せ、名前を押すと詳細</li>
  *   <li>詳細: 依頼文・目標ごとの進み具合 (納品の目標は「納品」の札)・報酬・(ロック中なら) 受領の条件</li>
- *   <li>納品はダイアログに物を入れられないので、チェストの納品画面 ({@link QuestHandInGUI}) を開き、戻るとこの画面に戻る</li>
+ *   <li>納品は納品の画面 ({@link QuestHandInDialog}) で、持ち物・スタッシュ・バックパックから使う物を選ぶ。戻るとこの画面に戻る</li>
  * </ul>
  * フォント: 共通の部品 (端末・札・枠・錠・箱・空白) は iem:trader (IEM_shader/tools/trader_font.py)、クエストだけの部品は
  * iem:quest (quest_font.py)、目標・報酬のアイコンは iem:icon ({@link UiIcon}、ui_icons.py)。字の番号・寸法はそれぞれと同じにする。
@@ -327,7 +327,7 @@ public final class QuestDialog implements Listener {
             chips.add(new Chip(session.showAll ? "完了・ロック: 表示" : "完了・ロック: 隠す", NOTE, "all",
                     session.showAll ? "進行中・受領可だけにする" : "完了・ロック中のクエストも並べる"));
         } else if (trader != null) {
-            int bulk = QuestHandInGUI.openHandIns(data, trader, quests).size();
+            int bulk = QuestHandInDialog.openHandIns(data, trader, quests).size();
             if (bulk > 0) chips.add(new Chip("まとめて納品  " + bulk + "件", AMBER, "bulk", "入れた物を、進行中のクエストの納品に順に充てる"));
         }
         String name = session.pda() ? "TASKS" : traderName(trader, session.traderId).toUpperCase(Locale.ROOT);
@@ -409,7 +409,7 @@ public final class QuestDialog implements Listener {
         ActionButton main = switch (e.status()) {
             case START -> ActionButton.create(Component.text("受領する"), null, 150, action("accept/" + quest.getId()));
             case REPORT -> ActionButton.create(Component.text("報告して報酬を受け取る"), null, 150, action("report/" + quest.getId()));
-            case ACTIVE -> QuestHandInGUI.hasOpenHandIn(quest, e.active())
+            case ACTIVE -> QuestHandInDialog.hasOpenHandIn(quest, e.active())
                     ? ActionButton.create(Component.text("納品する"), Component.text("納品の画面を開く"), 150, action("handin/" + quest.getId()))
                     : null;
             default -> null;
@@ -1094,15 +1094,13 @@ public final class QuestDialog implements Listener {
             case "handin", "bulk" -> {
                 TraderDefinition trader = trader(quest != null ? quest.getTraderId() : session.traderId);
                 if (trader == null) return;
-                QuestHandInGUI gui = quest != null ? new QuestHandInGUI(player, trader, quests, quest)
-                        : QuestHandInGUI.forTrader(player, trader, quests);
-                if (gui == null) {
+                // 納品の画面に替わる。納品の画面の「戻る」で resume して、この画面に戻る
+                if (quest != null) {
+                    QuestHandInDialog.open(player, trader, quest);
+                } else if (!QuestHandInDialog.openForTrader(player, trader, quests)) {
                     notice(session, "納品が残っているクエストはありません");
                     break;
                 }
-                // 画面はチェストに置き換わる。納品画面の「戻る」で resume して、この画面に戻る
-                player.closeDialog();
-                gui.open();
                 return;
             }
             case "shop" -> {

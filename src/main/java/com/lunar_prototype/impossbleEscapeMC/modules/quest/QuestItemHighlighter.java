@@ -102,7 +102,7 @@ public final class QuestItemHighlighter extends PacketListenerAbstract {
         items.addAll(java.util.Arrays.asList(player.getOpenInventory().getTopInventory().getContents()));
         items.add(player.getItemOnCursor());
         for (ItemStack item : items) {
-            String id = QuestHandInGUI.handInIdOf(item);
+            String id = QuestHandInDialog.handInIdOf(item);
             if (id == null || registryDefinition(id) != null || DATAPACK_DEFINITIONS.containsKey(id)) continue;
             QuestItems.Definition def = QuestItems.resolve(id);
             DATAPACK_DEFINITIONS.put(id, def != null ? def : NONE);
@@ -205,7 +205,7 @@ public final class QuestItemHighlighter extends PacketListenerAbstract {
             com.github.retrooper.packetevents.protocol.item.ItemStack packetItem, List<Need> list) {
         if (packetItem == null || packetItem.isEmpty()) return null;
         ItemStack item = SpigotConversionUtil.toBukkitItemStack(packetItem);
-        String itemId = QuestHandInGUI.handInIdOf(item);
+        String itemId = QuestHandInDialog.handInIdOf(item);
         QuestItems.Definition def = itemId != null ? definition(itemId) : null;
         if (def == null) return null;
         boolean fir = item.getItemMeta().getPersistentDataContainer()
