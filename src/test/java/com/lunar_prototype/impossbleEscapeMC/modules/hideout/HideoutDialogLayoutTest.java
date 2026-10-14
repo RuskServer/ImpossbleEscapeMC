@@ -27,22 +27,26 @@ public final class HideoutDialogLayoutTest {
 
     public static void main(String[] args) throws Exception {
         int stash = HideoutFacility.STASH.ordinal();
-        HideoutDialog.Requirement money = new HideoutDialog.Requirement("₽", 25_000, 72_550, true);
+        HideoutDialog.Requirement money = new HideoutDialog.Requirement("₽", 25_000, 72_550, HideoutDialog.RequirementKind.MONEY);
         List<HideoutDialog.Requirement> skillTree = List.of(
-                new HideoutDialog.Requirement("工具箱", 1, 0, false),
-                new HideoutDialog.Requirement("小型バッテリー", 3, 5, false),
-                new HideoutDialog.Requirement("ボルト", 4, 4, false),
-                new HideoutDialog.Requirement("暗号化USBメモリ", 1, 1, false));
+                new HideoutDialog.Requirement("工具箱", 1, 0, HideoutDialog.RequirementKind.ITEM),
+                new HideoutDialog.Requirement("小型バッテリー", 3, 5, HideoutDialog.RequirementKind.ITEM),
+                new HideoutDialog.Requirement("ボルト", 4, 4, HideoutDialog.RequirementKind.ITEM),
+                new HideoutDialog.Requirement("暗号化USBメモリ", 1, 1, HideoutDialog.RequirementKind.ITEM));
         List<HideoutDialog.PanelView> views = List.of(
                 // 保管庫 Lv.1 → Lv.2 (足りる)
                 new HideoutDialog.PanelView("保管庫", 1, 4, stash, built(0, 2, 4, 7, 8, 9), "スタッシュを開ける棚",
                         true, List.of(money), null),
                 // 保管庫 未設置 (足りない)
                 new HideoutDialog.PanelView("保管庫", 0, 4, stash, built(), "スタッシュを開ける棚",
-                        true, List.of(new HideoutDialog.Requirement("₽", 5_000, 1_200, true)), "所持金が足りません"),
+                        true, List.of(new HideoutDialog.Requirement("₽", 5_000, 1_200, HideoutDialog.RequirementKind.MONEY)), "所持金が足りません"),
                 // スキルツリー 未設置 → Lv.1 (素材 4 種。工具箱が足りない)
                 new HideoutDialog.PanelView("スキルツリー", 0, 3, HideoutFacility.SKILL_TREE.ordinal(), built(0), null,
                         true, skillTree, "素材が足りません"),
+                // 医療設備 未設置 (前提のワークベンチ Lv.1 が無い)
+                new HideoutDialog.PanelView("医療設備", 0, 4, HideoutFacility.MEDICAL.ordinal(), built(0), null,
+                        true, List.of(new HideoutDialog.Requirement("ワークベンチ", 1, 0, HideoutDialog.RequirementKind.FACILITY)),
+                        "ワークベンチ Lv.1 が必要です"),
                 // スキルツリー Lv.1 (Lv.2 の条件は未定・建築も未作成)
                 new HideoutDialog.PanelView("スキルツリー", 1, 3, HideoutFacility.SKILL_TREE.ordinal(), built(6), null,
                         false, List.of(), "Lv.2 の建築が未作成"),
@@ -64,7 +68,7 @@ public final class HideoutDialogLayoutTest {
         }
         check(HideoutDialog.upgradeLabel(views.get(0)).equals("強化する (Lv.2)"), "upgrade label");
         check(HideoutDialog.upgradeLabel(views.get(1)).equals("設置する"), "build label");
-        check(HideoutDialog.upgradeLabel(views.get(5)).equals("最大レベル"), "max label");
+        check(HideoutDialog.upgradeLabel(views.getLast()).equals("最大レベル"), "max label");
         // 空白の字: 戻す・進めるが行き来できる
         for (int n = -300; n <= 500; n++) {
             int sum = 0;
