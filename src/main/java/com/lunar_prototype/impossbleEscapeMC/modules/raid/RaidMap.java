@@ -93,6 +93,14 @@ public class RaidMap {
         lootContainers.add(new LootContainer(locationToCoords(loc), tableId));
     }
 
+    /** block と同じブロックの位置のルートコンテナの登録を外す (このマップのワールドの時だけ)。外した数 */
+    public int removeLootContainersAt(Location block) {
+        if (lootContainers == null || block.getWorld() == null || !block.getWorld().getName().equals(getWorldName())) return 0;
+        int before = lootContainers.size();
+        lootContainers.removeIf(lc -> lc.isAt(block));
+        return before - lootContainers.size();
+    }
+
     public List<LootContainer> getLootContainers() {
         if (lootContainers == null) {
             lootContainers = new ArrayList<>();
@@ -171,6 +179,12 @@ public class RaidMap {
 
         public String getTableId() {
             return tableId;
+        }
+
+        /** block と同じブロックの位置か */
+        boolean isAt(Location block) {
+            return (int) Math.floor(coords[0]) == block.getBlockX() && (int) Math.floor(coords[1]) == block.getBlockY()
+                    && (int) Math.floor(coords[2]) == block.getBlockZ();
         }
     }
 }
