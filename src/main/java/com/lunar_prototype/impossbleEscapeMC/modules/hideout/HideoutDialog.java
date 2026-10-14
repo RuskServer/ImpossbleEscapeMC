@@ -162,8 +162,11 @@ public final class HideoutDialog implements Listener {
                      boolean requirementsDefined, List<Requirement> requirements, String blocking) {
     }
 
-    /** 必要な物 1 つ (お金か素材) と、持っている数 */
-    record Requirement(String label, long need, long have, boolean money) {
+    /** 必要な物の種類 */
+    enum RequirementKind { FACILITY, MONEY, ITEM }
+
+    /** 必要な物 1 つ (前提の設備、お金、素材) と、持っている数 (設備は今のレベル) */
+    record Requirement(String label, long need, long have, RequirementKind kind) {
     }
 
     private PanelView view(Player player, PlayerData data, int index) {
@@ -178,16 +181,20 @@ public final class HideoutDialog implements Listener {
                 facility.hasRequirements(level + 1), requirements, blocking(data, facility, requirements));
     }
 
-    /** 次のレベルに必要な物 (お金、素材の順) と、持っている数 (素材はスタッシュと持ち物) */
+    /** 次のレベルに必要な物 (前提の設備、お金、素材の順) と、持っている数 (素材はスタッシュと持ち物) */
     private List<Requirement> requirements(Player player, PlayerData data, HideoutFacility facility, long money) {
         int next = data.getHideoutLevel(facility.id) + 1;
         List<Requirement> requirements = new ArrayList<>();
+        for (HideoutFacility.Prerequisite pre : facility.prerequisites(next)) {
+            requirements.add(new Requirement(pre.facility().label, pre.level(), data.getHideoutLevel(pre.facility().id),
+                    RequirementKind.FACILITY));
+        }
         long cost = facility.moneyCost(next);
-        if (cost > 0) requirements.add(new Requirement("₽", cost, money, true));
+        if (cost > 0) requirements.add(new Requirement("₽", cost, money, RequirementKind.MONEY));
         List<HideoutFacility.ItemCost> items = facility.itemCosts(next);
         Map<String, Integer> have = module.countMaterials(player, data, items);
         for (HideoutFacility.ItemCost item : items) {
-            requirements.add(new Requirement(itemName(item.itemId()), item.amount(), have.getOrDefault(item.itemId(), 0), false));
+            requirements.add(new Requirement(itemName(item.itemId()), item.amount(), have.getOrDefault(item.itemId(), 0), RequirementKind.ITEM));
         }
         return requirements;
     }
@@ -204,7 +211,12 @@ public final class HideoutDialog implements Listener {
         if (level >= max) return max == 0 ? "まだ建てられません" : "最大レベルです";
         if (!module.getLayout().hasLayer(facility, level + 1)) return "Lv." + (level + 1) + " の建築が未作成";
         for (Requirement r : requirements) {
-            if (r.have() < r.need()) return r.money() ? "所持金が足りません" : "素材が足りません";
+            if (r.have() >= r.need()) continue;
+            return switch (r.kind()) {
+                case FACILITY -> r.label() + " Lv." + r.need() + " が必要です";
+                case MONEY -> "所持金が足りません";
+                case ITEM -> "素材が足りません";
+            };
         }
         return null;
     }
@@ -297,9 +309,17 @@ public final class HideoutDialog implements Listener {
                 Line row = stripRow();
                 if (i == 0) row.moveTo(PANEL + 13).text("必要", AMBER_DIM);
                 // 右に持っている数 (お金は所持金、素材は 持っている数/必要な数) と ✓ ✕
-                String have = r.money() ? String.format("%,d", r.have()) : r.have() + "/" + r.need();
+                String have = switch (r.kind()) {
+                    case FACILITY -> "Lv." + r.have();
+                    case MONEY -> String.format("%,d", r.have());
+                    case ITEM -> r.have() + "/" + r.need();
+                };
                 int haveX = PANEL + HAVE_RIGHT - FontWidths.width(have);
-                String label = r.money() ? String.format("₽ %,d", r.need()) : r.label();
+                String label = switch (r.kind()) {
+                    case FACILITY -> r.label() + " Lv." + r.need();
+                    case MONEY -> String.format("₽ %,d", r.need());
+                    case ITEM -> r.label();
+                };
                 row.moveTo(PANEL + VALUE).text(FontWidths.truncate(label, haveX - 4 - (PANEL + VALUE)), INK)
                         .moveTo(haveX).text(have, ok ? GREEN : RED)
                         .moveTo(PANEL + HAVE_RIGHT + 5).text(ok ? "✓" : "✕", ok ? GREEN : RED);

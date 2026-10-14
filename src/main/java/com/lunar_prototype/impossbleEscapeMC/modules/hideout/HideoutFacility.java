@@ -83,9 +83,19 @@ public enum HideoutFacility {
         return List.of();
     }
 
+    /** 前提の設備 1 つ (その設備がこのレベル以上) */
+    public record Prerequisite(HideoutFacility facility, int level) {
+    }
+
+    /** そのレベルにする前提の設備 (無ければ空)。医療設備と弾薬製造の設置にはワークベンチ Lv.1 が要る */
+    public List<Prerequisite> prerequisites(int level) {
+        if ((this == MEDICAL || this == AMMO) && level == 1) return List.of(new Prerequisite(WORKBENCH, 1));
+        return List.of();
+    }
+
     /** そのレベルの強化の条件が決まっているか (決まっていなければ、今は条件なしで上げられる) */
     public boolean hasRequirements(int level) {
-        return moneyCost(level) > 0 || !itemCosts(level).isEmpty();
+        return moneyCost(level) > 0 || !itemCosts(level).isEmpty() || !prerequisites(level).isEmpty();
     }
 
     /** 画面に出す説明 (決まっていなければ null) */
