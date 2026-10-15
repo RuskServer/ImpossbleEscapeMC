@@ -78,6 +78,12 @@ public class PartyManager {
             return;
         }
 
+        // 招待を受けてから受け入れるまでに、別のパーティーに入った・作った (2 つのパーティーに入らない)
+        if (getParty(player.getUniqueId()) != null) {
+            player.sendMessage(Component.text("すでにパーティーに参加しています。先に今のパーティーから抜けてください。", NamedTextColor.RED));
+            return;
+        }
+
         Party party = getParty(inviter.getUniqueId());
         if (party == null) {
             player.sendMessage(Component.text("パーティーが既に解散されています。", NamedTextColor.RED));
