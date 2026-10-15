@@ -48,6 +48,10 @@ final class ItemCatalog {
         ItemDefinition screwdriver = item("screwdriver", "LOOT", Material.IRON_INGOT, "ドライバー", 2, 3, 0, 180, 1);
         items.add(screwdriver);
 
+        // 電気系の素材 (クラフト・納品)。見た目は鉄インゴットのカスタムモデルデータ 22
+        ItemDefinition copper_wire = item("copper_wire", "LOOT", Material.IRON_INGOT, "銅ワイヤー", 2, 22, 0, 400, 1);
+        items.add(copper_wire);
+
         // --- 道具 ---
         // フラッシュライト: 手 (メイン・オフハンド) に持っている間、視線の先を照らす (Flashlight・ポストエフェクト iem:flashlight)
         ItemDefinition flashlight = item("flashlight", "TOOL", Material.IRON_INGOT, "フラッシュライト", 2, 21, 0, 150, 1);
