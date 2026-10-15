@@ -381,8 +381,8 @@ public class RaidSelectionGUI implements Listener {
             members.forEach(module::leaveQueue);
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.5f);
         } else {
-            boolean joined = false;
-            for (Player member : members) joined |= module.joinQueue(member, mapId);
+            // パーティーはまとめて (途中参加なら同じ所に出る。1 人でも出撃できなければ誰も入らない)
+            boolean joined = module.joinQueue(members, mapId);
             if (joined) {
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
             } else {

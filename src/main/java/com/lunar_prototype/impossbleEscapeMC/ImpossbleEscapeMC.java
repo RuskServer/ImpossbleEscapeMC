@@ -338,7 +338,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
             minigameManager.stopGame();
         }
         if (raidModule != null) {
-            raidModule.stopAllRaids();
+            raidModule.suspendAllRaids();
         }
         if (corpseManager != null) {
             corpseManager.cleanup();

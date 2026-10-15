@@ -544,6 +544,7 @@ public class RaidInstance {
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());
             result.outcome = RaidOutcome.SURVIVED;
             result.extractName = ep.getName();
+            plugin.getRaidModule().markFinished(map.getMapId(), p.getUniqueId());
             result.endMillis = System.currentTimeMillis();
             result.loot = foundLoot(p);
 
@@ -670,6 +671,7 @@ public class RaidInstance {
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
         result.outcome = RaidOutcome.DEAD;
         result.endMillis = System.currentTimeMillis();
+        plugin.getRaidModule().markFinished(map.getMapId(), player.getUniqueId());
         result.lostValue = broughtInValue(player);
         grant(result, EXP_DEAD, levelModule != null ? levelModule.getRaidOutcomeReward(playerLevel, "DEAD") : 150L);
         RaidKillTracker.Hit lastHit = RaidKillTracker.lastHitOn(player.getUniqueId());
@@ -719,9 +721,9 @@ public class RaidInstance {
             result.outcome = RaidOutcome.LEFT;
         }
         // 開いている画面 (漁る画面・バッグ) を先に閉じる。漁っている間は持ち物の欄がバックパックの表示になっていて、
-        // 本来の持ち物は脇に避けてあるので、閉じて元に戻してから持ち物を読む (クエスト・持ち込みの印)
+        // 本来の持ち物は脇に避けてあるので、閉じて元に戻す。持ち込みの印は残す: 同じ周期のうちに戻ればレイドを続け
+        // ({@link #rejoin})、周期が終わっていれば装備を失う (RaidModule.onPlayerJoin)
         player.closeInventory();
-        clearRaidMarkersFromCurrentInventory(player);
         players.remove(player.getUniqueId());
         resetCameraDistance(player);
         if (players.isEmpty()) {
@@ -738,9 +740,10 @@ public class RaidInstance {
         return (System.currentTimeMillis() - startTime) / 1000;
     }
 
-    public void joinInProgress(Player player) {
+    /** 途中参加 (パーティーはまとめて渡すと同じ所に出る) */
+    public void joinInProgress(List<Player> group) {
         if (ended) return;
-        joinPlayers(Collections.singletonList(player));
+        joinPlayers(group);
     }
 
     public void joinPlayers(List<Player> participants) {
@@ -843,10 +846,6 @@ public class RaidInstance {
         return players.contains(uuid);
     }
 
-    public boolean hasDied(UUID uuid) {
-        RaidResult result = raidResults.get(uuid);
-        return result != null && result.outcome == RaidOutcome.DEAD;
-    }
 
     /**
      * 指定した UUID の集合をこのレイドの参加者として復帰させる。
@@ -865,12 +864,58 @@ public class RaidInstance {
         }
         for (UUID uuid : uuids) {
             Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                p.setGameMode(org.bukkit.GameMode.ADVENTURE);
-                hud.show(p);
-                setRaidCameraDistance(p);
-                p.sendMessage(Component.text("レイドへ再復帰しました。", NamedTextColor.GREEN));
+            if (p != null) onParticipantJoin(p);
+        }
+    }
+
+    /** 参加者が (サーバーの再起動の後に) 入ってきた: レイドの表示とゲームモードを戻す */
+    public void onParticipantJoin(Player p) {
+        p.setGameMode(org.bukkit.GameMode.ADVENTURE);
+        hud.show(p);
+        setRaidCameraDistance(p);
+        p.sendMessage(Component.text("レイドへ再復帰しました。", NamedTextColor.GREEN));
+    }
+
+    /**
+     * 切断した参加者が、同じ周期のうちに戻ってきた: 参加者に戻して続ける (切断した所から。持ち込みの印は切断の時に残してある)。
+     * 終わったレイドなら false
+     */
+    public boolean rejoin(Player p) {
+        if (ended) return false;
+        players.add(p.getUniqueId());
+        raidMembers.add(p.getUniqueId());
+        RaidResult result = getOrCreateRaidResult(p.getUniqueId());
+        if (result.outcome == RaidOutcome.LEFT) result.outcome = RaidOutcome.ACTIVE;
+        onParticipantJoin(p);
+        return true;
+    }
+
+    /**
+     * サーバーを止める時: 結果を出さず・報酬も付けずに止める (再起動の後に RaidModule が参加者を戻して続ける)。
+     * 持ち込みの印も残す。SCAV と表示は片付ける
+     */
+    public void suspend() {
+        if (ended) return;
+        ended = true;
+        if (task != null) task.cancel();
+        hud.stop();
+        endSequence.stop();
+        for (VirtualScav vs : virtualScavs) {
+            if (vs.isSpawned() && vs.getEntityId() != null) {
+                plugin.getScavSpawner().removeScav(vs.getEntityId());
+                vs.setSpawned(false);
+                vs.setEntityId(null);
             }
+        }
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) continue;
+            p.closeInventory();
+            hud.hide(p);
+            resetCameraDistance(p);
+        }
+        if (plugin.getAiRaidLogger() != null) {
+            plugin.getAiRaidLogger().endRaidSession(raidSessionId, "server_stop");
         }
     }
 

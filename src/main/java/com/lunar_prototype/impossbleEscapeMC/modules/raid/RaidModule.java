@@ -10,6 +10,7 @@ import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -38,6 +39,12 @@ public class RaidModule implements IModule {
     private final Map<String, RaidConditions> currentConditions = new HashMap<>();
     private final Map<String, RaidConditions> nextConditions = new HashMap<>();
     private final java.util.Random conditionRandom = new java.util.Random();
+    /** マップごとの、今の周期で死亡・脱出した人 (同じ周期に途中参加し直させない。周期が替わると消す) */
+    private final Map<String, Set<UUID>> finishedThisCycle = new HashMap<>();
+    /** レイドの途中で切断した人: どのマップの、どの周期 (始まった時刻) か。戻った時に、同じ周期なら続け、終わっていれば装備を失う */
+    private record Disconnect(String mapId, long cycleStart) {
+    }
+    private final Map<UUID, Disconnect> disconnected = new HashMap<>();
 
     public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -77,14 +84,14 @@ public class RaidModule implements IModule {
         loadState(); // 状態の復元
         startGlobalTimer();
         
-        // 1分ごとのオートセーブ
-        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::saveState, 1200L, 1200L);
+        // 1分ごとのオートセーブ (参加者の一覧はメインのスレッドで変わるので、読むのもメインのスレッドで)
+        Bukkit.getScheduler().runTaskTimer(plugin, this::saveState, 1200L, 1200L);
     }
 
     @Override
     public void onDisable() {
         saveState(); // 終了時に保存
-        stopAllRaids();
+        suspendAllRaids();   // 結果を出さずに止める (再起動の後に参加者を戻して続ける)
         
         // Cleanup BossBars
         for (BossBar bar : queueBossBars.values()) {
@@ -122,6 +129,10 @@ public class RaidModule implements IModule {
             raidPlayers.put(entry.getKey(), uuids);
         }
         state.put("activeRaids", raidPlayers);
+        state.put("cycleStarts", new HashMap<>(lastCycleStartTime));
+        Map<String, Map<String, Object>> left = new HashMap<>();
+        disconnected.forEach((id, d) -> left.put(id.toString(), Map.of("mapId", d.mapId(), "cycleStart", d.cycleStart())));
+        state.put("disconnected", left);
 
         try (FileWriter writer = new FileWriter(stateFile)) {
             gson.toJson(state, writer);
@@ -143,6 +154,19 @@ public class RaidModule implements IModule {
                         mapTimers.put(entry.getKey(), entry.getValue().intValue());
                     }
                 }
+            }
+
+            if (state.get("cycleStarts") instanceof Map<?, ?> starts) {
+                starts.forEach((id, start) -> {
+                    if (maps.containsKey(String.valueOf(id)) && start instanceof Number n) lastCycleStartTime.put(String.valueOf(id), n.longValue());
+                });
+            }
+            if (state.get("disconnected") instanceof Map<?, ?> left) {
+                left.forEach((id, d) -> {
+                    if (d instanceof Map<?, ?> m && m.get("mapId") != null && m.get("cycleStart") instanceof Number n) {
+                        disconnected.put(UUID.fromString(String.valueOf(id)), new Disconnect(String.valueOf(m.get("mapId")), n.longValue()));
+                    }
+                });
             }
 
             if (state.containsKey("activeRaids")) {
@@ -226,6 +250,7 @@ public class RaidModule implements IModule {
     private void onMapCycleEnd(String mapId) {
         plugin.getLogger().info("Raid cycle ended for " + mapId + ". Starting new raids and MIA processing...");
         lastCycleStartTime.put(mapId, System.currentTimeMillis());
+        finishedThisCycle.remove(mapId);
 
         // 1. 既存レイドの終了処理 (MIA) - 対象マップのみ
         RaidInstance activeRaid = activeRaids.get(mapId);
@@ -293,63 +318,61 @@ public class RaidModule implements IModule {
      * キューに参加
      */
     public boolean joinQueue(Player player, String mapId) {
-        if (!maps.containsKey(mapId)) return false;
-        
-        // すでにどこかのレイドに参加中かチェック
-        for (RaidInstance raid : activeRaids.values()) {
-            if (raid.isParticipant(player.getUniqueId())) {
-                player.sendMessage(Component.text("すでにレイドに参加中です。", NamedTextColor.RED));
-                return false;
-            }
-        }
+        return joinQueue(List.of(player), mapId);
+    }
 
-        // 持ち物が容量を超えたままでは出撃させない (レイド中にあふれると足元に落とすことになるため、ロビーで整理してもらう)
-        if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(player)) {
-            player.sendMessage(Component.text("持ち物が容量を超えています。整理してから出撃してください。", NamedTextColor.RED));
-            return false;
-        }
-
-        // 途中参加のチェック (レイド開始1-2分以内)
+    /**
+     * 出撃の待機列に入れる (パーティーはメンバーをまとめて)。1 人でも出撃できない人がいれば、誰も入れない
+     * (理由はその人のチャットに出す)。途中参加の時間内なら、まとめてレイドに入れる (パーティーは同じ所に出る)
+     */
+    public boolean joinQueue(List<Player> group, String mapId) {
+        if (!maps.containsKey(mapId) || group.isEmpty()) return false;
         long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(mapId, 0L)) / 1000;
-        if (age < LATE_JOIN_WINDOW) {
-            RaidInstance active = activeRaids.get(mapId);
-            
-            // すでにこのレイドで死んでいる場合は途中参加不可
-            if (active != null && active.hasDied(player.getUniqueId())) {
-                player.sendMessage(Component.text("このレイドセッションですでに死亡しているため、再参加はできません。", NamedTextColor.RED));
-                return false;
-            }
+        boolean lateJoin = age < LATE_JOIN_WINDOW;
 
-            if (active == null) {
-                // インスタンスがなければ新規作成
-                RaidMap map = maps.get(mapId);
-                if (map != null) {
-                    active = new RaidInstance(plugin, map, new ArrayList<>());
-                    activeRaids.put(mapId, active);
+        for (Player player : group) {
+            // すでにどこかのレイドに参加中かチェック
+            for (RaidInstance raid : activeRaids.values()) {
+                if (raid.isParticipant(player.getUniqueId())) {
+                    player.sendMessage(Component.text("すでにレイドに参加中です。", NamedTextColor.RED));
+                    return false;
                 }
             }
-            
-            if (active != null) {
-                leaveQueue(player);
-                active.joinInProgress(player);
-                player.sendMessage(Component.text(mapId + " のレイドに途中参加しました。", NamedTextColor.GREEN));
-                return true;
+            // 持ち物が容量を超えたままでは出撃させない (レイド中にあふれると足元に落とすことになるため、ロビーで整理してもらう)
+            if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(player)) {
+                player.sendMessage(Component.text("持ち物が容量を超えています。整理してから出撃してください。", NamedTextColor.RED));
+                return false;
+            }
+            // この周期ですでに死亡・脱出している場合は途中参加不可 (全員が抜けてインスタンスが作り直されても)
+            if (lateJoin && finishedThisCycle(mapId, player)) {
+                player.sendMessage(Component.text("このレイドセッションではすでに死亡・脱出しているため、再参加はできません。", NamedTextColor.RED));
+                return false;
             }
         }
 
-        // すでに別のキューにいる場合は削除
-        leaveQueue(player);
-
-        raidQueues.computeIfAbsent(mapId, k -> new HashSet<>()).add(player.getUniqueId());
-        int timeLeft = mapTimers.getOrDefault(mapId, CYCLE_DURATION);
-        player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(timeLeft), NamedTextColor.GREEN));
-        
-        // Show BossBar
-        BossBar bar = queueBossBars.get(mapId);
-        if (bar != null) {
-            player.showBossBar(bar);
+        // 途中参加 (周期の始まりから LATE_JOIN_WINDOW 以内)
+        if (lateJoin) {
+            RaidInstance active = activeRaids.get(mapId);
+            if (active == null) {
+                // インスタンスがなければ新規作成
+                active = new RaidInstance(plugin, maps.get(mapId), new ArrayList<>());
+                activeRaids.put(mapId, active);
+            }
+            group.forEach(this::leaveQueue);
+            active.joinInProgress(group);
+            group.forEach(p -> p.sendMessage(Component.text(mapId + " のレイドに途中参加しました。", NamedTextColor.GREEN)));
+            return true;
         }
-        
+
+        int timeLeft = mapTimers.getOrDefault(mapId, CYCLE_DURATION);
+        BossBar bar = queueBossBars.get(mapId);
+        for (Player player : group) {
+            // すでに別のキューにいる場合は削除
+            leaveQueue(player);
+            raidQueues.computeIfAbsent(mapId, k -> new HashSet<>()).add(player.getUniqueId());
+            player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(timeLeft), NamedTextColor.GREEN));
+            if (bar != null) player.showBossBar(bar);
+        }
         return true;
     }
 
@@ -379,7 +402,7 @@ public class RaidModule implements IModule {
         for (String id : mapIds) {
             long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(id, 0L)) / 1000;
             RaidInstance active = activeRaids.get(id);
-            if (age < LATE_JOIN_WINDOW && active != null && !active.hasDied(player.getUniqueId())) {
+            if (age < LATE_JOIN_WINDOW && active != null && !finishedThisCycle(id, player)) {
                 bestMapId = id;
                 break;
             }
@@ -389,8 +412,8 @@ public class RaidModule implements IModule {
         if (bestMapId == null) {
             for (String id : mapIds) {
                 long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(id, 0L)) / 1000;
-                // インスタンスがない場合は死亡チェック不要（死亡していればインスタンスが存在するため）
-                if (age < LATE_JOIN_WINDOW && !activeRaids.containsKey(id)) {
+                // 全員が抜けてインスタンスが無くなっていても、この周期で死亡・脱出した人は除く
+                if (age < LATE_JOIN_WINDOW && !activeRaids.containsKey(id) && !finishedThisCycle(id, player)) {
                     bestMapId = id;
                     break;
                 }
@@ -412,10 +435,12 @@ public class RaidModule implements IModule {
         if (bestMapId != null) {
             final String finalMapId = bestMapId;
             if (party != null) {
+                List<Player> members = new ArrayList<>();
                 for (UUID member : party.getMembers()) {
                     Player p = Bukkit.getPlayer(member);
-                    if (p != null) joinQueue(p, finalMapId);
+                    if (p != null) members.add(p);
                 }
+                joinQueue(members, finalMapId);
             } else {
                 joinQueue(player, bestMapId);
             }
@@ -525,9 +550,10 @@ public class RaidModule implements IModule {
         return activeRaids.get(mapId);
     }
 
-    public void stopAllRaids() {
+    /** サーバーを止める時: 結果を出さずに止める (参加者は saveState が覚え、再起動の後に戻す) */
+    public void suspendAllRaids() {
         for (RaidInstance raid : new ArrayList<>(activeRaids.values())) {
-            raid.stop();
+            raid.suspend();
         }
         activeRaids.clear();
     }
@@ -554,12 +580,66 @@ public class RaidModule implements IModule {
 
     public void onPlayerQuit(Player player) {
         leaveQueue(player);
-        for (RaidInstance raid : activeRaids.values()) {
-            if (raid.isParticipant(player.getUniqueId())) {
-                raid.onPlayerQuit(player);
+        for (Map.Entry<String, RaidInstance> entry : new ArrayList<>(activeRaids.entrySet())) {
+            if (entry.getValue().isParticipant(player.getUniqueId())) {
+                disconnected.put(player.getUniqueId(), new Disconnect(entry.getKey(), lastCycleStartTime.getOrDefault(entry.getKey(), 0L)));
+                entry.getValue().onPlayerQuit(player);
                 return;
             }
         }
+    }
+
+    private boolean finishedThisCycle(String mapId, Player player) {
+        return finishedThisCycle.getOrDefault(mapId, Set.of()).contains(player.getUniqueId());
+    }
+
+    /** この周期で死亡・脱出した (同じ周期に途中参加し直させない) */
+    public void markFinished(String mapId, UUID player) {
+        finishedThisCycle.computeIfAbsent(mapId, k -> new HashSet<>()).add(player);
+    }
+
+    /**
+     * 参加した時: レイドの参加者 (再起動で戻した人) なら表示を戻す。レイドの途中で切断した人は、同じ周期のうちならレイドに戻し、
+     * 周期が終わっていれば (MIA と同じく) 装備を失ってロビーへ。覚えていない人がレイドのワールドに残っていた時も同じ
+     * (切断したまま周期が終わった人・再起動の前に切断した人)
+     */
+    public void onPlayerJoin(Player player) {
+        UUID id = player.getUniqueId();
+        RaidInstance current = getRaidOf(player);
+        if (current != null) {
+            disconnected.remove(id);
+            current.onParticipantJoin(player);
+            return;
+        }
+        Disconnect d = disconnected.remove(id);
+        RaidMap map = d != null ? maps.get(d.mapId()) : null;
+        if (map != null && player.getWorld().getName().equals(map.getWorldName())
+                && lastCycleStartTime.getOrDefault(d.mapId(), 0L) == d.cycleStart()) {
+            RaidInstance raid = activeRaids.get(d.mapId());
+            if (raid == null) {
+                raid = new RaidInstance(plugin, map, new ArrayList<>());
+                activeRaids.put(d.mapId(), raid);
+            }
+            if (raid.rejoin(player)) return;
+        }
+        boolean inRaidWorld = maps.values().stream().anyMatch(m -> player.getWorld().getName().equals(m.getWorldName()));
+        if (!inRaidWorld) return;
+        // 覚えていない人は、遊んでいる人 (サバイバル・アドベンチャー) だけ (マップを直している運営は除く)
+        GameMode mode = player.getGameMode();
+        if (d == null && mode != GameMode.SURVIVAL && mode != GameMode.ADVENTURE) return;
+        forfeitAfterDisconnect(player);
+    }
+
+    /** 切断したまま周期が終わった: MIA と同じく装備をすべて失い、ロビーへ */
+    private void forfeitAfterDisconnect(Player player) {
+        player.closeInventory();
+        player.getInventory().clear();
+        player.setItemOnCursor(null);
+        player.setGameMode(GameMode.ADVENTURE);
+        player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        player.sendMessage(Component.text("MIA: レイド中に切断したまま時間切れになったため、装備をすべて失いました", NamedTextColor.RED));
+        applyFailureEffect(player);
+        plugin.getRaidMapManager().updateMapSlot(player);
     }
 
     /**
