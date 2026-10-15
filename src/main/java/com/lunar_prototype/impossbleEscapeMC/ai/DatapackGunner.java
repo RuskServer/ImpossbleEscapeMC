@@ -105,6 +105,8 @@ public final class DatapackGunner {
     private boolean burstRecoil;
     /** 最後に装填してから引き金を引いたか (弾数0が撃ち切りか、データパックによる上書きかの区別) */
     private boolean firedSinceFill;
+    /** 装填した時に実際に込めた数 (予備が足りなければ装弾数より少ない)。まだ撃っていない間の弾数 ({@link #ammo}) */
+    private int loadedOnFill;
 
     private DatapackGunner(Mob owner, DatapackGunProfile profile, int slot, ServerPlayer handle) {
         this.owner = owner;
@@ -216,7 +218,11 @@ public final class DatapackGunner {
         if (capacity <= 0) capacity = profile.magazineSize();
         int needed = Math.max(0, capacity - before);
         int taken = supply.take(needed);
-        if (taken < needed) setScore("toisarm.ammo_remaining", before + taken);
+        if (taken < needed) {
+            setScore("toisarm.ammo_remaining", before + taken);
+            // 込められたぶんだけ (満タンとして扱うと、倒された時に落とす銃の弾が増える)
+            loadedOnFill = before + taken;
+        }
     }
 
     /** 予備の弾が残っているか (弾が割り当てられていなければ常に残っている) */
@@ -228,6 +234,7 @@ public final class DatapackGunner {
     private void fillMagazine() {
         runSilently("execute as " + handle.getUUID() + " run function " + FILL_MAGAZINE_FUNCTION);
         firedSinceFill = false;
+        loadedOnFill = profile.magazineSize();
     }
 
     /** 撃てる状態 (銃の受け取りと装填が済み、リロード中でなく、弾がある) か */
@@ -267,11 +274,12 @@ public final class DatapackGunner {
     }
 
     /**
-     * 撃てる弾数 (マガジン + 薬室)。装填前と、装填してからまだ撃っていない間は装弾数を返す
+     * 撃てる弾数 (マガジン + 薬室)。装填前は装弾数、装填してからまだ撃っていない間は込めた数を返す
      * (装填直後にデータパックが一瞬0で上書きすることがあり、AIが弾切れと誤解して物陰へ走るため)
      */
     public int ammo() {
-        if (!armed || !firedSinceFill) return profile.magazineSize();
+        if (!armed) return profile.magazineSize();
+        if (!firedSinceFill) return loadedOnFill;
         return scoreAmmo();
     }
 
