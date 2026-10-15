@@ -87,6 +87,9 @@ public class ScavSpawner implements Listener {
         Mob scav = loc.getWorld().spawn(loc, Zombie.class, false, zombie -> {
             zombie.setAdult();
             zombie.setCanPickupItems(false);
+            // プレイヤーから離れて止まっていても、バニラの決まりで消させない (消えると死体も出ず、その場所に湧き直さない)。
+            // 片付けはレイドが removeScav で行う
+            zombie.setRemoveWhenFarAway(false);
         });
 
         // 体力を40 (バニラの2倍) に固定、移動速度を 0.1 に設定
