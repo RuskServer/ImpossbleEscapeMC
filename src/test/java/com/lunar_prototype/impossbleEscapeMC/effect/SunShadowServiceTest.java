@@ -84,11 +84,11 @@ public final class SunShadowServiceTest {
         check(near(indoor, 25, 1, 10) == 0, "indoor shade: none");
         check(near(indoor, 35, 1, 10) == 3, "indoor sunbeam");
 
-        // 空の光が中くらい (12): 日陰のうち一部だけ「屋外の日陰」(残りは対象外)。日なたは屋外の日なたのまま
-        int[] dim = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 12), 0, 0, 0, sun), 0, 0, 0);
-        int shaded = 0;
-        for (int i = 0; i < 8; i++) shaded += near(dim, 24 + (i & 1), 2 + (i >> 1 & 1), 10 + (i >> 2)) == 1 ? 1 : 0;
-        check(shaded > 0 && shaded < 8, "dim sky: partial shade " + shaded);
+        // 軒先 (空の光 14) の日陰は屋外の日陰、その奥 (13) は対象外。日なたは空の光 12 以上なら屋外の日なた
+        int[] eave = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 14), 0, 0, 0, sun), 0, 0, 0);
+        check(near(eave, 25, 1, 10) == 1, "eave: shade");
+        int[] dim = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 13), 0, 0, 0, sun), 0, 0, 0);
+        check(near(dim, 25, 1, 10) == 0, "dim sky: shade is none");
         check(near(dim, 35, 1, 10) == 2, "dim sky: sun");
         // 粗い格子: 室内の日陰 (対象外) が多いマスは対象外
         int[] coarseIndoor = SunShadowService.packFar(SunShadowService.fineStates(wall(0, 5), 0, 0, 0, sun));
