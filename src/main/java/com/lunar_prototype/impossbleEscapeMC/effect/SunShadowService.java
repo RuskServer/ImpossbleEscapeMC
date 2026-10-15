@@ -27,22 +27,21 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * サーバーで計算した太陽の影を、リソースパックのシェーダーへ送る。レイド中 (生きている間) だけ送る ({@link #setInRaid}。
+ * サーバーで計算した光を、リソースパックのシェーダーへ送る。レイド中 (生きている間) だけ送る ({@link #setInRaid}。
  * ScreenEffectService が知らせる)。/shaderdebug sun で付け外しを決められる (確認用。{@link #toggle}、{@link #clearOverride} で自動に戻す)。
  * <p>
- * プレイヤーの周りの {@link #SPAN_X} x {@link #SPAN_Y} x {@link #SPAN_Z} ブロックの空気のブロックごとに、太陽の向きへブロックをたどって
- * 日なた・日陰を決め (屋外の日なた・屋外の日陰・室内の日なた・室内の日陰。室内の日陰はシェーダーが控えめに暗くする)、2 段の格子にする:
- * 近く ({@link #W} x {@link #H} x {@link #D} ブロック) はブロックごと、その外 (全体) は 2 x 2 x 2 ブロックをまとめた粗い格子。
- * 鉄格子・葉・柵などは光を一部だけ通す (通る割合を掛けていき、残った割合でブロックごとに日なた・日陰を振り分ける。
- * シェーダーが周りのブロックと混ぜるので、木漏れ日のような薄い影になる)。
- * データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・iem_sun.glsl。並びはそちらと同じ) として、
- * 本人にだけ見えるテキストディスプレイの文字で送る。ポストエフェクト (light.fsh・grade.fsh・shafts.fsh) が
- * 画面の画素の位置からこの格子を読んで日陰を暗くする。シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、
- * 止める時は「影なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
- * <p>
- * 光源ブロックの影 ({@link #blockGrid}): 近くの {@link #BW} x {@link #BH} x {@link #BD} ブロックの空気ごとに、周りの光源ブロック
- * (たいまつ・ランタン・グロウストーンなど。ブロックの光の山の頂点) から光が直接届くかをたどり、バニラの光 (壁の角を回り込んで届く) と比べた
- * 明るさの倍率を 4 段階で送る。光源から見えない所 (木箱の裏・柱の陰) は暗く、斜めに見える所は少し明るくなる。夜は太陽の格子は送らず、これだけ送る。
+ * プレイヤーの近くの {@link #W} x {@link #H} x {@link #D} ブロック (格子。{@link #STEP} ブロック動くごとにずらす) の空気のブロックごとに、
+ * パストレーシングのような光の量を求め ({@link #computeLight})、バニラの明るさ (光の表) との比を送る。シェーダーはこの倍率を面の色に掛ける:
+ * <ul>
+ *   <li>直接光: 太陽 (太陽の向きへブロックをたどって見えるか x 日差しの強さ。葉は一部だけ通す、鉄格子・柵などは素通し) と、
+ *       光源ブロック (ブロックの光の山の頂点。まっすぐ見えるか x 距離による減り方)</li>
+ *   <li>空の光: バニラの空の光 x 空の明るさ (空が見える量の目安)</li>
+ *   <li>跳ね返り (1 回): ブロックごとに決まった向きへ {@link #BOUNCE_RAYS} 本たどり、当たった面の直接光 x 面の色の明るさ (地図の色) を集める</li>
+ * </ul>
+ * ほかに、太陽が直接当たっているか (光の筋・面の向きの明暗に使う) と、2 ブロックごとの光の種類 (空・太陽・暖かい光源・冷たい光源。
+ * 色はシェーダーが決める) を送る。データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・iem_sun.glsl。並びはそちらと同じ) として、
+ * 本人にだけ見えるテキストディスプレイの文字で送る。シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、
+ * 止める時は「光なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
  * <p>
  * 太陽の向きはクライアントの空と同じ: 26.3 のタイムライン (data/minecraft/timeline/day.json の visual/sun_angle) の角度で、
  * 正午 (6000) に 0° から 1 日で 360°、3 次ベジェの緩急。向きは (-sin 角度, cos 角度, 0) (SkyRenderer: Y で -90°、X で角度)
@@ -61,46 +60,53 @@ public final class SunShadowService {
     /** テキストの部品 1 つの文字の数 (ネットワークでは部品ごとに 65535 バイトまでの文字列 (NBT) になる。1 文字 3 バイト) */
     private static final int CELLS_PER_PART = 4096;
 
-    // ---- 太陽の影の格子 (iem_sun.glsl と同じ) ----
+    // ---- 格子 (iem_sun.glsl と同じ) ----
     private static final int MAGIC = 0x2B6C;
-    private static final int HEADER = 3, PAYLOAD = 22, PER_VALUE = 7;
-    /** 近くの格子 (ブロックごと) の大きさ */
-    public static final int W = 48, H = 24, D = 48;
-    /** 外の粗い格子: 1 マスが FAR_SCALE x FAR_SCALE x FAR_SCALE ブロック、FW x FH x FD マス */
-    static final int FAR_SCALE = 2, FW = 44, FH = 22, FD = 44;
-    /** 光源ブロックの影の格子 (ブロックごと) の大きさ */
-    public static final int BW = 32, BH = 16, BD = 32;
-    /** 光源ブロックの影の倍率 (送る値 0〜3。iem_sun.glsl の IEM_BLOCK_FACTORS と同じ) */
-    static final double[] BLOCK_FACTORS = {1.0, 0.45, 0.72, 1.3};
+    /**
+     * ヘッダー: 3 = 印、4〜6 = 格子の原点 (1024 で割った余り)、7〜9 = 光の格子の大きさ (ブロック)、10〜12 = 光の種類の格子の大きさ (マス)。
+     * 中身は PAYLOAD 番から光の格子 (値 1 つに 3 ブロック、4bit ずつ: 下 3bit が倍率の段、上 1bit が太陽が当たっているか)、
+     * 続けて光の種類の格子 (値 1 つに 7 マス、2bit ずつ)
+     */
+    private static final int HEADER = 3, PAYLOAD = 16;
+    /** 格子の大きさ (ブロック) */
+    public static final int W = 48, H = 20, D = 48;
+    /** 光の種類の格子の 1 マスの大きさ (ブロック) と、マスの数 */
+    static final int COLOR_SCALE = 2, CW = W / COLOR_SCALE, CH = H / COLOR_SCALE, CD = D / COLOR_SCALE;
+    /** 格子をずらす間隔 (ブロック) */
+    static final int STEP = 4;
+    /** 空の光・ブロックの光などを読む、格子の周りの余白 (格子の外の光源・跳ね返る面も拾う) */
+    static final int MARGIN = 12;
+    /** 空の光・ブロックの光などを読む範囲 (格子 + 余白) */
+    public static final int SPAN_X = W + 2 * MARGIN, SPAN_Y = H + 2 * MARGIN, SPAN_Z = D + 2 * MARGIN;
+    /** 倍率の段 (0〜7): 1.25 の (段 - 5) 乗。段 5 が 1 倍 (iem_sun.glsl の iemLightFactor と同じ) */
+    static final double LEVEL_BASE = 1.25;
+    static final int LEVEL_ONE = 5;
     /** 光源ブロックをたどる数の上限 (格子の真ん中に近い順) */
     private static final int MAX_LIGHTS = 96;
-    /** 計算する範囲 (ブロック。粗い格子の範囲。近くの格子はこの中) */
-    public static final int SPAN_X = FW * FAR_SCALE, SPAN_Y = FH * FAR_SCALE, SPAN_Z = FD * FAR_SCALE;
-    /** ブロックごとの計算の状態 (送る状態 0〜3 のほかに、固体) */
-    static final byte SOLID = 4;
     /** 太陽へたどる長さ (ブロック) */
     private static final int REACH = 48;
-    /** この空の光より暗い空気のブロックは室内 (日が差し込めば室内の日なた) */
-    private static final int OUTDOOR_SKY_LIGHT = 12;
-    /**
-     * 日の当たらない空気のうち、空の光がこれ以上の所は「屋外の日陰」、ほかは「室内の日陰」(状態 0)。
-     * 室内の奥の暗さは光の表 (空の光が 1 ブロックごとに下がる) がもう表しているので、シェーダーは室内の日陰を控えめに暗くする
-     * (ブロックごとに振り分けて薄くすると、まだら模様に見える)
-     */
-    private static final int SHADE_SKY_LIGHT = 14;
-    /** 太陽がこれより低い (向きの y) 時は送らない */
+    /** 跳ね返りをたどる長さ (ブロック。余白より短く) と、1 ブロックあたりの本数 */
+    static final int BOUNCE_REACH = 8, BOUNCE_RAYS = 12;
+    /** 太陽がこれより低い (向きの y) 時は太陽の光を 0 にする */
     private static final double MIN_SUN_Y = 0.08;
-    /** 一部だけ光を通すブロックを通った後、これより暗ければ日陰 (先をたどらない) */
+    /** 一部だけ光を通すブロックを通った後、これより暗ければ影 (先をたどらない) */
     private static final double MIN_TRANSMIT = 0.02;
+    /** 光の量の釣り合い (バニラの明るさ 1 = 昼の屋外): 基本、空の光、太陽の直接光、跳ね返り */
+    static final double AMBIENT = 0.04, SKY = 0.55, SUN = 0.55, BOUNCE = 1.0;
+    /** 雨の間の太陽の直接光の強さ */
+    private static final double RAIN_SUN = 0.25;
     /** 太陽の角度がこれだけ動いたら作り直す (度) */
     private static final double ANGLE_STEP = 0.75;
-    private static final long REFRESH_MILLIS = 30_000;
+    /** 動かなくてもこの間隔で作り直す (光源ブロックを置いた・壊したのを反映する) */
+    private static final long REFRESH_MILLIS = 10_000;
+    /** 光の種類 (シェーダーが色を決める): 空・跳ね返り、太陽、暖かい光源、冷たい光源 */
+    static final int KIND_SKY = 0, KIND_SUN = 1, KIND_WARM = 2, KIND_COOL = 3;
+    /** 太陽・光源ブロックの光をその種類にする、光の量に対する割合 */
+    private static final double KIND_SHARE = 0.35;
 
     private static final class State {
         TextDisplay display;
-        int ox = Integer.MIN_VALUE, oy, oz;   // 近くの格子の原点
-        int fx, fy, fz;                       // 粗い格子の原点
-        int bx, by, bz;                       // 光源ブロックの影の格子の原点
+        int ox = Integer.MIN_VALUE, oy, oz;   // 格子の原点
         double angle = Double.NaN;
         long computedAt;
         boolean computing;
@@ -149,7 +155,7 @@ public final class SunShadowService {
             State old = states.remove(player.getUniqueId());
             if (old == null) return;
             // 覚えている影を消させてから (1 秒後に) 表示を消す
-            setData(old, null, null, null);
+            setData(old, null);
             TextDisplay display = old.display;
             if (display != null) Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), display::remove, 20L);
             return;
@@ -182,17 +188,10 @@ public final class SunShadowService {
 
         double angle = sunAngle(world.getTime());
         double[] sun = sunDirection(angle);
-        // 近くの格子は 8 ブロック、粗い格子は 16 ブロックごとに動かす (近くの格子はいつも粗い格子の範囲の中)
-        int ox = Math.floorDiv(at.getBlockX(), 8) * 8 - 20;
-        int oy = Math.floorDiv(at.getBlockY(), 8) * 8 - 8;
-        int oz = Math.floorDiv(at.getBlockZ(), 8) * 8 - 20;
-        int fx = Math.floorDiv(at.getBlockX(), 16) * 16 - 36;
-        int fy = Math.floorDiv(at.getBlockY(), 16) * 16 - 14;
-        int fz = Math.floorDiv(at.getBlockZ(), 16) * 16 - 36;
-        // 光源ブロックの影の格子も 8 ブロックごと (粗い格子の範囲の中、横と上下に 10 ブロック以上の余白。そこにある光源もたどる)
-        int bx = Math.floorDiv(at.getBlockX(), 8) * 8 - 12;
-        int by = Math.floorDiv(at.getBlockY(), 8) * 8 - 4;
-        int bz = Math.floorDiv(at.getBlockZ(), 8) * 8 - 12;
+        // 格子は STEP ブロックごとにずらす (プレイヤーが真ん中あたりに来るように。上下は足元が下から 2/5 あたり)
+        int ox = Math.floorDiv(at.getBlockX(), STEP) * STEP - (W - STEP) / 2;
+        int oy = Math.floorDiv(at.getBlockY(), STEP) * STEP - 8;
+        int oz = Math.floorDiv(at.getBlockZ(), STEP) * STEP - (D - STEP) / 2;
         boolean moved = ox != state.ox || oy != state.oy || oz != state.oz;
         boolean turned = Double.isNaN(state.angle) || Math.abs(angle - state.angle) > ANGLE_STEP;
         boolean stale = System.currentTimeMillis() - state.computedAt > REFRESH_MILLIS;
@@ -201,34 +200,20 @@ public final class SunShadowService {
         state.ox = ox;
         state.oy = oy;
         state.oz = oz;
-        state.fx = fx;
-        state.fy = fy;
-        state.fz = fz;
-        state.bx = bx;
-        state.by = by;
-        state.bz = bz;
         state.angle = angle;
         state.computedAt = System.currentTimeMillis();
-        // 夜・朝夕は太陽の格子を送らない (光源ブロックの影だけ)
         boolean day = sun[1] >= MIN_SUN_Y;
-        double daylight = daylight(sun[1]);
+        Light light = new Light(day ? sun : null, sunStrength(sun[1]) * (world.hasStorm() ? RAIN_SUN : 1.0), daylight(sun[1]));
         // チャンクの写しだけをメインスレッドで取り、ブロックを読むのと計算は別スレッドで
-        Snapshot.Area area = Snapshot.area(world, fx, fy, fz, day ? sun : new double[]{0, 1, 0});
+        Snapshot.Area area = Snapshot.area(world, ox, oy, oz, day ? sun : new double[]{0, 1, 0});
         Map<Long, ChunkSnapshot> chunks = Snapshot.chunks(world, area);
         state.computing = true;
         Bukkit.getScheduler().runTaskAsynchronously(ImpossbleEscapeMC.getInstance(), () -> {
-            Snapshot snapshot = Snapshot.of(chunks, area, fx, fy, fz);
-            int[] near = new int[0], far = new int[0];
-            if (day) {
-                byte[] fine = fineStates(snapshot, fx, fy, fz, sun);
-                near = packNear(fine, ox - fx, oy - fy, oz - fz);
-                far = packFar(fine);
-            }
-            int[] block = blockGrid(snapshot, fx, fy, fz, bx - fx, by - fy, bz - fz, daylight);
-            int[] sendNear = near, sendFar = far;
+            Snapshot snapshot = Snapshot.of(chunks, area, ox, oy, oz);
+            Grids grids = computeLight(snapshot, ox, oy, oz, light);
             Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
                 state.computing = false;
-                if (states.get(player.getUniqueId()) == state) setData(state, sendNear, sendFar, block);
+                if (states.get(player.getUniqueId()) == state) setData(state, grids);
             });
         });
     }
@@ -266,27 +251,32 @@ public final class SunShadowService {
 
     // ---- 計算 (別スレッド) ----
 
-    /** 計算に使うブロックの写し。transmit は光の通り方 ({@link #transmitTable})、skyLight・blockLight は計算する範囲の空の光・ブロックの光、
-     * top はさえぎるブロックのある一番上の y (これより上へ出た光はもうさえぎられない) */
-    record Snapshot(int x0, int y0, int z0, int nx, int ny, int nz, byte[] transmit, byte[] skyLight, byte[] blockLight, int top) {
+    /**
+     * 計算に使うブロックの写し。transmit は光の通り方 ({@link #transmitTable}。範囲は x0.. の nx x ny x nz)、
+     * skyLight・blockLight・albedo・cool は空の光・ブロックの光・面の色の明るさ (0〜255)・冷たい光源か (範囲は格子 + 余白、原点 sx0..)、
+     * top はさえぎるブロックのある一番上の y (これより上へ出た光はもうさえぎられない)
+     */
+    record Snapshot(int x0, int y0, int z0, int nx, int ny, int nz, byte[] transmit,
+                    int sx0, int sy0, int sz0, byte[] skyLight, byte[] blockLight, byte[] albedo, byte[] cool, int top) {
 
-        /** 写す範囲: 計算する範囲と、そこから太陽の向きへたどる分 */
+        /** 写す範囲: 格子と余白、そこから太陽の向きへたどる分 */
         record Area(int x0, int y0, int z0, int x1, int y1, int z1) {
         }
 
-        static Area area(World world, int fx, int fy, int fz, double[] sun) {
-            int x0 = fx + (int) Math.floor(Math.min(0, sun[0] * REACH)) - 1;
-            int x1 = fx + SPAN_X + (int) Math.ceil(Math.max(0, sun[0] * REACH)) + 1;
-            int z0 = fz + (int) Math.floor(Math.min(0, sun[2] * REACH)) - 1;
-            int z1 = fz + SPAN_Z + (int) Math.ceil(Math.max(0, sun[2] * REACH)) + 1;
-            int y0 = Math.max(world.getMinHeight(), fy);
-            int y1 = Math.min(world.getMaxHeight(), fy + SPAN_Y + (int) Math.ceil(sun[1] * REACH) + 1);
+        static Area area(World world, int ox, int oy, int oz, double[] sun) {
+            int x0 = ox - MARGIN + (int) Math.floor(Math.min(0, sun[0] * REACH)) - 1;
+            int x1 = ox - MARGIN + SPAN_X + (int) Math.ceil(Math.max(0, sun[0] * REACH)) + 1;
+            int z0 = oz - MARGIN + (int) Math.floor(Math.min(0, sun[2] * REACH)) - 1;
+            int z1 = oz - MARGIN + SPAN_Z + (int) Math.ceil(Math.max(0, sun[2] * REACH)) + 1;
+            int y0 = Math.max(world.getMinHeight(), oy - MARGIN);
+            int y1 = Math.min(world.getMaxHeight(), oy - MARGIN + SPAN_Y + (int) Math.ceil(Math.max(0, sun[1]) * REACH) + 1);
             return new Area(x0, y0, z0, x1, Math.max(y0 + 1, y1), z1);
         }
 
         /** チャンクの写し (メインスレッドで取る。読み込まれていないチャンクは無し = 空気) */
         static Map<Long, ChunkSnapshot> chunks(World world, Area a) {
             transmitTable();
+            materialTables();
             Map<Long, ChunkSnapshot> chunks = new HashMap<>();
             for (int cx = a.x0() >> 4; cx <= (a.x1() - 1) >> 4; cx++) {
                 for (int cz = a.z0() >> 4; cz <= (a.z1() - 1) >> 4; cz++) {
@@ -297,12 +287,14 @@ public final class SunShadowService {
         }
 
         /** チャンクの写しからブロックを読む (別スレッドでよい) */
-        static Snapshot of(Map<Long, ChunkSnapshot> chunks, Area a, int fx, int fy, int fz) {
+        static Snapshot of(Map<Long, ChunkSnapshot> chunks, Area a, int ox, int oy, int oz) {
             int nx = a.x1() - a.x0(), ny = a.y1() - a.y0(), nz = a.z1() - a.z0();
+            int sx0 = ox - MARGIN, sy0 = oy - MARGIN, sz0 = oz - MARGIN;
+            int span = SPAN_X * SPAN_Y * SPAN_Z;
             byte[] transmit = new byte[nx * ny * nz];
-            byte[] sky = new byte[SPAN_X * SPAN_Y * SPAN_Z];
-            byte[] block = new byte[SPAN_X * SPAN_Y * SPAN_Z];
+            byte[] sky = new byte[span], block = new byte[span], albedo = new byte[span], cool = new byte[span];
             byte[] table = transmitTable();
+            byte[][] materials = materialTables();
             int top = Integer.MIN_VALUE;
             for (int x = a.x0(); x < a.x1(); x++) {
                 for (int z = a.z0(); z < a.z1(); z++) {
@@ -311,20 +303,23 @@ public final class SunShadowService {
                         for (int y = a.y0(); y < a.y1(); y++) transmit[((y - a.y0()) * nz + (z - a.z0())) * nx + (x - a.x0())] = (byte) 255;
                         continue;
                     }
-                    boolean inSpan = x >= fx && x < fx + SPAN_X && z >= fz && z < fz + SPAN_Z;
+                    boolean inSpan = x >= sx0 && x < sx0 + SPAN_X && z >= sz0 && z < sz0 + SPAN_Z;
                     for (int y = a.y0(); y < a.y1(); y++) {
-                        byte t = table[chunk.getBlockType(x & 15, y, z & 15).ordinal()];
+                        int type = chunk.getBlockType(x & 15, y, z & 15).ordinal();
+                        byte t = table[type];
                         transmit[((y - a.y0()) * nz + (z - a.z0())) * nx + (x - a.x0())] = t;
                         if (t != (byte) 255 && y > top) top = y;
-                        if (inSpan && y >= fy && y < fy + SPAN_Y) {
-                            int i = x - fx + SPAN_X * ((z - fz) + SPAN_Z * (y - fy));
+                        if (inSpan && y >= sy0 && y < sy0 + SPAN_Y) {
+                            int i = x - sx0 + SPAN_X * ((z - sz0) + SPAN_Z * (y - sy0));
                             sky[i] = (byte) chunk.getBlockSkyLight(x & 15, y, z & 15);
                             block[i] = (byte) chunk.getBlockEmittedLight(x & 15, y, z & 15);
+                            albedo[i] = materials[0][type];
+                            cool[i] = materials[1][type];
                         }
                     }
                 }
             }
-            return new Snapshot(a.x0(), a.y0(), a.z0(), nx, ny, nz, transmit, sky, block, top);
+            return new Snapshot(a.x0(), a.y0(), a.z0(), nx, ny, nz, transmit, sx0, sy0, sz0, sky, block, albedo, cool, top);
         }
 
         /** 光の通る割合 (0〜255。範囲の外は 255) */
@@ -332,6 +327,23 @@ public final class SunShadowService {
             int ix = x - x0, iy = y - y0, iz = z - z0;
             if (ix < 0 || iy < 0 || iz < 0 || ix >= nx || iy >= ny || iz >= nz) return 255;
             return transmit[(iy * nz + iz) * nx + ix] & 0xFF;
+        }
+
+        /** 空の光などの並びの番号 (範囲の外は -1) */
+        int lightIndex(int x, int y, int z) {
+            int ix = x - sx0, iy = y - sy0, iz = z - sz0;
+            if (ix < 0 || iy < 0 || iz < 0 || ix >= SPAN_X || iy >= SPAN_Y || iz >= SPAN_Z) return -1;
+            return ix + SPAN_X * (iz + SPAN_Z * iy);
+        }
+
+        int sky(int x, int y, int z) {
+            int i = lightIndex(x, y, z);
+            return i < 0 ? 0 : skyLight[i];
+        }
+
+        int block(int x, int y, int z) {
+            int i = lightIndex(x, y, z);
+            return i < 0 ? 0 : blockLight[i];
         }
     }
 
@@ -341,9 +353,10 @@ public final class SunShadowService {
 
     /**
      * 種類ごとの光の通り方 (0 = さえぎる、255 = 通す、間は通る割合 x 255)。
-     * さえぎる: 光を通さないブロック、当たり判定のあるもの (ハーフブロック・階段・扉など)。
-     * 一部だけ通す: 鉄格子・銅の格子・銅の網 (半分)、葉、柵・フェンスゲート、塀、鎖、ランタン、はしご、足場、クモの巣、避雷針。
-     * 通す: ガラス・板ガラス・氷、当たり判定の無いもの (草・花・つた・松明など)
+     * さえぎる: 光を通さないブロック、当たり判定のあるもの (ハーフブロック・階段・扉・塀など)。
+     * 一部だけ通す: 葉 (木漏れ日)。
+     * 通す: 光が隙間を抜けるブロック (鉄格子・銅の格子・銅の網・鎖・柵・フェンスゲート・はしご・足場・クモの巣・ランタン・エンドロッド・避雷針。
+     * 隙間の形はこの格子 (1 ブロックごと) では表せないので、光は抜けるものとする)、ガラス・板ガラス・氷、当たり判定の無いもの (草・花・つた・松明など)
      */
     static synchronized byte[] transmitTable() {
         if (transmitTable != null) return transmitTable;
@@ -354,15 +367,14 @@ public final class SunShadowService {
             if (m.isBlock() && !m.isAir()) {
                 String name = m.name();
                 boolean glassy = name.contains("GLASS") || name.endsWith("ICE");
-                if (name.endsWith("_BARS") || name.endsWith("COPPER_GRATE")) t = 0.5;
+                boolean lattice = name.endsWith("_BARS") || name.endsWith("COPPER_GRATE") || name.endsWith("_CHAIN")
+                        || Tag.FENCES.isTagged(m) || Tag.FENCE_GATES.isTagged(m)
+                        || m == Material.LADDER || m == Material.SCAFFOLDING || m == Material.COBWEB
+                        || (name.endsWith("LANTERN") && m != Material.JACK_O_LANTERN && m != Material.SEA_LANTERN)
+                        || m == Material.END_ROD || name.endsWith("LIGHTNING_ROD");
+                if (lattice || glassy) t = 1.0;
                 else if (Tag.LEAVES.isTagged(m)) t = 0.35;
-                else if (Tag.WALLS.isTagged(m)) t = 0.4;
-                else if (Tag.FENCES.isTagged(m) || Tag.FENCE_GATES.isTagged(m)) t = 0.7;
-                else if (m == Material.SCAFFOLDING || m == Material.COBWEB) t = 0.6;
-                else if (m == Material.LADDER) t = 0.8;
-                else if (name.endsWith("_CHAIN") || (name.endsWith("LANTERN") && m != Material.JACK_O_LANTERN && m != Material.SEA_LANTERN)) t = 0.85;
-                else if (m == Material.END_ROD || name.endsWith("LIGHTNING_ROD")) t = 0.9;
-                else if (m.isOccluding() || (m.isSolid() && !glassy)) t = 0.0;
+                else if (m.isOccluding() || m.isSolid()) t = 0.0;
             }
             table[m.ordinal()] = (byte) Math.round(t * 255);
         }
@@ -370,121 +382,39 @@ public final class SunShadowService {
         return table;
     }
 
-    /** ブロックごとに日なた・日陰を振り分けるしきい値 (2 x 2 x 2 ブロックで 8 段。通る割合が半分なら市松模様) */
-    private static final int[] DITHER_RANK = {0, 6, 5, 3, 4, 2, 1, 7};
-
-    static double ditherThreshold(int x, int y, int z) {
-        return (DITHER_RANK[(x & 1) | (y & 1) << 1 | (z & 1) << 2] + 0.5) / 8.0;
-    }
+    /** 種類ごとの面の色の明るさ ([0]、0〜255。地図の色の明るさ) と、冷たい色の光源か ([1]、1 なら冷たい) */
+    private static byte[][] materialTables;
 
     /**
-     * 計算する範囲 (原点 fx, fy, fz、{@link #SPAN_X} x {@link #SPAN_Y} x {@link #SPAN_Z} ブロック) のブロックごとの状態
-     * (0 = 室内の日陰、1 = 屋外の日陰、2 = 屋外の日なた、3 = 室内の日なた (窓などから差し込む日)、{@link #SOLID} = 光をさえぎるブロック)。
-     * 並びは x + SPAN_X x (z + SPAN_Z x y)
+     * 種類ごとの面の色の明るさ (地図の色。跳ね返りの強さ) と、冷たい色の光源か (魂の炎・シーランタン・エンドロッドなど)。
+     * ブロックの状態を作るのでメインスレッドで先に作っておく
      */
-    static byte[] fineStates(Snapshot s, int fx, int fy, int fz, double[] sun) {
-        byte[] fine = new byte[SPAN_X * SPAN_Y * SPAN_Z];
-        for (int y = 0; y < SPAN_Y; y++) {
-            for (int z = 0; z < SPAN_Z; z++) {
-                for (int x = 0; x < SPAN_X; x++) {
-                    int index = x + SPAN_X * (z + SPAN_Z * y);
-                    int wx = fx + x, wy = fy + y, wz = fz + z;
-                    if (s.transmit(wx, wy, wz) == 0) {
-                        fine[index] = SOLID;
-                        continue;
-                    }
-                    int sky = s.skyLight()[index];
-                    if (sunTransmit(s, wx + 0.5, wy + 0.5, wz + 0.5, sun) > ditherThreshold(wx, wy, wz)) {
-                        fine[index] = (byte) (sky >= OUTDOOR_SKY_LIGHT ? 2 : 3);
-                    } else {
-                        fine[index] = (byte) (sky >= SHADE_SKY_LIGHT ? 1 : 0);
-                    }
+    static synchronized byte[][] materialTables() {
+        if (materialTables != null) return materialTables;
+        Material[] all = Material.values();
+        byte[] albedo = new byte[all.length], cool = new byte[all.length];
+        for (Material m : all) {
+            double a = 0.5;
+            if (m.isBlock() && !m.isAir()) {
+                try {
+                    Color c = m.createBlockData().getMapColor();
+                    a = (0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue()) / 255.0;
+                } catch (RuntimeException ignored) {
+                    // 状態を作れない種類は真ん中の明るさ
                 }
             }
+            albedo[m.ordinal()] = (byte) Math.round(Math.clamp(a, 0.08, 0.9) * 255);
+            String name = m.name();
+            boolean isCool = name.startsWith("SOUL_") && (name.endsWith("LANTERN") || name.endsWith("TORCH") || name.endsWith("FIRE") || name.endsWith("CAMPFIRE"))
+                    || m == Material.SEA_LANTERN || m == Material.END_ROD || m == Material.BEACON || m == Material.CONDUIT
+                    || name.endsWith("AMETHYST_BUD") || m == Material.AMETHYST_CLUSTER || m == Material.SCULK_CATALYST || m == Material.SCULK_SENSOR;
+            cool[m.ordinal()] = (byte) (isCool ? 1 : 0);
         }
-        return fine;
+        materialTables = new byte[][]{albedo, cool};
+        return materialTables;
     }
 
     private static final int[][] FACES = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-
-    /** 固体のブロックの状態を、隣の空気で同じ数の時にどれを選ぶか (前ほど優先: 屋外の日陰、室内の日陰、室内の日なた、屋外の日なた) */
-    private static final int[] SOLID_PREFERENCE = {1, 0, 3, 2};
-
-    /**
-     * 固体のブロックの送る状態: 隣 (6 方向) の空気の状態で一番多いもの (同じ数なら SOLID_PREFERENCE の順)。隣に空気が無ければ 0。
-     * シェーダーは面の前の周り 8 ブロックを混ぜるので、固体に周りと違う値があると、出っ張り (トラップドア・ハーフブロックなど) の近くだけ
-     * 影が薄くなったり濃くなったりして浮いて見える
-     */
-    static int solidState(byte[] fine, int x, int y, int z) {
-        int[] count = new int[4];
-        int air = 0;
-        for (int[] f : FACES) {
-            int nx = x + f[0], ny = y + f[1], nz = z + f[2];
-            if (nx < 0 || ny < 0 || nz < 0 || nx >= SPAN_X || ny >= SPAN_Y || nz >= SPAN_Z) continue;
-            int state = fine[nx + SPAN_X * (nz + SPAN_Z * ny)];
-            if (state == SOLID) continue;
-            count[state]++;
-            air++;
-        }
-        if (air == 0) return 0;
-        int best = SOLID_PREFERENCE[0];
-        for (int state : SOLID_PREFERENCE) if (count[state] > count[best]) best = state;
-        return best;
-    }
-
-    /** 近くの格子 (計算する範囲の中の dx, dy, dz から {@link #W} x {@link #H} x {@link #D} ブロック) を 7 個ずつ 14bit に詰める。
-     * 固体のブロックは {@link #solidState}。並びは x + W x (z + D x y) */
-    static int[] packNear(byte[] fine, int dx, int dy, int dz) {
-        int[] values = new int[(W * H * D + PER_VALUE - 1) / PER_VALUE];
-        for (int y = 0; y < H; y++) {
-            for (int z = 0; z < D; z++) {
-                for (int x = 0; x < W; x++) {
-                    int state = fine[(dx + x) + SPAN_X * ((dz + z) + SPAN_Z * (dy + y))];
-                    if (state == SOLID) state = solidState(fine, dx + x, dy + y, dz + z);
-                    int index = x + W * (z + D * y);
-                    values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
-                }
-            }
-        }
-        return values;
-    }
-
-    /**
-     * 粗い格子: 2 x 2 x 2 ブロックの空気の状態で一番多いもの (同じ数なら SOLID_PREFERENCE の順。1 ブロックの壁をまたぐマスでも、
-     * 室内の空気が多ければ室内の日陰になり、外の日陰が部屋の中へ漏れない)。全部固体のマスは中のブロックの固体の状態から。
-     * 並びは x + FW x (z + FD x y)
-     */
-    static int[] packFar(byte[] fine) {
-        int[] values = new int[(FW * FH * FD + PER_VALUE - 1) / PER_VALUE];
-        for (int y = 0; y < FH; y++) {
-            for (int z = 0; z < FD; z++) {
-                for (int x = 0; x < FW; x++) {
-                    int air = 0;
-                    int[] count = new int[4];
-                    for (int i = 0; i < 8; i++) {
-                        int bx = x * FAR_SCALE + (i & 1), by = y * FAR_SCALE + (i >> 1 & 1), bz = z * FAR_SCALE + (i >> 2);
-                        int state = fine[bx + SPAN_X * (bz + SPAN_Z * by)];
-                        if (state == SOLID) continue;
-                        air++;
-                        count[state]++;
-                    }
-                    if (air == 0) {
-                        // 全部固体のマス: 中のブロックの固体の状態 (solidState) から (近くの格子と同じ理由)
-                        for (int i = 0; i < 8; i++) {
-                            int bx = x * FAR_SCALE + (i & 1), by = y * FAR_SCALE + (i >> 1 & 1), bz = z * FAR_SCALE + (i >> 2);
-                            count[solidState(fine, bx, by, bz)]++;
-                        }
-                    }
-                    int state = SOLID_PREFERENCE[0];
-                    for (int candidate : SOLID_PREFERENCE) if (count[candidate] > count[state]) state = candidate;
-                    if (state == 0) continue;
-                    int index = x + FW * (z + FD * y);
-                    values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
-                }
-            }
-        }
-        return values;
-    }
 
     /** ブロックの真ん中から太陽の向きへ、ブロックをひとつずつたどり (Amanatides-Woo)、届く光の割合を返す (0〜1) */
     static double sunTransmit(Snapshot s, double px, double py, double pz, double[] d) {
@@ -521,7 +451,7 @@ public final class SunShadowService {
         }
     }
 
-    // ---- 光源ブロックの影 ----
+    // ---- 光 ----
 
     /** 夜の空の明るさ (光の表の空の光の強さ。昼 1、夜は 0.2 ほど)。太陽の向きの y から */
     static double daylight(double sunY) {
@@ -542,7 +472,7 @@ public final class SunShadowService {
     }
 
     /** 光源ブロック: ブロックの光が周り 6 方向のどれよりも小さくない所 (光は 1 ブロックごとに 1 以上減るので、山の頂点は光源)。
-     * 計算する範囲の縁は、外の明るい所が見えないので除く。{x, y, z, レベル} (計算する範囲の座標) */
+     * 読んだ範囲の縁は、外の明るい所が見えないので除く。{x, y, z, レベル} (ワールドの座標) */
     static List<int[]> lightSources(Snapshot s) {
         List<int[]> lights = new ArrayList<>();
         byte[] light = s.blockLight();
@@ -558,7 +488,7 @@ public final class SunShadowService {
                             break;
                         }
                     }
-                    if (top) lights.add(new int[]{x, y, z, level});
+                    if (top) lights.add(new int[]{s.sx0() + x, s.sy0() + y, s.sz0() + z, level});
                 }
             }
         }
@@ -602,117 +532,239 @@ public final class SunShadowService {
         }
     }
 
-    /** 光源ブロックの明るさの倍率を送る値 (0〜3) にする: BLOCK_FACTORS の近い方 (比で) */
-    static int blockClass(double ratio) {
-        if (ratio < 0.57) return 1;
-        if (ratio < 0.85) return 2;
-        if (ratio > 1.14) return 3;
-        return 0;
+    /** 跳ね返りをたどる向き (球の上に均等に 2 組。ブロックごとに組を替えて偏りを減らす) */
+    private static final double[][][] BOUNCE_DIRS = bounceDirections();
+
+    private static double[][][] bounceDirections() {
+        double[][][] sets = new double[2][BOUNCE_RAYS][];
+        double golden = Math.PI * (3 - Math.sqrt(5));
+        for (int set = 0; set < 2; set++) {
+            for (int i = 0; i < BOUNCE_RAYS; i++) {
+                double y = 1 - (i + 0.5) / BOUNCE_RAYS * 2;
+                double r = Math.sqrt(1 - y * y);
+                double phi = i * golden + set * golden * 0.5;
+                sets[set][i] = new double[]{Math.cos(phi) * r, y, Math.sin(phi) * r};
+            }
+        }
+        return sets;
+    }
+
+    /** 光の向き・強さ: sun は太陽の向き (夜は null)、sunStrength は太陽の直接光の強さ (雨で弱い)、daylight は空の明るさ */
+    record Light(double[] sun, double sunStrength, double daylight) {
+    }
+
+    /** 送る 2 つの格子 (詰めた値) */
+    record Grids(int[] light, int[] kinds) {
+    }
+
+    /** 太陽の直接光の強さ (太陽の高さ: 地平線の近くで 0、高いと 1) */
+    static double sunStrength(double sunY) {
+        double t = Math.clamp((sunY - MIN_SUN_Y) / 0.25, 0.0, 1.0);
+        return t * t * (3 - 2 * t);
+    }
+
+    /** 倍率を段 (0〜7) にする: 1.25 の何乗に近いか */
+    static int lightLevel(double ratio) {
+        int level = (int) Math.round(Math.log(Math.max(ratio, 1e-3)) / Math.log(LEVEL_BASE)) + LEVEL_ONE;
+        return Math.clamp(level, 0, 7);
+    }
+
+    static double levelFactor(int level) {
+        return Math.pow(LEVEL_BASE, level - LEVEL_ONE);
     }
 
     /**
-     * 光源ブロックの影の格子 (計算する範囲の中の dx, dy, dz から {@link #BW} x {@link #BH} x {@link #BD} ブロック) を 7 個ずつ 14bit に詰める。
-     * 空気のブロックごとに、光源から直接届く明るさ (光源のレベル - まっすぐの距離 を光の表の曲線にし、間のブロックの光の通り方を掛け、多い方) と、
-     * 跳ね返りで回り込む分 (バニラの光 - 4) の多い方を、バニラの光と比べる。空の光の分 (daylight は今の空の明るさ) も足して比べるので、
-     * 昼の屋外ではほとんど変わらない。固体のブロックは隣の空気の値の多い方 (シェーダーが混ぜる時に浮かないように)。並びは x + BW x (z + BD x y)
+     * 格子 (原点 ox, oy, oz) の光を計算して詰める。
+     * 1. 格子と跳ね返りの分の余白 (BOUNCE_REACH) の空気ごとに直接光 (太陽・光源ブロック)
+     * 2. 格子の空気ごとに跳ね返り (BOUNCE_RAYS 本。当たった面の手前の空気の直接光 x 面の色の明るさの平均)
+     * 3. 光の量 (基本 + 空の光 + 直接光 + 跳ね返り) とバニラの明るさの比を段にし、太陽が当たっているかと一緒に詰める。
+     *    固体のブロックは隣の空気の段の平均 (シェーダーが面の近くで混ぜても浮かないように)
+     * 4. 2 ブロックごとに光の種類 (空・跳ね返り、太陽、暖かい光源、冷たい光源。ブロックごとに目立つ光 (KIND_SHARE 以上) の種類の、多い方)
      */
-    static int[] blockGrid(Snapshot s, int fx, int fy, int fz, int dx, int dy, int dz, double daylight) {
+    static Grids computeLight(Snapshot s, int ox, int oy, int oz, Light light) {
+        // 1. 直接光 (格子 + 余白 BOUNCE_REACH の箱)
+        int bx0 = ox - BOUNCE_REACH, by0 = oy - BOUNCE_REACH, bz0 = oz - BOUNCE_REACH;
+        int bw = W + 2 * BOUNCE_REACH, bh = H + 2 * BOUNCE_REACH, bd = D + 2 * BOUNCE_REACH;
+        float[] sunLight = new float[bw * bh * bd], blockLight = new float[bw * bh * bd];
+        boolean[] coolLight = new boolean[bw * bh * bd];
         List<int[]> lights = lightSources(s);
-        double cx = dx + BW / 2.0, cy = dy + BH / 2.0, cz = dz + BD / 2.0;
-        lights.removeIf(l -> l[0] < dx - l[3] || l[0] >= dx + BW + l[3] || l[1] < dy - l[3] || l[1] >= dy + BH + l[3]
-                || l[2] < dz - l[3] || l[2] >= dz + BD + l[3]);
+        double cx = ox + W / 2.0, cy = oy + H / 2.0, cz = oz + D / 2.0;
+        lights.removeIf(l -> l[0] < bx0 - l[3] || l[0] >= bx0 + bw + l[3] || l[1] < by0 - l[3] || l[1] >= by0 + bh + l[3]
+                || l[2] < bz0 - l[3] || l[2] >= bz0 + bd + l[3]);
         lights.sort(java.util.Comparator.comparingDouble(l -> (l[0] - cx) * (l[0] - cx) + (l[1] - cy) * (l[1] - cy) + (l[2] - cz) * (l[2] - cz)));
         if (lights.size() > MAX_LIGHTS) lights = lights.subList(0, MAX_LIGHTS);
-        byte[] cls = new byte[BW * BH * BD];
-        boolean[] solid = new boolean[BW * BH * BD];
-        for (int y = 0; y < BH; y++) {
-            for (int z = 0; z < BD; z++) {
-                for (int x = 0; x < BW; x++) {
-                    int i = x + BW * (z + BD * y);
-                    int px = dx + x, py = dy + y, pz = dz + z;
-                    if (s.transmit(fx + px, fy + py, fz + pz) == 0) {
-                        solid[i] = true;
-                        continue;
+        for (int y = 0; y < bh; y++) {
+            for (int z = 0; z < bd; z++) {
+                for (int x = 0; x < bw; x++) {
+                    int px = bx0 + x, py = by0 + y, pz = bz0 + z;
+                    if (s.transmit(px, py, pz) == 0) continue;
+                    int i = x + bw * (z + bd * y);
+                    if (light.sun() != null) {
+                        sunLight[i] = (float) (SUN * light.sunStrength() * sunTransmit(s, px + 0.5, py + 0.5, pz + 0.5, light.sun()));
                     }
-                    int span = px + SPAN_X * (pz + SPAN_Z * py);
-                    int vanilla = s.blockLight()[span];
+                    int vanilla = s.block(px, py, pz);
                     if (vanilla <= 0) continue;
-                    double direct = lightCurve(Math.max(vanilla - 4, 0));
+                    // バニラの光の回り込みの分を少し残す (跳ね返りの足し)
+                    double best = lightCurve(Math.max(vanilla - 5, 0));
+                    int[] bestLight = null;
                     for (int[] l : lights) {
                         double ex = l[0] - px, ey = l[1] - py, ez = l[2] - pz;
                         double reach = l[3] - Math.sqrt(ex * ex + ey * ey + ez * ez);
                         if (reach <= 0) continue;
                         double bright = lightCurve(reach);
-                        if (bright <= direct) continue;
-                        double t = transmitBetween(s, fx + px, fy + py, fz + pz, fx + l[0], fy + l[1], fz + l[2]);
-                        direct = Math.max(direct, bright * t);
+                        if (bright <= best) continue;
+                        double t = transmitBetween(s, px, py, pz, l[0], l[1], l[2]);
+                        if (bright * t > best) {
+                            best = bright * t;
+                            bestLight = l;
+                        }
                     }
-                    double sky = skyCurve(s.skyLight()[span]) * daylight;
-                    double ambient = 0.04;
-                    double want = Math.min(1.0, ambient + sky + direct);
-                    double have = Math.min(1.0, ambient + sky + lightCurve(vanilla));
-                    cls[i] = (byte) blockClass(want / have);
+                    blockLight[i] = (float) best;
+                    if (bestLight != null) {
+                        int li = s.lightIndex(bestLight[0], bestLight[1], bestLight[2]);
+                        coolLight[i] = li >= 0 && s.cool()[li] != 0;
+                    }
                 }
             }
         }
-        int[] values = new int[(BW * BH * BD + PER_VALUE - 1) / PER_VALUE];
-        for (int y = 0; y < BH; y++) {
-            for (int z = 0; z < BD; z++) {
-                for (int x = 0; x < BW; x++) {
-                    int i = x + BW * (z + BD * y);
-                    int value = cls[i];
-                    if (solid[i]) {
-                        int[] count = new int[4];
+        // 2・3. 格子の空気ごとの光の量と、バニラとの比
+        byte[] level = new byte[W * H * D];
+        boolean[] sunlit = new boolean[W * H * D], solid = new boolean[W * H * D];
+        int[] kind = new int[W * H * D];
+        for (int y = 0; y < H; y++) {
+            for (int z = 0; z < D; z++) {
+                for (int x = 0; x < W; x++) {
+                    int g = x + W * (z + D * y);
+                    int px = ox + x, py = oy + y, pz = oz + z;
+                    if (s.transmit(px, py, pz) == 0) {
+                        solid[g] = true;
+                        continue;
+                    }
+                    int b = (x + BOUNCE_REACH) + bw * ((z + BOUNCE_REACH) + bd * (y + BOUNCE_REACH));
+                    double bounce = 0;
+                    double[][] dirs = BOUNCE_DIRS[(px + py + pz) & 1];
+                    for (double[] dir : dirs) bounce += bounceRay(s, px, py, pz, dir, bx0, by0, bz0, bw, bh, bd, sunLight, blockLight);
+                    bounce *= BOUNCE / BOUNCE_RAYS;
+                    double skyPart = AMBIENT + SKY * skyCurve(s.sky(px, py, pz)) * light.daylight() + bounce;
+                    double sunPart = sunLight[b], blockPart = blockLight[b];
+                    double want = skyPart + sunPart + blockPart;
+                    double have = Math.min(1.0, AMBIENT + skyCurve(s.sky(px, py, pz)) * light.daylight() + lightCurve(s.block(px, py, pz)));
+                    level[g] = (byte) lightLevel(want / Math.max(have, AMBIENT));
+                    sunlit[g] = sunPart > SUN * light.sunStrength() * 0.5 && sunPart > 0;
+                    // 光の種類: 太陽・光源ブロックが光の量の KIND_SHARE 以上なら (多い方)、ほかは空 (空の光は弱い色なので、目立つ光を優先する)
+                    if (Math.max(sunPart, blockPart) < KIND_SHARE * want) kind[g] = KIND_SKY;
+                    else kind[g] = sunPart >= blockPart ? KIND_SUN : coolLight[b] ? KIND_COOL : KIND_WARM;
+                }
+            }
+        }
+        // 固体のブロック: 隣の空気の段の平均、太陽が当たっているかは多い方
+        int[] values = new int[(W * H * D + 2) / 3];
+        for (int y = 0; y < H; y++) {
+            for (int z = 0; z < D; z++) {
+                for (int x = 0; x < W; x++) {
+                    int g = x + W * (z + D * y);
+                    int lv = level[g];
+                    boolean lit = sunlit[g];
+                    if (solid[g]) {
+                        int sum = 0, count = 0, litCount = 0;
                         for (int[] f : FACES) {
                             int nx = x + f[0], ny = y + f[1], nz = z + f[2];
-                            if (nx < 0 || ny < 0 || nz < 0 || nx >= BW || ny >= BH || nz >= BD) continue;
-                            int n = nx + BW * (nz + BD * ny);
-                            if (!solid[n]) count[cls[n]]++;
+                            if (nx < 0 || ny < 0 || nz < 0 || nx >= W || ny >= H || nz >= D) continue;
+                            int n = nx + W * (nz + D * ny);
+                            if (solid[n]) continue;
+                            sum += level[n];
+                            count++;
+                            if (sunlit[n]) litCount++;
                         }
-                        value = 0;
-                        for (int c = 1; c < 4; c++) if (count[c] > count[value]) value = c;
+                        lv = count > 0 ? Math.round((float) sum / count) : LEVEL_ONE;
+                        lit = count > 0 && litCount * 2 > count;
                     }
-                    values[i / PER_VALUE] |= value << ((i % PER_VALUE) * 2);
+                    values[g / 3] |= (lv | (lit ? 8 : 0)) << ((g % 3) * 4);
                 }
             }
         }
-        return values;
+        // 4. 光の種類 (2 ブロックごと。空気の中で一番多い種類。全部固体なら空)
+        int[] kinds = new int[(CW * CH * CD + 6) / 7];
+        for (int y = 0; y < CH; y++) {
+            for (int z = 0; z < CD; z++) {
+                for (int x = 0; x < CW; x++) {
+                    int[] count = new int[4];
+                    for (int i = 0; i < 8; i++) {
+                        int gx = x * COLOR_SCALE + (i & 1), gy = y * COLOR_SCALE + (i >> 1 & 1), gz = z * COLOR_SCALE + (i >> 2);
+                        int g = gx + W * (gz + D * gy);
+                        if (!solid[g]) count[kind[g]]++;
+                    }
+                    int best = KIND_SKY;
+                    for (int k = 1; k < 4; k++) if (count[k] > count[best]) best = k;
+                    int c = x + CW * (z + CD * y);
+                    kinds[c / 7] |= best << ((c % 7) * 2);
+                }
+            }
+        }
+        return new Grids(values, kinds);
+    }
+
+    /** 跳ね返り: 空気のブロック (px, py, pz) から dir の向きへたどり、当たった面の手前の空気の直接光 x 面の色の明るさ (当たらなければ 0) */
+    private static double bounceRay(Snapshot s, int px, int py, int pz, double[] d, int bx0, int by0, int bz0, int bw, int bh, int bd,
+                                    float[] sunLight, float[] blockLight) {
+        int x = px, y = py, z = pz;
+        int sx = d[0] > 0 ? 1 : -1, sy = d[1] > 0 ? 1 : -1, sz = d[2] > 0 ? 1 : -1;
+        double tdx = d[0] != 0 ? Math.abs(1 / d[0]) : Double.MAX_VALUE;
+        double tdy = d[1] != 0 ? Math.abs(1 / d[1]) : Double.MAX_VALUE;
+        double tdz = d[2] != 0 ? Math.abs(1 / d[2]) : Double.MAX_VALUE;
+        double tx = 0.5 * tdx, ty = 0.5 * tdy, tz = 0.5 * tdz;
+        int lastX = x, lastY = y, lastZ = z;
+        while (true) {
+            double t;
+            if (tx < ty && tx < tz) {
+                t = tx;
+                x += sx;
+                tx += tdx;
+            } else if (ty < tz) {
+                t = ty;
+                y += sy;
+                ty += tdy;
+            } else {
+                t = tz;
+                z += sz;
+                tz += tdz;
+            }
+            if (t > BOUNCE_REACH) return 0;
+            if (s.transmit(x, y, z) == 0) {
+                int ix = lastX - bx0, iy = lastY - by0, iz = lastZ - bz0;
+                if (ix < 0 || iy < 0 || iz < 0 || ix >= bw || iy >= bh || iz >= bd) return 0;
+                int i = ix + bw * (iz + bd * iy);
+                int li = s.lightIndex(x, y, z);
+                double albedo = li < 0 ? 0.5 : (s.albedo()[li] & 0xFF) / 255.0;
+                return (sunLight[i] + blockLight[i]) * albedo;
+            }
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+        }
     }
 
     // ---- 送る ----
 
-    /** 格子の値をデータの文字にしてテキストディスプレイに書く (block が null なら「影なし」: ヘッダーの印のマスを 0 にして、覚えている影を消させる)。
-     * 中身は PAYLOAD 番から近くの格子、粗い格子、光源ブロックの影の格子 (太陽の格子は夜は無し = 大きさ 0) */
-    private static void setData(State state, int[] near, int[] far, int[] block) {
+    /** 格子の値をデータの文字にしてテキストディスプレイに書く (grids が null なら「光なし」: ヘッダーの印のマスを 0 にして、覚えている値を消させる) */
+    private static void setData(State state, Grids grids) {
         if (state.display == null) return;
-        if (block == null) {
-            near = new int[0];
-            far = new int[0];
-            block = new int[0];
-        }
-        int cells = Math.min(DATA_CAPACITY, PAYLOAD + near.length + far.length + block.length);
+        int[] light = grids != null ? grids.light() : new int[0];
+        int[] kinds = grids != null ? grids.kinds() : new int[0];
+        int cells = Math.min(DATA_CAPACITY, PAYLOAD + light.length + kinds.length);
         int[] data = new int[cells];
-        data[HEADER] = block.length > 0 ? MAGIC : 0;
+        data[HEADER] = grids != null ? MAGIC : 0;
         data[HEADER + 1] = state.ox & 1023;
         data[HEADER + 2] = state.oy & 1023;
         data[HEADER + 3] = state.oz & 1023;
-        data[HEADER + 4] = near.length > 0 ? W : 0;
+        data[HEADER + 4] = grids != null ? W : 0;
         data[HEADER + 5] = H;
         data[HEADER + 6] = D;
-        data[HEADER + 7] = state.fx & 1023;
-        data[HEADER + 8] = state.fy & 1023;
-        data[HEADER + 9] = state.fz & 1023;
-        data[HEADER + 10] = far.length > 0 ? FW : 0;
-        data[HEADER + 11] = FH;
-        data[HEADER + 12] = FD;
-        data[HEADER + 13] = state.bx & 1023;
-        data[HEADER + 14] = state.by & 1023;
-        data[HEADER + 15] = state.bz & 1023;
-        data[HEADER + 16] = block.length > 0 ? BW : 0;
-        data[HEADER + 17] = BH;
-        data[HEADER + 18] = BD;
+        data[HEADER + 7] = grids != null ? CW : 0;
+        data[HEADER + 8] = CH;
+        data[HEADER + 9] = CD;
         int at = PAYLOAD;
-        for (int[] part : new int[][]{near, far, block}) {
+        for (int[] part : new int[][]{light, kinds}) {
             int n = Math.min(part.length, cells - at);
             System.arraycopy(part, 0, data, at, n);
             at += n;
