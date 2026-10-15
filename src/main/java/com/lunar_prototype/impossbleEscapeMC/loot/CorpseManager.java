@@ -157,8 +157,10 @@ public class CorpseManager {
         virtualInv.setItem(1, playerInv.getChestplate());
         virtualInv.setItem(2, playerInv.getLeggings());
         virtualInv.setItem(3, playerInv.getBoots());
-        // 4: Main Hand, 5: Off Hand
-        virtualInv.setItem(4, playerInv.getItemInMainHand());
+        // 4: Main Hand, 5: Off Hand。手に持っている物はホットバーの欄でもあるので、下で写す時はその欄を飛ばす (2 つにしない)。
+        // 地図の欄 (8) を持っていた時は死体に入れない
+        int held = playerInv.getHeldItemSlot();
+        if (held != 8) virtualInv.setItem(4, playerInv.getItemInMainHand());
         virtualInv.setItem(5, playerInv.getItemInOffHand());
         
         // Dog Tag in slot 8
@@ -167,6 +169,7 @@ public class CorpseManager {
         // 9-44: Player's 36 inventory slots
         for (int i = 0; i < 36; i++) {
             if (i == 8) continue; // スロット8（マップスロット）は死体に入れない
+            if (i == held) continue; // 手に持っている物は 4 に入れた
             ItemStack item = playerInv.getItem(i);
             if (com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)
                     || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item)) {
