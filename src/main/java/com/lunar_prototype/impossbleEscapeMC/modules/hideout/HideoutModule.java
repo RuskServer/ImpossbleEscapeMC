@@ -22,6 +22,7 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.bukkit.entity.Player;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Level;
 
 /**
@@ -41,6 +43,7 @@ public class HideoutModule implements IModule {
     private final HideoutWorldManager worldManager;
     private final HideoutLayout layout;
     private final HideoutBuilder builder;
+    private final HideoutSlots slots;
     private PlayerDataModule dataModule;
 
     public HideoutModule(ImpossbleEscapeMC plugin) {
@@ -48,6 +51,7 @@ public class HideoutModule implements IModule {
         this.worldManager = new HideoutWorldManager();
         this.layout = new HideoutLayout(plugin.getDataFolder());
         this.builder = new HideoutBuilder(layout, plugin.getLogger());
+        this.slots = new HideoutSlots(new File(plugin.getDataFolder(), "hideout"), plugin.getLogger());
     }
 
     public void onEnable(ServiceContainer serviceContainer) {
@@ -95,9 +99,7 @@ public class HideoutModule implements IModule {
             return false;
         }
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
-        if (data.getHideoutIndex() < 0) {
-            data.setHideoutIndex(Bukkit.getOfflinePlayers().length);
-        }
+        assignSlot(player.getUniqueId(), data, true);
         try {
             ensureBuilt(data);
         } catch (IOException e) {
@@ -111,6 +113,20 @@ public class HideoutModule implements IModule {
         player.teleport(spawn);
         player.sendMessage(Component.text("自分の隠れ家に移動しました。", NamedTextColor.GREEN));
         return true;
+    }
+
+    /**
+     * 隠れ家の場所の番号を台帳 ({@link HideoutSlots}) で確かめる。台帳に初めて載った時 (番号を移した時も) は建て直させる
+     * (前に別の人と同じ所を使っていて、その人のレベルで建っているかもしれないため)。
+     * create なら、まだ番号の無い人にも番号を配る (隠れ家に入る時)。参加した時は、番号を持っている人だけ確かめる
+     */
+    public void assignSlot(UUID playerId, PlayerData data, boolean create) {
+        if (data == null || (!create && data.getHideoutIndex() < 0)) return;
+        HideoutSlots.Claim claim = slots.claim(playerId, data.getHideoutIndex());
+        if (!claim.registered() && claim.slot() == data.getHideoutIndex()) return;
+        data.setHideoutIndex(claim.slot());
+        data.setHideoutBuiltVersion(-1);
+        dataModule.saveAsync(playerId);
     }
 
     /** ロビー (メインのワールドのスポーン。レイドから戻る所と同じ) へ戻す */

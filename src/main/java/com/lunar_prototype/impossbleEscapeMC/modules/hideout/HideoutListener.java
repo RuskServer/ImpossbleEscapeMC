@@ -34,6 +34,8 @@ public class HideoutListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
+        // 隠れ家の場所の番号がほかの人と重なっていないか (前の版で配った番号)
+        module.assignSlot(event.getPlayer().getUniqueId(), module.getDataModule().getPlayerData(event.getPlayer().getUniqueId()), false);
         enforceAdventure(event.getPlayer());
     }
 
