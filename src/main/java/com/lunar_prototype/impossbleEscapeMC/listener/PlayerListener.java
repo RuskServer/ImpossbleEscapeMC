@@ -254,6 +254,15 @@ public class PlayerListener implements Listener {
     }
 
     @EventHandler
+    public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+        // レイドの途中で切断した人を戻す・装備を失わせる (持ち物とワールドが読み込まれてから)
+        org.bukkit.entity.Player player = event.getPlayer();
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) plugin.getRaidModule().onPlayerJoin(player);
+        });
+    }
+
+    @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         plugin.getRaidModule().onPlayerQuit(event.getPlayer());
         plugin.getMinigameManager().onPlayerQuit(event.getPlayer());
