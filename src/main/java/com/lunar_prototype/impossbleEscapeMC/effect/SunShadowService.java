@@ -71,10 +71,11 @@ public final class SunShadowService {
     /** この空の光より暗い空気のブロックは室内 (日が差し込めば室内の日なた) */
     private static final int OUTDOOR_SKY_LIGHT = 12;
     /**
-     * 日陰の濃さ: 空の光が SHADE_SKY_LOW 以下の空気は対象外 (光の表の暗さだけ)、SHADE_SKY_HIGH で全部「屋外の日陰」。間は割合に合わせて
-     * ブロックごとに振り分ける (シェーダーが周りと混ぜるので、入口から奥へなめらかに影が薄くなる。1 つのしきい値だと床に影の境目の線が出る)
+     * 日の当たらない空気のうち、空の光がこれ以上の所だけ「屋外の日陰」にする (ほかは対象外 = 光の表の暗さだけ)。
+     * 室内の奥の暗さは光の表 (空の光が 1 ブロックごとに下がる) がもう表しているので、日陰で暗くするのは空が開けた所と軒先だけ
+     * (室内まで暗くすると 2 重になる。ブロックごとに振り分けて薄くすると、まだら模様に見える)
      */
-    private static final int SHADE_SKY_LOW = 10, SHADE_SKY_HIGH = 15;
+    private static final int SHADE_SKY_LIGHT = 14;
     /** 太陽がこれより低い (向きの y) 時は送らない */
     private static final double MIN_SUN_Y = 0.08;
     /** 一部だけ光を通すブロックを通った後、これより暗ければ日陰 (先をたどらない) */
@@ -369,9 +370,7 @@ public final class SunShadowService {
                     if (sunTransmit(s, wx + 0.5, wy + 0.5, wz + 0.5, sun) > ditherThreshold(wx, wy, wz)) {
                         fine[index] = (byte) (sky >= OUTDOOR_SKY_LIGHT ? 2 : 3);
                     } else {
-                        // 振り分けの模様は日なたの振り分けとずらす (同じだと重なって偏る)
-                        double open = Math.clamp((sky - SHADE_SKY_LOW) / (double) (SHADE_SKY_HIGH - SHADE_SKY_LOW), 0.0, 1.0);
-                        fine[index] = (byte) (open > ditherThreshold(wx + 1, wy, wz + 1) ? 1 : 0);
+                        fine[index] = (byte) (sky >= SHADE_SKY_LIGHT ? 1 : 0);
                     }
                 }
             }
