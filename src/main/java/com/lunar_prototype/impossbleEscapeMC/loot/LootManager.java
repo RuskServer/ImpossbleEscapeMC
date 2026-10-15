@@ -121,13 +121,15 @@ public class LootManager {
 
         if (tableToRoll == null) return;
 
-        Inventory inv = container.getInventory();
-        inv.clear();
-
-        // Reset searched slots
+        // 漁った欄の記録を消す。BlockState の書き戻し (update) は中身も読んだ時の写しで上書きするので、中身を替える前に済ませる
+        // (先に中身を空にすると、書き戻しで前の中身が戻り、補充の後も残ってしまう)
         NamespacedKey searchedKey = new NamespacedKey(plugin, "searched_slots");
         container.getPersistentDataContainer().remove(searchedKey);
         container.update();
+        if (container.getBlock().getState() instanceof Container live) container = live;
+
+        Inventory inv = container.getInventory();
+        inv.clear();
 
         List<ItemStack> items = LootRoller.roll(container.getWorld(), tableToRoll);
         Collections.shuffle(items);

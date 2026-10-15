@@ -40,9 +40,11 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 public class SearchGUI implements Listener {
     /** 1 マスの探索にかかる時間 (tick) */
@@ -100,9 +102,20 @@ public class SearchGUI implements Listener {
         open(event.getPlayer(), mannequin);
     }
 
+    /**
+     * 開いている死体の中身 (死体ごとに 1 つを、見ている人みんなで使う)。人ごとに読んだ写しを持つと、2 人が同じ物を取れてしまい、
+     * 後から書き戻した人の写しで取られた物が戻ってしまう。見ている人がいなくなったら捨てる (中身は取るたびに死体へ書いてある)
+     */
+    private final Map<UUID, Inventory> openCorpses = new HashMap<>();
+    private final Map<UUID, Integer> corpseViewers = new HashMap<>();
+
     public void open(Player player, Object source) {
         Inventory realInv = getInventoryFromSource(source);
         if (realInv == null) return;
+        if (source instanceof Mannequin m) {
+            openCorpses.putIfAbsent(m.getUniqueId(), realInv);
+            corpseViewers.merge(m.getUniqueId(), 1, Integer::sum);
+        }
 
         SearchHolder holder = new SearchHolder(source, realInv);
         PersistentDataContainer pdc = getPDCFromSource(source);
@@ -131,6 +144,8 @@ public class SearchGUI implements Listener {
             return live != null ? live.getInventory() : null;
         }
         if (source instanceof Mannequin m) {
+            Inventory open = openCorpses.get(m.getUniqueId());
+            if (open != null) return open;
             PersistentDataContainer pdc = m.getPersistentDataContainer();
             Component title = m.customName();
             if (title == null) title = Component.text("死体漁り");
@@ -324,6 +339,10 @@ public class SearchGUI implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getInventory().getHolder() instanceof SearchHolder holder)) return;
         if (!(event.getPlayer() instanceof Player player)) return;
+        if (holder.getSource() instanceof Mannequin m) {
+            Integer left = corpseViewers.computeIfPresent(m.getUniqueId(), (id, n) -> n > 1 ? n - 1 : null);
+            if (left == null) openCorpses.remove(m.getUniqueId());
+        }
 
         Bukkit.getPluginManager().callEvent(new LootSessionEndEvent(
                 player,
