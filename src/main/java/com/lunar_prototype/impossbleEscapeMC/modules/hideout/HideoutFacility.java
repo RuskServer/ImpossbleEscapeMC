@@ -102,6 +102,9 @@ public enum HideoutFacility {
     public String description() {
         if (this == SKILL_TREE) return "スキルを習得する端末";
         if (this == WATER) return "ロビーと隠れ家で空腹が減りにくい";
+        if (this == WORKBENCH) return "部品や装備を作る作業台";
+        if (this == AMMO) return "弾薬を作る";
+        if (this == MEDICAL) return "医療品を作る";
         return this == STASH ? "スタッシュを開ける棚" : null;
     }
 

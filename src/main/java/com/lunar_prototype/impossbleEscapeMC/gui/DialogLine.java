@@ -137,6 +137,26 @@ public final class DialogLine {
         return moveTo(start + width + 1);
     }
 
+    /**
+     * 札の絵 (幅 width) と、その中央に textFont の字 (札の縦の真ん中に来るよう、バニラの字をずらしたフォント iem:shift_&lt;n&gt;)。
+     * 札も字も押せる。字に影を付けない時は noShadow
+     */
+    public DialogLine chip(Key font, char glyph, int width, Key textFont, String label, TextColor color, boolean noShadow,
+                           ClickEvent click, Component hover) {
+        int textW = FontWidths.width(label);
+        int start = x;
+        glyph(font, glyph, width, click, hover);
+        moveTo(start + (width - textW) / 2);
+        Component t = Component.text(label, color).font(textFont);
+        if (noShadow) t = t.shadowColor(ShadowColor.none());
+        if (click != null) t = t.clickEvent(click);
+        if (hover != null) t = t.hoverEvent(HoverEvent.showText(hover));
+        out.append(t);
+        x += textW;
+        max = Math.max(max, x);
+        return moveTo(start + width + 1);
+    }
+
     public Component build() {
         return out.build();
     }

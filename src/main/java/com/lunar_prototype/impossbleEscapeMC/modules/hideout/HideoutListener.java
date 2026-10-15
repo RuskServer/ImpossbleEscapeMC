@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.craft.CraftDialog;
+import com.lunar_prototype.impossbleEscapeMC.modules.craft.CraftRecipes;
 import com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.stash.StashPageSelectorGUI;
 import org.bukkit.GameMode;
@@ -82,6 +84,11 @@ public class HideoutListener implements Listener {
             com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillTreeDialog.open(event.getPlayer());
             return;
         }
+        if (facility != null && CraftRecipes.crafts(facility)) {
+            event.setCancelled(true);
+            CraftDialog.open(event.getPlayer(), facility);
+            return;
+        }
 
         if (!(block.getState() instanceof Sign sign)) return;
 
@@ -92,8 +99,7 @@ public class HideoutListener implements Listener {
             event.getPlayer().sendMessage("発電機の燃料メニュー（未実装）を開きます。");
             // new GeneratorGUI(module, event.getPlayer()).open();
         } else if (line1.contains("workbench")) {
-            event.getPlayer().sendMessage("ワークベンチのクラフトメニュー（未実装）を開きます。");
-            // new WorkbenchGUI(module, event.getPlayer()).open();
+            CraftDialog.open(event.getPlayer(), HideoutFacility.WORKBENCH);
         } else if (line1.contains("hideout")) {
             HideoutDialog.open(event.getPlayer());
         }
