@@ -11,6 +11,7 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemWeights;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
@@ -59,7 +60,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 絵にして端末を描き、品物はダイアログのアイテム欄 (本物の見た目。ホバーで詳細) で並べる。
  * <ul>
  *   <li>上の端末: 名前・所持金/容量/Lv の液晶・並び/未解放/修理の札・分類のタブ</li>
- *   <li>品物の行: 品物の枠 + 札 (名前・価格・購入の札 / 2 行目に口径や貫通・本日の残り)。買える物が先、未解放は暗く後ろ</li>
+ *   <li>品物の行: 品物の枠 + 札 (名前・価格・購入の札 / 2 行目に口径や貫通・本日の残り)。買える物が先、未解放は暗く後ろ。
+ *       交換の取引は価格の代わりに「交換」、2 行目に渡す品物 (持っている数/要る数。持ち物とスタッシュで数える)</li>
  *   <li>購入の確認: 早押しの個数ボタン (合計金額つき) と、個数のスライダー</li>
  *   <li>下の帯: クエスト一覧 (報告できる数) と閉じる。Esc は閉じる (確認の画面では戻る)</li>
  * </ul>
@@ -172,7 +174,22 @@ public final class TraderDialog implements Listener {
      */
     private record Entry(int index, TraderItem item, ItemStack icon, String name, Category category,
                          AmmoDefinition ammo, int size, boolean unlocked, boolean levelMet, boolean questMet, int remaining,
-                         double price, int limit) {
+                         double price, int limit, List<Need> needs) {
+
+        boolean barter() {
+            return item.isBarter();
+        }
+
+        /** 交換の取引で、渡す品物で何回できるか (ルーブルの取引は制限なし) */
+        int tradesByItems() {
+            int trades = Integer.MAX_VALUE;
+            for (Need need : needs) trades = Math.min(trades, need.perTrade() <= 0 ? trades : need.have() / need.perTrade());
+            return trades;
+        }
+    }
+
+    /** 交換で渡す品物 1 つ (perTrade は 1 回の分) */
+    record Need(String name, int have, int perTrade) {
     }
 
     private static final class Session {
@@ -294,35 +311,49 @@ public final class TraderDialog implements Listener {
         int maxStack = Math.max(1, entry.icon().getMaxStackSize());
         double balance = module.getEconomyModule().getBalance(player.getUniqueId());
         int affordable = entry.price() <= 0 ? Integer.MAX_VALUE : (int) Math.floor(balance / entry.price());
-        int max = Math.min(Math.min(entry.remaining(), affordable), maxStack * SLIDER_STACKS);
+        boolean barter = entry.barter();
+        if (barter) affordable = Math.min(affordable, entry.tradesByItems());
+        // 交換は回数で数える (1 回で count 個)。スライダーの上限は、もらう数がスタック SLIDER_STACKS 個分まで
+        int unitCount = barter ? Math.max(1, entry.item().count) : 1;
+        int max = Math.min(Math.min(entry.remaining(), affordable), Math.max(1, maxStack * SLIDER_STACKS / unitCount));
 
         List<DialogBody> body = new ArrayList<>();
         int free = Math.max(0, CostSlotManager.capacity(player, player.getInventory()) - CostSlotManager.usedCost(player, player.getInventory()));
-        ConfirmView view = new ConfirmView(entry.name(), price(entry.price()), price(balance), free, maxStack,
-                stockText(entry), entry.remaining() <= 0);
+        ConfirmView view = barter
+                ? new ConfirmView(entry.name(), barterUnit(entry), price(balance), free, maxStack, stockText(entry), entry.remaining() <= 0,
+                        needParts(entry.needs(), 1))
+                : new ConfirmView(entry.name(), price(entry.price()), price(balance), free, maxStack, stockText(entry), entry.remaining() <= 0);
         body.add(DialogBody.item(entry.icon()).description(DialogBody.plainMessage(confirmRow(view), ROW_BODY_W))
                 .showTooltip(true).showDecorations(false).width(ITEM_BOX).height(ITEM_BOX).build());
-        String reason = max > 0 ? null : entry.remaining() <= 0 ? "本日の購入制限に達しています" : "所持金が足りません";
+        String reason = max > 0 ? null : entry.remaining() <= 0 ? "本日の購入制限に達しています"
+                : barter && entry.tradesByItems() <= 0 ? "交換に使う品物が足りません (持ち物とスタッシュで数えます)" : "所持金が足りません";
         if (reason != null) body.add(DialogBody.plainMessage(Component.text(reason, NG)));
+        if (barter && max > 0) {
+            body.add(DialogBody.plainMessage(Component.text("渡す品物は持ち物 → スタッシュの順に取ります。もらう物が持ち物に入らなければスタッシュへ", NOTE)));
+        }
 
         List<ActionButton> buttons = new ArrayList<>();
-        DialogBase.Builder base = DialogBase.builder(Component.text("購入 ― " + entry.name())
+        DialogBase.Builder base = DialogBase.builder(Component.text((barter ? "交換 ― " : "購入 ― ") + entry.name())
                         .append(noticeText(session)))
                 .canCloseWithEscape(true)
                 .pause(false)
                 .afterAction(DialogBase.DialogAfterAction.NONE)
                 .body(body);
         if (max > 0) {
-            for (int quantity : quickQuantities(maxStack, max)) {
-                String label = (maxStack == 1 && quantity == 1 ? "購入" : "×" + quantity) + "  " + price(entry.price() * quantity);
+            for (int quantity : barter ? barterQuantities(max) : quickQuantities(maxStack, max)) {
+                String label = barter
+                        ? (quantity == 1 ? "交換" : quantity + "回") + "  ×" + quantity * unitCount
+                                + (entry.price() > 0 ? "  " + price(entry.price() * quantity) : "")
+                        : (maxStack == 1 && quantity == 1 ? "購入" : "×" + quantity) + "  " + price(entry.price() * quantity);
                 buttons.add(ActionButton.create(Component.text(label), null, 98, action("buy/" + entry.index() + "/" + quantity)));
             }
             if (max > 1) {
                 // 最初は 1 個。そのまま押せばボタンの合計で買い、動かしてから押したら確認の画面 (handle の "slider")
-                base.inputs(List.of(DialogInput.numberRange("count", Component.text("個数"), 1, max)
+                base.inputs(List.of(DialogInput.numberRange("count", Component.text(barter ? "回数" : "個数"), 1, max)
                         .step(1f).initial((float) SLIDER_INITIAL).width(200).build()));
-                buttons.add(ActionButton.create(Component.text("購入"),
-                        Component.text("スライダーの個数で購入する (1 個のままならそのまま、動かした時は合計を確かめてから)", NOTE), 200,
+                buttons.add(ActionButton.create(Component.text(barter ? "交換" : "購入"),
+                        Component.text(barter ? "スライダーの回数で交換する (1 回のままならそのまま、動かした時は確かめてから)"
+                                : "スライダーの個数で購入する (1 個のままならそのまま、動かした時は合計を確かめてから)", NOTE), 200,
                         action("slider/" + entry.index())));
             }
         }
@@ -336,6 +367,10 @@ public final class TraderDialog implements Listener {
 
     /** スライダーで選んだ個数の確かめ: 合計と購入後の所持金を見せて、もう一度押して買う */
     private static void showPurchaseCheck(Player player, Session session, Entry entry, int quantity) {
+        if (entry.barter()) {
+            showBarterCheck(player, session, entry, quantity);
+            return;
+        }
         double balance = module.getEconomyModule().getBalance(player.getUniqueId());
         double total = entry.price() * quantity;
         List<DialogBody> body = new ArrayList<>();
@@ -352,6 +387,55 @@ public final class TraderDialog implements Listener {
                 action("buy/" + entry.index() + "/" + quantity));
         ActionButton recount = ActionButton.create(Component.text("個数を変える"), null, 150, action("recount"));
         player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(DialogType.confirmation(buy, recount))));
+    }
+
+    /** スライダーで選んだ回数の交換の確かめ: もらう数と渡す品物 (持っている数/要る数) を見せて、もう一度押して交換する */
+    private static void showBarterCheck(Player player, Session session, Entry entry, int quantity) {
+        int given = quantity * Math.max(1, entry.item().count);
+        List<DialogBody> body = new ArrayList<>();
+        body.add(DialogBody.item(entry.icon()).description(DialogBody.plainMessage(
+                Component.text(entry.name(), NAME).append(Component.newline())
+                        .append(Component.text(quantity + "回の交換で ×" + given + unitOf(entry), NOTE)), ROW_BODY_W))
+                .showTooltip(true).showDecorations(false).width(ITEM_BOX).height(ITEM_BOX).build());
+        TextComponent.Builder needs = Component.text().append(Component.text("渡す  ", NOTE));
+        for (Part part : needParts(entry.needs(), quantity)) needs.append(Component.text(part.text() + "   ", part.color()));
+        if (entry.price() > 0) needs.append(Component.text(price(entry.price() * quantity), AMBER));
+        body.add(DialogBody.plainMessage(needs.build()));
+        DialogBase base = DialogBase.builder(Component.text("交換 ― " + entry.name()).append(noticeText(session)))
+                .canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).body(body).build();
+        ActionButton buy = ActionButton.create(Component.text(quantity + "回 交換する  ×" + given), null, 150,
+                action("buy/" + entry.index() + "/" + quantity));
+        ActionButton recount = ActionButton.create(Component.text("回数を変える"), null, 150, action("recount"));
+        player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(DialogType.confirmation(buy, recount))));
+    }
+
+    /** 交換の 1 回でもらう物 (確認の画面の右上) */
+    private static String barterUnit(Entry entry) {
+        String unit = "1回で ×" + Math.max(1, entry.item().count);
+        return entry.price() > 0 ? unit + " ＋" + price(entry.price()) : unit;
+    }
+
+    /**
+     * 渡す品物 (times 回の分): 「名前 持っている数/要る数」。足りれば緑、足りなければ赤。
+     * 行に入りきらない時は後ろが切れるので、足りない物を先に並べる
+     */
+    static List<Part> needParts(List<Need> needs, int times) {
+        List<Part> missing = new ArrayList<>();
+        List<Part> enough = new ArrayList<>();
+        for (Need need : needs) {
+            int required = need.perTrade() * times;
+            boolean ok = need.have() >= required;
+            (ok ? enough : missing).add(new Part(need.name() + " " + need.have() + "/" + required, ok ? OK : NG));
+        }
+        missing.addAll(enough);
+        return missing;
+    }
+
+    /** 交換の早押しの回数: 1・5・10 回 (できる回数まで) */
+    static List<Integer> barterQuantities(int max) {
+        List<Integer> out = new ArrayList<>();
+        for (int q : new int[]{1, 5, 10}) if (q <= max) out.add(q);
+        return out;
     }
 
     /** 数え方 (弾は「発」、ほかは「個」) */
@@ -454,7 +538,12 @@ public final class TraderDialog implements Listener {
      * parts は 2 行目の補足 (未解放なら解放の条件)、stock は右の本日の残り (未解放なら null)
      */
     record RowView(String name, String price, boolean locked, boolean sold, String buyAction, List<Part> parts,
-                   String stock, boolean stockRed) {
+                   String stock, boolean stockRed, String chipLabel) {
+
+        RowView(String name, String price, boolean locked, boolean sold, String buyAction, List<Part> parts,
+                String stock, boolean stockRed) {
+            this(name, price, locked, sold, buyAction, parts, stock, stockRed, "購入");
+        }
     }
 
     private static RowView rowView(Entry e) {
@@ -467,11 +556,22 @@ public final class TraderDialog implements Listener {
                 String questName = quest != null ? quest.getDisplayName() : e.item().requiredQuestId;
                 requirements.add(new Part("クエスト「" + questName + "」", e.questMet() ? OK : NG));
             }
-            return new RowView(e.name(), price(e.price()), true, false, null, requirements, null, false);
+            return new RowView(rowName(e), priceText(e), true, false, null, requirements, null, false, e.barter() ? "交換" : "購入");
         }
         boolean sold = e.remaining() <= 0;
-        return new RowView(e.name(), price(e.price()), false, sold, sold ? null : "item/" + e.index(),
-                subParts(e), stockText(e), sold);
+        return new RowView(rowName(e), priceText(e), false, sold, sold ? null : "item/" + e.index(),
+                e.barter() ? needParts(e.needs(), 1) : subParts(e), stockText(e), sold, e.barter() ? "交換" : "購入");
+    }
+
+    /** 行の名前 (交換で 2 個以上もらう時は数を付ける) */
+    private static String rowName(Entry e) {
+        return e.barter() && e.item().count > 1 ? e.name() + " ×" + e.item().count : e.name();
+    }
+
+    /** 行の右の価格 (交換は「交換」。代金もある時は代金 ＋交換) */
+    private static String priceText(Entry e) {
+        if (!e.barter()) return price(e.price());
+        return e.price() > 0 ? price(e.price()) + " ＋交換" : "交換";
     }
 
     static Component row(RowView v) {
@@ -493,9 +593,11 @@ public final class TraderDialog implements Listener {
         line1.moveTo(nameX).text(FontWidths.truncate(v.name(), priceX - 6 - nameX), v.locked() ? DIM : NAME);
         line1.moveTo(priceX).text(v.price(), v.locked() ? DIM : AMBER);
         if (!v.locked()) {
-            line1.moveTo(CHIP_X).chip(v.sold() ? CHIP_SOLD : CHIP, CHIP_W, "購入", v.sold() ? TextColor.color(0x645C50) : AMBER,
+            boolean barter = "交換".equals(v.chipLabel());
+            line1.moveTo(CHIP_X).chip(v.sold() ? CHIP_SOLD : CHIP, CHIP_W, v.chipLabel(), v.sold() ? TextColor.color(0x645C50) : AMBER,
                     false, v.buyAction() != null ? click(v.buyAction()) : null,
-                    Component.text(v.sold() ? "本日は売り切れ" : "クリックで個数を選んで購入", v.sold() ? NG : NOTE));
+                    Component.text(v.sold() ? "本日は売り切れ" : barter ? "クリックで回数を選んで交換" : "クリックで個数を選んで購入",
+                            v.sold() ? NG : NOTE));
         }
         line1.moveTo(ROW_LINE_W);
 
@@ -513,10 +615,16 @@ public final class TraderDialog implements Listener {
     }
 
     /** 確認の画面の品物の行に出す値 */
-    record ConfirmView(String name, String unitPrice, String balance, int free, int maxStack, String stock, boolean stockRed) {
+    record ConfirmView(String name, String unit, String balance, int free, int maxStack, String stock, boolean stockRed,
+                       List<Part> needs) {
+
+        /** ルーブルの取引: 右上は「単価 …」、2 行目は所持金・空き */
+        ConfirmView(String name, String unitPrice, String balance, int free, int maxStack, String stock, boolean stockRed) {
+            this(name, "単価 " + unitPrice, balance, free, maxStack, stock, stockRed, null);
+        }
     }
 
-    /** 確認の画面の品物の行: 1 行目に名前と単価、2 行目に所持金・容量の空き・本日の残り */
+    /** 確認の画面の品物の行: 1 行目に名前と単価、2 行目に所持金・容量の空き・本日の残り (交換は 2 行目に渡す品物) */
     static Component confirmRow(ConfirmView v) {
         return join(confirmLines(v));
     }
@@ -525,12 +633,21 @@ public final class TraderDialog implements Listener {
         Line line1 = new Line();
         for (int i = 0; i < PLATE_TILES; i++) line1.stamp((char) (PLATE_BASE + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
         line1.stamp(RING, RING_W, RING_X);
-        String unit = "単価 " + v.unitPrice();
+        String unit = v.unit();
         int unitX = LOCKED_PRICE_RIGHT - FontWidths.width(unit);
         line1.moveTo(TEXT_X).text(FontWidths.truncate(v.name(), unitX - 6 - TEXT_X), NAME);
         line1.moveTo(unitX).text(unit, AMBER).moveTo(ROW_LINE_W);
 
         Line line2 = new Line().moveTo(TEXT_X);
+        if (v.needs() != null) {
+            int limit = LOCKED_PRICE_RIGHT - FontWidths.width(v.stock()) - 6;
+            for (Part part : v.needs()) {
+                if (line2.x >= limit) break;
+                line2.text(FontWidths.truncate(part.text(), limit - line2.x), part.color()).shift(6);
+            }
+            line2.moveTo(Math.max(line2.x, LOCKED_PRICE_RIGHT - FontWidths.width(v.stock()))).text(v.stock(), v.stockRed() ? NG : NOTE);
+            return List.of(line1, line2.moveTo(ROW_LINE_W));
+        }
         line2.text("所持金 ", NOTE).text(v.balance(), AMBER).shift(8);
         line2.text("空き ", NOTE).text(v.free() + "マス", v.free() > 0 ? OK : NG);
         if (v.maxStack() > 1) line2.text(" (1マスに" + v.maxStack() + ")", NOTE);
@@ -572,6 +689,10 @@ public final class TraderDialog implements Listener {
 
     private static List<Entry> entries(Player player, TraderDefinition trader, PlayerData data) {
         List<Entry> entries = new ArrayList<>();
+        // 交換に使う品物を一度に数える (持ち物とスタッシュ)
+        List<HideoutFacility.ItemCost> costs = new ArrayList<>();
+        for (TraderItem ti : trader.items) costs.addAll(ti.barter);
+        Map<String, Integer> have = costs.isEmpty() ? Map.of() : module.countBarter(player, data, costs);
         for (int i = 0; i < trader.items.size(); i++) {
             TraderItem ti = trader.items.get(i);
             ItemStack icon = icon(player, ti);
@@ -582,9 +703,27 @@ public final class TraderDialog implements Listener {
                     data.getLevel() >= module.getRequiredLevel(ti),
                     ti.requiredQuestId == null || data.isQuestCompleted(ti.requiredQuestId),
                     module.remainingToday(data, trader, ti),
-                    TraderModule.buyPrice(player.getUniqueId(), trader, ti), TraderModule.dailyLimit(player.getUniqueId(), ti)));
+                    TraderModule.buyPrice(player.getUniqueId(), trader, ti), TraderModule.dailyLimit(player.getUniqueId(), ti),
+                    needs(ti, have)));
         }
         return entries;
+    }
+
+    private static List<Need> needs(TraderItem ti, Map<String, Integer> have) {
+        List<Need> needs = new ArrayList<>();
+        for (HideoutFacility.ItemCost cost : ti.barter) {
+            needs.add(new Need(itemName(cost.itemId()), have.getOrDefault(cost.itemId(), 0), cost.amount()));
+        }
+        return needs;
+    }
+
+    /** 品物の名前 (色の記号を外す。無ければ ID) */
+    static String itemName(String id) {
+        ItemDefinition def = ItemRegistry.get(id);
+        if (def != null && def.displayName != null) return def.displayName.replaceAll("§.", "");
+        AmmoDefinition ammo = ItemRegistry.getAmmo(id);
+        if (ammo != null && ammo.displayName != null) return ammo.displayName.replaceAll("§.", "");
+        return id;
     }
 
     private static ItemStack icon(Player player, TraderItem ti) {

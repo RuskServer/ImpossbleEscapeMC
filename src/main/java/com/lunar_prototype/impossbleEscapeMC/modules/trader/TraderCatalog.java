@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility.ItemCost;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,7 +11,8 @@ import java.util.List;
  * トレーダーIDはクエスト (依頼主) と Citizens の NPC 番号、品物のIDはアイテム・弾・データパック銃・データパックの
  * アタッチメントのIDを指す。銃のIDはデータパック銃 (表示名を付けた品物は、その名前でデータパックの銃を作る)。
  * 起動時に {@link TraderModule} が品物のIDを確かめる。
- * limit は1日の購入上限 (0 なら無制限)、level は解放に必要なプレイヤーレベル、quest は解放に必要なクエスト (無ければnull)
+ * limit は1日の購入上限 (0 なら無制限)、level は解放に必要なプレイヤーレベル、quest は解放に必要なクエスト (無ければnull)。
+ * 交換の取引は {@link #barter} (渡す品物と、1 回でもらう数。買うトレーダーだけ)
  */
 final class TraderCatalog {
 
@@ -52,13 +55,17 @@ final class TraderCatalog {
                         item("9x39_sp6", 450, 60, 8, null, "kovacs_penetration"),
                         item("9x19_7n21", 250, 60, 8, null, "kovacs_penetration"),
                         item("45acp_ap", 250, 60, 8, null, "kovacs_penetration"),
-                        item("12x70_tss", 350, 24, 8, null, "kovacs_penetration")
+                        item("12x70_tss", 350, 24, 8, null, "kovacs_penetration"),
+                        // 交換 (仮の値)
+                        barter("556x45_m855", 30, 2, 4, "kovacs_rewiring", cost("copper_wire", 2), cost("bolts", 2))
                 )));
 
         traders.add(trader("pharmakon", "§aPharmakon (Buy Only)", TraderType.BUY, 2,
                 false, false, List.of(
                         item("ai2", 3200, 50, 1, null, null),
-                        item("CAT", 1200, 50, 1, null, null)
+                        item("CAT", 1200, 50, 1, null, null),
+                        // 交換 (仮の値)
+                        barter("CAT", 1, 3, 1, null, cost("cigarettes", 2), cost("toilet_paper", 1))
                 )));
 
         traders.add(trader("bastion", "§bBastion (Buy Only)", TraderType.BUY, 3,
@@ -71,7 +78,9 @@ final class TraderCatalog {
                         item("FAST-MT_visor", 14000, 10, 15, null, "bastion_face_protection"),
                         item("Trooper", 62000, 10, 10, null, "bastion_protection_selection"),
                         // 最初から買える
-                        item("flashlight", 2800, 0, 1, null, null)
+                        item("flashlight", 2800, 0, 1, null, null),
+                        // 交換 (仮の値)
+                        barter("micro_rig", 1, 1, 3, null, cost("tool_box", 1), cost("bolts", 4))
                 )));
 
         traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,
@@ -142,5 +151,23 @@ final class TraderCatalog {
         TraderItem item = new TraderItem(itemId, price, limit, level, quest);
         item.displayName = displayName;
         return item;
+    }
+
+    /**
+     * 交換の取引: costs を渡して itemId を count 個もらう (代金なし)
+     *
+     * @param limit 1日の交換の回数の上限 (0 なら無制限)
+     * @param level 解放に必要なプレイヤーレベル
+     * @param quest 解放に必要なクエスト (無ければnull)
+     */
+    private static TraderItem barter(String itemId, int count, int limit, int level, String quest, ItemCost... costs) {
+        TraderItem item = new TraderItem(itemId, 0, limit, level, quest);
+        item.count = Math.max(1, count);
+        item.barter = List.of(costs);
+        return item;
+    }
+
+    private static ItemCost cost(String itemId, int amount) {
+        return new ItemCost(itemId, amount);
     }
 }

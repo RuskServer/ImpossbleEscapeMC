@@ -7,6 +7,8 @@ import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility;
+import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -16,7 +18,9 @@ import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
+import java.util.logging.Level;
 
 public class TraderModule implements IModule {
     private final ImpossbleEscapeMC plugin;
@@ -74,6 +78,13 @@ public class TraderModule implements IModule {
                         + ": 品物 " + item.itemId + " が登録されていません");
                 if (item.requiredQuestId != null && quests != null && quests.getQuest(item.requiredQuestId) == null)
                     plugin.getLogger().warning("トレーダー " + trader.id + ": 解放クエスト " + item.requiredQuestId + " がありません");
+                if (!item.isBarter()) continue;
+                if (trader.type != TraderType.BUY) plugin.getLogger().warning("トレーダー " + trader.id
+                        + ": 交換の取引 " + item.itemId + " は買うトレーダーにしか置けません");
+                for (HideoutFacility.ItemCost cost : item.barter) {
+                    if (!GameItems.exists(cost.itemId())) plugin.getLogger().warning("トレーダー " + trader.id
+                            + ": 交換の品物 " + cost.itemId() + " (" + item.itemId + ") が登録されていません");
+                }
             }
         }
     }
@@ -161,13 +172,50 @@ public class TraderModule implements IModule {
         }
     }
 
-    /** 本日あと何個買えるか (制限が無ければ Integer.MAX_VALUE) */
+    /** 本日あと何回取引できるか (制限が無ければ Integer.MAX_VALUE) */
     public int remainingToday(PlayerData data, TraderDefinition trader, TraderItem item) {
         int limit = dailyLimit(data.getUuid(), item);
         if (limit <= 0) return Integer.MAX_VALUE;
         checkAndResetDailyPurchases(data);
-        int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + item.itemId, 0);
+        int bought = data.getDailyPurchases().getOrDefault(limitKey(trader, item), 0);
         return Math.max(0, limit - bought);
+    }
+
+    /**
+     * 本日の取引の数を数える鍵。ルーブルの取引は「トレーダー_品物」(前からの記録のまま)、
+     * 交換の取引は渡す品物も付ける (同じ品物のルーブルの取引・別の交換とは別に数える)
+     */
+    public static String limitKey(TraderDefinition trader, TraderItem item) {
+        String key = trader.id + "_" + item.itemId;
+        if (!item.isBarter()) return key;
+        StringBuilder out = new StringBuilder(key).append("_barter");
+        for (HideoutFacility.ItemCost cost : item.barter) out.append('_').append(cost.itemId()).append(cost.amount());
+        return out.toString();
+    }
+
+    /** 持っている数 (have) で、交換が何回できるか (同じ品物が 2 回書いてあっても合わせて数える) */
+    public static int affordableTrades(List<HideoutFacility.ItemCost> costs, Map<String, Integer> have) {
+        Map<String, Integer> perTrade = new HashMap<>();
+        for (HideoutFacility.ItemCost cost : costs) perTrade.merge(cost.itemId(), cost.amount(), Integer::sum);
+        int trades = Integer.MAX_VALUE;
+        for (Map.Entry<String, Integer> cost : perTrade.entrySet()) {
+            if (cost.getValue() <= 0) continue;
+            trades = Math.min(trades, have.getOrDefault(cost.getKey(), 0) / cost.getValue());
+        }
+        return trades;
+    }
+
+    /** 交換の取引 quantity 回の分の品物 */
+    public static List<HideoutFacility.ItemCost> barterCosts(TraderItem item, int quantity) {
+        List<HideoutFacility.ItemCost> out = new ArrayList<>();
+        for (HideoutFacility.ItemCost cost : item.barter) out.add(new HideoutFacility.ItemCost(cost.itemId(), cost.amount() * quantity));
+        return out;
+    }
+
+    /** 交換に使う品物を、持ち物とスタッシュで数える (隠れ家の素材と同じ数え方) */
+    public Map<String, Integer> countBarter(Player player, PlayerData data, List<HideoutFacility.ItemCost> costs) {
+        HideoutModule hideout = plugin.getServiceContainer().get(HideoutModule.class);
+        return hideout == null ? Map.of() : hideout.countMaterials(player, data, costs);
     }
 
     /** そのプレイヤーの 1 日の上限 (0 以下なら制限なし。スキルで増える、端数は切り上げ) */
@@ -223,6 +271,7 @@ public class TraderModule implements IModule {
         }
         int finalQuantity = Math.min(quantity, allowed);
         boolean limitAdjusted = finalQuantity < quantity;
+        if (ti.isBarter()) return barter(player, data, trader, ti, finalQuantity, limitAdjusted, messages);
 
         double unitPrice = buyPrice(player.getUniqueId(), trader, ti);
         double totalPrice = unitPrice * finalQuantity;
@@ -252,7 +301,7 @@ public class TraderModule implements IModule {
         int actualGiven = finalQuantity - remainingToGive;
         if (actualGiven > 0) {
             if (ti.dailyLimit > 0) {
-                for (int i = 0; i < actualGiven; i++) data.incrementPurchase(trader.id + "_" + ti.itemId);
+                for (int i = 0; i < actualGiven; i++) data.incrementPurchase(limitKey(trader, ti));
                 dataModule.saveAsync(player.getUniqueId());
             }
             if (limitAdjusted) {
@@ -268,6 +317,64 @@ public class TraderModule implements IModule {
         String notice = actualGiven <= 0 ? "持ち物に空きがありません"
                 : "購入: " + name + " x" + actualGiven + (remainingToGive > 0 ? " (一部返金)" : "");
         return new Purchase(actualGiven, messages, notice);
+    }
+
+    /**
+     * 交換の取引を quantity 回する。渡す品物 (と代金があれば代金) を確かめてから取り、もらう物は持ち物 → スタッシュ → 足元の順に渡す
+     * (取った品物を返さずに済むように、入りきらない分もスタッシュで受け取る)
+     */
+    private Purchase barter(Player player, PlayerData data, TraderDefinition trader, TraderItem ti, int quantity,
+                            boolean limitAdjusted, List<Component> messages) {
+        HideoutModule hideout = plugin.getServiceContainer().get(HideoutModule.class);
+        ItemStack sample = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
+        if (hideout == null || sample == null) return new Purchase(0, messages, null);
+        String name = PlainTextComponentSerializer.plainText().serialize(sample.effectiveName());
+
+        int affordable = affordableTrades(ti.barter, countBarter(player, data, ti.barter));
+        double unitPrice = buyPrice(player.getUniqueId(), trader, ti);
+        if (unitPrice > 0) {
+            affordable = Math.min(affordable, (int) Math.floor(economyModule.getBalance(player.getUniqueId()) / unitPrice));
+        }
+        if (affordable <= 0) {
+            messages.add(Component.text("交換に使う品物" + (unitPrice > 0 ? "か所持金" : "") + "が足りません。", NamedTextColor.RED));
+            return new Purchase(0, messages, "交換の品物が足りません");
+        }
+        int trades = Math.min(quantity, affordable);
+        double total = unitPrice * trades;
+        if (total > 0 && !economyModule.withdraw(player.getUniqueId(), total)) {
+            messages.add(Component.text("所持金が足りません。", NamedTextColor.RED));
+            return new Purchase(0, messages, "所持金が足りません");
+        }
+        try {
+            if (!hideout.takeMaterials(player, data, barterCosts(ti, trades))) {
+                if (total > 0) economyModule.deposit(player.getUniqueId(), total);
+                messages.add(Component.text("交換に使う品物が足りません。", NamedTextColor.RED));
+                return new Purchase(0, messages, "交換の品物が足りません");
+            }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING, "交換の品物を取れませんでした", e);
+            if (total > 0) economyModule.deposit(player.getUniqueId(), total);
+            return new Purchase(0, messages, "交換できませんでした");
+        }
+
+        int given = trades * Math.max(1, ti.count);
+        List<ItemStack> items = new ArrayList<>();
+        int maxStack = Math.max(1, sample.getMaxStackSize());
+        for (int left = given; left > 0; left -= maxStack) {
+            ItemStack item = sample.clone();
+            item.setAmount(Math.min(left, maxStack));
+            items.add(item);
+        }
+        if (ti.dailyLimit > 0) {
+            for (int i = 0; i < trades; i++) data.incrementPurchase(limitKey(trader, ti));
+        }
+        hideout.deliver(player, data, items);
+
+        if (limitAdjusted || trades < quantity) {
+            messages.add(Component.text((limitAdjusted ? "購入制限" : "品物の数") + "により、" + trades + " 回だけ交換しました。", NamedTextColor.YELLOW));
+        }
+        messages.add(Component.text(name + " ×" + given + " と交換しました (持ち物に入らない分はスタッシュへ)。", NamedTextColor.GREEN));
+        return new Purchase(trades, messages, "交換: " + name + " x" + given);
     }
 
     public PlayerDataModule getDataModule() {
