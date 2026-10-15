@@ -59,6 +59,14 @@ public class BackpackListener implements Listener {
             return;
         }
 
+        // バックパックの画面を開いている間は、F キー (オフハンドとの入れ替え) をどこで押しても止める。
+        // 持ち物の欄で押すとオフハンドのバックパックそのものが外れ、閉じた時に中身を保存できない (中身が増える・消える)
+        if (view.getTopInventory().getHolder() instanceof BackpackModule.BackpackInventoryHolder
+                && event.getClick() == ClickType.SWAP_OFFHAND) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Trigger item cleanup
         if (isBackpackTrigger(event.getCurrentItem()) && (!isPlayerCraftingGrid(view) || event.getRawSlot() != BACKPACK_BUTTON_SLOT)) {
             event.setCurrentItem(null);
