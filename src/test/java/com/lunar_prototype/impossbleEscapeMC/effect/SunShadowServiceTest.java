@@ -38,7 +38,7 @@ public final class SunShadowServiceTest {
         }
         byte[] sky = new byte[sx * sy * sz];
         java.util.Arrays.fill(sky, (byte) skyLight);
-        return new SunShadowService.Snapshot(x0, y0, z0, nx, ny, nz, transmit, sky, 10);
+        return new SunShadowService.Snapshot(x0, y0, z0, nx, ny, nz, transmit, sky, new byte[sx * sy * sz], 10);
     }
 
     public static void main(String[] args) {
@@ -83,19 +83,19 @@ public final class SunShadowServiceTest {
 
         // 空の光が暗い所 (室内): 日陰は対象外、日が差し込む所は室内の日なた
         int[] indoor = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 5), 0, 0, 0, sun), 0, 0, 0);
-        check(near(indoor, 25, 1, 10) == 0, "indoor shade: none");
+        check(near(indoor, 25, 1, 10) == 0, "indoor shade");
         check(near(indoor, 35, 1, 10) == 3, "indoor sunbeam");
-        check(near(indoor, 25, 0, 10) == 0, "floor under indoor shade: none (no leak)");
+        check(near(indoor, 25, 0, 10) == 0, "floor under indoor shade: indoor shade (no outdoor shade leak)");
 
         // 軒先 (空の光 14) の日陰は屋外の日陰、その奥 (13) は対象外。日なたは空の光 12 以上なら屋外の日なた
         int[] eave = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 14), 0, 0, 0, sun), 0, 0, 0);
         check(near(eave, 25, 1, 10) == 1, "eave: shade");
         int[] dim = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 13), 0, 0, 0, sun), 0, 0, 0);
-        check(near(dim, 25, 1, 10) == 0, "dim sky: shade is none");
+        check(near(dim, 25, 1, 10) == 0, "dim sky: indoor shade");
         check(near(dim, 35, 1, 10) == 2, "dim sky: sun");
         // 粗い格子: 室内の日陰 (対象外) が多いマスは対象外
         int[] coarseIndoor = SunShadowService.packFar(SunShadowService.fineStates(wall(0, 5), 0, 0, 0, sun));
-        check(far(coarseIndoor, 13, 1, 5) == 0, "far: indoor shade is none");
+        check(far(coarseIndoor, 13, 1, 5) == 0, "far: indoor shade");
 
         // 光を半分通す壁 (鉄格子): 45° の光は壁を 2 ブロック (ブロックの角を通る) 通って 1/4 → 2 x 2 x 2 ブロックのうち 2 か所が日なた。
         // 壁のブロックそのものは空気と同じに扱う
@@ -107,6 +107,42 @@ public final class SunShadowServiceTest {
         // 水平の光は 1 ブロックだけ通る → 半分
         double once = SunShadowService.sunTransmit(wall(128, 15), 20.5, 1.5, 10.5, new double[]{1, 0, 0});
         check(Math.abs(once - 128 / 255.0) < 1e-9, "one bars block on a horizontal ray " + once);
+        // 光源ブロックの影: 真っ暗な部屋 (空の光 0) の床 (y = 0) の上、(20, 2, 20) にレベル 14 の光源。(23, 1..4, 18..22) に壁。
+        // バニラの光は壁を回り込んで届く (壁をよけて 1 ブロックごとに 1 減る) が、壁の裏 (25, 2, 20) には直接は届かない → 暗く。
+        // 壁の無い向きの斜め (22, 3, 22) はまっすぐの距離の方が短い → 明るく
+        int sx = SunShadowService.SPAN_X, sy = SunShadowService.SPAN_Y, sz = SunShadowService.SPAN_Z;
+        SunShadowService.Snapshot room = wall(0, 0);
+        int nx = sx + 60, nz = sz + 4;
+        for (int y = 1; y <= 4; y++) for (int z = 18; z <= 22; z++) room.transmit()[(y * nz + (z + 2)) * nx + (23 + 2)] = 0;
+        // バニラと同じ広がり方 (固体をよけて幅優先で 1 ずつ減る)
+        java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<>();
+        room.blockLight()[20 + sx * (20 + sz * 2)] = 14;
+        queue.add(new int[]{20, 2, 20});
+        int[][] faces = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+        while (!queue.isEmpty()) {
+            int[] p = queue.poll();
+            int level = room.blockLight()[p[0] + sx * (p[2] + sz * p[1])];
+            for (int[] f : faces) {
+                int x = p[0] + f[0], y = p[1] + f[1], z = p[2] + f[2];
+                if (x < 0 || y < 1 || z < 0 || x >= sx || y >= sy || z >= sz) continue;
+                if (room.transmit()[(y * nz + (z + 2)) * nx + (x + 2)] == 0) continue;
+                int i = x + sx * (z + sz * y);
+                if (room.blockLight()[i] >= level - 1) continue;
+                room.blockLight()[i] = (byte) (level - 1);
+                queue.add(new int[]{x, y, z});
+            }
+        }
+        int bw = SunShadowService.BW, bd = SunShadowService.BD;
+        int[] lightGrid = SunShadowService.blockGrid(room, 0, 0, 0, 4, 0, 4, 0.2);
+        check(lightGrid.length == (bw * SunShadowService.BH * bd + 6) / 7, "block grid count");
+        check(state(lightGrid, bw, bd, 25 - 4, 2, 20 - 4) == 1, "behind the wall: darker " + state(lightGrid, bw, bd, 25 - 4, 2, 20 - 4));
+        check(state(lightGrid, bw, bd, 22 - 4, 3, 22 - 4) == 3, "diagonal in sight: brighter " + state(lightGrid, bw, bd, 22 - 4, 3, 22 - 4));
+        check(state(lightGrid, bw, bd, 21 - 4, 2, 20 - 4) == 0, "next to the light: as vanilla " + state(lightGrid, bw, bd, 21 - 4, 2, 20 - 4));
+        // 昼の屋外 (空の光 15) では空の光が勝つので変わらない
+        SunShadowService.Snapshot outside = wall(0, 15);
+        System.arraycopy(room.blockLight(), 0, outside.blockLight(), 0, room.blockLight().length);
+        int[] dayGrid = SunShadowService.blockGrid(outside, 0, 0, 0, 4, 0, 4, 1.0);
+        check(state(dayGrid, bw, bd, 22 - 4, 3, 22 - 4) == 0, "daylight outside: unchanged");
         System.out.println("SunShadowServiceTest OK");
     }
 }
