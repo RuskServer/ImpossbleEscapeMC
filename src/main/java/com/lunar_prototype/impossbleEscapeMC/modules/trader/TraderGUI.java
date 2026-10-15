@@ -57,6 +57,8 @@ public class TraderGUI implements Listener {
     private final TraderDefinition trader;
     private final Player player;
     private Inventory inventory;
+    /** イベントを受け取る登録をしているか (ショップと修理を行き来しても 1 回だけ。2 回登録すると 1 回押して 2 回買う) */
+    private boolean listening;
 
     public TraderGUI(TraderModule traderModule, TraderDefinition trader, Player player) {
         this.traderModule = traderModule;
@@ -76,8 +78,11 @@ public class TraderGUI implements Listener {
     }
 
     public void open() {
-        // リスナーの登録 (閉じると解除されるため、開くたびに登録)
-        Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
+        // リスナーの登録 (閉じると解除される。ショップと修理を行き来する時は、前の画面が閉じる前に今の画面に替わるので、登録は 1 回だけ)
+        if (!listening) {
+            Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
+            listening = true;
+        }
 
         if (mode == GUIMode.SHOP) {
             if (trader.type == TraderType.BUY) {
@@ -415,6 +420,9 @@ public class TraderGUI implements Listener {
         if (supplied > 0) {
             lore.add(Component.text("支給品 " + supplied + " 点は 0₽ で処分します", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         }
+        if (hasFilledBag()) {
+            lore.add(Component.text("中に物の入ったバッグは売れません (中身を出してください)", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+        }
         lore.add(Component.empty());
         if (any) {
             lore.add(Component.text("クリックで売却を確定します", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
@@ -432,6 +440,8 @@ public class TraderGUI implements Listener {
      */
     private static String sellableIdOf(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
+        // 中に物の入ったバッグは売らない (売ると中身ごと消える)。欄に残し、閉じた時に返す
+        if (hasContents(item)) return null;
         // 支給品は値段が付かない (0₽ で処分する。countSupplied)
         if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) return null;
         String itemId = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
@@ -610,6 +620,7 @@ public class TraderGUI implements Listener {
         }
         
         HandlerList.unregisterAll(this); // リスナー解除
+        listening = false;
     }
 
     public void handleBuy(ItemStack clicked, PlayerData data, int quantity) {
@@ -625,13 +636,32 @@ public class TraderGUI implements Listener {
         if (result.bought() > 0) setupBuyGUI();
     }
 
-    /** 売る欄の支給品の数 (どのトレーダーでも 0₽ で引き取る) */
+    /** 売る欄の支給品の数 (どのトレーダーでも 0₽ で引き取る。中に物の入ったバッグは除く) */
     private int countSupplied() {
         int count = 0;
         for (int slot : SELL_INPUT_SLOTS) {
-            if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(inventory.getItem(slot))) count++;
+            if (isDisposable(inventory.getItem(slot))) count++;
         }
         return count;
+    }
+
+    private static boolean isDisposable(ItemStack item) {
+        return com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item) && !hasContents(item);
+    }
+
+    /** 中に物の入ったバックパックか */
+    private static boolean hasContents(ItemStack item) {
+        var backpacks = com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC.getInstance().getServiceContainer()
+                .get(com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.class);
+        return backpacks != null && backpacks.isBackpackItem(item) && !backpacks.loadBackpackInventory(item).isEmpty();
+    }
+
+    /** 売る欄に、中に物の入ったバッグがあるか */
+    private boolean hasFilledBag() {
+        for (int slot : SELL_INPUT_SLOTS) {
+            if (hasContents(inventory.getItem(slot))) return true;
+        }
+        return false;
     }
 
     private void handleBulkSell() {
@@ -648,7 +678,7 @@ public class TraderGUI implements Listener {
         for (int slot : SELL_INPUT_SLOTS) {
             ItemStack item = inventory.getItem(slot);
             if (item == null || item.getType() == Material.AIR) continue;
-            if (com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item)) {
+            if (isDisposable(item)) {
                 inventory.setItem(slot, null);
                 continue;
             }
