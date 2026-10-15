@@ -45,6 +45,10 @@ public class MinigameManager {
     // Game State
     private boolean isRunning = false;
     private boolean isCountdown = false;
+    /** 今のラウンドが終わった (次のラウンドを待っている) か。終わりの処理を 2 回しない */
+    private boolean roundOver = false;
+    /** ゲームの番号 (始める・止めるたびに増える)。止めた後に、前のゲームの「次のラウンド」が動かないように */
+    private int generation = 0;
     private MinigameMap currentMap;
     private int currentRound = 0;
     private int maxRounds = 2; // Default
@@ -161,6 +165,12 @@ public class MinigameManager {
         if (isRunning) return;
         currentMap = maps.get(mapName);
         if (currentMap == null) return;
+        // 出現地点の無いチームがあると、持ち物を預かった後に出せずに止まる (持ち物が空のまま)
+        if (currentMap.getSpawns(1).isEmpty() || currentMap.getSpawns(2).isEmpty()) {
+            Bukkit.broadcast(Component.text("マップ " + mapName + " にチームの出現地点がありません。開始できません。", NamedTextColor.RED));
+            currentMap = null;
+            return;
+        }
         
         // Save Inventories for all participants
         Set<UUID> allParticipants = new HashSet<>();
@@ -175,6 +185,7 @@ public class MinigameManager {
 
         this.maxRounds = rounds;
         isRunning = true;
+        generation++;
         currentRound = 1;
         team1Wins = 0;
         team2Wins = 0;
@@ -195,6 +206,7 @@ public class MinigameManager {
     }
 
     private void startRound() {
+        roundOver = false;
         alivePlayers.clear();
         alivePlayers.addAll(team1);
         alivePlayers.addAll(team2);
@@ -336,6 +348,9 @@ private void spawnPlayers() {
     }
 
     private void endRound(int winnerTeam) {
+        // 同じラウンドの終わりは 1 回だけ (最後の人の死亡・退出が重なった時、終わった後の待ち時間に死亡・退出した時)
+        if (roundOver || !isRunning) return;
+        roundOver = true;
         if (gameTask != null) gameTask.cancel();
         
         if (winnerTeam == 0) { // Time up
@@ -357,9 +372,12 @@ private void spawnPlayers() {
         // Show cumulative damage ranking after round
         showRankings(false);
 
+        int game = generation;
         new BukkitRunnable() {
             @Override
             public void run() {
+                // 待っている間にゲームを止めた (か、止めて始め直した) なら何もしない (戻した持ち物を消さないように)
+                if (!isRunning || game != generation) return;
                 if (currentRound < maxRounds) {
                     currentRound++;
                     startRound();
@@ -492,6 +510,7 @@ private void spawnPlayers() {
     public void stopGame() {
         isRunning = false;
         isCountdown = false;
+        generation++;
         if (gameTask != null) gameTask.cancel();
         if (bossBar != null) Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bossBar));
         
@@ -634,7 +653,8 @@ private void spawnPlayers() {
     }
 
     public void onPlayerDeath(Player player) {
-        if (!isRunning) return;
+        // ゲームの参加者で、まだ生き残っている人だけ (ほかの人の死亡を脱落として数えない)
+        if (!isRunning || !alivePlayers.contains(player.getUniqueId())) return;
         deaths.put(player.getUniqueId(), deaths.getOrDefault(player.getUniqueId(), 0) + 1);
         alivePlayers.remove(player.getUniqueId());
         player.setGameMode(GameMode.SPECTATOR);
