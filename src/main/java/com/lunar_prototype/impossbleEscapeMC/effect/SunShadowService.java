@@ -378,16 +378,40 @@ public final class SunShadowService {
         return fine;
     }
 
+    private static final int[][] FACES = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+
+    /**
+     * 固体のブロックの送る状態: 隣 (6 方向) の空気の日なた・屋外の日陰の多い方 (同じなら日陰)。隣に室内の対象外の空気がある・わかる空気が無いなら 0。
+     * シェーダーは面の前の周り 8 ブロックを混ぜ、わかっているブロックの割合で影の濃さを決めるので、固体を対象外にすると
+     * 出っ張り (トラップドア・ハーフブロックなど) の近くだけ影が薄くなり、明るく浮いて見える。外と室内を隔てる壁は写さない (室内へ影が漏れる)
+     */
+    static int solidState(byte[] fine, int x, int y, int z) {
+        int shade = 0, lit = 0, indoorLit = 0;
+        for (int[] f : FACES) {
+            int nx = x + f[0], ny = y + f[1], nz = z + f[2];
+            if (nx < 0 || ny < 0 || nz < 0 || nx >= SPAN_X || ny >= SPAN_Y || nz >= SPAN_Z) continue;
+            int state = fine[nx + SPAN_X * (nz + SPAN_Z * ny)];
+            if (state == 0) return 0;
+            if (state == 1) shade++;
+            else if (state == 2) lit++;
+            else if (state == 3) indoorLit++;
+        }
+        if (shade + lit + indoorLit == 0) return 0;
+        if (shade >= lit + indoorLit) return 1;
+        return lit >= indoorLit ? 2 : 3;
+    }
+
     /** 近くの格子 (計算する範囲の中の dx, dy, dz から {@link #W} x {@link #H} x {@link #D} ブロック) を 7 個ずつ 14bit に詰める。
-     * 並びは x + W x (z + D x y) */
+     * 固体のブロックは {@link #solidState}。並びは x + W x (z + D x y) */
     static int[] packNear(byte[] fine, int dx, int dy, int dz) {
         int[] values = new int[(W * H * D + PER_VALUE - 1) / PER_VALUE];
         for (int y = 0; y < H; y++) {
             for (int z = 0; z < D; z++) {
                 for (int x = 0; x < W; x++) {
                     int state = fine[(dx + x) + SPAN_X * ((dz + z) + SPAN_Z * (dy + y))];
+                    if (state == SOLID) state = solidState(fine, dx + x, dy + y, dz + z);
                     int index = x + W * (z + D * y);
-                    if (state != SOLID) values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
+                    values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
                 }
             }
         }
@@ -413,9 +437,19 @@ public final class SunShadowService {
                         air++;
                         count[state]++;
                     }
+                    if (air == 0) {
+                        // 全部固体のマス: 中のブロックの固体の状態 (solidState) から (近くの格子と同じ理由)
+                        for (int i = 0; i < 8; i++) {
+                            int bx = x * FAR_SCALE + (i & 1), by = y * FAR_SCALE + (i >> 1 & 1), bz = z * FAR_SCALE + (i >> 2);
+                            count[solidState(fine, bx, by, bz)]++;
+                        }
+                        air = 8 - count[0];
+                        count[0] = 0;
+                        if (air == 0) continue;
+                    }
                     int lit = count[2] + count[3];
                     int known = lit + count[1];
-                    if (air == 0 || known * 2 < air) continue;
+                    if (known * 2 < air) continue;
                     int state = lit * 2 >= known ? (count[2] >= count[3] ? 2 : 3) : 1;
                     int index = x + FW * (z + FD * y);
                     values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
