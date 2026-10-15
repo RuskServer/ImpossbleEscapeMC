@@ -153,6 +153,17 @@ public class MedicalModule implements IModule, Listener {
     }
 
     private void finishOneTimeUsing(Player player, ItemDefinition def) {
+        // 使っている欄の物が、使い始めた医療品のままか (画面で入れ替えると欄の切り替えの知らせが来ないので、ここで確かめる)。
+        // 違えば中断した扱い (手当もしない・何も減らさない)
+        Integer slot = usingSlots.get(player.getUniqueId());
+        ItemStack item = slot != null ? player.getInventory().getItem(slot) : null;
+        String heldId = item != null && item.hasItemMeta()
+                ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
+        if (!def.id.equals(heldId)) {
+            stopUsing(player);
+            return;
+        }
+
         com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         if (data != null) {
             if (def.medStats.cureBleeding) data.setBleedingLevel(0);
@@ -168,13 +179,7 @@ public class MedicalModule implements IModule, Listener {
         }
 
         // アイテムを一個消費
-        Integer slot = usingSlots.get(player.getUniqueId());
-        if (slot != null) {
-            ItemStack item = player.getInventory().getItem(slot);
-            if (item != null) {
-                item.setAmount(item.getAmount() - 1);
-            }
-        }
+        item.setAmount(item.getAmount() - 1);
         
         stopUsing(player);
     }
