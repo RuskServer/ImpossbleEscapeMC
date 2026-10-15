@@ -228,7 +228,7 @@ public class PlayerListener implements Listener {
         }
 
         plugin.getRaidModule().onPlayerDeath(player);
-        plugin.getMinigameManager().onPlayerDeath(player);
+        // ミニゲームの死亡・退出は MinigameListener が参加者だけ扱う (ここでも呼ぶと 2 重になり、キルの記録より先に脱落させてしまう)
         clearMovementState(player.getUniqueId());
     }
 
@@ -265,7 +265,6 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         plugin.getRaidModule().onPlayerQuit(event.getPlayer());
-        plugin.getMinigameManager().onPlayerQuit(event.getPlayer());
         if (plugin.getPartyManager() != null) {
             plugin.getPartyManager().leaveParty(event.getPlayer());
         }
