@@ -70,6 +70,9 @@ public class PlayerData {
     // スキルツリー (習得したノードの id。SkillCatalog)
     private java.util.Set<String> skills;
 
+    // 隠れ家の作る設備の製作のキュー (設備の id → 並び順の製作)
+    private java.util.Map<String, java.util.List<com.lunar_prototype.impossbleEscapeMC.modules.craft.CraftJob>> craftQueues;
+
     public PlayerData(UUID uuid) {
         this.uuid = uuid;
         this.balance = 0.0;
@@ -452,6 +455,12 @@ public class PlayerData {
 
     public void addSkill(String id) {
         if (getSkills().add(id)) this.dirty = true;
+    }
+
+    /** 設備の製作のキュー (並び順。変えたら setDirty) */
+    public java.util.List<com.lunar_prototype.impossbleEscapeMC.modules.craft.CraftJob> getCraftQueue(String facilityId) {
+        if (craftQueues == null) craftQueues = new ConcurrentHashMap<>();
+        return craftQueues.computeIfAbsent(facilityId, k -> new java.util.ArrayList<>());
     }
 
     // 隠れ家システム

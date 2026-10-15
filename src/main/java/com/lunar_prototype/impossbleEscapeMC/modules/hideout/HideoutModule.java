@@ -284,6 +284,36 @@ public class HideoutModule implements IModule {
         return counts;
     }
 
+    /**
+     * 物を渡す: 持ち物に入れ、入らない分はスタッシュのページ (前から) に入れる。それでも入らない分は足元に落とす
+     * (作る設備の完成品・取り消した製作の素材)
+     */
+    public void deliver(Player player, PlayerData data, List<ItemStack> items) {
+        List<ItemStack> left = new ArrayList<>();
+        for (ItemStack item : items) {
+            if (item != null && !item.getType().isAir()) left.addAll(player.getInventory().addItem(item).values());
+        }
+        if (!left.isEmpty()) {
+            for (Map.Entry<Integer, Inventory> page : stashPages(data).entrySet()) {
+                int before = left.stream().mapToInt(ItemStack::getAmount).sum();
+                List<ItemStack> next = new ArrayList<>();
+                for (ItemStack item : left) next.addAll(page.getValue().addItem(item).values());
+                if (next.stream().mapToInt(ItemStack::getAmount).sum() < before) {
+                    try {
+                        data.setStashPage(page.getKey(), SerializationUtil.serializeInventory(page.getValue()));
+                    } catch (IOException e) {
+                        plugin.getLogger().log(Level.WARNING, "スタッシュのページを書けませんでした: " + page.getKey(), e);
+                        next = left;   // 書けなかったページには入れなかった扱い
+                    }
+                }
+                left = next;
+                if (left.isEmpty()) break;
+            }
+        }
+        for (ItemStack item : left) player.getWorld().dropItemNaturally(player.getLocation(), item);
+        dataModule.saveAsync(player.getUniqueId());
+    }
+
     /** 素材を持ち物 → スタッシュの順に取る。足りなければ何も取らずに false */
     public boolean takeMaterials(Player player, PlayerData data, List<HideoutFacility.ItemCost> costs) throws IOException {
         Map<String, Integer> have = countMaterials(player, data, costs);
