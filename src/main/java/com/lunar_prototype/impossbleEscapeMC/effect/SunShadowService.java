@@ -68,8 +68,13 @@ public final class SunShadowService {
     static final byte SOLID = 4;
     /** 太陽へたどる長さ (ブロック) */
     private static final int REACH = 48;
-    /** この空の光より暗い空気のブロックは室内 (日陰なら対象外 = 光の表の暗さだけ、日が差し込めば室内の日なた) */
+    /** この空の光より暗い空気のブロックは室内 (日が差し込めば室内の日なた) */
     private static final int OUTDOOR_SKY_LIGHT = 12;
+    /**
+     * 日陰の濃さ: 空の光が SHADE_SKY_LOW 以下の空気は対象外 (光の表の暗さだけ)、SHADE_SKY_HIGH で全部「屋外の日陰」。間は割合に合わせて
+     * ブロックごとに振り分ける (シェーダーが周りと混ぜるので、入口から奥へなめらかに影が薄くなる。1 つのしきい値だと床に影の境目の線が出る)
+     */
+    private static final int SHADE_SKY_LOW = 10, SHADE_SKY_HIGH = 15;
     /** 太陽がこれより低い (向きの y) 時は送らない */
     private static final double MIN_SUN_Y = 0.08;
     /** 一部だけ光を通すブロックを通った後、これより暗ければ日陰 (先をたどらない) */
@@ -360,9 +365,14 @@ public final class SunShadowService {
                         fine[index] = SOLID;
                         continue;
                     }
-                    boolean outdoor = s.skyLight()[index] >= OUTDOOR_SKY_LIGHT;
-                    boolean lit = sunTransmit(s, wx + 0.5, wy + 0.5, wz + 0.5, sun) > ditherThreshold(wx, wy, wz);
-                    fine[index] = (byte) (outdoor ? (lit ? 2 : 1) : (lit ? 3 : 0));
+                    int sky = s.skyLight()[index];
+                    if (sunTransmit(s, wx + 0.5, wy + 0.5, wz + 0.5, sun) > ditherThreshold(wx, wy, wz)) {
+                        fine[index] = (byte) (sky >= OUTDOOR_SKY_LIGHT ? 2 : 3);
+                    } else {
+                        // 振り分けの模様は日なたの振り分けとずらす (同じだと重なって偏る)
+                        double open = Math.clamp((sky - SHADE_SKY_LOW) / (double) (SHADE_SKY_HIGH - SHADE_SKY_LOW), 0.0, 1.0);
+                        fine[index] = (byte) (open > ditherThreshold(wx + 1, wy, wz + 1) ? 1 : 0);
+                    }
                 }
             }
         }
@@ -385,24 +395,29 @@ public final class SunShadowService {
         return values;
     }
 
-    /** 粗い格子: 2 x 2 x 2 ブロックの空気の多数決 (屋外か室内か、日なたか日陰か。全部固体なら 0)。並びは x + FW x (z + FD x y) */
+    /**
+     * 粗い格子: 2 x 2 x 2 ブロックの空気から。わかっている空気 (日なた・屋外の日陰) が空気の半分に満たなければ対象外
+     * (1 ブロックの壁をまたぐマスで、外の日陰が部屋の中へ漏れないように)。それ以外は日なたか日陰かの多数決、日なたは屋外・室内の多い方。
+     * 並びは x + FW x (z + FD x y)
+     */
     static int[] packFar(byte[] fine) {
         int[] values = new int[(FW * FH * FD + PER_VALUE - 1) / PER_VALUE];
         for (int y = 0; y < FH; y++) {
             for (int z = 0; z < FD; z++) {
                 for (int x = 0; x < FW; x++) {
-                    int air = 0, outdoor = 0, lit = 0;
+                    int air = 0;
+                    int[] count = new int[4];
                     for (int i = 0; i < 8; i++) {
                         int bx = x * FAR_SCALE + (i & 1), by = y * FAR_SCALE + (i >> 1 & 1), bz = z * FAR_SCALE + (i >> 2);
                         int state = fine[bx + SPAN_X * (bz + SPAN_Z * by)];
                         if (state == SOLID) continue;
                         air++;
-                        if (state == 1 || state == 2) outdoor++;
-                        if (state == 2 || state == 3) lit++;
+                        count[state]++;
                     }
-                    if (air == 0) continue;
-                    boolean isLit = lit * 2 >= air;
-                    int state = outdoor * 2 >= air ? (isLit ? 2 : 1) : (isLit ? 3 : 0);
+                    int lit = count[2] + count[3];
+                    int known = lit + count[1];
+                    if (air == 0 || known * 2 < air) continue;
+                    int state = lit * 2 >= known ? (count[2] >= count[3] ? 2 : 3) : 1;
                     int index = x + FW * (z + FD * y);
                     values[index / PER_VALUE] |= state << ((index % PER_VALUE) * 2);
                 }
