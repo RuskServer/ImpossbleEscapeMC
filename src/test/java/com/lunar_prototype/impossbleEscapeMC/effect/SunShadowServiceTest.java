@@ -63,8 +63,10 @@ public final class SunShadowServiceTest {
         check(near(values, 35, 1, 10) == 2, "east of the wall: sun " + near(values, 35, 1, 10));
         check(near(values, 5, 1, 10) == 2, "far west (shadow 10 long): sun " + near(values, 5, 1, 10));
         check(near(values, 25, 12, 10) == 2, "above the wall: sun");
-        check(near(values, 30, 5, 10) == 0, "inside the wall: none");
-        check(near(values, 10, 0, 10) == 0, "ground: none");
+        // 固体のブロックは隣の空気の状態 (日なたと日陰が同じなら日陰。シェーダーが出っ張りの近くで影を薄くしないように)
+        check(near(values, 30, 5, 10) == 1, "wall between sun and shade: shade " + near(values, 30, 5, 10));
+        check(near(values, 10, 0, 10) == 2, "ground under sunlit air: sun");
+        check(near(values, 25, 0, 10) == 1, "ground under shaded air: shade");
         for (int v : values) check(v >= 0 && v < (1 << 14), "14 bit");
 
         // 近くの格子をずらして詰めても同じブロックを指す
@@ -83,6 +85,7 @@ public final class SunShadowServiceTest {
         int[] indoor = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 5), 0, 0, 0, sun), 0, 0, 0);
         check(near(indoor, 25, 1, 10) == 0, "indoor shade: none");
         check(near(indoor, 35, 1, 10) == 3, "indoor sunbeam");
+        check(near(indoor, 25, 0, 10) == 0, "floor under indoor shade: none (no leak)");
 
         // 軒先 (空の光 14) の日陰は屋外の日陰、その奥 (13) は対象外。日なたは空の光 12 以上なら屋外の日なた
         int[] eave = SunShadowService.packNear(SunShadowService.fineStates(wall(0, 14), 0, 0, 0, sun), 0, 0, 0);
