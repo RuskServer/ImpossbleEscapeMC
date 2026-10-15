@@ -146,7 +146,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>26.3.build.159-beta</version>
+            <version>26.3.build.190-stable</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -176,7 +176,7 @@
         <dependency>
             <groupId>ca.bkaw</groupId>
             <artifactId>paper-nms</artifactId>
-            <version>26.3.build.159-beta</version>
+            <version>26.3.build.190-stable</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
