@@ -386,7 +386,7 @@ public class RaidModule implements IModule {
             return;
         }
 
-        com.lunar_prototype.impossbleEscapeMC.party.Party party = plugin.getPartyManager().getParty(player.getUniqueId());
+        com.lunar_prototype.impossbleEscapeMC.modules.party.Party party = com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.get().getParty(player.getUniqueId());
         if (party != null && !party.isLeader(player.getUniqueId())) {
             player.sendMessage(Component.text("パーティリーダーのみがマッチングを開始できます。", NamedTextColor.RED));
             return;

@@ -1,23 +1,61 @@
-package com.lunar_prototype.impossbleEscapeMC.party;
+package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.IModule;
+import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.*;
 
-public class PartyManager {
+/**
+ * パーティー (メモリだけに持つ。再起動で解散)。/party コマンドと、抜けた人をパーティーから外す処理もここ
+ */
+public class PartyModule implements IModule, Listener {
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Party> playerPartyMap = new HashMap<>();
     private final Map<UUID, UUID> pendingInvites = new HashMap<>(); // Invited -> Inviter
 
-    public PartyManager(ImpossbleEscapeMC plugin) {
+    public PartyModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
+    }
+
+    /** 動いているパーティーのモジュール (起動前は null) */
+    public static PartyModule get() {
+        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(PartyModule.class);
+    }
+
+    @Override
+    public void onEnable(ServiceContainer container) {
+        Bukkit.getPluginManager().registerEvents(this, plugin);
+        PartyCommand command = new PartyCommand(this);
+        PluginCommand party = plugin.getCommand("party");
+        if (party != null) {
+            party.setExecutor(command);
+            party.setTabCompleter(command);
+        }
+    }
+
+    @Override
+    public void onDisable() {
+        playerPartyMap.clear();
+        pendingInvites.clear();
+    }
+
+    // レイドの抜けた時の処理 (PlayerListener・NORMAL) の後に外す (前はそこで続けて呼んでいた)
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        leaveParty(event.getPlayer());
     }
 
     public Party getParty(UUID playerUUID) {

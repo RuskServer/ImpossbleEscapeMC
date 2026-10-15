@@ -265,9 +265,6 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         plugin.getRaidModule().onPlayerQuit(event.getPlayer());
-        if (plugin.getPartyManager() != null) {
-            plugin.getPartyManager().leaveParty(event.getPlayer());
-        }
         clearMovementState(event.getPlayer().getUniqueId());
     }
 

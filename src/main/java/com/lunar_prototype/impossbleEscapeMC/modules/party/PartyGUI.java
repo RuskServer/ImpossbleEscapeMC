@@ -1,8 +1,8 @@
-package com.lunar_prototype.impossbleEscapeMC.gui;
+package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.party.Party;
-import com.lunar_prototype.impossbleEscapeMC.party.PartyManager;
+import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
+import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -47,7 +47,7 @@ public class PartyGUI implements Listener {
     private static final long CONFIRM_WINDOW_MS = 3000;
 
     private final Player player;
-    private final PartyManager manager;
+    private final PartyModule manager;
     private final Inventory inventory;
     /** メンバー表示スロット → メンバー */
     private final Map<Integer, UUID> memberBySlot = new HashMap<>();
@@ -55,7 +55,7 @@ public class PartyGUI implements Listener {
 
     public PartyGUI(Player player) {
         this.player = player;
-        this.manager = ImpossbleEscapeMC.getInstance().getPartyManager();
+        this.manager = PartyModule.get();
         this.inventory = Bukkit.createInventory(null, SIZE, GuiBackground.PARTY.title());
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }

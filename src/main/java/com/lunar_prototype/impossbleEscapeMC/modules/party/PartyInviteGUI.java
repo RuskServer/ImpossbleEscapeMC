@@ -1,8 +1,8 @@
-package com.lunar_prototype.impossbleEscapeMC.gui;
+package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
-import com.lunar_prototype.impossbleEscapeMC.party.PartyManager;
+import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -22,9 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.lunar_prototype.impossbleEscapeMC.gui.PartyGUI.head;
-import static com.lunar_prototype.impossbleEscapeMC.gui.PartyGUI.item;
-import static com.lunar_prototype.impossbleEscapeMC.gui.PartyGUI.text;
+import static com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGUI.head;
+import static com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGUI.item;
+import static com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGUI.text;
 
 /**
  * パーティーに招待する相手を選ぶ画面。オンラインでパーティーに入っていないプレイヤーを並べる
@@ -38,7 +38,7 @@ public class PartyInviteGUI implements Listener {
     private static final int NEXT_SLOT = 53;
 
     private final Player player;
-    private final PartyManager manager;
+    private final PartyModule manager;
     /** タイトルにページ数を出すので、開くときに作る */
     private Inventory inventory;
     private final Map<Integer, UUID> targetBySlot = new HashMap<>();
@@ -47,7 +47,7 @@ public class PartyInviteGUI implements Listener {
 
     public PartyInviteGUI(Player player, int page) {
         this.player = player;
-        this.manager = ImpossbleEscapeMC.getInstance().getPartyManager();
+        this.manager = PartyModule.get();
         this.page = page;
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
     }
