@@ -73,8 +73,19 @@ public final class TraderDialogLayoutTest {
                         List.of(new TraderDialog.Part("5.45x39mm", amber), new TraderDialog.Part("貫通 3", note),
                                 new TraderDialog.Part("1マスに60発", note)), "本日 残り 40/60", false),
                 new TraderDialog.RowView("SVD", "65,000₽", true, false, null,
-                        List.of(new TraderDialog.Part("Lv.10", ng), new TraderDialog.Part("クエスト「精密射手 II」", ok)), null, false));
+                        List.of(new TraderDialog.Part("Lv.10", ng), new TraderDialog.Part("クエスト「精密射手 II」", ok)), null, false),
+                // 交換の取引: 価格の代わりに「交換」、2 行目に渡す品物 (持っている数/要る数)
+                new TraderDialog.RowView("5.56x45mm M855 ×30", "交換", false, false, "item/31",
+                        TraderDialog.needParts(List.of(new TraderDialog.Need("銅ワイヤー", 5, 2), new TraderDialog.Need("ボルト", 1, 2)), 1),
+                        "本日 残り 2/2", false, "交換"),
+                new TraderDialog.RowView("とても長い交換の品物の名前がここに入る場合 ×999", "12,000₽ ＋交換", false, false, "item/32",
+                        TraderDialog.needParts(List.of(new TraderDialog.Need("とても長い素材の名前その一", 999, 999),
+                                new TraderDialog.Need("とても長い素材の名前その二", 0, 999), new TraderDialog.Need("ボルト", 1, 2)), 1),
+                        "本日 残り 99/99", false, "交換"));
         TraderDialog.ConfirmView confirm = new TraderDialog.ConfirmView("5.45x39mm PS弾", "150₽", "72,550₽", 5, 60, "制限なし", false);
+        TraderDialog.ConfirmView barterConfirm = new TraderDialog.ConfirmView("5.56x45mm M855", "1回で ×30", "72,550₽", 5, 60,
+                "本日 残り 2/2", false,
+                TraderDialog.needParts(List.of(new TraderDialog.Need("銅ワイヤー", 5, 2), new TraderDialog.Need("ボルト", 1, 2)), 1));
 
         // どの行も、途中で一度も行の幅を超えず (超えるとクライアントが改行する)、ちょうど行の幅で終わる
         for (TraderDialog.Line l : TraderDialog.headerLines(header)) {
@@ -85,9 +96,13 @@ public final class TraderDialogLayoutTest {
                 check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "row line " + row.name() + " " + l.max + " / " + l.x);
             }
         }
-        for (TraderDialog.Line l : TraderDialog.confirmLines(confirm)) {
-            check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "confirm line " + l.max + " / " + l.x);
+        for (TraderDialog.ConfirmView c : List.of(confirm, barterConfirm)) {
+            for (TraderDialog.Line l : TraderDialog.confirmLines(c)) {
+                check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "confirm line " + l.max + " / " + l.x);
+            }
         }
+        check(TraderDialog.barterQuantities(1).equals(List.of(1)) && TraderDialog.barterQuantities(7).equals(List.of(1, 5)),
+                "barter quick quantities");
 
         Component headerComponent = TraderDialog.header(header);
         check(PlainTextComponentSerializer.plainText().serialize(headerComponent).split("\n").length == 6, "header lines");
@@ -100,7 +115,9 @@ public final class TraderDialogLayoutTest {
                         .append(",\"component\":").append(GsonComponentSerializer.gson().serialize(TraderDialog.row(row))).append('}');
             }
             json.append(",{\"kind\":\"confirm\",\"width\":308,\"component\":")
-                    .append(GsonComponentSerializer.gson().serialize(TraderDialog.confirmRow(confirm))).append("}]");
+                    .append(GsonComponentSerializer.gson().serialize(TraderDialog.confirmRow(confirm))).append("}");
+            json.append(",{\"kind\":\"confirm\",\"width\":308,\"component\":")
+                    .append(GsonComponentSerializer.gson().serialize(TraderDialog.confirmRow(barterConfirm))).append("}]");
             Files.writeString(Path.of(dump), json.toString(), StandardCharsets.UTF_8);
         }
         System.out.println("TraderDialogLayoutTest: font widths, spaces, line widths and sample screens passed");

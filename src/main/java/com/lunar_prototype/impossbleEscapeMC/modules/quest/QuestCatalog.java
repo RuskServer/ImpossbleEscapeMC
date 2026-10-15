@@ -237,6 +237,7 @@ final class QuestCatalog {
                 .requiresLevel(4)
                 .requiresQuest("kovacs_power_supply")
                 .handInFir("copper_wire", 4).handInFir("bolts", 2)
+                .unlockTrade(KOVACS, "556x45_m855")
                 .money(14000).exp(2000).build());
         quests.add(new QuestBuilder(module, "pharmakon_field_clinic")
                 .trader(PHARMAKON).name("仮設診療所")

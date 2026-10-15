@@ -179,13 +179,23 @@ public class TraderGUI implements Listener {
         ItemMeta meta = icon.getItemMeta();
         List<Component> lore = meta.hasLore() && meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                .append(Component.text((long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.GOLD)
-                        .decoration(TextDecoration.ITALIC, false)));
+        if (ti.isBarter()) {
+            // 交換の取引: 渡す品物 (と代金があれば代金)
+            StringBuilder cost = new StringBuilder();
+            for (var c : ti.barter) cost.append(cost.length() > 0 ? "、" : "").append(TraderDialog.itemName(c.itemId())).append(" ×").append(c.amount());
+            long price = (long) TraderModule.buyPrice(player.getUniqueId(), trader, ti);
+            if (price > 0) cost.append("、").append(price).append("₽");
+            lore.add(Component.text("交換: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text(cost.toString(), NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
+        } else {
+            lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                    .append(Component.text((long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false)));
+        }
         boolean soldOut = false;
         int limit = TraderModule.dailyLimit(player.getUniqueId(), ti);
         if (limit > 0) {
-            int bought = data.getDailyPurchases().getOrDefault(trader.id + "_" + ti.itemId, 0);
+            int bought = data.getDailyPurchases().getOrDefault(TraderModule.limitKey(trader, ti), 0);
             int remaining = Math.max(0, limit - bought);
             soldOut = remaining == 0;
             lore.add(Component.text("本日の残り制限: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
@@ -479,6 +489,11 @@ public class TraderGUI implements Listener {
                     event.setCancelled(true);
                     // ショップに戻る際にアイテムがあれば返却
                     returnRepairItem();
+                    if (trader.type == TraderType.BUY) {
+                        // 買うトレーダーの品物はダイアログの画面 (交換の取引もそこで見せる)。クリックの中では画面を閉じないので次の tick に
+                        Bukkit.getScheduler().runTask(traderModule.getPlugin(), () -> TraderDialog.open(traderModule, trader, player));
+                        return;
+                    }
                     mode = GUIMode.SHOP;
                     open();
                 } else if (slot == REPAIR_EXECUTE_SLOT) {
