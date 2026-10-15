@@ -37,6 +37,8 @@ public class MarketMainGUI implements Listener {
     /** タイトルにページ数を出すので、開くときに作る */
     private Inventory inventory;
     private int page;
+    /** 欄ごとに出している出品の ID (押した時はこれで引く。並べ直した一覧の位置で引くと、開いている間に出品が増減して別の物を買ってしまう) */
+    private final UUID[] shown = new UUID[45];
 
     public MarketMainGUI(Player player, MarketModule marketModule) {
         this(player, marketModule, 0);
@@ -60,6 +62,7 @@ public class MarketMainGUI implements Listener {
     private void setupGUI() {
         // 背景はタイトルの画像で描くので、空きスロットは空のままにする
         inventory.clear();
+        java.util.Arrays.fill(shown, null);
 
         // 出品一覧の取得（新しい順）
         List<MarketListing> allListings = marketModule.getAllListings().stream()
@@ -95,12 +98,10 @@ public class MarketMainGUI implements Listener {
                 }
 
                 meta.lore(lore);
-                // IDを隠しデータとして持たせる（今回はBase64でシリアライズされたItemStackそのものに入れないため、
-                // クリック時のインデックスで判定するか、カスタムPDCに入れる）
-                // 面倒なので、ここではアイテムを表示し、クリック時に listing オブジェクトを特定する
                 item.setItemMeta(meta);
 
                 inventory.setItem(i, item);
+                shown[i] = listing.getId();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -160,15 +161,15 @@ public class MarketMainGUI implements Listener {
             return;
         }
 
-        if (slot >= 0 && slot < 45) {
-            List<MarketListing> allListings = marketModule.getAllListings().stream()
-                    .sorted(Comparator.comparingLong(MarketListing::getListDate).reversed())
-                    .collect(Collectors.toList());
-            int index = page * 45 + slot;
-            if (index < allListings.size()) {
-                MarketListing listing = allListings.get(index);
-                handleListingInteraction(listing);
+        if (slot >= 0 && slot < 45 && shown[slot] != null) {
+            MarketListing listing = marketModule.getListing(shown[slot]);
+            if (listing == null) {
+                // 開いている間に売れた・取り消された
+                player.sendMessage(Component.text("この出品はもうありません。", NamedTextColor.RED));
+                setupGUI();
+                return;
             }
+            handleListingInteraction(listing);
         }
     }
 
