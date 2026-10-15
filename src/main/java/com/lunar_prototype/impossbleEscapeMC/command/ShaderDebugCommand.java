@@ -73,11 +73,9 @@ public class ShaderDebugCommand implements CommandExecutor {
             if (test != null) test.remove();
             boolean on = SunShadowService.toggle(player);
             player.sendMessage(Component.text(on
-                    ? "サーバーの太陽の影を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
-                    + " ブロックはブロックごと、" + SunShadowService.SPAN_X + "x" + SunShadowService.SPAN_Y + "x" + SunShadowService.SPAN_Z
-                    + " ブロックまでは 2 ブロックごと。光源ブロックの影は周り " + SunShadowService.BW + "x" + SunShadowService.BH + "x" + SunShadowService.BD
-                    + "。夜・朝夕は光源ブロックの影だけ。/shaderdebug sun auto でレイド中だけに戻す)"
-                    : "サーバーの太陽の影を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)", NamedTextColor.AQUA));
+                    ? "サーバーの光を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
+                    + " ブロックの太陽・光源ブロック・跳ね返り。/shaderdebug sun auto でレイド中だけに戻す)"
+                    : "サーバーの光を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)", NamedTextColor.AQUA));
             return true;
         }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
