@@ -15,7 +15,7 @@ import java.util.UUID;
 /**
  * 隠れ家の画面を開いている間のカメラ: プレイヤーをスペクテイターにして、見えないディスプレイエンティティの視点にする。
  * 設備を切り替えると、そのエンティティを滑らかに動かす (teleport_duration)。後ろのぼかしは止める (ScreenEffectService の印)。
- * 終わる時は、元の位置とゲームモードに戻す
+ * 終わる時は、元の位置とゲームモードに戻す (ほかのワールドへ移された後は戻さない)
  */
 final class HideoutCamera {
     /** 設備を切り替えた時に動く時間 (tick) */
@@ -73,13 +73,18 @@ final class HideoutCamera {
                 : saved.camera().getTicksLived() > 10;
     }
 
-    /** カメラをやめて、元の位置とゲームモードに戻す */
+    /**
+     * カメラをやめて、元の位置とゲームモードに戻す。ほかのワールドへ移された後 (画面を開いたまま出撃した時など) は、
+     * 移った先を優先して戻さない (戻すとレイドの参加者が隠れ家に引き戻される)
+     */
     void stop(Player player) {
         Saved saved = active.remove(player.getUniqueId());
         if (saved == null) return;
         if (player.getSpectatorTarget() != null) player.setSpectatorTarget(null);
-        player.teleport(saved.location());
-        player.setGameMode(saved.mode());
+        if (player.getWorld().equals(saved.location().getWorld())) {
+            player.teleport(saved.location());
+            player.setGameMode(saved.mode());
+        }
         ScreenEffectService.setMenuClear(player, false);
         saved.camera().remove();
     }
