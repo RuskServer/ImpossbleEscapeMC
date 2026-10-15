@@ -55,8 +55,13 @@ public class StashModule implements IModule {
                 inv = org.bukkit.Bukkit.createInventory(null, rows * 9, title);
             }
         } catch (Exception e) {
-            e.printStackTrace();
-            inv = org.bukkit.Bukkit.createInventory(null, rows * 9, title);
+            // 読めないページは開かない (空のページを開くと、閉じた時に空で上書きして中身が消える)。データはそのまま残す
+            org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
+                    "スタッシュのページを読めませんでした: " + player.getName() + " ページ " + page, e);
+            player.sendMessage(net.kyori.adventure.text.Component.text(
+                    "スタッシュのページ " + page + " を読めませんでした (中身は消していません。運営に連絡してください)",
+                    net.kyori.adventure.text.format.NamedTextColor.RED));
+            return;
         }
 
         new StashGUI(player, inv, page, this).open();
