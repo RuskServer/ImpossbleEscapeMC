@@ -5,7 +5,8 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout;
 import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI;
-import com.lunar_prototype.impossbleEscapeMC.party.Party;
+import com.lunar_prototype.impossbleEscapeMC.modules.party.Party;
+import com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.event.player.PlayerCustomClickEvent;
@@ -361,7 +362,7 @@ public class RaidSelectionGUI implements Listener {
         if (index < 0 || index >= session.mapIds.size()) return;
         String mapId = session.mapIds.get(index);
 
-        Party party = ImpossbleEscapeMC.getInstance().getPartyManager().getParty(player.getUniqueId());
+        Party party = PartyModule.get().getParty(player.getUniqueId());
         if (party != null && !party.isLeader(player.getUniqueId())) {
             session.notice = "パーティリーダーのみが待機列を操作できます";
             session.noticeUntilTick = Bukkit.getCurrentTick() + NOTICE_TICKS;

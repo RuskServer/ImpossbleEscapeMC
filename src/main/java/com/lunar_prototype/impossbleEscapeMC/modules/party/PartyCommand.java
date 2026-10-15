@@ -1,4 +1,4 @@
-package com.lunar_prototype.impossbleEscapeMC.party;
+package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -18,9 +18,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class PartyCommand implements CommandExecutor, TabCompleter {
-    private final PartyManager manager;
+    private final PartyModule manager;
 
-    public PartyCommand(PartyManager manager) {
+    public PartyCommand(PartyModule manager) {
         this.manager = manager;
     }
 

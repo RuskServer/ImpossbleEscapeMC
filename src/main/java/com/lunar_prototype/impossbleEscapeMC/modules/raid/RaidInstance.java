@@ -747,13 +747,13 @@ public class RaidInstance {
     }
 
     public void joinPlayers(List<Player> participants) {
-        // グループ化 (PartyManagerを利用)
-        com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager = plugin.getPartyManager();
-        Map<com.lunar_prototype.impossbleEscapeMC.party.Party, List<Player>> groupMap = new HashMap<>();
+        // グループ化 (パーティーごと)
+        com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule parties = com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.get();
+        Map<com.lunar_prototype.impossbleEscapeMC.modules.party.Party, List<Player>> groupMap = new HashMap<>();
         List<Player> soloPlayers = new ArrayList<>();
 
         for (Player p : participants) {
-            com.lunar_prototype.impossbleEscapeMC.party.Party party = partyManager.getParty(p.getUniqueId());
+            com.lunar_prototype.impossbleEscapeMC.modules.party.Party party = parties.getParty(p.getUniqueId());
             if (party != null) {
                 groupMap.computeIfAbsent(party, k -> new ArrayList<>()).add(p);
             } else {

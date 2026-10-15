@@ -1,4 +1,4 @@
-package com.lunar_prototype.impossbleEscapeMC.party;
+package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
 import java.util.ArrayList;
 import java.util.Collections;

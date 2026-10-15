@@ -240,9 +240,9 @@ public class PDAGUI implements Listener {
     }
 
     private ItemStack createPartyButton() {
-        com.lunar_prototype.impossbleEscapeMC.party.PartyManager partyManager = ImpossbleEscapeMC.getInstance().getPartyManager();
-        com.lunar_prototype.impossbleEscapeMC.party.Party party = partyManager.getParty(player.getUniqueId());
-        java.util.UUID inviterId = partyManager.getPendingInviter(player.getUniqueId());
+        com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule parties = com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.get();
+        com.lunar_prototype.impossbleEscapeMC.modules.party.Party party = parties.getParty(player.getUniqueId());
+        java.util.UUID inviterId = parties.getPendingInviter(player.getUniqueId());
         Player inviter = inviterId != null ? Bukkit.getPlayer(inviterId) : null;
 
         ItemStack button = new ItemStack(Material.WHITE_BANNER);
@@ -281,7 +281,7 @@ public class PDAGUI implements Listener {
             player.closeInventory();
         } else if (slot == 10) {
             player.closeInventory();
-            new PartyGUI(player).open();
+            new com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGUI(player).open();
         } else if (slot == 11) {
             RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
             if (raidModule.isInRaid(player)) {
