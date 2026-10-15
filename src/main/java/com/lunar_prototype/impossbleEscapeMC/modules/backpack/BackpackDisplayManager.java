@@ -4,9 +4,9 @@ import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
-import com.github.retrooper.packetevents.protocol.player.Equipment;
-import com.github.retrooper.packetevents.protocol.player.EquipmentSlot;
+import com.github.retrooper.packetevents.util.Quaternion4f;
 import com.github.retrooper.packetevents.util.Vector3d;
+import com.github.retrooper.packetevents.util.Vector3f;
 import com.github.retrooper.packetevents.wrapper.play.server.*;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
@@ -24,11 +24,34 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * バックパックの背中ビジュアル表示を担当するマネージャー。
- * PacketEventsを使って仮想アーマースタンドをスポーンさせ、
- * プレイヤーにマウントすることで背中表示を実現する。
- * インベントリロジックには一切触れない。
+ * PacketEventsを使ってパケットだけのアイテムディスプレイ (バックパック・リグで1つずつ) をスポーンさせ、
+ * プレイヤーにマウントすることで背中表示を実現する。インベントリロジックには一切触れない。
+ * <p>
+ * 前はアーマースタンドの頭にかぶせていた。体の向きを送るとクライアントが約3tickかけて追いかけ、向きも約1.4度刻みだったので、
+ * 振り向くと遅れてずれた。ディスプレイは向きを変形 (left_rotation、小数の精度) で持ち、1tickで補間する。
+ * 見た目の位置と大きさは、アーマースタンドの頭にかぶせた時と同じになるようにしてある
+ * (アイテムのモデルの head の表示設定をそのまま使う。{@link #HEAD_TRANSLATION_Y}・{@link #HEAD_SCALE})
  */
 public class BackpackDisplayManager {
+
+    // ---- アイテムディスプレイのデータの番号 (26.3。Entity 0〜7、Display 8〜22、ItemDisplay 23〜24) ----
+    private static final int DATA_INTERPOLATION_START = 8;
+    private static final int DATA_INTERPOLATION_DURATION = 9;
+    private static final int DATA_TRANSLATION = 11;
+    private static final int DATA_SCALE = 12;
+    private static final int DATA_LEFT_ROTATION = 13;
+    private static final int DATA_ITEM = 23;
+    private static final int DATA_ITEM_CONTEXT = 24;
+    /** ItemDisplayContext.HEAD (アーマースタンドの頭と同じ表示設定) */
+    private static final byte CONTEXT_HEAD = 5;
+    /**
+     * アーマースタンドの頭のアイテムの位置と大きさ (26.3 のクライアント): 足元から 1.501 - 1/16 (頭の軸) + 0.25 (頭の上) 上、0.625 倍。
+     * アーマースタンドはこの後で体の向きに回るので、ディスプレイでは変形の回転 (left_rotation) に体の向きを入れる
+     */
+    static final float HEAD_TRANSLATION_Y = 1.501f - 1f / 16f + 0.25f;
+    static final float HEAD_SCALE = 0.625f;
+    /** 向きを変えた時の補間 (tick) */
+    private static final int TURN_INTERPOLATION_TICKS = 1;
 
     private final JavaPlugin plugin;
     private final Map<UUID, DisplaySession> activeSessions = new HashMap<>();
@@ -41,6 +64,8 @@ public class BackpackDisplayManager {
         final com.github.retrooper.packetevents.protocol.item.ItemStack rigHelmetItem;
         final UUID worldUuid;
         boolean visibleToOwner;
+        /** 最後に送った体の向き */
+        float sentYaw = Float.NaN;
 
         DisplaySession(int baseEntityId,
                        Integer rigEntityId,
@@ -106,7 +131,7 @@ public class BackpackDisplayManager {
         com.github.retrooper.packetevents.protocol.item.ItemStack rigPeItem =
                 rigItem != null ? SpigotConversionUtil.fromBukkitItemStack(rigItem) : null;
 
-        // 毎tick体の向きを同期するタスク
+        // 毎tick体の向きを見て、変わっていれば送るタスク
         BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (!player.isOnline()) {
                 clearDisplay(player);
@@ -126,26 +151,20 @@ public class BackpackDisplayManager {
             }
 
             float bodyYaw = player.getBodyYaw();
-            WrapperPlayServerEntityHeadLook headLook =
-                    new WrapperPlayServerEntityHeadLook(baseEntityId, bodyYaw);
-            WrapperPlayServerEntityRotation rotation =
-                    new WrapperPlayServerEntityRotation(baseEntityId, bodyYaw, 0f, true);
-
-            WrapperPlayServerEntityHeadLook rigHeadLook = null;
-            WrapperPlayServerEntityRotation rigRotation = null;
-            if (rigEntityId != null) {
-                rigHeadLook = new WrapperPlayServerEntityHeadLook(rigEntityId, bodyYaw);
-                rigRotation = new WrapperPlayServerEntityRotation(rigEntityId, bodyYaw, 0f, true);
-            }
+            if (bodyYaw == activeSession.sentYaw) return;
+            activeSession.sentYaw = bodyYaw;
+            // 向きだけ送り直す (補間は今から TURN_INTERPOLATION_TICKS で)
+            List<EntityData<?>> turn = List.of(
+                    new EntityData<>(DATA_INTERPOLATION_START, EntityDataTypes.INT, 0),
+                    new EntityData<>(DATA_INTERPOLATION_DURATION, EntityDataTypes.INT, TURN_INTERPOLATION_TICKS),
+                    new EntityData<>(DATA_LEFT_ROTATION, EntityDataTypes.QUATERNION, bodyRotation(bodyYaw)));
+            WrapperPlayServerEntityMetadata baseTurn = new WrapperPlayServerEntityMetadata(baseEntityId, turn);
+            WrapperPlayServerEntityMetadata rigTurn = rigEntityId != null ? new WrapperPlayServerEntityMetadata(rigEntityId, turn) : null;
 
             for (Player p : player.getWorld().getPlayers()) {
                 if (!shouldShowToReceiver(player, p)) continue;
-                PacketEvents.getAPI().getPlayerManager().sendPacket(p, headLook);
-                PacketEvents.getAPI().getPlayerManager().sendPacket(p, rotation);
-                if (rigHeadLook != null && rigRotation != null) {
-                    PacketEvents.getAPI().getPlayerManager().sendPacket(p, rigHeadLook);
-                    PacketEvents.getAPI().getPlayerManager().sendPacket(p, rigRotation);
-                }
+                PacketEvents.getAPI().getPlayerManager().sendPacket(p, baseTurn);
+                if (rigTurn != null) PacketEvents.getAPI().getPlayerManager().sendPacket(p, rigTurn);
             }
         }, 0L, 1L);
 
@@ -161,6 +180,7 @@ public class BackpackDisplayManager {
         activeSessions.put(player.getUniqueId(), session);
 
         // ワールド内の全プレイヤー（自分含む）へスポーンパケットを送信
+        session.sentYaw = player.getBodyYaw();
         for (Player p : player.getWorld().getPlayers()) {
             if (!shouldShowToReceiver(player, p)) continue;
             sendSpawnPackets(player, session, p);
@@ -253,80 +273,50 @@ public class BackpackDisplayManager {
 
     private void sendSpawnPackets(Player owner, DisplaySession session, Player receiver) {
         Location loc = owner.getLocation();
-        float bodyYaw = owner.getBodyYaw();
+        float yaw = Float.isNaN(session.sentYaw) ? owner.getBodyYaw() : session.sentYaw;
+        List<Integer> mounted = new ArrayList<>();
+        if (session.backpackHelmetItem != null) {
+            spawnDisplay(receiver, session.baseEntityId, loc, session.backpackHelmetItem, yaw);
+            mounted.add(session.baseEntityId);
+        }
+        if (session.rigEntityId != null && session.rigHelmetItem != null) {
+            spawnDisplay(receiver, session.rigEntityId, loc, session.rigHelmetItem, yaw);
+            mounted.add(session.rigEntityId);
+        }
+        // どちらもプレイヤーに直接乗せる (乗る位置はアーマースタンドの時と同じ: プレイヤーの乗せる位置)
+        int[] passengers = mounted.stream().mapToInt(Integer::intValue).toArray();
+        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, new WrapperPlayServerSetPassengers(owner.getEntityId(), passengers));
+    }
 
-        // 1. SpawnEntity
-        WrapperPlayServerSpawnEntity baseSpawn = new WrapperPlayServerSpawnEntity(
-                session.baseEntityId,
+    private void spawnDisplay(Player receiver, int entityId, Location loc,
+                              com.github.retrooper.packetevents.protocol.item.ItemStack item, float yaw) {
+        WrapperPlayServerSpawnEntity spawn = new WrapperPlayServerSpawnEntity(
+                entityId,
                 Optional.of(UUID.randomUUID()),
-                EntityTypes.ARMOR_STAND,
+                EntityTypes.ITEM_DISPLAY,
                 new Vector3d(loc.getX(), loc.getY(), loc.getZ()),
-                loc.getPitch(),
-                bodyYaw,
-                bodyYaw,
+                0f,
+                0f,
+                0f,
                 0,
                 Optional.empty()
         );
+        // 出した時は補間しない (0 から伸びて見えないように)。向きは変形の回転で持つ (エンティティの向きは 0 のまま)
+        List<EntityData<?>> metadata = List.of(
+                new EntityData<>(DATA_INTERPOLATION_START, EntityDataTypes.INT, 0),
+                new EntityData<>(DATA_INTERPOLATION_DURATION, EntityDataTypes.INT, 0),
+                new EntityData<>(DATA_TRANSLATION, EntityDataTypes.VECTOR3F, new Vector3f(0f, HEAD_TRANSLATION_Y, 0f)),
+                new EntityData<>(DATA_SCALE, EntityDataTypes.VECTOR3F, new Vector3f(HEAD_SCALE, HEAD_SCALE, HEAD_SCALE)),
+                new EntityData<>(DATA_LEFT_ROTATION, EntityDataTypes.QUATERNION, bodyRotation(yaw)),
+                new EntityData<>(DATA_ITEM, EntityDataTypes.ITEMSTACK, item),
+                new EntityData<>(DATA_ITEM_CONTEXT, EntityDataTypes.BYTE, CONTEXT_HEAD));
+        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, spawn);
+        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, new WrapperPlayServerEntityMetadata(entityId, metadata));
+    }
 
-        // 2. Metadata: Invisible + Marker
-        List<EntityData<?>> metadata = new ArrayList<>();
-        metadata.add(new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0x20)); // Invisible
-        metadata.add(new EntityData<>(15, EntityDataTypes.BYTE, (byte) 0x10)); // Marker flag
-        WrapperPlayServerEntityMetadata baseMeta =
-                new WrapperPlayServerEntityMetadata(session.baseEntityId, metadata);
-
-        WrapperPlayServerEntityEquipment baseEquipment = null;
-        if (session.backpackHelmetItem != null) {
-            List<Equipment> equipmentList = Collections.singletonList(
-                    new Equipment(EquipmentSlot.HELMET, session.backpackHelmetItem)
-            );
-            baseEquipment = new WrapperPlayServerEntityEquipment(session.baseEntityId, equipmentList);
-        }
-
-        WrapperPlayServerSetPassengers playerMount = new WrapperPlayServerSetPassengers(
-                owner.getEntityId(),
-                new int[]{session.baseEntityId}
-        );
-
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, baseSpawn);
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, baseMeta);
-        if (baseEquipment != null) {
-            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, baseEquipment);
-        }
-        PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, playerMount);
-
-        if (session.rigEntityId != null) {
-            WrapperPlayServerSpawnEntity rigSpawn = new WrapperPlayServerSpawnEntity(
-                    session.rigEntityId,
-                    Optional.of(UUID.randomUUID()),
-                    EntityTypes.ARMOR_STAND,
-                    new Vector3d(loc.getX(), loc.getY(), loc.getZ()),
-                    loc.getPitch(),
-                    bodyYaw,
-                    bodyYaw,
-                    0,
-                    Optional.empty()
-            );
-            WrapperPlayServerEntityMetadata rigMeta =
-                    new WrapperPlayServerEntityMetadata(session.rigEntityId, metadata);
-            WrapperPlayServerEntityEquipment rigEquipment = null;
-            if (session.rigHelmetItem != null) {
-                List<Equipment> rigEquipmentList = Collections.singletonList(
-                        new Equipment(EquipmentSlot.HELMET, session.rigHelmetItem)
-                );
-                rigEquipment = new WrapperPlayServerEntityEquipment(session.rigEntityId, rigEquipmentList);
-            }
-            WrapperPlayServerSetPassengers rigMount = new WrapperPlayServerSetPassengers(
-                    session.baseEntityId,
-                    new int[]{session.rigEntityId}
-            );
-
-            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigSpawn);
-            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigMeta);
-            if (rigEquipment != null) {
-                PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigEquipment);
-            }
-            PacketEvents.getAPI().getPlayerManager().sendPacket(receiver, rigMount);
-        }
+    /** 体の向き (度) の回転: アーマースタンドの「180 - 体の向き」と、ディスプレイがアイテムを 180 度回す分を合わせると Y 軸で -体の向き */
+    static Quaternion4f bodyRotation(float bodyYaw) {
+        double half = Math.toRadians(-bodyYaw) / 2.0;
+        return new Quaternion4f(0f, (float) Math.sin(half), 0f, (float) Math.cos(half));
     }
 }
