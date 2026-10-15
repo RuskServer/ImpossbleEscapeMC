@@ -231,6 +231,13 @@ final class QuestCatalog {
                 .requiresQuest("kovacs_power_supply")
                 .handInFir("usb", 1).extractAny(2)
                 .money(42000).exp(3500).build());
+        quests.add(new QuestBuilder(module, "kovacs_rewiring")
+                .trader(KOVACS).name("配線の張り替え")
+                .description("電源は戻ったが、通信設備の配線が焼けている。張り替えに使う銅ワイヤーと、端子を留めるボルトを集めてくれ。")
+                .requiresLevel(4)
+                .requiresQuest("kovacs_power_supply")
+                .handInFir("copper_wire", 4).handInFir("bolts", 2)
+                .money(14000).exp(2000).build());
         quests.add(new QuestBuilder(module, "pharmakon_field_clinic")
                 .trader(PHARMAKON).name("仮設診療所")
                 .description("仮設診療所の衛生用品と暖房用の燃料が不足しているの。戦場で見つけた物を届けて。")

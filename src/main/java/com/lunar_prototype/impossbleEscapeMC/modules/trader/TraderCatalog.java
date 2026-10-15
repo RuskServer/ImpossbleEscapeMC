@@ -83,6 +83,7 @@ final class TraderCatalog {
                         item("wrench", 1200, 0, 1, null, null),
                         item("screwdriver", 1000, 0, 1, null, null),
                         item("bolts", 1500, 0, 1, null, null),
+                        item("copper_wire", 1300, 0, 1, null, null),
                         item("dry_fuel", 1800, 0, 1, null, null),
                         item("water_filter", 3500, 0, 1, null, null),
                         item("545x39_ps", 15, 0, 1, null, null),
