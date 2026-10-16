@@ -1,10 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
-import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUI;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.Material;
@@ -36,19 +32,8 @@ public class AttachmentCommand implements BasicCommand {
             return;
         }
 
-        String itemId = mainHand.getItemMeta().getPersistentDataContainer()
-                .get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        ItemDefinition def = ItemRegistry.get(itemId);
-
-        if (def == null || !"GUN".equalsIgnoreCase(def.type)) {
-            // ヘルメット (手に持っている物、無ければかぶっている物) ならバイザーの画面
-            if (com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) return;
-            player.sendMessage("§c銃かヘルメットを手に持った状態で実行してください");
-            return;
-        }
-
-        // GUIを開く
-        new AttachmentGUI(player, mainHand).open();
-        return;
+        // データパック銃でなくても、ヘルメット (手に持っている物、無ければかぶっている物) ならバイザーの画面
+        if (com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) return;
+        player.sendMessage("§c銃かヘルメットを手に持った状態で実行してください");
     }
 }

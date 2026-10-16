@@ -52,7 +52,7 @@ public class DatapackBulletHitBridge implements Listener {
     /** 撃った弾が分からない時 (弾を込めていない銃・弾の無い口径のSCAV) の貫通クラス */
     private static final int DATAPACK_AMMO_CLASS = 1;
 
-    /** プレイヤーの弾がSCAVに当たった時の制圧 (プラグイン銃の BulletTask と同じ値) */
+    /** プレイヤーの弾がSCAVに当たった時の制圧 */
     private static final float HIT_SUPPRESSION = 0.5f;
 
     private record HitResult(String hitLocation, boolean penetrated, double rawDamage, int ammoClass) {

@@ -14,7 +14,6 @@ public class ItemDefinition {
     public int cost = 1; // slots occupied
     public boolean stackable = false;
     public List<Affix> affixes;
-    public GunStats gunStats;
     public MedStats medStats;
     public ArmorStats armorStats;
     public BackpackStats backpackStats;

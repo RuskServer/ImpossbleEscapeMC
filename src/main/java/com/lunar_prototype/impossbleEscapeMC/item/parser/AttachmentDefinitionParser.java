@@ -23,17 +23,6 @@ public class AttachmentDefinitionParser {
         if (section.isList("description")) att.description.addAll(section.getStringList("description"));
         else if (section.isString("description")) att.description.add(section.getString("description"));
 
-        ConfigurationSection modSection = section.getConfigurationSection("modifiers");
-        if (modSection != null) {
-            for (String key : modSection.getKeys(false)) {
-                att.modifiers.put(key, modSection.getDouble(key));
-            }
-        }
-        
-        att.aimAnimation = ParserUtils.parseAnimation(section, "aimAnimation");
-        att.equipAnimation = ParserUtils.parseAnimation(section, "equipAnimation");
-        att.scope = ParserUtils.parseScope(section, "scope");
-
         return att;
     }
 }

@@ -125,34 +125,6 @@ public class ItemFactory {
             // Stackability enforcement (Basically only ammo can stack)
             meta.setMaxStackSize(1);
 
-            if ("GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
-                // 1.20.5+ のシステムでは setData で後書きするため、ここでは基本的なメタデータのみセット
-                if (def.gunStats.customModelData != 0) {
-                    meta.setCustomModelData(def.gunStats.customModelData);
-                }
-                pdc.set(PDCKeys.AMMO, PDCKeys.INTEGER, def.gunStats.magSize);
-
-                AmmoDefinition defaultAmmo = ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
-                if (defaultAmmo != null) {
-                    pdc.set(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING, defaultAmmo.id);
-
-                    // クローズドボルト系の武器の場合、最初からチャンバーに1発装填する
-                    if ("CLOSED".equalsIgnoreCase(def.gunStats.boltType)
-                            || "BOLT_ACTION".equalsIgnoreCase(def.gunStats.boltType)
-                            || "PUMP_ACTION".equalsIgnoreCase(def.gunStats.boltType)) {
-                        pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 1);
-                        pdc.set(PDCKeys.CHAMBER_AMMO_ID, PDCKeys.STRING, defaultAmmo.id);
-                    } else {
-                        pdc.set(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0);
-                    }
-                }
-
-                if (def.gunStats.defaultAttachments != null && !def.gunStats.defaultAttachments.isEmpty()) {
-                    String joined = String.join(",", def.gunStats.defaultAttachments);
-                    pdc.set(PDCKeys.ATTACHMENTS, PDCKeys.STRING, joined);
-                }
-            }
-
             // --- Armor / Rig Configuration ---
             if (def.armorStats != null) {
                 if (def.armorStats.customModelData != 0) {
@@ -227,24 +199,6 @@ public class ItemFactory {
         }
 
         item.setItemMeta(meta);
-
-        // --- 初期モデル設定 (銃の場合、Idleアニメーションがあれば適用) ---
-        if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null && def.gunStats.idleAnimation != null) {
-            item.setData(DataComponentTypes.ITEM_MODEL, Key.key(def.gunStats.idleAnimation.model));
-            
-            // WeaponContext と同様にアタッチメント情報を含めて CustomModelData を構成
-            List<String> attachments = new ArrayList<>();
-            PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-            String joined = pdc.get(PDCKeys.ATTACHMENTS, PDCKeys.STRING);
-            if (joined != null && !joined.isEmpty()) {
-                attachments = Arrays.asList(joined.split(","));
-            }
-
-            item.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData()
-                    .addFloat(0.0f) // Frame 0
-                    .addStrings(attachments)
-                    .build());
-        }
 
         // --- Lore (説明欄) の生成 ---
         return updateLore(item);
@@ -323,60 +277,6 @@ public class ItemFactory {
         }
 
         lore.add("");
-
-        // =========================
-        // 銃ステータス
-        // =========================
-        if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
-
-            int ammo = pdc.getOrDefault(PDCKeys.AMMO, PDCKeys.INTEGER, 0);
-            boolean chamberLoaded = pdc.getOrDefault(PDCKeys.CHAMBER_LOADED, PDCKeys.BOOLEAN, (byte) 0) == 1;
-
-            GunStats effective = GunStatsCalculator.calculateEffectiveStats(item, def.gunStats);
-
-            // --- モード ---
-            String[] modes = effective.fireMode.split(",");
-            StringBuilder modeLine = new StringBuilder();
-
-            for (int i = 0; i < modes.length; i++) {
-                if (i == 0) {
-                    modeLine.append("§f").append(modes[i].trim());
-                } else {
-                    modeLine.append("§8・§7").append(modes[i].trim());
-                }
-            }
-
-            String chamberText = chamberLoaded ? " §a(+1)" : "";
-
-            lore.add(modeLine + "   §f" + ammo + chamberText + " §8/ §7" + def.gunStats.magSize);
-
-            // --- 弾薬 ---
-            String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
-            AmmoDefinition currentAmmo = ItemRegistry.getAmmo(ammoId);
-
-            String ammoName = (currentAmmo != null) ? currentAmmo.displayName : "なし";
-            String caliber = (currentAmmo != null) ? currentAmmo.caliber : def.gunStats.caliber;
-
-            if (currentAmmo != null) {
-                lore.add("§7装填中 §f" + ammoName + " §8/ §7装填可能 §f" + caliber);
-            } else {
-                lore.add("§7装填可能 §f" + caliber);
-            }
-
-            // --- ダメージ ---
-            double baseDamage = (currentAmmo != null) ? currentAmmo.damage : 0.0;
-            double totalDamage = baseDamage * effective.damage;
-            lore.add("§7ダメージ §f" + String.format("%.0f", totalDamage));
-
-            // --- RPM ---
-            lore.add("§7" + effective.rpm + " RPM");
-
-            // --- 耐久値 ---
-            int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-            lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
-
-            lore.add("");
-        }
 
         // =========================
         // 弾薬
@@ -460,27 +360,6 @@ public class ItemFactory {
         // =========================
         if (attDef != null) {
             lore.add("§7スロット §f" + attDef.slot.name());
-
-            if (!attDef.modifiers.isEmpty()) {
-                for (Map.Entry<String, Double> entry : attDef.modifiers.entrySet()) {
-                    String stat = entry.getKey();
-                    double val = entry.getValue();
-
-                    String color = val < 0 ? "§a" : "§c";
-                    if (stat.equals("damage")) color = val > 0 ? "§a" : "§c";
-
-                    String sign = val >= 0 ? "+" : "";
-
-                    String unit;
-                    if (stat.equals("recoil") || stat.equals("damage")) {
-                        unit = String.format("%.0f%%", val * 100);
-                    } else {
-                        unit = val + "ms";
-                    }
-
-                    lore.add("§7" + stat.toUpperCase() + " " + color + sign + unit);
-                }
-            }
             lore.add("");
         }
 

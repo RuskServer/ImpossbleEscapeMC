@@ -7,7 +7,6 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUI;
 import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
@@ -51,14 +50,8 @@ public class InventoryListener implements Listener {
     private void openAttachmentGui(Player player) {
         // データパック銃なら、データパックのアタッチメントの画面
         if (com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUI.open(player)) return;
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
-        String itemId = mainHand.hasItemMeta() ?
-                mainHand.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-        ItemDefinition def = ItemRegistry.get(itemId);
 
-        if (def != null && "GUN".equals(def.type)) {
-            new AttachmentGUI(player, mainHand).open();
-        } else if (!com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) {
+        if (!com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) {
             // 手に持ったヘルメット、無ければかぶっているヘルメットのバイザー
             player.sendMessage("§cメインハンドに銃かヘルメットを持つか、バイザーを付けられるヘルメットをかぶってください");
         }

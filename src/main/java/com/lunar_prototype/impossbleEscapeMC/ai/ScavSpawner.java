@@ -7,7 +7,6 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import net.kyori.adventure.text.Component;
@@ -52,7 +51,6 @@ public class ScavSpawner implements Listener {
     private static final double ARMOR_CLASS_4_CHANCE = 0.10;
 
     private final ImpossbleEscapeMC plugin;
-    private final GunListener gunListener;
     // UUIDごとにAIコントローラーを保持
     private static final Map<UUID, ScavController> controllers = new ConcurrentHashMap<>();
     private static final Map<UUID, String> scavRaidSessions = new ConcurrentHashMap<>();
@@ -65,9 +63,8 @@ public class ScavSpawner implements Listener {
         return controllers.containsKey(uuid);
     }
 
-    public ScavSpawner(ImpossbleEscapeMC plugin, GunListener gunListener) {
+    public ScavSpawner(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
-        this.gunListener = gunListener;
 
         // AIの更新タスクを開始 (例: 5ティック = 0.25秒ごと)
         startAiTick();
@@ -135,7 +132,7 @@ public class ScavSpawner implements Listener {
         ScavBrain.BrainLevel brainLevel = rollBrainLevel();
         // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
         com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav, brainLevel);
-        ScavController controller = new ScavController(plugin, scav, gunListener, brainLevel);
+        ScavController controller = new ScavController(plugin, scav, brainLevel);
         controllers.put(scav.getUniqueId(), controller);
         if (raidSessionId != null && !raidSessionId.isEmpty()) {
             scavRaidSessions.put(scav.getUniqueId(), raidSessionId);

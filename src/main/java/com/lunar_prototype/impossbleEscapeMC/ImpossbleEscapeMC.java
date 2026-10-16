@@ -13,7 +13,6 @@ import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
-import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUIListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.listener.PlayerListener;
@@ -104,7 +103,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         aiRaidLogger = new AiRaidLogger(this);
         ItemRegistry.loadAllItems(this);
         gunListener = new GunListener(this);
-        scavSpawner = new ScavSpawner(this, gunListener);
+        scavSpawner = new ScavSpawner(this);
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.init(this);
         // アドレナリン・死亡時の画面演出 (26.3のポストエフェクト)
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.init(this);
@@ -171,7 +170,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // データパック銃の命中もプラグイン銃と同じBulletHitEventとして通知する (負傷・アドレナリン・SCAVの命中記録)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletHitBridge(), this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
-        getServer().getPluginManager().registerEvents(new AttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.TooltipStyleMigration(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUIListener(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUIListener(), this);

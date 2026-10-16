@@ -31,7 +31,7 @@ public interface ScavWeapon {
     boolean isReloading();
 
     /**
-     * 引き金を1回引く。inaccuracy はBulletTaskの拡散量と同じ尺度
+     * 引き金を1回引く。inaccuracy は弾のばらつき量
      *
      * @param fullAuto フルオートの銃で撃ち続けるか。false ならフルオートの銃でも1発だけ撃つ
      * @return 引き金を引けた場合true (構え直し中・リロード中などで撃てなかった場合false)
