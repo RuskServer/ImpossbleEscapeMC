@@ -40,8 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  * ほかに、太陽が直接当たっているか (光の筋・面の向きの明暗に使う) と、2 ブロックごとの光の種類 (空・太陽・暖かい光源・冷たい光源。
  * 色はシェーダーが決める) を送る。データの画素 (リソースパックの iem_control.glsl の IEM_DATA_*・iem_sun.glsl。並びはそちらと同じ) として、
- * 本人にだけ見えるテキストディスプレイの文字で送る。シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、
- * 止める時は「光なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
+ * 本人にだけ見えるテキストディスプレイの文字で送る。クライアントの mod (IEM_Compatibility) が {@link #CHANNEL} を受け取れると知らせてきたら、
+ * テキストディスプレイは出さず、同じ値をそのチャンネルで送る (mod がテクスチャに書き、シェーダーはそちらを読む)。
+ * シェーダーは正しく届いたデータをフレームをまたいで覚えておく (ちらつかないように) ので、止める時は「光なし」(ヘッダーの印のマスを 0 にしたもの) を送ってから消す。
  * <p>
  * 太陽の向きはクライアントの空と同じ: 26.3 のタイムライン (data/minecraft/timeline/day.json の visual/sun_angle) の角度で、
  * 正午 (6000) に 0° から 1 日で 360°、3 次ベジェの緩急。向きは (-sin 角度, cos 角度, 0) (SkyRenderer: Y で -90°、X で角度)
@@ -59,6 +60,8 @@ public final class SunShadowService {
     private static final int DATA_CAPACITY = 512 * 32;
     /** テキストの部品 1 つの文字の数 (ネットワークでは部品ごとに 65535 バイトまでの文字列 (NBT) になる。1 文字 3 バイト) */
     private static final int CELLS_PER_PART = 4096;
+    /** mod (IEM_Compatibility) へ送るチャンネル。中身は値を 0 番から 2 バイトずつ (ビッグエンディアン) */
+    static final String CHANNEL = "iem:light";
 
     // ---- 格子 (iem_sun.glsl と同じ) ----
     private static final int MAGIC = 0x2B6C;
@@ -114,6 +117,7 @@ public final class SunShadowService {
     private static final double KIND_SHARE = 0.35;
 
     private static final class State {
+        final UUID playerId;
         TextDisplay display;
         int ox = Integer.MIN_VALUE, oy, oz;   // 格子の原点
         int fx = Integer.MIN_VALUE, fy, fz;   // 遠くの太陽の影の原点
@@ -122,6 +126,10 @@ public final class SunShadowService {
         double angle = Double.NaN;
         long computedAt;
         boolean computing;
+
+        State(UUID playerId) {
+            this.playerId = playerId;
+        }
     }
 
     private static final Map<UUID, State> states = new ConcurrentHashMap<>();
@@ -172,8 +180,11 @@ public final class SunShadowService {
             if (display != null) Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), display::remove, 20L);
             return;
         }
-        states.putIfAbsent(player.getUniqueId(), new State());
-        if (task == null) task = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), SunShadowService::tick, 1L, 10L);
+        states.putIfAbsent(player.getUniqueId(), new State(player.getUniqueId()));
+        if (task == null) {
+            Bukkit.getMessenger().registerOutgoingPluginChannel(ImpossbleEscapeMC.getInstance(), CHANNEL);
+            task = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), SunShadowService::tick, 1L, 10L);
+        }
     }
 
     public static boolean isEnabled(Player player) {
@@ -196,7 +207,12 @@ public final class SunShadowService {
     private static void update(Player player, State state) {
         Location at = player.getLocation();
         World world = player.getWorld();
-        ensureDisplay(player, state, at);
+        if (!viaChannel(player)) {
+            ensureDisplay(player, state, at);
+        } else if (state.display != null) {
+            state.display.remove();
+            state.display = null;
+        }
 
         double angle = sunAngle(world.getTime());
         double[] sun = sunDirection(angle);
@@ -1017,7 +1033,9 @@ public final class SunShadowService {
     /** 格子の値をデータの文字にしてテキストディスプレイに書く (grids が null なら「光なし」: ヘッダーの印のマスを 0 にして、覚えている値を消させる)。
      * far は遠くの太陽の影 (夜は空) */
     private static void setData(State state, Grids grids, int[] far) {
-        if (state.display == null) return;
+        Player player = Bukkit.getPlayer(state.playerId);
+        boolean channel = player != null && viaChannel(player);
+        if (!channel && state.display == null) return;
         int[] light = grids != null ? grids.light() : new int[0];
         int[] kinds = grids != null ? grids.kinds() : new int[0];
         if (grids == null || far == null) far = new int[0];
@@ -1044,6 +1062,15 @@ public final class SunShadowService {
             System.arraycopy(part, 0, data, at, n);
             at += n;
         }
+        if (channel) {
+            byte[] bytes = new byte[cells * 2];
+            for (int i = 0; i < cells; i++) {
+                bytes[2 * i] = (byte) (data[i] >> 8);
+                bytes[2 * i + 1] = (byte) data[i];
+            }
+            player.sendPluginMessage(ImpossbleEscapeMC.getInstance(), CHANNEL, bytes);
+            return;
+        }
         // 部品に分ける (1 つの文字列が長すぎると送れない)
         Component text = Component.empty();
         for (int start = 0; start < cells; start += CELLS_PER_PART) {
@@ -1054,6 +1081,11 @@ public final class SunShadowService {
         }
         state.display.text(text.color(DATA_COLOR).font(DATA_FONT));
         state.display.setTransformation(transformation(cells));
+    }
+
+    /** mod (IEM_Compatibility) が {@link #CHANNEL} を受け取れると知らせてきたか */
+    private static boolean viaChannel(Player player) {
+        return player.getListeningPluginChannels().contains(CHANNEL);
     }
 
     /** 0 番の値の文字の左の端が置いた所に来るよう、(幅 / 2 - 1) だけ +x にずらす (ShaderDebugCommand と同じ) */
