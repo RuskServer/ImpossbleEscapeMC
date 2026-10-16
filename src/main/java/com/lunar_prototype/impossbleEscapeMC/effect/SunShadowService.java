@@ -510,10 +510,13 @@ public final class SunShadowService {
         return l / (4.0 - 3.0 * l);
     }
 
+    /** 空の光の持ち上げの強さと曲線の形 (リソースパックの iem_lightmap.glsl の IEM_SKY_LIFT・IEM_SKY_LIFT_POWER と同じ) */
+    private static final double SKY_LIFT = 0.3, SKY_LIFT_POWER = 1.4;
+
     /** 空の光の明るさ (リソースパックの core/lightmap.fsh の iem_sky_brightness と同じ曲線) */
     static double skyCurve(int level) {
         double l = level / 15.0;
-        return lightCurve(level) * 0.4 + Math.pow(l, 1.4) * 0.6;
+        return lightCurve(level) * (1.0 - SKY_LIFT) + Math.pow(l, SKY_LIFT_POWER) * SKY_LIFT;
     }
 
     /** レベル 0〜15 の明るさの表 (ブロックごとの計算で毎回求めない) */
