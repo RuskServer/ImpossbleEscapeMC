@@ -406,6 +406,7 @@ public class RaidInstance {
 
             if (playerNearby && !tooCloseOrVisible && !vs.isSpawned() && !vs.isDead()) {
                 UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc, raidSessionId, map.getMapId());
+                if (uuid == null) continue;   // 出せなかった (銃が無い)。湧いていないままにして、次の判定でまた試す
                 vs.setEntityId(uuid);
                 vs.setSpawned(true);
             } else if (!playerNearby && vs.isSpawned() && !vs.isPermanent()) {

@@ -52,7 +52,7 @@ public class DatapackBulletHitBridge implements Listener {
     /** 撃った弾が分からない時 (弾を込めていない銃・弾の無い口径のSCAV) の貫通クラス */
     private static final int DATAPACK_AMMO_CLASS = 1;
 
-    /** プレイヤーの弾がSCAVに当たった時の制圧 (プラグイン銃の BulletTask と同じ値) */
+    /** プレイヤーの弾がSCAVに当たった時の制圧 */
     private static final float HIT_SUPPRESSION = 0.5f;
 
     private record HitResult(String hitLocation, boolean penetrated, double rawDamage, int ammoClass) {
@@ -87,7 +87,7 @@ public class DatapackBulletHitBridge implements Listener {
         double damage = BulletDamageModel.damageForHit(rawDamage, hitLocation, penetrated, armorClass);
 
         event.setDamage(damage);
-        // バニラの防具・耐性などによる軽減を外す (GunListener#onEntityDamage の bypass_armor と同じ)
+        // バニラの防具・耐性などによる軽減を外す (ダメージは BulletDamageModel が防具を考えて決めている)
         for (EntityDamageEvent.DamageModifier modifier : EntityDamageEvent.DamageModifier.values()) {
             if (modifier != EntityDamageEvent.DamageModifier.BASE && event.isApplicable(modifier)) {
                 event.setDamage(modifier, 0.0);

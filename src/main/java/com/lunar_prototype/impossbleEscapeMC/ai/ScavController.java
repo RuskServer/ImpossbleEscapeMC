@@ -4,12 +4,9 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackScavWeapon;
-import com.lunar_prototype.impossbleEscapeMC.ai.weapon.PluginScavWeapon;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
-import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -74,7 +71,6 @@ public class ScavController {
     private final ImpossbleEscapeMC plugin;
     private final Mob scav;
     private final ScavBrain brain;
-    private final GunListener gunListener;
     private final ScavBrain.BrainLevel brainLevel;
 
     // Components
@@ -364,19 +360,14 @@ public class ScavController {
     /** 味方の左右どちらに着くか (1 / -1) */
     private int assistSide = 1;
 
-    public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener) {
-        this(plugin, scav, listener, ScavBrain.BrainLevel.MID);
-    }
-
-    public ScavController(ImpossbleEscapeMC plugin, Mob scav, GunListener listener, ScavBrain.BrainLevel brainLevel) {
+    public ScavController(ImpossbleEscapeMC plugin, Mob scav, ScavBrain.BrainLevel brainLevel) {
         this.plugin = plugin;
         this.scav = scav;
         this.brainLevel = brainLevel;
         this.brain = new ScavBrain(scav, brainLevel);
-        this.gunListener = listener;
         this.vision = new ScavVision(scav);
         this.squad = new ScavSquad(this);
-        this.tactics = new ScavTactics(scav, listener, brain);
+        this.tactics = new ScavTactics(scav, brain);
         this.positioning = new TacticalPositioning(scav);
         this.currentAimVector = scav.getEyeLocation().getDirection();
         this.homeLocation = scav.getLocation().clone();
@@ -947,7 +938,7 @@ public class ScavController {
         return positioning.current() != null && arrivedSpot == null;
     }
 
-    /** ランクごとの基本の弾のばらつき (BulletTaskの拡散量と同じ尺度)。高ランクほど正確 */
+    /** ランクごとの基本の弾のばらつき。高ランクほど正確 */
     private double baseSpread() {
         return switch (brainLevel) {
             case LOW -> 0.15;
@@ -1684,9 +1675,7 @@ public class ScavController {
     private ScavWeapon resolveWeapon() {
         ItemStack item = scav.getEquipment() != null ? scav.getEquipment().getItemInMainHand() : null;
         String datapackGunId = DatapackGunCatalog.gunIdOf(item);
-        String pluginItemId = (datapackGunId == null && item != null && item.hasItemMeta())
-                ? item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING) : null;
-        String key = datapackGunId != null ? "datapack:" + datapackGunId : pluginItemId != null ? "plugin:" + pluginItemId : null;
+        String key = datapackGunId != null ? "datapack:" + datapackGunId : null;
         if (java.util.Objects.equals(key, weaponKey)) return weapon;
 
         releaseWeapon();
@@ -1694,9 +1683,6 @@ public class ScavController {
         if (datapackGunId != null) {
             DatapackGunProfile profile = DatapackGunCatalog.get(datapackGunId);
             if (profile != null) weapon = new DatapackScavWeapon(scav, profile);
-        } else if (pluginItemId != null) {
-            ItemDefinition def = ItemRegistry.get(pluginItemId);
-            if (def != null && def.gunStats != null) weapon = new PluginScavWeapon(scav, def, gunListener);
         }
         return weapon;
     }

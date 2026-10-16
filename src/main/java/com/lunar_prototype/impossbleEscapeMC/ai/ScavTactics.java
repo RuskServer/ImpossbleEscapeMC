@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalMath;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalVision;
-import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -12,7 +11,6 @@ import org.bukkit.util.Vector;
 
 public class ScavTactics {
     private final Mob scav;
-    private final GunListener gunListener;
     private final ScavBrain brain;
 
     // Tactical Movement States
@@ -54,9 +52,8 @@ public class ScavTactics {
     // Search/Slicing
     private Location slicingPoint = null;
 
-    public ScavTactics(Mob scav, GunListener gunListener, ScavBrain brain) {
+    public ScavTactics(Mob scav, ScavBrain brain) {
         this.scav = scav;
-        this.gunListener = gunListener;
         this.brain = brain;
     }
 

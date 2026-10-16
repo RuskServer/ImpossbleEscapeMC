@@ -7,12 +7,12 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -40,6 +40,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ScavSpawner implements Listener {
     private static final Random RANDOM = new Random();
+    /** スポーン時に持たせる銃の候補 (Toi's Armory のデータパック銃の ID) */
+    private static final List<String> GUN_POOL = List.of("ak74", "m4a1", "m700", "mossberg_590");
+    /** 銃が無くて出せなかったことを、もう警告したか (続けて失敗してもログを 1 回に抑える。出せたら戻す) */
+    private static volatile boolean warnedNoGun;
     private static final double BRAIN_LOW_CHANCE = 0.60;
     private static final double BRAIN_MID_CHANCE = 0.40;
     private static final double ARMOR_BOTH_EQUIP_CHANCE = 0.60;
@@ -52,7 +56,6 @@ public class ScavSpawner implements Listener {
     private static final double ARMOR_CLASS_4_CHANCE = 0.10;
 
     private final ImpossbleEscapeMC plugin;
-    private final GunListener gunListener;
     // UUIDごとにAIコントローラーを保持
     private static final Map<UUID, ScavController> controllers = new ConcurrentHashMap<>();
     private static final Map<UUID, String> scavRaidSessions = new ConcurrentHashMap<>();
@@ -65,9 +68,8 @@ public class ScavSpawner implements Listener {
         return controllers.containsKey(uuid);
     }
 
-    public ScavSpawner(ImpossbleEscapeMC plugin, GunListener gunListener) {
+    public ScavSpawner(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
-        this.gunListener = gunListener;
 
         // AIの更新タスクを開始 (例: 5ティック = 0.25秒ごと)
         startAiTick();
@@ -75,13 +77,25 @@ public class ScavSpawner implements Listener {
 
     /**
      * 指定した座標にAI SCAVをスポーンさせる
-     * @return スポーンしたエンティティのUUID
+     * @return スポーンしたエンティティのUUID。持たせる銃がデータパックに 1 丁も無い時は出さずに null
      */
     public UUID spawnScav(Location loc) {
         return spawnScav(loc, null, null);
     }
 
     public UUID spawnScav(Location loc, String raidSessionId, String mapId) {
+        // 銃を持たない SCAV は撃たず動かない的になるので、銃が無ければ出さない
+        ItemStack gun = pickGun(loc.getWorld());
+        if (gun == null) {
+            if (!warnedNoGun) {
+                warnedNoGun = true;
+                plugin.getLogger().warning("[SCAV] Toi's Armory のデータパックに SCAV の銃 " + GUN_POOL
+                        + " が 1 丁もありません。SCAV を出しません (データパックが読み込まれているか確かめてください)");
+            }
+            return null;
+        }
+        warnedNoGun = false;
+
         // バニラのランダム初期化 (ベビー化・アイテム拾い・援軍召喚の確率など) は通さない。
         // 日光で燃えるのは onScavSunCombust で止める
         Mob scav = loc.getWorld().spawn(loc, Zombie.class, false, zombie -> {
@@ -112,7 +126,7 @@ public class ScavSpawner implements Listener {
         }
 
         // タルコフ風の装備設定
-        setupScavEquipment(scav, raidSessionId);
+        setupScavEquipment(scav, gun, raidSessionId);
 
         // 例: プレイヤー風に偽装（名前は"SCAV"）
         try {
@@ -135,7 +149,7 @@ public class ScavSpawner implements Listener {
         ScavBrain.BrainLevel brainLevel = rollBrainLevel();
         // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
         com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav, brainLevel);
-        ScavController controller = new ScavController(plugin, scav, gunListener, brainLevel);
+        ScavController controller = new ScavController(plugin, scav, brainLevel);
         controllers.put(scav.getUniqueId(), controller);
         if (raidSessionId != null && !raidSessionId.isEmpty()) {
             scavRaidSessions.put(scav.getUniqueId(), raidSessionId);
@@ -160,67 +174,34 @@ public class ScavSpawner implements Listener {
         return ScavBrain.BrainLevel.MID;
     }
 
-    private void setupScavEquipment(Mob scav, String raidSessionId) {
-        // 1. スポーン時に持たせる銃の候補リスト
-        String[] gunPool = { "ak74", "m4a1", "m700", "mossberg_590" };
-        String randomGunId = gunPool[new java.util.Random().nextInt(gunPool.length)];
+    private void setupScavEquipment(Mob scav, ItemStack gun, String raidSessionId) {
+        // 1. 銃 (Toi's Armory のデータパック銃。射撃もデータパック銃で行う)
+        scav.getEquipment().setItemInMainHand(gun);
+        scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
 
-        // 2. Toi's Armoryデータパックに同じ銃があればデータパック銃を持たせる (射撃もデータパック銃で行う)
-        if (!equipDatapackGun(scav, randomGunId)) {
-            // 無ければプラグインの銃。ItemFactoryで生成 (ここでPDCにAMMOやITEM_IDが書き込まれる)
-            ItemStack gun = ItemFactory.create(randomGunId);
-            if (gun != null && gun.hasItemMeta()) {
-                var meta = gun.getItemMeta();
-                var pdc = meta.getPersistentDataContainer();
-                var itemId = pdc.get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
-                var def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
-            
-                if (def != null && def.maxDurability > 0) {
-                    java.util.Random rand = new java.util.Random();
-                    double roll = rand.nextDouble();
-                    double durabilityPercentage;
-
-                    if (roll < 0.05) {
-                        // 5%の確率で 75% - 85% (約80%)
-                        durabilityPercentage = 0.75 + (rand.nextDouble() * 0.1);
-                    } else {
-                        // 95%の確率で 30% - 50%
-                        durabilityPercentage = 0.3 + (rand.nextDouble() * 0.2);
-                    }
-
-                    int newDurability = (int) (def.maxDurability * durabilityPercentage);
-                    pdc.set(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.DURABILITY, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.INTEGER, newDurability);
-                    gun.setItemMeta(meta);
-                
-                    // バー表示を同期させる
-                    ItemFactory.updateLore(gun);
-                }
-
-                scav.getEquipment().setItemInMainHand(gun);
-                scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
-            }
-        }
-
-        // 3. 防具のランダム装備
+        // 2. 防具のランダム装備
         setupRandomArmor(scav, raidSessionId);
 
-        // 4. バックパックのランダム装備 (20%の確率)
+        // 3. バックパックのランダム装備 (20%の確率)
         if (RANDOM.nextDouble() < 0.20) {
             setupRandomBackpack(scav);
         }
     }
 
     /**
-     * データパック銃を手に持たせる。データパックにその銃が無ければfalse
+     * SCAV に持たせる銃: 候補を混ぜた順に試し、データパックにある最初の銃。どれも無ければ null
+     * (データパックが読めていない。1 丁の名前が変わっただけなら、ほかの銃で出す)
      */
-    private boolean equipDatapackGun(Mob scav, String gunId) {
-        DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
-        if (profile == null) return false;
-        ItemStack gun = DatapackGunCatalog.createItem(scav.getWorld(), profile);
-        if (gun == null) return false;
-        scav.getEquipment().setItemInMainHand(gun);
-        scav.getEquipment().setItemInMainHandDropChance(0.1f); // プレイヤーが拾える確率(10%)
-        return true;
+    private ItemStack pickGun(World world) {
+        List<String> pool = new ArrayList<>(GUN_POOL);
+        Collections.shuffle(pool, RANDOM);
+        for (String gunId : pool) {
+            DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
+            if (profile == null) continue;
+            ItemStack gun = DatapackGunCatalog.createItem(world, profile);
+            if (gun != null) return gun;
+        }
+        return null;
     }
 
     private void setupRandomBackpack(Mob scav) {
@@ -455,7 +436,7 @@ public class ScavSpawner implements Listener {
     }
 
     /**
-     * GunListenerなどからAIインスタンスを取得するためのメソッド
+     * 銃声の見張り (DatapackGunshotWatcher) などからAIインスタンスを取得するためのメソッド
      */
     public static ScavController getController(UUID uuid) {
         return controllers.get(uuid);
