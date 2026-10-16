@@ -24,7 +24,6 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
@@ -45,6 +44,30 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHECK_OFF;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHECK_ON;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHECK_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILES;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.QUEST_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TRADER_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.line;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NAME;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ITEM_BOX;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_BODY_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_LINE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
 
 /**
  * トレーダーのクエストの納品の画面 (ダイアログ)。納品の目標ごとに使える物を並べ、どれを手放すかを選んで納品する。
@@ -59,37 +82,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class QuestHandInDialog implements Listener {
 
-    // ---- フォント (QuestDialog と同じ番号) ----
-    private static final Key TRADER_FONT = Key.key("iem", "trader");
-    private static final Key QUEST_FONT = Key.key("iem", "quest");
-    private static final char SPACE_POS = '';
-    private static final char SPACE_NEG = '';
-    private static final char PLATE_BASE = '';
-    private static final int PLATE_TILES = 3, PLATE_TILE_W = 100;
-    private static final char RING = '';
-    private static final int RING_W = 22;
-    private static final char CHECK_OFF = '';
-    private static final char CHECK_ON = '';
-    private static final int CHECK_W = 8;
-
-    // ---- 寸法 (QuestDialog と同じ) ----
+    // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int BODY_W = 340;
     static final int LINE_W = BODY_W - 8;
-    private static final int ROW_BODY_W = 308;
-    static final int ROW_LINE_W = ROW_BODY_W - 8;
-    private static final int ITEM_BOX = 16;
-    private static final int PLATE_X = -1, RING_X = -25, TEXT_X = 5;
     private static final int NAME_X = TEXT_X + CHECK_W + 5;
     private static final int ROW_RIGHT = PLATE_X + PLATE_TILES * PLATE_TILE_W - 6;
-
-    // ---- 色 (QuestDialog と同じ) ----
-    private static final TextColor INK = TextColor.color(0xE0D6AA);
-    private static final TextColor NAME = TextColor.color(0xEEE8D2);
-    private static final TextColor NOTE = TextColor.color(0xAAA48C);
-    private static final TextColor DIM = TextColor.color(0x827E6E);
-    private static final TextColor AMBER = TextColor.color(0xDEAC4E);
-    private static final TextColor OK = TextColor.color(0x78CD60);
-    private static final TextColor NG = TextColor.color(0xD64A34);
 
     private static final String NS = "iem";
     private static final String PREFIX = "quest_handin/";
@@ -190,10 +187,6 @@ public final class QuestHandInDialog implements Listener {
         if (!use.isEmpty()) l2.textRight(use, v.use() > 0 ? OK : DIM, ROW_RIGHT);
         l2.moveTo(ROW_LINE_W);
         return List.of(l1, l2);
-    }
-
-    private static DialogLine line() {
-        return new DialogLine(TRADER_FONT, SPACE_POS, SPACE_NEG);
     }
 
     // ---- 開く ----

@@ -1,6 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
@@ -10,6 +9,7 @@ import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemWeights;
+import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
@@ -31,9 +31,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.ShadowColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -54,6 +52,41 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_CHIP;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB_ON;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_SOLD;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_TEXT_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILES;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.LOCK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.LOCK_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILES;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TRADER_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxWidth;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.line;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER_DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DARK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NAME;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ITEM_BOX;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_BODY_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_LINE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
 
 /**
  * 買うトレーダーの画面 (ダイアログ)。出撃画面 (RaidSelectionGUI) と同じく、本文の文字をリソースパックのフォント (iem:trader) の
@@ -65,38 +98,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>購入の確認: 早押しの個数ボタン (合計金額つき) と、個数のスライダー</li>
  *   <li>下の帯: クエスト一覧 (報告できる数) と閉じる。Esc は閉じる (確認の画面では戻る)</li>
  * </ul>
- * 本文の文字は行ごとに中央揃えになるので、すべての行をちょうど決まった幅にする ({@link Line})。
+ * 本文の文字は行ごとに中央揃えになるので、すべての行をちょうど決まった幅にする ({@link DialogLine})。
  * バニラの字の幅は {@link FontWidths}、絵の字は「幅 + 1」進む。絵の大きさ・字の番号・縦の位置は IEM_shader/tools/trader_font.py と同じにする。
  * 売る (broker) トレーダーと修理は、物を入れる欄が要るのでチェストの画面 ({@link TraderGUI}) のまま
  */
 public final class TraderDialog implements Listener {
 
-    // ---- フォント (trader_font.py と同じにする) ----
-    private static final Key FONT = Key.key("iem", "trader");
-    private static final char SPACE_POS = '';
-    private static final char SPACE_NEG = '';
-    private static final char HEADER_BASE = '';
-    private static final int HEADER_TILES = 3;
-    private static final int HEADER_TILE_W = 108;
-    private static final char PLATE_BASE = '';
-    private static final int PLATE_TILES = 3;
-    private static final int PLATE_TILE_W = 100;
-    private static final char RING = '';
-    private static final int RING_W = 22;
-    private static final char CHIP = '';
-    private static final char CHIP_SOLD = '';
-    private static final int CHIP_W = 36;
-    /** 札の字のフォント: バニラの字を 5 ずらしたもの (札の縦の真ん中に来る) */
-    private static final Key CHIP_TEXT_FONT = Key.key("iem", "shift_5");
-    private static final char LOCK = '';
-    private static final int LOCK_W = 7;
-    private static final char BOX_BASE = '';
-    private static final int[] BOX_WIDTHS = {24, 32, 40, 48, 56, 64, 72, 80, 96, 112};
-    private static final int BOX_TAB = 0, BOX_TAB_ON = 1, BOX_CHIP = 2;
-
-    // ---- 寸法 (GUI の画素) ----
+    // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     // 本文の文字は、行の途中で一度でも折り返し幅 (要素の幅 - 余白 8) を超えるとそこで改行される。
-    // 絵の右端・字の右端は、どの時点でも行の幅 (= 折り返し幅) を超えないように置く ({@link Line#max})
+    // 絵の右端・字の右端は、どの時点でも行の幅 (= 折り返し幅) を超えないように置く ({@link DialogLine#max})
     /** 上の端末の絵の幅 (= 品物の行の、枠の左端から札の右端まで) */
     private static final int HEADER_ART_W = HEADER_TILES * HEADER_TILE_W;
     /** 上の端末の要素の幅と、行の幅。行は要素の中央に寄るので、絵の左端は要素の中央 - 166 (品物の枠の左端と同じ) */
@@ -106,30 +116,9 @@ public final class TraderDialog implements Listener {
     private static final int HEADER_LINES = 6;
     /** 液晶の左端 (所持金・容量・Lv) */
     private static final int LCD_X = 145;
-    /** 品物の説明の要素の幅と、行の幅 (要素の幅 - 余白 8)。札 (3 x 100) は行の頭の 1 つ左から行の終わりまで */
-    private static final int ROW_BODY_W = 308;
-    static final int ROW_LINE_W = ROW_BODY_W - 8;
-    /** アイテム欄の大きさ (品物は左上に 16x16 で描かれる) */
-    private static final int ITEM_BOX = 16;
-    /** 札は行の頭の 1 つ左から、品物の枠は行の頭の 25 左から */
-    private static final int PLATE_X = -1;
-    private static final int RING_X = -25;
-    /** 札の中の位置 (行の頭から) */
-    private static final int TEXT_X = 5;
     private static final int CHIP_X = PLATE_X + PLATE_TILES * PLATE_TILE_W - 4 - CHIP_W;
     private static final int PRICE_RIGHT = CHIP_X - 6;
     private static final int LOCKED_PRICE_RIGHT = PLATE_X + PLATE_TILES * PLATE_TILE_W - 5;
-
-    // ---- 色 ----
-    private static final TextColor INK = TextColor.color(0xE0D6AA);
-    private static final TextColor NAME = TextColor.color(0xEEE8D2);
-    private static final TextColor NOTE = TextColor.color(0xAAA48C);
-    private static final TextColor DIM = TextColor.color(0x827E6E);
-    private static final TextColor AMBER = TextColor.color(0xDEAC4E);
-    private static final TextColor AMBER_DIM = TextColor.color(0x96763C);
-    private static final TextColor DARK = TextColor.color(0x18140A);
-    private static final TextColor OK = TextColor.color(0x78CD60);
-    private static final TextColor NG = TextColor.color(0xD64A34);
 
     private static final String NS = "iem";
     private static final String PREFIX = "trader/";
@@ -489,10 +478,10 @@ public final class TraderDialog implements Listener {
     }
 
     /** 上の端末の行 (テストで、どの行も途中で幅を超えないことを確かめる) */
-    static List<Line> headerLines(HeaderView v) {
+    static List<DialogLine> headerLines(HeaderView v) {
         // 1 行目: 筐体の絵、名前、液晶 (所持金・容量・Lv)
-        Line line1 = new Line();
-        for (int i = 0; i < HEADER_TILES; i++) line1.stamp((char) (HEADER_BASE + i), HEADER_TILE_W, i * HEADER_TILE_W);
+        DialogLine line1 = line();
+        for (int i = 0; i < HEADER_TILES; i++) line1.stamp(TRADER_FONT, (char) (HEADER_BASE + i), HEADER_TILE_W, i * HEADER_TILE_W);
         line1.moveTo(8).text(FontWidths.truncate(v.name(), LCD_X - 16), INK);
         line1.moveTo(LCD_X + 5).text("₽ ", AMBER_DIM).text(String.format("%,d", v.money()), AMBER);
         line1.shift(8).text("容量 ", AMBER_DIM).text(v.used() + "/" + v.capacity(), v.used() < v.capacity() ? OK : NG);
@@ -503,7 +492,7 @@ public final class TraderDialog implements Listener {
         line1.moveTo(HEADER_W);
 
         // 3 行目: 並び・未解放・修理の札
-        Line line2 = new Line().moveTo(8);
+        DialogLine line2 = line().moveTo(8);
         line2.box("並び: " + v.sortLabel() + " ▼", BOX_CHIP, AMBER, click("sort"),
                 Component.text("並びを替える (種類 → 口径 → 価格 → 貫通)", NOTE)).shift(4);
         line2.box(v.hideLocked() ? "未解放: 隠す" : "未解放: 表示", BOX_CHIP, NOTE, click("locked"),
@@ -512,20 +501,20 @@ public final class TraderDialog implements Listener {
         line2.moveTo(HEADER_W);
 
         // 5 行目: 分類のタブ
-        Line line4 = new Line().moveTo(8);
+        DialogLine line4 = line().moveTo(8);
         for (Tab tab : v.tabs()) {
             if (line4.x + boxWidth(tab.label()) > HEADER_ART_W - 6) break;   // 入りきらないタブは出さない (折り返させない)
             line4.box(tab.label(), tab.on() ? BOX_TAB_ON : BOX_TAB, tab.on() ? DARK : AMBER, click(tab.action()), null).shift(4);
         }
         line4.moveTo(HEADER_W);
 
-        List<Line> lines = new ArrayList<>(List.of(line1, new Line().moveTo(HEADER_W), line2, new Line().moveTo(HEADER_W), line4));
-        while (lines.size() < HEADER_LINES) lines.add(new Line().moveTo(HEADER_W));
+        List<DialogLine> lines = new ArrayList<>(List.of(line1, line().moveTo(HEADER_W), line2, line().moveTo(HEADER_W), line4));
+        while (lines.size() < HEADER_LINES) lines.add(line().moveTo(HEADER_W));
         return lines;
     }
 
-    private static Component join(List<Line> lines) {
-        return Component.join(JoinConfiguration.newlines(), lines.stream().map(Line::build).toList());
+    private static Component join(List<DialogLine> lines) {
+        return Component.join(JoinConfiguration.newlines(), lines.stream().map(DialogLine::build).toList());
     }
 
     // ---- 品物の行 ----
@@ -578,15 +567,15 @@ public final class TraderDialog implements Listener {
         return join(rowLines(v));
     }
 
-    static List<Line> rowLines(RowView v) {
-        Line line1 = new Line();
+    static List<DialogLine> rowLines(RowView v) {
+        DialogLine line1 = line();
         for (int i = 0; i < PLATE_TILES; i++) {
-            line1.stamp((char) (PLATE_BASE + (v.locked() ? PLATE_TILES : 0) + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
+            line1.stamp(TRADER_FONT, (char) (PLATE_BASE + (v.locked() ? PLATE_TILES : 0) + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
         }
-        line1.stamp(RING, RING_W, RING_X);
+        line1.stamp(TRADER_FONT, RING, RING_W, RING_X);
         int nameX = TEXT_X;
         if (v.locked()) {
-            line1.stamp(LOCK, LOCK_W, TEXT_X);
+            line1.stamp(TRADER_FONT, LOCK, LOCK_W, TEXT_X);
             nameX = TEXT_X + LOCK_W + 3;
         }
         int priceX = (v.locked() ? LOCKED_PRICE_RIGHT : PRICE_RIGHT) - FontWidths.width(v.price());
@@ -594,14 +583,14 @@ public final class TraderDialog implements Listener {
         line1.moveTo(priceX).text(v.price(), v.locked() ? DIM : AMBER);
         if (!v.locked()) {
             boolean barter = "交換".equals(v.chipLabel());
-            line1.moveTo(CHIP_X).chip(v.sold() ? CHIP_SOLD : CHIP, CHIP_W, v.chipLabel(), v.sold() ? TextColor.color(0x645C50) : AMBER,
+            line1.moveTo(CHIP_X).chip(TRADER_FONT, v.sold() ? CHIP_SOLD : CHIP, CHIP_W, CHIP_TEXT_FONT, v.chipLabel(), v.sold() ? TextColor.color(0x645C50) : AMBER,
                     false, v.buyAction() != null ? click(v.buyAction()) : null,
                     Component.text(v.sold() ? "本日は売り切れ" : barter ? "クリックで回数を選んで交換" : "クリックで個数を選んで購入",
                             v.sold() ? NG : NOTE));
         }
         line1.moveTo(ROW_LINE_W);
 
-        Line line2 = new Line().moveTo(TEXT_X);
+        DialogLine line2 = line().moveTo(TEXT_X);
         int limit = v.stock() != null ? PRICE_RIGHT - FontWidths.width(v.stock()) - 6 : ROW_LINE_W - 4;
         for (Part part : v.parts()) {
             if (line2.x >= limit) break;
@@ -629,16 +618,16 @@ public final class TraderDialog implements Listener {
         return join(confirmLines(v));
     }
 
-    static List<Line> confirmLines(ConfirmView v) {
-        Line line1 = new Line();
-        for (int i = 0; i < PLATE_TILES; i++) line1.stamp((char) (PLATE_BASE + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
-        line1.stamp(RING, RING_W, RING_X);
+    static List<DialogLine> confirmLines(ConfirmView v) {
+        DialogLine line1 = line();
+        for (int i = 0; i < PLATE_TILES; i++) line1.stamp(TRADER_FONT, (char) (PLATE_BASE + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
+        line1.stamp(TRADER_FONT, RING, RING_W, RING_X);
         String unit = v.unit();
         int unitX = LOCKED_PRICE_RIGHT - FontWidths.width(unit);
         line1.moveTo(TEXT_X).text(FontWidths.truncate(v.name(), unitX - 6 - TEXT_X), NAME);
         line1.moveTo(unitX).text(unit, AMBER).moveTo(ROW_LINE_W);
 
-        Line line2 = new Line().moveTo(TEXT_X);
+        DialogLine line2 = line().moveTo(TEXT_X);
         if (v.needs() != null) {
             int limit = LOCKED_PRICE_RIGHT - FontWidths.width(v.stock()) - 6;
             for (Part part : v.needs()) {
@@ -819,117 +808,6 @@ public final class TraderDialog implements Listener {
     }
 
     // ---- 文字の行 ----
-
-    /**
-     * 1 行を、行の頭からの位置 (GUI の画素) を数えながら組み立てる。最後に {@link #moveTo} で決まった幅にそろえる
-     * (中央揃えでも位置がずれないように)。絵の字は「幅 + 1」進む
-     */
-    static final class Line {
-        private final TextComponent.Builder out = Component.text();
-        int x;
-        /** 一番右まで進んだ位置 (行の幅を超えると、クライアントがそこで改行してしまう) */
-        int max;
-
-        Line shift(int n) {
-            if (n != 0) out.append(Component.text(spaces(n)).font(FONT));
-            x += n;
-            max = Math.max(max, x);
-            return this;
-        }
-
-        Line moveTo(int target) {
-            return shift(target - x);
-        }
-
-        /** 絵の字を今の位置に描いて進む。click があれば押せる */
-        Line glyph(char c, int width, ClickEvent click, Component hover) {
-            Component g = Component.text(String.valueOf(c)).font(FONT).color(NamedTextColor.WHITE).shadowColor(ShadowColor.none());
-            if (click != null) g = g.clickEvent(click);
-            if (hover != null) g = g.hoverEvent(HoverEvent.showText(hover));
-            out.append(g);
-            x += width + 1;
-            max = Math.max(max, x);
-            return this;
-        }
-
-        /** 絵の字を at に描き、今の位置に戻る */
-        Line stamp(char c, int width, int at) {
-            int back = x;
-            moveTo(at);
-            glyph(c, width, null, null);
-            return moveTo(back);
-        }
-
-        Line text(String s, TextColor color) {
-            out.append(Component.text(s, color));
-            x += FontWidths.width(s);
-            max = Math.max(max, x);
-            return this;
-        }
-
-        /**
-         * 札の絵 (幅 width、2 行にまたがる) と、その真ん中に字。字はバニラの字を 5 ずらしたフォント (iem:shift_5。
-         * IEM_shader/tools/shift_fonts.py) で、札の縦の真ん中に来る。札も字も押せる
-         */
-        Line chip(char c, int width, String label, TextColor color, boolean noShadow, ClickEvent click, Component hover) {
-            int start = x;
-            glyph(c, width, click, hover);
-            moveTo(start + (width - FontWidths.width(label)) / 2);
-            Component t = Component.text(label, color).font(CHIP_TEXT_FONT);
-            if (noShadow) t = t.shadowColor(ShadowColor.none());
-            if (click != null) t = t.clickEvent(click);
-            if (hover != null) t = t.hoverEvent(HoverEvent.showText(hover));
-            out.append(t);
-            x += FontWidths.width(label);
-            max = Math.max(max, x);
-            return moveTo(start + width + 1);
-        }
-
-
-        /** 箱 (タブ・札) と、その中央に字。箱は字の幅 + 8 が入る一番小さい物 */
-        Line box(String label, int kind, TextColor color, ClickEvent click, Component hover) {
-            int textW = FontWidths.width(label);
-            int sizeIndex = boxIndex(textW);
-            int w = BOX_WIDTHS[sizeIndex];
-            int start = x;
-            glyph((char) (BOX_BASE + sizeIndex * 3 + kind), w, click, hover);
-            moveTo(start + (w - textW) / 2);
-            Component t = Component.text(label, color);
-            if (kind == BOX_TAB_ON) t = t.shadowColor(ShadowColor.none());
-            if (click != null) t = t.clickEvent(click);
-            if (hover != null) t = t.hoverEvent(HoverEvent.showText(hover));
-            out.append(t);
-            x += textW;
-            return moveTo(start + w);
-        }
-
-        Component build() {
-            return out.build();
-        }
-    }
-
-    /** 字の幅 + 8 が入る一番小さい箱の番号 */
-    private static int boxIndex(int textWidth) {
-        int i = 0;
-        while (i < BOX_WIDTHS.length - 1 && BOX_WIDTHS[i] < textWidth + 8) i++;
-        return i;
-    }
-
-    /** 箱の送り (箱の幅 + 1) */
-    static int boxWidth(String label) {
-        return BOX_WIDTHS[boxIndex(FontWidths.width(label))] + 1;
-    }
-
-    /** n だけ進む (負なら戻る) 空白の文字列。±2^i の空白を組み合わせる */
-    static String spaces(int n) {
-        StringBuilder out = new StringBuilder();
-        int abs = Math.abs(n);
-        char base = n >= 0 ? SPACE_POS : SPACE_NEG;
-        for (int bit = 0; abs > 0; bit++, abs >>= 1) {
-            if ((abs & 1) != 0) out.append((char) (base + bit));
-        }
-        return out.toString();
-    }
 
     private static ClickEvent click(String action) {
         return ClickEvent.custom(Key.key(NS, PREFIX + action));

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
+import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.util.FontWidths;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
@@ -38,7 +40,7 @@ public final class TraderDialogLayoutTest {
 
         // 空白の組み合わせ
         for (int n : new int[]{-330, -25, -1, 0, 1, 7, 298, 1023}) {
-            String s = TraderDialog.spaces(n);
+            String s = TerminalFont.spaces(n);
             int total = 0;
             for (char c : s.toCharArray()) {
                 int i = c >= '' ? c - '' : c - '';
@@ -48,10 +50,10 @@ public final class TraderDialogLayoutTest {
         }
 
         // 行の幅: Line はどの行も決まった幅で終わる
-        TraderDialog.Line line = new TraderDialog.Line();
-        line.stamp('', 22, -25).moveTo(5).text("AK-74M", null).moveTo(298);
+        DialogLine line = TerminalFont.line();
+        line.stamp(TerminalFont.TRADER_FONT, '', 22, -25).moveTo(5).text("AK-74M", null).moveTo(298);
         check(line.x == 298, "line width " + line.x);
-        TraderDialog.Line boxes = new TraderDialog.Line().moveTo(8);
+        DialogLine boxes = TerminalFont.line().moveTo(8);
         boxes.box("アタッチメント 1", 0, null, null, null);
         check(boxes.x == 8 + 96, "box width " + boxes.x);   // 字の幅 73 + 8 は 80 に入らない
 
@@ -88,17 +90,17 @@ public final class TraderDialogLayoutTest {
                 TraderDialog.needParts(List.of(new TraderDialog.Need("銅ワイヤー", 5, 2), new TraderDialog.Need("ボルト", 1, 2)), 1));
 
         // どの行も、途中で一度も行の幅を超えず (超えるとクライアントが改行する)、ちょうど行の幅で終わる
-        for (TraderDialog.Line l : TraderDialog.headerLines(header)) {
+        for (DialogLine l : TraderDialog.headerLines(header)) {
             check(l.max <= TraderDialog.HEADER_W && l.x == TraderDialog.HEADER_W, "header line " + l.max + " / " + l.x);
         }
         for (TraderDialog.RowView row : rows) {
-            for (TraderDialog.Line l : TraderDialog.rowLines(row)) {
-                check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "row line " + row.name() + " " + l.max + " / " + l.x);
+            for (DialogLine l : TraderDialog.rowLines(row)) {
+                check(l.max <= TerminalFont.ROW_LINE_W && l.x == TerminalFont.ROW_LINE_W, "row line " + row.name() + " " + l.max + " / " + l.x);
             }
         }
         for (TraderDialog.ConfirmView c : List.of(confirm, barterConfirm)) {
-            for (TraderDialog.Line l : TraderDialog.confirmLines(c)) {
-                check(l.max <= TraderDialog.ROW_LINE_W && l.x == TraderDialog.ROW_LINE_W, "confirm line " + l.max + " / " + l.x);
+            for (DialogLine l : TraderDialog.confirmLines(c)) {
+                check(l.max <= TerminalFont.ROW_LINE_W && l.x == TerminalFont.ROW_LINE_W, "confirm line " + l.max + " / " + l.x);
             }
         }
         check(TraderDialog.barterQuantities(1).equals(List.of(1)) && TraderDialog.barterQuantities(7).equals(List.of(1, 5)),

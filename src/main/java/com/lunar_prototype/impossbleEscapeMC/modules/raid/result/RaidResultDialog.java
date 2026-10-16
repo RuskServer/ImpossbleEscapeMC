@@ -44,6 +44,31 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidResultFont.*;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_CHIP;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB_ON;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILES;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxArtWidth;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxGlyph;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxWidth;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DARK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NAME;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ITEM_BOX;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_BODY_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_LINE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
 
 /**
  * レイド結果の画面。4 ページを順に送る (2 ページ目の戦利品だけチェストの画面 {@link RaidResultLootGUI}):
@@ -59,26 +84,11 @@ import static com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidResu
  */
 public final class RaidResultDialog implements Listener {
 
-    // ---- 寸法 (QuestDialog と同じ) ----
+    // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int BODY_W = 340;
     static final int LINE_W = BODY_W - 8;
-    private static final int ROW_BODY_W = 308;
-    static final int ROW_W = ROW_BODY_W - 8;
-    private static final int ITEM_BOX = 16;
-    private static final int PLATE_X = -1, RING_X = -25, TEXT_X = 5;
     private static final int CHIP_X = PLATE_X + PLATE_TILES * PLATE_TILE_W - 4 - CHIP_ACTION_W;
     private static final int ROW_RIGHT = PLATE_X + PLATE_TILES * PLATE_TILE_W - 5;
-
-    // ---- 色 (QuestDialog と同じ) ----
-    private static final TextColor INK = TextColor.color(0xE0D6AA);
-    private static final TextColor NAME = TextColor.color(0xEEE8D2);
-    private static final TextColor NOTE = TextColor.color(0xAAA48C);
-    private static final TextColor DIM = TextColor.color(0x827E6E);
-    private static final TextColor AMBER = TextColor.color(0xDEAC4E);
-    private static final TextColor AMBER_DIM = TextColor.color(0x96763C);
-    private static final TextColor DARK = TextColor.color(0x18140A);
-    private static final TextColor OK = TextColor.color(0x78CD60);
-    private static final TextColor NG = TextColor.color(0xD64A34);
 
     private static final String NS = "iem";
     private static final String PREFIX = "result/";
@@ -308,23 +318,23 @@ public final class RaidResultDialog implements Listener {
         DialogLine l1 = line();
         for (int i = 0; i < PLATE_TILES; i++) l1.stamp(TRADER, (char) (PLATE_BASE + i), PLATE_TILE_W, PLATE_X + i * PLATE_TILE_W);
         l1.stamp(TRADER, RING, RING_W, RING_X);
-        int tagW = BOX_WIDTHS[boxIndex(FontWidths.width(v.trader()))] + 1;
+        int tagW = boxWidth(v.trader());
         int right = v.reportable() ? CHIP_X - 6 - FontWidths.width("報告できる") - 6 : CHIP_X - 6;
         l1.moveTo(TEXT_X).text(FontWidths.truncate(v.quest(), right - TEXT_X - tagW - 4), NAME);
-        l1.shift(4).box(TRADER, (char) (BOX_BASE + boxIndex(FontWidths.width(v.trader())) * 3 + BOX_CHIP),
-                BOX_WIDTHS[boxIndex(FontWidths.width(v.trader()))], v.trader(), NOTE, false, null, null);
+        l1.shift(4).box(TRADER, boxGlyph(v.trader(), BOX_CHIP),
+                boxArtWidth(v.trader()), v.trader(), NOTE, false, null, null);
         if (v.reportable()) l1.textRight("報告できる", OK, CHIP_X - 6);
         // 押せる札 (絵) と、真ん中に「納品」(バニラの字を 5 ずらしたフォント)。札も字も押せる
         Component hover = Component.text("この目標に納品する", NOTE);
         l1.moveTo(CHIP_X).glyph(FONT, CHIP_ACTION, CHIP_ACTION_W, click(v.action()), hover);
         l1.moveTo(CHIP_X + (CHIP_ACTION_W - FontWidths.width("納品")) / 2).text(shift(CHIP_TEXT_SHIFT), "納品", AMBER, click(v.action()), hover);
-        l1.moveTo(ROW_W);
+        l1.moveTo(ROW_LINE_W);
 
         DialogLine l2 = line().moveTo(TEXT_X);
         String counts = v.before() + "/" + v.needed() + " → " + v.after() + "/" + v.needed();
         l2.text(FontWidths.truncate(v.item() + " (FIR)", CHIP_X - 12 - TEXT_X - FontWidths.width(counts)), NOTE).shift(6);
         l2.text(v.before() + "/" + v.needed(), DIM).text(" → ", AMBER).text(v.after() + "/" + v.needed(), v.after() >= v.needed() ? OK : AMBER);
-        l2.moveTo(ROW_W);
+        l2.moveTo(ROW_LINE_W);
         return List.of(l1, l2);
     }
 
@@ -371,14 +381,14 @@ public final class RaidResultDialog implements Listener {
 
         DialogLine tabs = line();
         tabs.moveTo(8).box(TRADER, boxGlyph("すべて " + kills.size(), session.killFilter == null ? BOX_TAB_ON : BOX_TAB),
-                boxW("すべて " + kills.size()), "すべて " + kills.size(), session.killFilter == null ? DARK : AMBER,
+                boxArtWidth("すべて " + kills.size()), "すべて " + kills.size(), session.killFilter == null ? DARK : AMBER,
                 session.killFilter == null, click("kills/all"), null).shift(4);
         for (RaidReport.Kind kind : RaidReport.Kind.values()) {
             long count = kills.stream().filter(k -> k.kind() == kind).count();
             if (count == 0 && session.killFilter != kind) continue;
             String label = kind.name() + " " + count;
             boolean on = session.killFilter == kind;
-            tabs.box(TRADER, boxGlyph(label, on ? BOX_TAB_ON : BOX_TAB), boxW(label), label, on ? DARK : AMBER, on,
+            tabs.box(TRADER, boxGlyph(label, on ? BOX_TAB_ON : BOX_TAB), boxArtWidth(label), label, on ? DARK : AMBER, on,
                     click("kills/" + kind.name().toLowerCase(Locale.ROOT)), null).shift(4);
         }
         body.add(DialogBody.plainMessage(tabs.moveTo(LINE_W).build(), BODY_W));
@@ -416,7 +426,7 @@ public final class RaidResultDialog implements Listener {
                     k.kind() == RaidReport.Kind.PMC ? TextColor.color(0xFAF0E6) : DARK, true, null, null);
         }
         if (!dist.isEmpty()) l1.textRight(dist, AMBER, ROW_RIGHT);
-        l1.moveTo(ROW_W);
+        l1.moveTo(ROW_LINE_W);
 
         DialogLine l2 = line().moveTo(TEXT_X);
         String weapon = k.weaponName() != null ? k.weaponName() : "不明";
@@ -429,7 +439,7 @@ public final class RaidResultDialog implements Listener {
             l2.moveTo(partX).box(FONT, k.headshot() ? CHIP_PART_HEAD : CHIP_PART, CHIP_PART_W, k.part(), k.headshot() ? DARK : INK,
                     k.headshot(), null, null);
         }
-        l2.moveTo(ROW_W);
+        l2.moveTo(ROW_LINE_W);
         return List.of(l1, l2);
     }
 
@@ -475,14 +485,6 @@ public final class RaidResultDialog implements Listener {
 
     private static Component join(List<DialogLine> lines) {
         return Component.join(JoinConfiguration.newlines(), lines.stream().map(DialogLine::build).toList());
-    }
-
-    private static char boxGlyph(String label, int kind) {
-        return (char) (BOX_BASE + boxIndex(FontWidths.width(label)) * 3 + kind);
-    }
-
-    private static int boxW(String label) {
-        return BOX_WIDTHS[boxIndex(FontWidths.width(label))];
     }
 
     static String fmt(long v) {

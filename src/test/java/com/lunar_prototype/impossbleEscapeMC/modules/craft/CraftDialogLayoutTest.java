@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.craft;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
@@ -79,10 +80,10 @@ public final class CraftDialogLayoutTest {
             checkWidths(lines, CraftDialog.HEADER_W, "header " + h.facility());
         }
         for (CraftDialog.RecipeView r : List.of(bolts, toolbox, suppressor, m855, m193, longRecipe)) {
-            checkWidths(CraftDialog.recipeLines(r), CraftDialog.ROW_LINE_W, "recipe " + r.name());
+            checkWidths(CraftDialog.recipeLines(r), TerminalFont.ROW_LINE_W, "recipe " + r.name());
         }
         for (CraftDialog.QueueView q : List.of(doneRow, crafting, waiting)) {
-            checkWidths(CraftDialog.queueLines(q), CraftDialog.ROW_LINE_W, "queue " + q.name());
+            checkWidths(CraftDialog.queueLines(q), TerminalFont.ROW_LINE_W, "queue " + q.name());
         }
 
         String dump = System.getenv("IEM_DIALOG_DUMP");
@@ -90,18 +91,18 @@ public final class CraftDialogLayoutTest {
             List<String> screens = new ArrayList<>();
             screens.add(screen("ワークベンチ ― 製作", List.of("閉じる"), List.of(
                     element("header", CraftDialog.HEADER_BODY_W, null, CraftDialog.headerLines(workbench)),
-                    element("row", CraftDialog.ROW_BODY_W, "mc:iron_nugget", CraftDialog.recipeLines(bolts)),
-                    element("row", CraftDialog.ROW_BODY_W, "mc:shears", CraftDialog.recipeLines(toolbox)),
-                    element("row", CraftDialog.ROW_BODY_W, "mc:iron_ingot", CraftDialog.recipeLines(suppressor)))));
+                    element("row", TerminalFont.ROW_BODY_W, "mc:iron_nugget", CraftDialog.recipeLines(bolts)),
+                    element("row", TerminalFont.ROW_BODY_W, "mc:shears", CraftDialog.recipeLines(toolbox)),
+                    element("row", TerminalFont.ROW_BODY_W, "mc:iron_ingot", CraftDialog.recipeLines(suppressor)))));
             screens.add(screen("弾薬製造 ― 製作", List.of("閉じる"), List.of(
                     element("header", CraftDialog.HEADER_BODY_W, null, CraftDialog.headerLines(ammo)),
-                    element("row", CraftDialog.ROW_BODY_W, "ammo/556x45_m855", CraftDialog.recipeLines(m855)),
-                    element("row", CraftDialog.ROW_BODY_W, "ammo/556x45_m193", CraftDialog.recipeLines(m193)))));
+                    element("row", TerminalFont.ROW_BODY_W, "ammo/556x45_m855", CraftDialog.recipeLines(m855)),
+                    element("row", TerminalFont.ROW_BODY_W, "ammo/556x45_m193", CraftDialog.recipeLines(m193)))));
             screens.add(screen("ワークベンチ ― キュー", List.of("閉じる"), List.of(
                     element("header", CraftDialog.HEADER_BODY_W, null, CraftDialog.headerLines(queue)),
-                    element("row", CraftDialog.ROW_BODY_W, "ammo/556x45_m855", CraftDialog.queueLines(doneRow)),
-                    element("row", CraftDialog.ROW_BODY_W, "mc:iron_nugget", CraftDialog.queueLines(crafting)),
-                    element("row", CraftDialog.ROW_BODY_W, "mc:shears", CraftDialog.queueLines(waiting)))));
+                    element("row", TerminalFont.ROW_BODY_W, "ammo/556x45_m855", CraftDialog.queueLines(doneRow)),
+                    element("row", TerminalFont.ROW_BODY_W, "mc:iron_nugget", CraftDialog.queueLines(crafting)),
+                    element("row", TerminalFont.ROW_BODY_W, "mc:shears", CraftDialog.queueLines(waiting)))));
             Files.writeString(Path.of(dump), "{\"screens\":[" + String.join(",", screens) + "]}", StandardCharsets.UTF_8);
         }
         System.out.println("CraftDialogLayoutTest OK");

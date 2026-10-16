@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import net.kyori.adventure.text.Component;
@@ -55,7 +56,7 @@ public final class RaidResultLayoutTest {
                 new RaidResultDialog.HandInView("補給路の確認", "Kovacs", "ボルト", 0, 3, 3, true, "handin/supply_route/1"),
                 new RaidResultDialog.HandInView("実戦配備", "Kovacs", "小型バッテリー", 0, 1, 1, false, "handin/field_deployment/1"),
                 new RaidResultDialog.HandInView("衛生環境の維持と、とても長いクエストの名前", "Pharmakon", "浄水フィルター", 1, 2, 2, true, "handin/x/0"));
-        for (RaidResultDialog.HandInView h : handins) lines(RaidResultDialog.handInLines(h), RaidResultDialog.ROW_W, "handin " + h.quest());
+        for (RaidResultDialog.HandInView h : handins) lines(RaidResultDialog.handInLines(h), TerminalFont.ROW_LINE_W, "handin " + h.quest());
 
         List<RaidReport.Kill> kills = List.of(
                 new RaidReport.Kill(252_000, "SCAV", RaidReport.Kind.SCAV, null, "AK-74M", "5.45x39mm PS", 38, "胴"),
@@ -64,8 +65,8 @@ public final class RaidResultLayoutTest {
                 new RaidReport.Kill(1_023_000, "Tagilla", RaidReport.Kind.BOSS, null, "SVD", "7.62x54R LPS", 112, "頭"),
                 new RaidReport.Kill(1_100_000, "SCAV", RaidReport.Kind.SCAV, null, null, null, -1, null));
         RaidReport.Kill death = new RaidReport.Kill(698_000, "Mirai_77", RaidReport.Kind.PMC, null, "M4A1", "5.56x45mm M855A1", 85, "胴");
-        for (RaidReport.Kill k : kills) lines(RaidResultDialog.killLines(k, false), RaidResultDialog.ROW_W, "kill " + k.name());
-        lines(RaidResultDialog.killLines(death, true), RaidResultDialog.ROW_W, "death");
+        for (RaidReport.Kill k : kills) lines(RaidResultDialog.killLines(k, false), TerminalFont.ROW_LINE_W, "kill " + k.name());
+        lines(RaidResultDialog.killLines(death, true), TerminalFont.ROW_LINE_W, "death");
 
         // 評価ランク: 死亡は D、脱出は 利益 (千₽ ごとに 1) + SCAV 5・PMC 20・BOSS 30
         RaidReport survived = new RaidReport("工場", true, "脱出成功", "北道路", 0, List.of(), 1, 0, false,
