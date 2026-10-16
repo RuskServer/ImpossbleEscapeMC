@@ -88,7 +88,10 @@ public class ScavCommand implements BasicCommand {
         }
 
         try {
-            plugin.getScavSpawner().spawnScav(spawnLoc);
+            if (plugin.getScavSpawner().spawnScav(spawnLoc) == null) {
+                sender.sendMessage(ChatColor.RED + "SCAVの銃がデータパックに無いため召喚できません (コンソールの警告を確認してください)。");
+                return;
+            }
             sender.sendMessage(ChatColor.GREEN + "SCAVを召喚しました。");
         } catch (Exception e) {
             sender.sendMessage(ChatColor.RED + "エラー: " + e.getMessage());

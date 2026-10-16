@@ -578,13 +578,9 @@ private void spawnPlayers() {
     /** 予備の弾の数 (マガジンに込める分とは別) */
     private static final int SPARE_ROUNDS = 200;
 
-    /** ロードアウトの銃の弾: データパック銃の口径 (無ければアイテム定義の口径) の基準弾、無ければ一番弱い弾 */
+    /** ロードアウトの銃の弾: データパック銃の口径の基準弾、無ければ一番弱い弾 */
     private static AmmoDefinition ammoFor(String loadout) {
         String caliber = com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.caliberOf(loadout);
-        if (caliber == null) {
-            ItemDefinition def = ItemRegistry.get(loadout);
-            if (def != null && def.gunStats != null) caliber = def.gunStats.caliber;
-        }
         if (caliber == null) return null;
         AmmoDefinition reference = ItemRegistry.getReferenceAmmoForCaliber(caliber);
         return reference != null ? reference : ItemRegistry.getWeakestAmmoForCaliber(caliber);

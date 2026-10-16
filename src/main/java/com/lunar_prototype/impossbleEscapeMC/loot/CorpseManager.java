@@ -91,28 +91,6 @@ public class CorpseManager {
             virtualInv.setItem(4, mainHand);
             virtualInv.setItem(5, victim.getEquipment().getItemInOffHand());
 
-            if (mainHand != null && mainHand.hasItemMeta()) {
-                PersistentDataContainer pdc = mainHand.getItemMeta().getPersistentDataContainer();
-                String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-                com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
-                
-                if (def != null && "GUN".equalsIgnoreCase(def.type) && def.gunStats != null) {
-                    String ammoId = pdc.get(PDCKeys.CURRENT_AMMO_ID, PDCKeys.STRING);
-                    if (ammoId == null) {
-                        com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition defaultAmmo = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getWeakestAmmoForCaliber(def.gunStats.caliber);
-                        if (defaultAmmo != null) ammoId = defaultAmmo.id;
-                    }
-
-                    if (ammoId != null) {
-                        int amount = 30 + (int)(Math.random() * 31);
-                        ItemStack ammoStack = com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.create(ammoId);
-                        if (ammoStack != null) {
-                            ammoStack.setAmount(amount);
-                            virtualInv.addItem(ammoStack);
-                        }
-                    }
-                }
-            }
         }
         
         for (ItemStack item : extraLoot) {

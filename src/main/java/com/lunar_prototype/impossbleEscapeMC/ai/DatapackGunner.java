@@ -64,7 +64,7 @@ public final class DatapackGunner {
     private static final String[] BLOCKING_TIMERS = {
             "toisarm.timer.swap", "toisarm.timer.reload", "toisarm.timer.empty_reload",
             "toisarm.timer.bolt_action", "toisarm.timer.bolt_action_delay"};
-    /** inaccuracy (BulletTaskの拡散量) を照準のブレ角度 (度) に換算する係数 */
+    /** inaccuracy を照準のブレ角度 (度) に換算する係数 */
     private static final double INACCURACY_TO_DEGREES = 45.0;
     /**
      * 引き金を引いた時の照準を保つtick数。データパックは引き金を引いてから (TRIGGER_PULL_VALUE + 1) tick撃ち続けるが、
