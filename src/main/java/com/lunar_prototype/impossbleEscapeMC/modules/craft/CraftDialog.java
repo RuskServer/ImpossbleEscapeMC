@@ -44,6 +44,50 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BAR_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BAR_DONE_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BAR_STEPS;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BAR_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB_ON;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_ACTIVE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_DONE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_REPORT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_START;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_TEXT_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILES;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.LOCK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.LOCK_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_REPORT_BASE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILES;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_TILE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.QUEST_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TRADER_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxArtWidth;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxGlyph;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxWidth;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.line;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER_DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DARK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NAME;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.PLATE_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.RING_X;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_BODY_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_LINE_W;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
 
 /**
  * 隠れ家の作る設備 (ワークベンチ・弾薬製造・医療設備) で共通の、クラフトの画面 (ダイアログ)。2 つの画面がある:
@@ -58,56 +102,16 @@ import java.util.logging.Level;
  */
 public final class CraftDialog implements Listener {
 
-    // ---- フォント (QuestDialog と同じ番号) ----
-    private static final Key TRADER_FONT = Key.key("iem", "trader");
-    private static final Key QUEST_FONT = Key.key("iem", "quest");
-    /** 札の字のフォント: バニラの字を 5 ずらしたもの (札の縦の真ん中に来る) */
-    private static final Key CHIP_TEXT_FONT = Key.key("iem", "shift_5");
-    private static final char SPACE_POS = '';
-    private static final char SPACE_NEG = '';
-    private static final char HEADER_BASE = '';
-    private static final int HEADER_TILES = 3, HEADER_TILE_W = 108;
-    private static final char PLATE_BASE = '';
-    private static final int PLATE_TILES = 3, PLATE_TILE_W = 100;
-    private static final char RING = '';
-    private static final int RING_W = 22;
-    private static final char LOCK = '';
-    private static final int LOCK_W = 7;
-    private static final char BOX_BASE = '';
-    private static final int[] BOX_WIDTHS = {24, 32, 40, 48, 56, 64, 72, 80, 96, 112};
-    private static final int BOX_TAB = 0, BOX_TAB_ON = 1, BOX_CHIP = 2;
-    private static final char CHIP_BASE = '';
-    private static final int CHIP_REPORT = 0, CHIP_ACTIVE = 1, CHIP_START = 2, CHIP_DONE = 3;
-    private static final int CHIP_W = 36;
-    private static final char PLATE_REPORT_BASE = '';
-    private static final char BAR_BASE = '';
-    private static final char BAR_DONE_BASE = '';
-    private static final int BAR_W = 80, BAR_STEPS = 20;
-
-    // ---- 寸法 (QuestDialog と同じ) ----
+    // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int HEADER_ART_W = HEADER_TILES * HEADER_TILE_W;
     static final int HEADER_BODY_W = 340;
     static final int HEADER_W = HEADER_BODY_W - 8;
     /** 上の端末の行の数 (1 行目: 設備の名前と液晶、3 行目: 画面のタブ、5 行目: 種類のタブ) */
     static final int HEADER_LINES = 6;
     private static final int LCD_X = 150;
-    static final int ROW_BODY_W = 308;
-    static final int ROW_LINE_W = ROW_BODY_W - 8;
-    private static final int PLATE_X = -1, RING_X = -25, TEXT_X = 5;
     private static final int CHIP_X = PLATE_X + PLATE_TILES * PLATE_TILE_W - 4 - CHIP_W;
     private static final int VALUE_RIGHT = CHIP_X - 6;
     private static final int LOCKED_VALUE_RIGHT = PLATE_X + PLATE_TILES * PLATE_TILE_W - 5;
-
-    // ---- 色 (QuestDialog と同じ) ----
-    private static final TextColor INK = TextColor.color(0xE0D6AA);
-    private static final TextColor NAME = TextColor.color(0xEEE8D2);
-    private static final TextColor NOTE = TextColor.color(0xAAA48C);
-    private static final TextColor DIM = TextColor.color(0x827E6E);
-    private static final TextColor AMBER = TextColor.color(0xDEAC4E);
-    private static final TextColor AMBER_DIM = TextColor.color(0x96763C);
-    private static final TextColor DARK = TextColor.color(0x18140A);
-    private static final TextColor OK = TextColor.color(0x78CD60);
-    private static final TextColor NG = TextColor.color(0xD64A34);
 
     private static final String NS = "iem";
     private static final String PREFIX = "craft/";
@@ -473,7 +477,7 @@ public final class CraftDialog implements Listener {
         DialogLine l = line().moveTo(8);
         for (Tab tab : tabs) {
             if (l.x + boxWidth(tab.label()) > HEADER_ART_W - 6) break;   // 入りきらないタブは出さない (折り返させない)
-            l.box(TRADER_FONT, boxGlyph(tab.label(), tab.on() ? BOX_TAB_ON : BOX_TAB), BOX_WIDTHS[boxIndex(FontWidths.width(tab.label()))],
+            l.box(TRADER_FONT, boxGlyph(tab.label(), tab.on() ? BOX_TAB_ON : BOX_TAB), boxArtWidth(tab.label()),
                     tab.label(), tab.on() ? DARK : AMBER, tab.on(), click(tab.action()), null).shift(4);
         }
         return l.moveTo(HEADER_W);
@@ -603,24 +607,6 @@ public final class CraftDialog implements Listener {
     }
 
     // ---- 小物 ----
-
-    private static DialogLine line() {
-        return new DialogLine(TRADER_FONT, SPACE_POS, SPACE_NEG);
-    }
-
-    private static int boxIndex(int textWidth) {
-        int i = 0;
-        while (i < BOX_WIDTHS.length - 1 && BOX_WIDTHS[i] < textWidth + 8) i++;
-        return i;
-    }
-
-    private static int boxWidth(String label) {
-        return BOX_WIDTHS[boxIndex(FontWidths.width(label))] + 1;
-    }
-
-    private static char boxGlyph(String label, int kind) {
-        return (char) (BOX_BASE + boxIndex(FontWidths.width(label)) * 3 + kind);
-    }
 
     private static char barGlyph(double ratio, boolean done) {
         int step = (int) Math.round(Math.max(0, Math.min(1, ratio)) * BAR_STEPS);

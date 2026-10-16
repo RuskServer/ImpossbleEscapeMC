@@ -13,14 +13,12 @@ import io.papermc.paper.registry.data.dialog.DialogBase;
 import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
+import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.ShadowColor;
-import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -36,6 +34,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.line;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER_DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
 
 /**
  * 隠れ家の設備の画面 (ダイアログ)。左に端末のパネル (フォント iem:hideout の絵。IEM_shader/tools/hideout_font.py)、
@@ -53,10 +57,6 @@ public final class HideoutDialog implements Listener {
     private static final String NS = "iem";
     private static final String PREFIX = "hideout/";
     static final Key FONT = Key.key("iem", "hideout");
-    /** 空白の字はトレーダーの画面と同じ物 (iem:trader の ±2^i) */
-    private static final Key SPACE_FONT = Key.key("iem", "trader");
-    private static final char SPACE_POS = '';
-    private static final char SPACE_NEG = '';
 
     static final int BODY_W = 452;
     static final int LINE_W = BODY_W - 8;
@@ -90,11 +90,6 @@ public final class HideoutDialog implements Listener {
     private static final char PIP_OFF = '';
     private static final int PIP_W = 6;
 
-    private static final TextColor AMBER = TextColor.color(0xDEAC4E);
-    private static final TextColor AMBER_DIM = TextColor.color(0x96763C);
-    private static final TextColor INK = TextColor.color(0xE0D6AA);
-    private static final TextColor GREEN = TextColor.color(0x78CD60);
-    private static final TextColor RED = TextColor.color(0xD64A34);
     private static final int NOTICE_TICKS = 80;
     /** カメラから外れていないかを見る間隔 (tick) */
     private static final int WATCH_TICKS = 10;
@@ -247,52 +242,52 @@ public final class HideoutDialog implements Listener {
     }
 
     /** パネルの行 (サーバーなしで組み立てられる。HideoutDialogLayoutTest が幅を確かめる) */
-    static List<Line> panelLines(PanelView v) {
-        List<Line> lines = new ArrayList<>();
-        for (int i = 0; i < HEAD_LINES; i++) lines.add(new Line());
+    static List<DialogLine> panelLines(PanelView v) {
+        List<DialogLine> lines = new ArrayList<>();
+        for (int i = 0; i < HEAD_LINES; i++) lines.add(line());
 
         // 行 0: パネルの上の部分 (筐体の上と、液晶の上の縁まで)
-        Line l0 = lines.get(0);
-        for (int c = 0; c < 2; c++) l0.stamp((char) (TOP + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
+        DialogLine l0 = lines.get(0);
+        for (int c = 0; c < 2; c++) l0.stamp(FONT, (char) (TOP + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
 
         // 行 1: 見出し
         lines.get(1).moveTo(PANEL + 8).text("HIDEOUT", AMBER).moveTo(PANEL + 60).text("隠れ家の設備", AMBER_DIM);
 
         // 行 2: ◀ 名前の液晶 ▶
-        Line l2 = lines.get(2);
-        l2.moveTo(PANEL + 5).glyph(ARROW_LEFT, ARROW_W, click("prev"));
-        for (int c = 0; c < 2; c++) l2.stamp((char) (NAME + c), NAME_TILE_W, PANEL + 24 + c * NAME_TILE_W);
-        l2.moveTo(PANEL + 137).glyph(ARROW_RIGHT, ARROW_W, click("next"));
+        DialogLine l2 = lines.get(2);
+        l2.moveTo(PANEL + 5).glyph(FONT, ARROW_LEFT, ARROW_W, click("prev"), null);
+        for (int c = 0; c < 2; c++) l2.stamp(FONT, (char) (NAME + c), NAME_TILE_W, PANEL + 24 + c * NAME_TILE_W);
+        l2.moveTo(PANEL + 137).glyph(FONT, ARROW_RIGHT, ARROW_W, click("next"), null);
 
         // 行 3: 設備の名前とレベル (名前の液晶の真ん中に)
         String state = v.level() == 0 && HideoutFacility.values()[v.index()] != HideoutFacility.BASE ? "未設置" : "Lv." + v.level();
         int nameW = FontWidths.width(v.label()) + 6 + FontWidths.width(state);
-        Line l3 = lines.get(3);
+        DialogLine l3 = lines.get(3);
         l3.moveTo(PANEL + CENTER - nameW / 2).text(v.label(), AMBER).shift(6).text(state, INK);
 
         // 行 4: 何番目の設備か (点。今見ている物は大きく、建ててある物は明るく)
-        Line l4 = lines.get(4);
+        DialogLine l4 = lines.get(4);
         int count = v.built().length;
         for (int i = 0; i < count; i++) {
             int center = CENTER + (i * 2 - (count - 1)) * 9 / 2;
             if (i == v.index()) {
-                l4.stamp(DOT_CURRENT, 5, PANEL + center - 2);
+                l4.stamp(FONT, DOT_CURRENT, 5, PANEL + center - 2);
             } else {
-                l4.stamp(v.built()[i] ? DOT_BUILT : DOT_EMPTY, 3, PANEL + center - 1);
+                l4.stamp(FONT, v.built()[i] ? DOT_BUILT : DOT_EMPTY, 3, PANEL + center - 1);
             }
         }
 
         // 液晶の行 (行 6 から): レベルと目盛り、効果 (あれば)、必要な物、空き、上げられるか
         boolean maxed = v.level() >= v.maxLevel();
-        List<Line> rows = new ArrayList<>();
-        Line levelRow = stripRow();
+        List<DialogLine> rows = new ArrayList<>();
+        DialogLine levelRow = stripRow();
         levelRow.moveTo(PANEL + 13)
                 .text(maxed ? (v.maxLevel() == 0 ? "まだありません" : "最大レベル") : "Lv." + v.level() + " → Lv." + (v.level() + 1), INK);
         // 目盛りは右寄せ。文字に重なるほど多い時 (建物の改良など) は出さない
         boolean pipsFit = PANEL + RIGHT - v.maxLevel() * (PIP_W + 2) >= levelRow.x + 4;
         for (int k = 0; pipsFit && k < v.maxLevel(); k++) {
             char pip = k < v.level() ? PIP_ON : (k == v.level() ? PIP_NEXT : PIP_OFF);
-            levelRow.stamp(pip, PIP_W, PANEL + RIGHT + 2 - (v.maxLevel() - k) * (PIP_W + 2));
+            levelRow.stamp(FONT, pip, PIP_W, PANEL + RIGHT + 2 - (v.maxLevel() - k) * (PIP_W + 2));
         }
         rows.add(levelRow);
         if (v.description() != null) {
@@ -306,7 +301,7 @@ public final class HideoutDialog implements Listener {
             for (int i = 0; i < v.requirements().size(); i++) {
                 Requirement r = v.requirements().get(i);
                 boolean ok = r.have() >= r.need();
-                Line row = stripRow();
+                DialogLine row = stripRow();
                 if (i == 0) row.moveTo(PANEL + 13).text("必要", AMBER_DIM);
                 // 右に持っている数 (お金は所持金、素材は 持っている数/必要な数) と ✓ ✕
                 String have = switch (r.kind()) {
@@ -321,40 +316,40 @@ public final class HideoutDialog implements Listener {
                     case ITEM -> r.label();
                 };
                 row.moveTo(PANEL + VALUE).text(FontWidths.truncate(label, haveX - 4 - (PANEL + VALUE)), INK)
-                        .moveTo(haveX).text(have, ok ? GREEN : RED)
-                        .moveTo(PANEL + HAVE_RIGHT + 5).text(ok ? "✓" : "✕", ok ? GREEN : RED);
+                        .moveTo(haveX).text(have, ok ? OK : NG)
+                        .moveTo(PANEL + HAVE_RIGHT + 5).text(ok ? "✓" : "✕", ok ? OK : NG);
                 rows.add(row);
             }
         }
         rows.add(stripRow());
-        Line status = stripRow().moveTo(PANEL + 13);
+        DialogLine status = stripRow().moveTo(PANEL + 13);
         if (v.blocking() != null) {
-            status.text(FontWidths.truncate(v.blocking(), RIGHT - 13), RED);
+            status.text(FontWidths.truncate(v.blocking(), RIGHT - 13), NG);
         } else {
-            status.text("強化できます", GREEN);
+            status.text("強化できます", OK);
         }
         rows.add(status);
 
         // 最後の行の次に下の部分
         lines.addAll(rows);
-        Line bottom = new Line();
-        for (int c = 0; c < 2; c++) bottom.stamp((char) (BOTTOM + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
+        DialogLine bottom = line();
+        for (int c = 0; c < 2; c++) bottom.stamp(FONT, (char) (BOTTOM + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
         lines.add(bottom);
-        lines.add(new Line());   // 下の部分 (13) が次の行にかかる分
+        lines.add(line());   // 下の部分 (13) が次の行にかかる分
 
-        for (Line line : lines) line.moveTo(LINE_W);
+        for (DialogLine line : lines) line.moveTo(LINE_W);
         return lines;
     }
 
     /** 液晶の行: 先に帯 (筐体と液晶の 1 行ぶん) を敷く (後から敷くと文字が隠れる) */
-    private static Line stripRow() {
-        Line row = new Line();
-        for (int c = 0; c < 2; c++) row.stamp((char) (STRIP + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
+    private static DialogLine stripRow() {
+        DialogLine row = line();
+        for (int c = 0; c < 2; c++) row.stamp(FONT, (char) (STRIP + c), PANEL_TILE_W, PANEL + c * PANEL_TILE_W);
         return row;
     }
 
-    private static Component join(List<Line> lines) {
-        return Component.join(JoinConfiguration.newlines(), lines.stream().map(Line::build).toList());
+    private static Component join(List<DialogLine> lines) {
+        return Component.join(JoinConfiguration.newlines(), lines.stream().map(DialogLine::build).toList());
     }
 
     private static ClickEvent click(String action) {
@@ -471,65 +466,4 @@ public final class HideoutDialog implements Listener {
 
     // ---- 文字の行 ----
 
-    /**
-     * 1 行を、行の頭からの位置 (GUI の画素) を数えながら組み立てる。最後に {@link #moveTo} で決まった幅にそろえる
-     * (中央揃えでも位置がずれないように)。絵の字は「幅 + 1」進む
-     */
-    static final class Line {
-        private final TextComponent.Builder out = Component.text();
-        int x;
-        /** 一番右まで進んだ位置 (行の幅を超えると、クライアントがそこで改行してしまう) */
-        int max;
-
-        Line shift(int n) {
-            if (n != 0) out.append(Component.text(spaces(n)).font(SPACE_FONT));
-            x += n;
-            max = Math.max(max, x);
-            return this;
-        }
-
-        Line moveTo(int target) {
-            return shift(target - x);
-        }
-
-        /** 絵の字を今の位置に描いて進む。click があれば押せる */
-        Line glyph(char c, int width, ClickEvent click) {
-            Component g = Component.text(String.valueOf(c)).font(FONT).color(NamedTextColor.WHITE).shadowColor(ShadowColor.none());
-            if (click != null) g = g.clickEvent(click);
-            out.append(g);
-            x += width + 1;
-            max = Math.max(max, x);
-            return this;
-        }
-
-        /** 絵の字を at に描き、今の位置に戻る */
-        Line stamp(char c, int width, int at) {
-            int back = x;
-            moveTo(at);
-            glyph(c, width, null);
-            return moveTo(back);
-        }
-
-        Line text(String s, TextColor color) {
-            out.append(Component.text(s, color));
-            x += FontWidths.width(s);
-            max = Math.max(max, x);
-            return this;
-        }
-
-        Component build() {
-            return out.build();
-        }
-    }
-
-    /** n だけ進む (負なら戻る) 空白の文字列。±2^i の空白を組み合わせる */
-    static String spaces(int n) {
-        StringBuilder out = new StringBuilder();
-        int abs = Math.abs(n);
-        char base = n >= 0 ? SPACE_POS : SPACE_NEG;
-        for (int bit = 0; abs > 0; bit++, abs >>= 1) {
-            if ((abs & 1) != 0) out.append((char) (base + bit));
-        }
-        return out.toString();
-    }
 }

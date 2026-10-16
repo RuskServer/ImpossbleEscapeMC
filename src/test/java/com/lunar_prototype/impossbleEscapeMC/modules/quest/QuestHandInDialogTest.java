@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
@@ -45,11 +46,11 @@ public final class QuestHandInDialogTest {
         checkWidths(QuestHandInDialog.objectiveLines(new QuestHandInDialog.ObjectiveView("とても長いクエストの名前がここに入る場合の確認用の文字列",
                 "とても長い目標の説明がここに入る場合の確認用の文字列です。ここも長い", 0, 0, 1)), QuestHandInDialog.LINE_W, "objective long");
         checkWidths(QuestHandInDialog.groupLines(new QuestHandInDialog.GroupView("5.56x45mm M855A1", true, "スタッシュ 3 の Tactical Sling Bag",
-                120, true, 48, "toggle/0/3")), QuestHandInDialog.ROW_LINE_W, "group selected");
+                120, true, 48, "toggle/0/3")), TerminalFont.ROW_LINE_W, "group selected");
         checkWidths(QuestHandInDialog.groupLines(new QuestHandInDialog.GroupView("とても長いアイテムの名前がここに入る場合の確認用の文字列です", false,
-                "持ち物の とても長いバックパックの名前がここに入る場合の確認用", 9999, false, 0, "toggle/12/34")), QuestHandInDialog.ROW_LINE_W, "group long");
+                "持ち物の とても長いバックパックの名前がここに入る場合の確認用", 9999, false, 0, "toggle/12/34")), TerminalFont.ROW_LINE_W, "group long");
         checkWidths(QuestHandInDialog.groupLines(new QuestHandInDialog.GroupView("工具箱", true, "持ち物", 1, true, 0, "toggle/1/0")),
-                QuestHandInDialog.ROW_LINE_W, "group spare");
+                TerminalFont.ROW_LINE_W, "group spare");
 
         // ---- 割り当て ----
         // 行 0: 30 個、行 1: 50 個、行 2: 10 個。目標 0 は 60 個 (行 0・1)、目標 1 は 40 個 (行 1・2)

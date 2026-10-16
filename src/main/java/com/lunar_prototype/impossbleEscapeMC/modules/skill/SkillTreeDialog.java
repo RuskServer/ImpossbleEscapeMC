@@ -38,6 +38,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.BOX_TAB_ON;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TRADER_FONT;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxArtWidth;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.boxGlyph;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.line;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER_DIM;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.DARK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NAME;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE;
+import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
 
 /**
  * スキルツリーの画面 (ダイアログ)。隠れ家のスキルツリー設備のブロックを右クリックで開く。
@@ -55,13 +69,6 @@ public final class SkillTreeDialog implements Listener {
     private static final String NS = "iem";
     private static final String PREFIX = "skill/";
     static final Key FONT = Key.key("iem", "skill");
-    /** 空白とタブの箱はトレーダーの画面と同じ字 (iem:trader) */
-    private static final Key TRADER_FONT = Key.key("iem", "trader");
-    private static final char SPACE_POS = '';
-    private static final char SPACE_NEG = '';
-    private static final char BOX_BASE = '';
-    private static final int[] BOX_WIDTHS = {24, 32, 40, 48, 56, 64, 72, 80, 96, 112};
-    private static final int BOX_TAB = 0, BOX_TAB_ON = 1;
 
     static final int BODY_W = 392;
     static final int LINE_W = 384;
@@ -91,15 +98,7 @@ public final class SkillTreeDialog implements Listener {
     private static final int DETAIL_FIRST_ROW = 9, DETAIL_LAST_ROW = 19, DETAIL_STATUS_LINE = 20;
     static final int DETAIL_ROWS = DETAIL_LAST_ROW - DETAIL_FIRST_ROW + 1;
 
-    private static final TextColor AMBER = TextColor.color(0xDEAC4E);
-    private static final TextColor AMBER_DIM = TextColor.color(0x96763C);
-    private static final TextColor INK = TextColor.color(0xE0D6AA);
-    private static final TextColor NAME = TextColor.color(0xEEE8D2);
-    private static final TextColor NOTE = TextColor.color(0xAAA48C);
     private static final TextColor SUB = TextColor.color(0xBEB68C);
-    private static final TextColor GREEN = TextColor.color(0x78CD60);
-    private static final TextColor RED = TextColor.color(0xD64A34);
-    private static final TextColor DARK = TextColor.color(0x18140A);
     private static final TextColor LINE_LIT = AMBER;
     private static final TextColor LINE_DIM = TextColor.color(0x3C3A2E);
     private static final TextColor LOCKED_TEXT = TextColor.color(0x3E3C30);
@@ -264,7 +263,7 @@ public final class SkillTreeDialog implements Listener {
     }
 
     private static DialogLine newLine() {
-        return new DialogLine(TRADER_FONT, SPACE_POS, SPACE_NEG);
+        return line();
     }
 
     /** 上の札: 名前・所持金などの液晶 (行 1)、系統のタブ (行 3) */
@@ -278,10 +277,10 @@ public final class SkillTreeDialog implements Listener {
                 + 8 + FontWidths.width("設備") + 3 + FontWidths.width(facility);
         l1.moveTo(PANEL + STATS_X);
         if (STATS_X + full <= STATS_RIGHT) {
-            l1.text("所持金", AMBER_DIM).shift(3).text(money, GREEN).shift(8).text("レベル", AMBER_DIM).shift(3).text(level, AMBER)
+            l1.text("所持金", AMBER_DIM).shift(3).text(money, OK).shift(8).text("レベル", AMBER_DIM).shift(3).text(level, AMBER)
                     .shift(8).text("設備", AMBER_DIM).shift(3).text(facility, AMBER);
         } else {   // 所持金が大きい時は名前を外す
-            l1.text(money, GREEN).shift(8).text("Lv" + level, AMBER).shift(8).text("設備" + facility, AMBER);
+            l1.text(money, OK).shift(8).text("Lv" + level, AMBER).shift(8).text("設備" + facility, AMBER);
         }
 
         DialogLine l3 = lines.get(3);
@@ -290,20 +289,12 @@ public final class SkillTreeDialog implements Listener {
             int[] count = v.counts().getOrDefault(c, new int[2]);
             String label = c.label + " " + count[0] + "/" + count[1];
             boolean on = c == v.category();
-            int textW = FontWidths.width(label);
-            int size = boxIndex(textW);
-            int w = BOX_WIDTHS[size];
+            int w = boxArtWidth(label);
             int start = l3.x;
-            l3.box(TRADER_FONT, (char) (BOX_BASE + size * 3 + (on ? BOX_TAB_ON : BOX_TAB)), w, label, on ? DARK : AMBER, on,
+            l3.box(TRADER_FONT, boxGlyph(label, on ? BOX_TAB_ON : BOX_TAB), w, label, on ? DARK : AMBER, on,
                     click("tab/" + c.id), null);
             l3.moveTo(start + w + 4);
         }
-    }
-
-    private static int boxIndex(int textWidth) {
-        int i = 0;
-        while (i < BOX_WIDTHS.length - 1 && BOX_WIDTHS[i] < textWidth + 8) i++;
-        return i;
     }
 
     static int nodeX(SkillNode node) {
@@ -373,7 +364,7 @@ public final class SkillTreeDialog implements Listener {
     private static TextColor iconColor(SkillModule.Status status) {
         return switch (status) {
             case LEARNED -> TextColor.color(0xFAD682);
-            case AVAILABLE -> GREEN;
+            case AVAILABLE -> OK;
             case FACILITY -> TextColor.color(0x42403A);
             default -> TextColor.color(0x5C5A4C);
         };
@@ -404,8 +395,8 @@ public final class SkillTreeDialog implements Listener {
     private static TextColor statusColor(View v, SkillNode node, boolean withCost) {
         SkillModule.Status status = v.status().get(node.id());
         if (status == SkillModule.Status.LEARNED) return AMBER;
-        if (status == SkillModule.Status.AVAILABLE && (!withCost || v.affordable())) return GREEN;
-        return RED;
+        if (status == SkillModule.Status.AVAILABLE && (!withCost || v.affordable())) return OK;
+        return NG;
     }
 
     /** 右の液晶: 選んだノードの名前 (行 6・7)、効果・条件・費用 (行 9〜19)、状態 (行 20) */
@@ -470,7 +461,7 @@ public final class SkillTreeDialog implements Listener {
             int valueRight = PANEL + (ok != null ? DETAIL_HAVE_RIGHT - (have != null ? FontWidths.width(have) + 4 : 0) : DETAIL_RIGHT);
             line.moveTo(PANEL + DETAIL_VALUE).text(FontWidths.truncate(value, valueRight - (PANEL + DETAIL_VALUE)), color);
             if (ok == null) return;
-            TextColor mark = ok ? GREEN : RED;
+            TextColor mark = ok ? OK : NG;
             if (have != null) line.moveTo(PANEL + DETAIL_HAVE_RIGHT - FontWidths.width(have)).text(have, mark);
             line.moveTo(PANEL + DETAIL_MARK).text(ok ? "✓" : "✕", mark);
         }

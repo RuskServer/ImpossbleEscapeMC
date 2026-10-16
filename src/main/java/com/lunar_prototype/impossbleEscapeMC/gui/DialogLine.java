@@ -138,6 +138,27 @@ public final class DialogLine {
     }
 
     /**
+     * 端末のタブ・札の箱 ({@link TerminalFont} の箱。字の幅 + 8 が入る一番小さい物) と、その中央に字。
+     * kind は {@link TerminalFont#BOX_TAB}・{@link TerminalFont#BOX_TAB_ON} (選んでいるタブ。字に影を付けない)・{@link TerminalFont#BOX_CHIP}。
+     * 送りは箱の絵の幅 (絵の字の「+ 1」は含めない。次の箱とは shift で間を取る)
+     */
+    public DialogLine box(String label, int kind, TextColor color, ClickEvent click, Component hover) {
+        int textW = FontWidths.width(label);
+        int w = TerminalFont.boxArtWidth(label);
+        int start = x;
+        glyph(TerminalFont.TRADER_FONT, TerminalFont.boxGlyph(label, kind), w, click, hover);
+        moveTo(start + (w - textW) / 2);
+        Component t = Component.text(label, color);
+        if (kind == TerminalFont.BOX_TAB_ON) t = t.shadowColor(ShadowColor.none());
+        if (click != null) t = t.clickEvent(click);
+        if (hover != null) t = t.hoverEvent(HoverEvent.showText(hover));
+        out.append(t);
+        x += textW;
+        max = Math.max(max, x);
+        return moveTo(start + w);
+    }
+
+    /**
      * 札の絵 (幅 width) と、その中央に textFont の字 (札の縦の真ん中に来るよう、バニラの字をずらしたフォント iem:shift_&lt;n&gt;)。
      * 札も字も押せる。字に影を付けない時は noShadow
      */

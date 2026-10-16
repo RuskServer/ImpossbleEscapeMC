@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
+import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
@@ -56,12 +58,12 @@ public final class HideoutDialogLayoutTest {
                 new HideoutDialog.PanelView("弾薬製造", 1, 1, HideoutFacility.AMMO.ordinal(), built(5), null, false, List.of(), "最大レベルです"));
 
         for (HideoutDialog.PanelView v : views) {
-            List<HideoutDialog.Line> lines = HideoutDialog.panelLines(v);
+            List<DialogLine> lines = HideoutDialog.panelLines(v);
             // 液晶の行: レベル + 効果 (あれば) + 必要な物 (無ければ 1 行) + 空き + 状態。その下に下の部分の 2 行
             int rows = 1 + (v.description() != null ? 1 : 0) + Math.max(1, v.requirementsDefined() && v.level() < v.maxLevel() ? v.requirements().size() : 1) + 2;
             check(lines.size() == HideoutDialog.HEAD_LINES + rows + 2, v.label() + " line count " + lines.size());
             for (int i = 0; i < lines.size(); i++) {
-                HideoutDialog.Line l = lines.get(i);
+                DialogLine l = lines.get(i);
                 check(l.max <= HideoutDialog.LINE_W && l.x == HideoutDialog.LINE_W,
                         v.label() + " line " + i + ": max " + l.max + " end " + l.x);
             }
@@ -72,7 +74,7 @@ public final class HideoutDialogLayoutTest {
         // 空白の字: 戻す・進めるが行き来できる
         for (int n = -300; n <= 500; n++) {
             int sum = 0;
-            for (char c : HideoutDialog.spaces(n).toCharArray()) sum += c >= '' ? -(1 << (c - '')) : (1 << (c - ''));
+            for (char c : TerminalFont.spaces(n).toCharArray()) sum += c >= '' ? -(1 << (c - '')) : (1 << (c - ''));
             check(sum == n, "spaces " + n);
         }
 
@@ -81,7 +83,7 @@ public final class HideoutDialogLayoutTest {
             var gson = GsonComponentSerializer.gson();
             List<String> screens = new ArrayList<>();
             for (HideoutDialog.PanelView v : views) {
-                Component body = Component.join(JoinConfiguration.newlines(), HideoutDialog.panelLines(v).stream().map(HideoutDialog.Line::build).toList());
+                Component body = Component.join(JoinConfiguration.newlines(), HideoutDialog.panelLines(v).stream().map(DialogLine::build).toList());
                 screens.add("{\"title\":\"隠れ家 ― " + v.label() + "\",\"footer\":[\"" + HideoutDialog.upgradeLabel(v) + "\",\"閉じる\"],"
                         + "\"elements\":[{\"kind\":\"text\",\"width\":" + HideoutDialog.BODY_W + ",\"component\":" + gson.serialize(body) + "}]}");
             }

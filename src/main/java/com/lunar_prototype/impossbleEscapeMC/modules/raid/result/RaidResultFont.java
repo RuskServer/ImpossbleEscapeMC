@@ -1,16 +1,18 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import net.kyori.adventure.key.Key;
 
 /**
  * レイド結果の画面の部品の字 (リソースパックのフォント iem:result。IEM_shader/tools/result_font.py と同じ番号・寸法)。
- * クエストの画面と共通の部品は iem:trader・iem:quest の字 ({@link #TRADER}・{@link #QUEST})
+ * クエストの画面と共通の部品は iem:trader・iem:quest の字 ({@link TerminalFont})
  */
 final class RaidResultFont {
     static final Key FONT = Key.key("iem", "result");
-    static final Key TRADER = Key.key("iem", "trader");
-    static final Key QUEST = Key.key("iem", "quest");
+    /** 共通の部品のフォント ({@link TerminalFont}) */
+    static final Key TRADER = TerminalFont.TRADER_FONT;
+    static final Key QUEST = TerminalFont.QUEST_FONT;
 
     static final char SPACE_POS = '';
     static final char SPACE_NEG = '';
@@ -57,16 +59,6 @@ final class RaidResultFont {
     static final char CHIP_ACTION = '';
     static final int CHIP_ACTION_W = 36, CHIP_TEXT_SHIFT = 5;
 
-    // ---- iem:trader・iem:quest の字 (TraderDialog・QuestDialog と同じ) ----
-    static final char PLATE_BASE = '';
-    static final int PLATE_TILES = 3, PLATE_TILE_W = 100;
-    static final char RING = '';
-    static final int RING_W = 22;
-    static final char BOX_BASE = '';
-    static final int[] BOX_WIDTHS = {24, 32, 40, 48, 56, 64, 72, 80, 96, 112};
-    static final int BOX_TAB = 0, BOX_TAB_ON = 1, BOX_CHIP = 2;
-    static final char DETAIL_BASE = '';
-    static final int DETAIL_TILES = 3, DETAIL_TILE_W = 108;
 
     private RaidResultFont() {
     }
@@ -83,9 +75,4 @@ final class RaidResultFont {
         return Key.key("iem", "shift_" + n);
     }
 
-    static int boxIndex(int textWidth) {
-        int i = 0;
-        while (i < BOX_WIDTHS.length - 1 && BOX_WIDTHS[i] < textWidth + 8) i++;
-        return i;
-    }
 }

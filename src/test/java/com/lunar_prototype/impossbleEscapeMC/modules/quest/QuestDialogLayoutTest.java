@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
+import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
@@ -23,8 +25,8 @@ public final class QuestDialogLayoutTest {
         if (!condition) throw new AssertionError(message);
     }
 
-    private static void checkLines(List<QuestDialog.Line> lines, int width, String what) {
-        for (QuestDialog.Line l : lines) {
+    private static void checkLines(List<DialogLine> lines, int width, String what) {
+        for (DialogLine l : lines) {
             check(l.max <= width && l.x == width, what + " " + l.max + " / " + l.x + " (幅 " + width + ")");
         }
     }
@@ -65,7 +67,7 @@ public final class QuestDialogLayoutTest {
                         "detail/e", "detail/e", hover),
                 new QuestDialog.RowView("工場の遺産 - 調査と、とても長いクエストの名前", QuestDialog.Status.ACTIVE, "Pharmakon", "0/7", AMBER, 7, 3,
                         List.of(new QuestDialog.Part("浄水フィルター 0/2 納品", NOTE)), "detail/f", "detail/f", hover));
-        for (QuestDialog.RowView row : rows) checkLines(QuestDialog.rowLines(row), QuestDialog.ROW_LINE_W, "row " + row.name());
+        for (QuestDialog.RowView row : rows) checkLines(QuestDialog.rowLines(row), TerminalFont.ROW_LINE_W, "row " + row.name());
 
         QuestDialog.DetailView detail = new QuestDialog.DetailView("照準の微調整", "Kovacs", QuestDialog.Status.ACTIVE, 1, 3);
         checkLines(QuestDialog.detailHeaderLines(detail), QuestDialog.HEADER_W, "detail header");
@@ -80,12 +82,12 @@ public final class QuestDialogLayoutTest {
                 new QuestDialog.ObjectiveView("EOTech XPS2 (FIR) を 1 個納品する", "0/1", false, 0.0, "handin/b"),
                 new QuestDialog.ObjectiveView("ノヴォザリエ薬品工場 から脱出する (1回)", "0/1", false, 0.0, null),
                 new QuestDialog.ObjectiveView("30m以上70m以下の距離からSCAVを7体排除する、とても長い目標の説明文", "3/7", false, 3 / 7.0, null));
-        for (QuestDialog.ObjectiveView o : objectives) checkLines(QuestDialog.objectiveLines(o), QuestDialog.ROW_LINE_W, "objective " + o.text());
+        for (QuestDialog.ObjectiveView o : objectives) checkLines(QuestDialog.objectiveLines(o), TerminalFont.ROW_LINE_W, "objective " + o.text());
         List<QuestDialog.NoteView> notes = List.of(
                 new QuestDialog.NoteView("22,000₽", AMBER, "所持金に加わる", NOTE),
                 new QuestDialog.NoteView("EXP 1,200", OK, "経験値", NOTE),
                 new QuestDialog.NoteView("SVD 販売解放", TextColor.color(0xE0D6AA), "Kovacs で買えるようになる", NOTE));
-        for (QuestDialog.NoteView n : notes) checkLines(QuestDialog.noteLines(n), QuestDialog.ROW_LINE_W, "note " + n.text());
+        for (QuestDialog.NoteView n : notes) checkLines(QuestDialog.noteLines(n), TerminalFont.ROW_LINE_W, "note " + n.text());
 
         String dump = System.getenv("IEM_DIALOG_DUMP");
         if (dump != null) {
