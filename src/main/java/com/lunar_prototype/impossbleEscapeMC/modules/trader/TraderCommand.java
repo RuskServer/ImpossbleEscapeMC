@@ -1,11 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -14,7 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TraderCommand implements CommandExecutor, TabCompleter {
+@Command(name = "trader", description = "トレーダーシステム管理・利用コマンド", permission = "op")
+public class TraderCommand implements BasicCommand {
     private final TraderModule traderModule;
 
     public TraderCommand(TraderModule traderModule) {
@@ -22,48 +23,50 @@ public class TraderCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
             sender.sendMessage("このコマンドはプレイヤーのみ実行可能です。");
-            return true;
+            return;
         }
 
         if (args.length < 1) {
             player.sendMessage(Component.text("使用法: /trader <open|reload> [traderId]", NamedTextColor.RED));
-            return true;
+            return;
         }
 
         if (args[0].equalsIgnoreCase("reload")) {
             if (!player.hasPermission("impossbleescape.admin")) {
                 player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
-                return true;
+                return;
             }
             traderModule.loadTraders();
             player.sendMessage(Component.text("トレーダー設定をリロードしました。", NamedTextColor.GREEN));
-            return true;
+            return;
         }
 
         if (args[0].equalsIgnoreCase("open")) {
             if (args.length < 2) {
                 player.sendMessage(Component.text("トレーダーIDを指定してください。", NamedTextColor.RED));
-                return true;
+                return;
             }
 
             TraderDefinition trader = traderModule.getTrader(args[1]);
             if (trader == null) {
                 player.sendMessage(Component.text("指定されたトレーダーが見つかりません。", NamedTextColor.RED));
-                return true;
+                return;
             }
 
             TraderDialog.open(traderModule, trader, player);
-            return true;
+            return;
         }
 
-        return true;
+        return;
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (args.length == 1) {
             return List.of("open", "reload");
         }

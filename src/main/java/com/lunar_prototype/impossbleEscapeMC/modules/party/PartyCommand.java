@@ -1,12 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -17,7 +17,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class PartyCommand implements CommandExecutor, TabCompleter {
+@Command(name = "party", description = "パーティーシステムコマンド")
+public class PartyCommand implements BasicCommand {
     private final PartyModule manager;
 
     public PartyCommand(PartyModule manager) {
@@ -25,12 +26,13 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) return true;
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
+        if (!(sender instanceof Player player)) return;
 
         if (args.length == 0) {
             sendHelp(player);
-            return true;
+            return;
         }
 
         switch (args[0].toLowerCase()) {
@@ -40,19 +42,19 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
             case "invite":
                 if (args.length < 2) {
                     player.sendMessage(Component.text("使用法: /party invite <player>", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 Player target = Bukkit.getPlayer(args[1]);
                 if (target == null) {
                     player.sendMessage(Component.text("プレイヤーが見つかりません。", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 manager.invitePlayer(player, target);
                 break;
             case "accept":
                 if (args.length < 2) {
                     player.sendMessage(Component.text("使用法: /party accept <player>", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 manager.acceptInvite(player, args[1]);
                 break;
@@ -63,12 +65,12 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
             case "leader": {
                 if (args.length < 2) {
                     player.sendMessage(Component.text("使用法: /party " + args[0].toLowerCase() + " <player>", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 Player member = Bukkit.getPlayer(args[1]);
                 if (member == null) {
                     player.sendMessage(Component.text("プレイヤーが見つかりません。", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 if (args[0].equalsIgnoreCase("kick")) {
                     manager.kickMember(player, member.getUniqueId());
@@ -94,7 +96,7 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
             case "chat":
                 if (args.length < 2) {
                     player.sendMessage(Component.text("使用法: /party chat <message>", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 handleChat(player, args);
                 break;
@@ -103,7 +105,7 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
                 break;
         }
 
-        return true;
+        return;
     }
 
     private void handleChat(Player player, String[] args) {
@@ -147,7 +149,8 @@ public class PartyCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (args.length == 1) {
             return Arrays.asList("create", "invite", "accept", "decline", "kick", "leader", "leave", "disband", "info", "chat").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))

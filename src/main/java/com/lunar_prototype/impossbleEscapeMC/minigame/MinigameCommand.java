@@ -1,9 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.minigame;
 
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -13,7 +13,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class MinigameCommand implements CommandExecutor, TabCompleter {
+@Command(name = "mg", description = "ミニゲーム管理コマンド", permission = "op")
+public class MinigameCommand implements BasicCommand {
     private final MinigameManager manager;
 
     public MinigameCommand(MinigameManager manager) {
@@ -21,27 +22,28 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) return true;
-        if (!player.isOp()) return true;
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
+        if (!(sender instanceof Player player)) return;
+        if (!player.isOp()) return;
 
         if (args.length == 0) {
             player.sendMessage("§c/mg <create/setspawn/split/start/stop/loadout>");
-            return true;
+            return;
         }
 
         switch (args[0].toLowerCase()) {
             case "loadout":
                 if (args.length < 2) {
                     player.sendMessage("§c/mg loadout <m4a1/ak74/m700>");
-                    return true;
+                    return;
                 }
                 manager.setLoadout(player, args[1]);
                 break;
             case "create":
                 if (args.length < 2) {
                     player.sendMessage("§c/mg create <name>");
-                    return true;
+                    return;
                 }
                 manager.createMap(args[1]);
                 player.sendMessage("§aMap '" + args[1] + "' created.");
@@ -49,12 +51,12 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
             case "setspawn":
                 if (args.length < 3) {
                     player.sendMessage("§c/mg setspawn <name> <1/2>");
-                    return true;
+                    return;
                 }
                 MinigameMap map = manager.getMap(args[1]);
                 if (map == null) {
                     player.sendMessage("§cMap not found.");
-                    return true;
+                    return;
                 }
                 int team = Integer.parseInt(args[2]);
                 map.addSpawn(team, player.getLocation());
@@ -67,7 +69,7 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
             case "start":
                 if (args.length < 2) {
                     player.sendMessage("§c/mg start <name> [rounds]");
-                    return true;
+                    return;
                 }
                 int rounds = 2;
                 if (args.length >= 3) {
@@ -75,7 +77,7 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
                         rounds = Integer.parseInt(args[2]);
                     } catch (NumberFormatException e) {
                         player.sendMessage("§cInvalid rounds number.");
-                        return true;
+                        return;
                     }
                 }
                 manager.startGame(args[1], rounds);
@@ -86,11 +88,12 @@ public class MinigameCommand implements CommandExecutor, TabCompleter {
                 break;
         }
 
-        return true;
+        return;
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (args.length == 1) {
             return Arrays.asList("create", "setspawn", "split", "start", "stop", "loadout").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))

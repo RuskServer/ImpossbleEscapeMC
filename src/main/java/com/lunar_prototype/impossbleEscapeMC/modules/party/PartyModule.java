@@ -9,7 +9,7 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
-import org.bukkit.command.PluginCommand;
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -38,12 +38,7 @@ public class PartyModule implements IModule, Listener {
     @Override
     public void onEnable(ServiceContainer container) {
         Bukkit.getPluginManager().registerEvents(this, plugin);
-        PartyCommand command = new PartyCommand(this);
-        PluginCommand party = plugin.getCommand("party");
-        if (party != null) {
-            party.setExecutor(command);
-            party.setTabCompleter(command);
-        }
+        container.get(CommandRegistry.class).register(new PartyCommand(this));
     }
 
     @Override

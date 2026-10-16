@@ -1,15 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.sk89q.worldedit.math.BlockVector3;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,7 +36,8 @@ import java.util.stream.IntStream;
  *   <li>建物の Lv.0 (edit base 0 / save base 0) はベースそのもの: ベースだけの区画で直し、保存するとベースを置き換える</li>
  * </ul>
  */
-public class HideoutCommand implements CommandExecutor, TabCompleter {
+@Command(name = "hideout", description = "隠れ家システム管理・利用コマンド")
+public class HideoutCommand implements BasicCommand {
     private final HideoutModule module;
 
     public HideoutCommand(HideoutModule module) {
@@ -44,15 +45,16 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
             sender.sendMessage("このコマンドはプレイヤーのみ実行可能です。");
-            return true;
+            return;
         }
 
         if (args.length == 0) {
             HideoutDialog.open(player);
-            return true;
+            return;
         }
 
         switch (args[0].toLowerCase()) {
@@ -65,7 +67,7 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
             case "inspect" -> handleInspect(player);
             default -> sendHelp(player);
         }
-        return true;
+        return;
     }
 
     private void handleVisit(Player player) {
@@ -292,7 +294,8 @@ public class HideoutCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         List<String> options = new ArrayList<>();
         if (args.length == 1) {
             options.add("visit");

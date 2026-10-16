@@ -1,11 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.core;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
@@ -13,7 +14,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class SettingsCommand implements CommandExecutor, TabCompleter {
+@Command(name = "settings", description = "プレイヤーの操作設定やキーバインドを変更します。")
+public class SettingsCommand implements BasicCommand {
 
     private final PlayerDataModule playerDataModule;
 
@@ -22,15 +24,16 @@ public class SettingsCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
             sender.sendMessage("This command can only be run by a player.");
-            return true;
+            return;
         }
 
         if (args.length == 0) {
             sendHelp(player);
-            return true;
+            return;
         }
 
         PlayerData data = playerDataModule.getPlayerData(player.getUniqueId());
@@ -42,7 +45,7 @@ public class SettingsCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(Component.text("現在の ADSダッシュ解除: ", NamedTextColor.YELLOW)
                             .append(Component.text(data.isCancelAdsOnSprint() ? "ON" : "OFF",
                                     data.isCancelAdsOnSprint() ? NamedTextColor.GREEN : NamedTextColor.RED)));
-                    return true;
+                    return;
                 }
                 boolean on = args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("true");
                 data.setCancelAdsOnSprint(on);
@@ -57,7 +60,7 @@ public class SettingsCommand implements CommandExecutor, TabCompleter {
                     data.getKeybinds().forEach((action, key) -> {
                         player.sendMessage(Component.text("- " + action + ": " + key, NamedTextColor.WHITE));
                     });
-                    return true;
+                    return;
                 }
                 String action = args[1].toUpperCase();
                 String key = args[2].toUpperCase();
@@ -66,14 +69,14 @@ public class SettingsCommand implements CommandExecutor, TabCompleter {
                 List<String> validActions = Arrays.asList("RELOAD", "FIREMODE");
                 if (!validActions.contains(action)) {
                     player.sendMessage(Component.text("無効なアクションです。有効なアクション: " + String.join(", ", validActions), NamedTextColor.RED));
-                    return true;
+                    return;
                 }
 
                 // 許可されているキーかチェック
                 List<String> validKeys = Arrays.asList("DROP", "SWAP_HAND", "LEFT_CLICK_SNEAK");
                 if (!validKeys.contains(key)) {
                     player.sendMessage(Component.text("無効なキーです。有効なキー: " + String.join(", ", validKeys), NamedTextColor.RED));
-                    return true;
+                    return;
                 }
 
                 data.setKeybind(action, key);
@@ -85,7 +88,7 @@ public class SettingsCommand implements CommandExecutor, TabCompleter {
                 break;
         }
 
-        return true;
+        return;
     }
 
     private void sendHelp(Player player) {
@@ -95,7 +98,8 @@ public class SettingsCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         List<String> completions = new ArrayList<>();
         if (!(sender instanceof Player)) return completions;
 

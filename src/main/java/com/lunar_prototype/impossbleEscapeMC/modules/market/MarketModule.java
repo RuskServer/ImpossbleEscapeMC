@@ -34,6 +34,8 @@ public class MarketModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         loadListings();
+        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(
+                new MarketCommand(this, container.get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class)));
     }
 
     @Override

@@ -1,16 +1,17 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
 import com.lunar_prototype.impossbleEscapeMC.effect.SunShadowService;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.Color;
 import org.bukkit.Location;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Player;
@@ -33,7 +34,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code /shaderdebug sun}: サーバーで計算した太陽の影 ({@link SunShadowService}。ふだんはレイド中だけ自動) を、レイドに関係なく付け外しする。
  * {@code /shaderdebug sun auto} で自動に戻す。データの画素を使うので、テストとはどちらか一方
  */
-public class ShaderDebugCommand implements CommandExecutor {
+@Command(name = "shaderdebug", description = "数値の画素 (空のシェーダーが書くカメラ・太陽の向き) の確認表示を付け外しします。", permission = "op")
+public class ShaderDebugCommand implements BasicCommand {
 
     // ---- データの画素のテスト (IEM_shader の tools/data_font.py・core/text.vsh・post/control_debug.fsh と同じ決まり) ----
     /** フォント iem:data: 文字 U+4E00 + 値 (14bit、送り 2)。値の後に毎回すき間の文字 (送り 6) を置き、値 1 つの間隔を 8 にする */
@@ -53,21 +55,22 @@ public class ShaderDebugCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
             sender.sendMessage("プレイヤーだけが使えます");
-            return true;
+            return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("data")) {
             if (SunShadowService.isEnabled(player)) SunShadowService.toggle(player);
             toggleDataTest(player);
-            return true;
+            return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
             if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {
                 SunShadowService.clearOverride(player);
                 player.sendMessage(Component.text("サーバーの太陽の影をレイド中だけ自動で送るのに戻しました", NamedTextColor.AQUA));
-                return true;
+                return;
             }
             TextDisplay test = dataTests.remove(player.getUniqueId());
             if (test != null) test.remove();
@@ -76,13 +79,13 @@ public class ShaderDebugCommand implements CommandExecutor {
                     ? "サーバーの光を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
                     + " ブロックの太陽・光源ブロック・跳ね返り。/shaderdebug sun auto でレイド中だけに戻す)"
                     : "サーバーの光を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)", NamedTextColor.AQUA));
-            return true;
+            return;
         }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
         player.sendMessage(Component.text(enabled
                 ? "数値の画素の確認を表示 (左下: 緑 = 空と太陽の数値あり / 黄 = 空だけ / 赤 = 無し)"
                 : "数値の画素の確認を消しました", NamedTextColor.AQUA));
-        return true;
+        return;
     }
 
     /**

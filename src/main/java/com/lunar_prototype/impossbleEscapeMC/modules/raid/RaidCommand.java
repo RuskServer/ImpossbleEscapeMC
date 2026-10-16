@@ -1,11 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,7 +15,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class RaidCommand implements CommandExecutor, TabCompleter {
+@Command(name = "raid", description = "レイドシステム管理・出撃コマンド", permission = "op")
+public class RaidCommand implements BasicCommand {
     private final RaidModule manager;
 
     public RaidCommand(RaidModule manager) {
@@ -23,12 +24,13 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) return true;
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
+        if (!(sender instanceof Player player)) return;
 
         if (args.length == 0) {
             new RaidSelectionGUI(manager).open(player);
-            return true;
+            return;
         }
 
         switch (args[0].toLowerCase()) {
@@ -70,7 +72,7 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
                 break;
         }
 
-        return true;
+        return;
     }
 
     private void handleJoin(Player player, String[] args) {
@@ -202,7 +204,8 @@ public class RaidCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (args.length == 1) {
             List<String> subs = new ArrayList<>(Arrays.asList("open", "join", "leave"));
             if (sender.isOp()) {

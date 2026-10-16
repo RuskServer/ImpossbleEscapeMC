@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
@@ -9,19 +10,20 @@ import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class QuestCommand implements CommandExecutor, TabCompleter {
+@Command(name = "quest", description = "クエストシステム管理コマンド", permission = "op")
+public class QuestCommand implements BasicCommand {
     private final QuestModule questModule;
 
     public QuestCommand(QuestModule questModule) {
@@ -29,40 +31,41 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player)) {
             if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
                 questModule.loadQuests();
                 sender.sendMessage("§aQuests reloaded.");
             }
-            return true;
+            return;
         }
         
         Player player = (Player) sender;
 
         if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
-            if (!sender.hasPermission("impossbleescape.admin")) return true;
+            if (!sender.hasPermission("impossbleescape.admin")) return;
             questModule.loadQuests();
             sender.sendMessage("§aQuests reloaded.");
-            return true;
+            return;
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("handin")) {
             ItemStack item = player.getInventory().getItemInMainHand();
             if (item == null || item.getType().isAir()) {
                 player.sendMessage("§c手にアイテムを持っていません。");
-                return true;
+                return;
             }
 
             ItemMeta meta = item.getItemMeta();
             if (meta == null || !meta.getPersistentDataContainer().has(PDCKeys.ITEM_ID, org.bukkit.persistence.PersistentDataType.STRING)) {
                 player.sendMessage("§cこれは納品可能なカスタムアイテムではありません。");
-                return true;
+                return;
             }
 
             String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, org.bukkit.persistence.PersistentDataType.STRING);
             ItemDefinition def = ItemRegistry.get(itemId);
-            if (def == null) return true;
+            if (def == null) return;
 
             PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
             PlayerData data = dataModule.getPlayerData(player.getUniqueId());
@@ -80,18 +83,19 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             // アイテムを消費
             player.getInventory().setItemInMainHand(null);
             player.sendMessage("§aアイテムを納品しました: " + def.displayName + " x" + item.getAmount());
-            return true;
+            return;
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("open")) {
             QuestDialog.openPda(player);
-            return true;
+            return;
         }
-        return true;
+        return;
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
             completions.add("reload");

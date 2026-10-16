@@ -1,11 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.acoustics;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,18 +23,20 @@ import java.util.List;
  *   <li>/acoustics overrides: このワールドの上書きの一覧</li>
  * </ul>
  */
-public class AcousticsCommand implements CommandExecutor, TabCompleter {
+@Command(name = "acoustics", description = "音響の地図 (足音などの響きを決める場所の種類) を確認・手直しします。", permission = "op")
+public class AcousticsCommand implements BasicCommand {
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
             sender.sendMessage("プレイヤーだけが使えます");
-            return true;
+            return;
         }
         AcousticMap map = AcousticMap.get();
         if (map == null) {
             player.sendMessage(Component.text("音響の地図が読み込まれていません", NamedTextColor.RED));
-            return true;
+            return;
         }
         String sub = args.length > 0 ? args[0].toLowerCase() : "here";
         switch (sub) {
@@ -57,13 +59,13 @@ public class AcousticsCommand implements CommandExecutor, TabCompleter {
                 if (args.length > 1 && args[1].equalsIgnoreCase("remove")) {
                     int count = map.removeOverridesAt(player.getLocation());
                     player.sendMessage(Component.text("上書きを " + count + " 個消しました", NamedTextColor.GREEN));
-                    return true;
+                    return;
                 }
                 AcousticZone zone = args.length > 1 ? AcousticZone.byId(args[1]) : null;
                 int radius = args.length > 2 ? parseInt(args[2], -1) : -1;
                 if (zone == null || radius < 0) {
                     player.sendMessage(Component.text("/acoustics override <outdoor|indoor|hall|underground> <半径> | remove", NamedTextColor.RED));
-                    return true;
+                    return;
                 }
                 var override = map.addOverride(player.getLocation(), radius, zone);
                 player.sendMessage(Component.text("上書きしました: " + zone.label + " (" + override.minX() + ", " + override.minY() + ", " + override.minZ()
@@ -80,7 +82,7 @@ public class AcousticsCommand implements CommandExecutor, TabCompleter {
             }
             default -> player.sendMessage(Component.text("/acoustics <here|clear [半径]|override <場所> <半径>|override remove|overrides>", NamedTextColor.RED));
         }
-        return true;
+        return;
     }
 
     private static int parseInt(String text, int fallback) {
@@ -92,7 +94,8 @@ public class AcousticsCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         List<String> options = new ArrayList<>();
         if (args.length == 1) {
             options.addAll(List.of("here", "clear", "override", "overrides"));

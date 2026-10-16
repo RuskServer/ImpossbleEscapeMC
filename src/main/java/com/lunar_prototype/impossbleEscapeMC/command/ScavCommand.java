@@ -2,11 +2,14 @@ package com.lunar_prototype.impossbleEscapeMC.command;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager;
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
-import org.bukkit.command.*;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -17,7 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class ScavCommand implements CommandExecutor {
+@Command(name = "scavspawn", description = "自分の位置にAI搭載SCAVを召喚します。", permission = "op")
+public class ScavCommand implements BasicCommand {
 
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, BukkitRunnable> heatmapTasks = new HashMap<>();
@@ -27,17 +31,18 @@ public class ScavCommand implements CommandExecutor {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!sender.isOp()) {
             sender.sendMessage(ChatColor.RED + "権限がありません。");
-            return true;
+            return;
         }
 
         // ヒートマップ表示トグル
         if (args.length > 0 && args[0].equalsIgnoreCase("heatmap")) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage(ChatColor.RED + "このコマンドはプレイヤーのみ実行可能です。");
-                return true;
+                return;
             }
 
             UUID uuid = player.getUniqueId();
@@ -48,13 +53,11 @@ public class ScavCommand implements CommandExecutor {
                 startHeatmapTask(player);
                 player.sendMessage(ChatColor.GREEN + "ヒートマップ表示をオンにしました。");
             }
-            return true;
+            return;
         }
 
-        // 既存のスポーン処理
-        CommandSender effectiveSender = (sender instanceof ProxiedCommandSender proxied)
-                ? proxied.getCallee()
-                : sender;
+        // 既存のスポーン処理。/execute as … で実行された時は、その実体 (executor) の位置に出す
+        CommandSender effectiveSender = stack.getExecutor() != null ? stack.getExecutor() : sender;
 
         Location spawnLoc = null;
         if (effectiveSender instanceof Entity entity) {
@@ -75,13 +78,13 @@ public class ScavCommand implements CommandExecutor {
                 spawnLoc = new Location(world, x, y, z);
             } catch (Exception e) {
                 sender.sendMessage(ChatColor.RED + "座標引数の解析に失敗しました。");
-                return true;
+                return;
             }
         }
 
         if (spawnLoc == null) {
             sender.sendMessage(ChatColor.RED + "座標を特定できません。エンティティとして実行するか、座標を指定してください。");
-            return true;
+            return;
         }
 
         try {
@@ -91,7 +94,7 @@ public class ScavCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.RED + "エラー: " + e.getMessage());
         }
 
-        return true;
+        return;
     }
 
     private void startHeatmapTask(Player player) {
