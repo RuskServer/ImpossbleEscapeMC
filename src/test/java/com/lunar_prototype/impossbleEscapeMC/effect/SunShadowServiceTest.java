@@ -71,7 +71,7 @@ public final class SunShadowServiceTest {
 
         // 昼の屋外 (太陽は東の上 45°、空の光 15): 壁の東は日なた (バニラより少し明るい)、壁の西の低い所は日陰 (暗い)
         double s = Math.sqrt(0.5);
-        SunShadowService.Light day = new SunShadowService.Light(new double[]{s, s, 0}, 1.0, 1.0);
+        SunShadowService.Light day = new SunShadowService.Light(java.util.UUID.randomUUID(), new double[]{s, s, 0}, 1.0, 1.0);
         SunShadowService.Grids out = SunShadowService.computeLight(wall(0, 15), 0, 0, 0, day);
         check(out.light().length == (W * H * D + 2) / 3, "light count " + out.light().length);
         check(out.kinds().length == (SunShadowService.CW * SunShadowService.CH * SunShadowService.CD + 6) / 7, "kind count");
@@ -107,12 +107,26 @@ public final class SunShadowServiceTest {
                 queue.add(new int[]{x, y, z});
             }
         }
-        SunShadowService.Grids night = SunShadowService.computeLight(dark, 0, 0, 0, new SunShadowService.Light(null, 0.0, 0.2));
+        SunShadowService.Grids night = SunShadowService.computeLight(dark, 0, 0, 0, new SunShadowService.Light(java.util.UUID.randomUUID(), null, 0.0, 0.2));
         int behind = level(night, 25, 2, 20), diagonal = level(night, 22, 3, 22);
         check(behind < SunShadowService.LEVEL_ONE, "behind the wall: darker than vanilla " + behind);
         check(diagonal > behind, "in sight brighter than behind the wall " + diagonal + " > " + behind);
         check(kind(night, 20, 3, 20) == SunShadowService.KIND_WARM, "near the light: warm kind " + kind(night, 20, 3, 20));
         check(!sunlit(night, 35, 1, 10), "night: no sun");
+        // 遠くの太陽の影: 地面 (一番上のブロック y = 0) の上に、x = 60..63 (z は全部) の高さ 20 の建物。太陽は東の上 45°
+        // → 建物の西 20 ブロック (列 20〜29) の地面は日陰 (日なたの始まる高さが地面より上)、建物の東 (列 40) は地面から日なた
+        int width = SunShadowService.FAR_SPAN + 2 * SunShadowService.FAR_SUN_REACH;
+        int[] heights = new int[width * SunShadowService.FAR_SPAN];
+        for (int z = 0; z < SunShadowService.FAR_SPAN; z++) {
+            for (int x = 60; x < 64; x++) heights[SunShadowService.FAR_SUN_REACH + x + width * z] = 20;
+        }
+        int[] farValues = SunShadowService.farColumns(heights, 0, new double[]{s, s, 0});
+        check(farValues.length == SunShadowService.FAR_COLUMNS * SunShadowService.FAR_COLUMNS, "far count");
+        int west = farValues[25 + SunShadowService.FAR_COLUMNS * 10], east = farValues[40 + SunShadowService.FAR_COLUMNS * 10];
+        check((west & 127) == 1 && (west >> 7) > 1, "west of the building: ground in shade " + (west & 127) + " / " + (west >> 7));
+        check((east & 127) == 1 && (east >> 7) == 1, "east of the building: ground in sun " + (east >> 7));
+        int roof = farValues[30 + SunShadowService.FAR_COLUMNS * 10];
+        check((roof & 127) == 21 && (roof >> 7) == 21, "roof: ground 21, sunlit");
         System.out.println("SunShadowServiceTest OK");
     }
 }
