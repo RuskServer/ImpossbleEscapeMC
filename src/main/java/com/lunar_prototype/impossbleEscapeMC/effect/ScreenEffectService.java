@@ -119,12 +119,17 @@ public final class ScreenEffectService implements Listener {
     private static final double CRITICAL_HEALTH_RATIO = 0.3;
     /** 画作り・負傷の層を見直す間隔 (tick) */
     private static final int STATE_UPDATE_INTERVAL_TICKS = 5;
-    /** バイザーの水滴: 水滴の付くバイザー (画作り iem:grade_visor_rain_<段階> がある物。IEM_shader/tools/post_effects.py) と段階の数 */
+    /** バイザーの水滴: 水滴の付くバイザー (画作り iem:grade_visor_rain_<段階> がある物。New_IEM_Resorcepack の tools/post_effects.py) と段階の数 */
     private static final String RAIN_VISOR = "iem:visor";
     private static final int RAIN_LEVELS = 6;
     /** 雨の中で 1 段濡れるまで (tick)。雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く */
     private static final int RAIN_TICKS_PER_LEVEL = 60;
     private static final int RAIN_DRY_RATE = 2;
+    /**
+     * mod (IEM_Compatibility) へ濡れ具合 (0〜1、float 1 つ) を送るチャンネル。受け取れるクライアントには段階ごとのエフェクトを付け替えず、
+     * 画作り iem:grade_visor_rain 1 つで済ませる (水滴は mod が渡す値でなめらかに変わる。初めての段階に入るたびの読み込みも無い)
+     */
+    private static final String WET_CHANNEL = "iem:visor_wet";
     /** クライアントの読み込み完了の通知が来ない場合に待つのをやめるまで */
     private static final int LOAD_WAIT_TIMEOUT_TICKS = 400;
     /** 読み込み完了から演出を始めるまでの間。読み込み画面が閉じた直後は周りの描画が追いついていない */
@@ -180,6 +185,8 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Key> visor = new HashMap<>();
     /** バイザーの濡れ具合 (tick。雨の中で増え、雨の当たらない所で減る。バイザーを外すと乾く) */
     private final Map<UUID, Integer> visorWet = new HashMap<>();
+    /** mod へ最後に送った濡れ具合 */
+    private final Map<UUID, Float> sentWet = new HashMap<>();
     /** 画作りの層 (レンズフレア + 色味) をかけているプレイヤー */
     private final Set<UUID> graded = new HashSet<>();
     /** 負傷の層のエフェクト (出血中・瀕死) */
@@ -201,6 +208,7 @@ public final class ScreenEffectService implements Listener {
     private ScreenEffectService(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
+        Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, WET_CHANNEL);
         this.playerLoadedListener = new PlayerLoadedListener();
         PacketEvents.getAPI().getEventManager().registerListener(playerLoadedListener);
     }
@@ -465,25 +473,37 @@ public final class ScreenEffectService implements Listener {
 
     /**
      * バイザーが雨に濡れていれば、水滴の付いたバイザー (iem:visor_rain_<段階>。画作りは iem:grade_visor_rain_<段階>) にする。濡れ具合はここで進める
-     * (雨の中で RAIN_TICKS_PER_LEVEL ごとに 1 段、雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く)
+     * (雨の中で RAIN_TICKS_PER_LEVEL ごとに 1 段、雨の当たらない所では RAIN_DRY_RATE 倍の速さで乾く)。
+     * mod のあるクライアントには濡れ具合を {@link #WET_CHANNEL} で送り、段階の無い iem:visor_rain にする
      */
     private Key withRain(Player player, Key visorEffect) {
         UUID playerId = player.getUniqueId();
         if (visorEffect == null || !RAIN_VISOR.equals(visorEffect.asString())) {
             visorWet.remove(playerId);
+            sentWet.remove(playerId);
             return visorEffect;
         }
         int wet = visorWet.getOrDefault(playerId, 0);
         wet = inRain(player)
                 ? Math.min(RAIN_LEVELS * RAIN_TICKS_PER_LEVEL, wet + STATE_UPDATE_INTERVAL_TICKS)
                 : Math.max(0, wet - STATE_UPDATE_INTERVAL_TICKS * RAIN_DRY_RATE);
+        boolean channel = player.getListeningPluginChannels().contains(WET_CHANNEL);
+        if (channel) sendWet(player, wet / (float) (RAIN_LEVELS * RAIN_TICKS_PER_LEVEL));
         if (wet == 0) {
             visorWet.remove(playerId);
             return visorEffect;
         }
         visorWet.put(playerId, wet);
+        if (channel) return Key.key(visorEffect.namespace(), visorEffect.value() + "_rain");
         int level = (wet + RAIN_TICKS_PER_LEVEL - 1) / RAIN_TICKS_PER_LEVEL;
         return Key.key(visorEffect.namespace(), visorEffect.value() + "_rain_" + level);
+    }
+
+    /** 濡れ具合を mod へ送る (変わった時だけ) */
+    private void sendWet(Player player, float wetness) {
+        Float sent = sentWet.put(player.getUniqueId(), wetness);
+        if (sent != null && sent == wetness) return;
+        player.sendPluginMessage(plugin, WET_CHANNEL, java.nio.ByteBuffer.allocate(4).putFloat(wetness).array());
     }
 
     /** 雨に打たれているか: 雨が降っていて、頭の上に雨を遮るブロックが無く、雪や乾いた所 (砂漠など) でない */
@@ -618,6 +638,7 @@ public final class ScreenEffectService implements Listener {
         flareLight.remove(playerId);
         visor.remove(playerId);
         visorWet.remove(playerId);
+        sentWet.remove(playerId);
         flashlit.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
