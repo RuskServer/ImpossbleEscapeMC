@@ -17,15 +17,8 @@ import com.lunar_prototype.impossbleEscapeMC.gui.AttachmentGUIListener;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
 import com.lunar_prototype.impossbleEscapeMC.listener.PlayerListener;
-import com.lunar_prototype.impossbleEscapeMC.listener.ResourcePackListener;
 import com.lunar_prototype.impossbleEscapeMC.util.CrossbowTask;
 import org.bukkit.plugin.java.JavaPlugin;
-
-import java.io.InputStream;
-import java.net.URI;
-import java.net.URL;
-import java.security.MessageDigest;
-import java.util.concurrent.CompletableFuture;
 
 public final class ImpossbleEscapeMC extends JavaPlugin {
 
@@ -42,7 +35,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private ScavSpawner scavSpawner;
 
     private GunListener gunListener;
-    private ResourcePackListener resourcePackListener;
     private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
     private RaidModule raidModule;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootManager lootManager;
@@ -117,7 +109,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // アドレナリン・死亡時の画面演出 (26.3のポストエフェクト)
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.init(this);
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.init(this);
-        resourcePackListener = new ResourcePackListener(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
         raidModule = new RaidModule(this);
         lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
@@ -160,12 +151,12 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.scoreboard.ScoreboardModule());
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule(this));
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.resourcepack.ResourcePackModule(this));
 
         // モジュールの有効化
         moduleBootstrap.enableModules();
 
         getServer().getPluginManager().registerEvents(gunListener, this);
-        getServer().getPluginManager().registerEvents(resourcePackListener, this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.InventoryListener(this), this);
         // 持ち物の大きさの合計が使えるスロットを超える操作を、入る前に止める
@@ -228,35 +219,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.init(this, questModule);
 
         CrossbowTask.start(this);
-
-        asyncComputeResourcePackHash();
-    }
-
-    private void asyncComputeResourcePackHash() {
-        String urlStr = getConfig().getString("resource-pack.url");
-        if (urlStr == null || urlStr.isEmpty()) return;
-
-        CompletableFuture.runAsync(() -> {
-            try {
-                getLogger().info("Computing resource pack SHA-1 hash...");
-                URL url = new URI(urlStr).toURL();
-                MessageDigest digest = MessageDigest.getInstance("SHA-1");
-
-                try (InputStream is = url.openStream()) {
-                    byte[] buffer = new byte[8192];
-                    int n;
-                    while ((n = is.read(buffer)) != -1) {
-                        digest.update(buffer, 0, n);
-                    }
-                }
-
-                byte[] hash = digest.digest();
-                resourcePackListener.setResourcePackHash(hash);
-                getLogger().info("Successfully computed resource pack hash.");
-            } catch (Exception e) {
-                getLogger().warning("Failed to compute resource pack hash: " + e.getMessage());
-            }
-        });
     }
 
     @Override
