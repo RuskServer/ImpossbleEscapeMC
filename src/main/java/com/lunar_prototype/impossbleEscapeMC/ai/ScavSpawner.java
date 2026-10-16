@@ -452,7 +452,7 @@ public class ScavSpawner implements Listener {
     }
 
     /**
-     * GunListenerなどからAIインスタンスを取得するためのメソッド
+     * 銃声の見張り (DatapackGunshotWatcher) などからAIインスタンスを取得するためのメソッド
      */
     public static ScavController getController(UUID uuid) {
         return controllers.get(uuid);
