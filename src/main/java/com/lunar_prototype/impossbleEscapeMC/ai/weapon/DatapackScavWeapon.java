@@ -70,7 +70,7 @@ public final class DatapackScavWeapon implements ScavWeapon {
     public boolean fire(double inaccuracy, boolean fullAuto) {
         if (!DatapackGunnerManager.getOrCreate(scav, profile).pullTrigger(inaccuracy, fullAuto)) return false;
 
-        // プラグイン銃 (GunListener#executeMobShoot) と同じくレイドのAIログに射撃を記録する
+        // レイドのAIログに射撃を記録する
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         AiRaidLogger logger = ImpossbleEscapeMC.getInstance().getAiRaidLogger();
         if (raidSessionId != null && logger != null && logger.isEnabled()) {

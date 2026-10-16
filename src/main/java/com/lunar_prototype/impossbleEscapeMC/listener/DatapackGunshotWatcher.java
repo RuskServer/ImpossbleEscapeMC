@@ -20,8 +20,9 @@ import java.util.UUID;
 /**
  * データパック銃 (Toi's Armory) の発射信号をプラグイン側に橋渡しする。
  * 撃った人の周囲への効果処理 (SCAVへの銃声通知・ヒートマップへの制圧記録・マズルフラッシュ) を受け持つ。
+ * 作ると毎 tick の見張りを始める (イベントは受けない)
  */
-public class GunListener implements org.bukkit.event.Listener {
+public class DatapackGunshotWatcher {
 
     private final ImpossbleEscapeMC plugin;
 
@@ -42,7 +43,7 @@ public class GunListener implements org.bukkit.event.Listener {
             SCAV_GUNSHOT_HEARING_RANGE * SCAV_GUNSHOT_HEARING_RANGE;
     private final Map<UUID, Integer> lastDatapackGunshotTick = new HashMap<>();
 
-    public GunListener(ImpossbleEscapeMC plugin) {
+    public DatapackGunshotWatcher(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         new BukkitRunnable() {
             @Override

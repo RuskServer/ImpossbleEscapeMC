@@ -14,7 +14,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.listener.GunListener;
+import com.lunar_prototype.impossbleEscapeMC.listener.DatapackGunshotWatcher;
 import com.lunar_prototype.impossbleEscapeMC.listener.PlayerListener;
 import com.lunar_prototype.impossbleEscapeMC.util.CrossbowTask;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -33,7 +33,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     private ScavSpawner scavSpawner;
 
-    private GunListener gunListener;
     private com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager minigameManager;
     private RaidModule raidModule;
     private com.lunar_prototype.impossbleEscapeMC.loot.LootManager lootManager;
@@ -102,7 +101,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         BrainManager.init(this); // 追加
         aiRaidLogger = new AiRaidLogger(this);
         ItemRegistry.loadAllItems(this);
-        gunListener = new GunListener(this);
+        // データパック銃の発射の見張り (SCAV への銃声・ヒートマップ・マズルフラッシュ)
+        new DatapackGunshotWatcher(this);
         scavSpawner = new ScavSpawner(this);
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.init(this);
         // アドレナリン・死亡時の画面演出 (26.3のポストエフェクト)
@@ -155,7 +155,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // モジュールの有効化
         moduleBootstrap.enableModules();
 
-        getServer().getPluginManager().registerEvents(gunListener, this);
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.InventoryListener(this), this);
         // 持ち物の大きさの合計が使えるスロットを超える操作を、入る前に止める
