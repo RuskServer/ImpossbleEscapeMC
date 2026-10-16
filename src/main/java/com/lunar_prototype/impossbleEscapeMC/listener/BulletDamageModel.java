@@ -12,7 +12,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
 /**
- * 銃弾の部位判定と防具の貫通判定。プラグイン銃 ({@link BulletTask}) とデータパック銃 ({@link DatapackBulletHitBridge}) で共通。
+ * 銃弾の部位判定と防具の貫通判定。データパック銃 ({@link DatapackBulletHitBridge}) のダメージ計算で使う。
  */
 public final class BulletDamageModel {
 

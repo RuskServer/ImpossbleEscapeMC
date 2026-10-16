@@ -22,7 +22,7 @@ public final class AttachmentLayout {
             Map.entry("slide", 0),
             Map.entry("receiver", 2),
             Map.entry("sight", 4),
-            // ヘルメットの画面 (HelmetAttachmentGUI) のバイザー。銃の画面には出ない
+            // ヘルメットの画面 (HelmetAttachmentGUI) のバイザー
             Map.entry("visor", 4),
             Map.entry("handguard", 6),
             Map.entry("accessory", 8),
