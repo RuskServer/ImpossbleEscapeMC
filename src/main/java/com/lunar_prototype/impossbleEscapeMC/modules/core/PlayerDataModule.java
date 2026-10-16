@@ -65,6 +65,7 @@ public class PlayerDataModule implements IModule, Listener {
     @Override
     public void onEnable(ServiceContainer container) {
         Bukkit.getPluginManager().registerEvents(this, plugin);
+        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new SettingsCommand(this));
         // オートセーブ (5 分ごと)。JSON にするのはメインスレッド、書くのは別スレッド
         Bukkit.getScheduler().runTaskTimer(plugin, this::autosave, 6000L, 6000L);
     }

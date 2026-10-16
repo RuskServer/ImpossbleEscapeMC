@@ -1,16 +1,16 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -20,7 +20,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class LootCommand implements CommandExecutor, TabCompleter {
+@Command(name = "loot", description = "ルートシステム管理コマンド", permission = "op")
+public class LootCommand implements BasicCommand {
     private final ImpossbleEscapeMC plugin;
 
     public LootCommand(ImpossbleEscapeMC plugin) {
@@ -28,11 +29,15 @@ public class LootCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) return true;
-        if (!player.isOp()) return true;
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
+        if (!(sender instanceof Player player)) return;
+        if (!player.isOp()) return;
 
-        if (args.length < 1) return false;
+        if (args.length < 1) {
+            player.sendMessage("§c/loot <container|egg|refill>");
+            return;
+        }
 
         String sub = args[0].toLowerCase();
         switch (sub) {
@@ -60,7 +65,7 @@ public class LootCommand implements CommandExecutor, TabCompleter {
             default -> player.sendMessage(Component.text("不明なコマンドです。", NamedTextColor.RED));
         }
 
-        return true;
+        return;
     }
 
     private void handleContainer(Player player, String[] args) {
@@ -138,7 +143,8 @@ public class LootCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (args.length == 1) return Arrays.asList("container", "egg", "refill");
 
         if (args[0].equalsIgnoreCase("container")) {

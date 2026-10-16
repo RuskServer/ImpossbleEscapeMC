@@ -8,7 +8,6 @@ import com.lunar_prototype.impossbleEscapeMC.core.ModuleBootstrap;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
-import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutCommand;
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
@@ -102,6 +101,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 基盤の初期化
         serviceContainer = new ServiceContainer();
         moduleBootstrap = new ModuleBootstrap(this, serviceContainer);
+        // コマンドの登録簿 (モジュールが onEnable で自分のコマンドを入れる。Paper のコマンドとして登録するのは install)
+        com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry commands = new com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry();
+        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class, commands);
 
         // ヒートマップ読み込み
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.load(new java.io.File(getDataFolder(), "heatmap.yml"));
@@ -214,54 +216,16 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
 
-        getCommand("getitem").setExecutor(new GetItemCommand());
-        getCommand("scavspawn").setExecutor(new ScavCommand(this));
-        getCommand("attachment").setExecutor(new AttachmentCommand());
-        getCommand("itemreload").setExecutor(new ItemReloadCommand(this));
-        getCommand("shaderdebug").setExecutor(new ShaderDebugCommand());
-        var acousticsCommand = new com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AcousticsCommand();
-        getCommand("acoustics").setExecutor(acousticsCommand);
-        getCommand("acoustics").setTabCompleter(acousticsCommand);
-        
-        DatapackTestCommand datapackTestCommand = new DatapackTestCommand();
-        getCommand("datapacktest").setExecutor(datapackTestCommand);
-        getCommand("datapacktest").setTabCompleter(datapackTestCommand);
-        
-        com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCommand traderCmd = new com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCommand(traderModule);
-        getCommand("trader").setExecutor(traderCmd);
-        getCommand("trader").setTabCompleter(traderCmd);
-        com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand mgCmd = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager);
-        getCommand("mg").setExecutor(mgCmd);
-        getCommand("mg").setTabCompleter(mgCmd);
-
-        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidCommand raidCmd = new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidCommand(raidModule);
-        getCommand("raid").setExecutor(raidCmd);
-        getCommand("raid").setTabCompleter(raidCmd);
-
-        com.lunar_prototype.impossbleEscapeMC.loot.LootCommand lootCmd = new com.lunar_prototype.impossbleEscapeMC.loot.LootCommand(this);
-        getCommand("loot").setExecutor(lootCmd);
-        getCommand("loot").setTabCompleter(lootCmd);
-
-        MarketModule marketModule = serviceContainer.get(MarketModule.class);
-        LevelModule levelModule = serviceContainer.get(LevelModule.class);
-        getCommand("market").setExecutor(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketCommand(marketModule, levelModule));
+        // モジュールに属さないコマンド (モジュールのコマンドは各モジュールの onEnable で登録簿に入れる)
+        commands.register(new GetItemCommand(), new ScavCommand(this), new AttachmentCommand(), new ItemReloadCommand(this),
+                new ShaderDebugCommand(), new com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AcousticsCommand(),
+                new DatapackTestCommand(), new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager),
+                new com.lunar_prototype.impossbleEscapeMC.loot.LootCommand(this));
+        commands.install(this);
 
         QuestModule questModule = serviceContainer.get(QuestModule.class);
         // 受けているクエストで納品するアイテムを、そのプレイヤーの画面で強調する
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.init(this, questModule);
-        QuestCommand questCmd = new QuestCommand(questModule);
-        getCommand("quest").setExecutor(questCmd);
-        getCommand("quest").setTabCompleter(questCmd);
-
-        // Settings (操作設定) コマンド登録
-        com.lunar_prototype.impossbleEscapeMC.modules.core.SettingsCommand settingsCmd = new com.lunar_prototype.impossbleEscapeMC.modules.core.SettingsCommand(serviceContainer.get(PlayerDataModule.class));
-        getCommand("settings").setExecutor(settingsCmd);
-        getCommand("settings").setTabCompleter(settingsCmd);
-
-        HideoutModule hideoutModule = serviceContainer.get(HideoutModule.class);
-        HideoutCommand hideoutCmd = new HideoutCommand(hideoutModule);
-        getCommand("hideout").setExecutor(hideoutCmd);
-        getCommand("hideout").setTabCompleter(hideoutCmd);
 
         CrossbowTask.start(this);
 

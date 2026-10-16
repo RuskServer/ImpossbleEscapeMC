@@ -56,6 +56,7 @@ public class HideoutModule implements IModule {
 
     public void onEnable(ServiceContainer serviceContainer) {
         this.dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
+        serviceContainer.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new HideoutCommand(this));
         
         // ワールドの初期化
         worldManager.initWorlds();

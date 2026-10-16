@@ -1,34 +1,37 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class DatapackTestCommand implements CommandExecutor, TabCompleter {
+@Command(name = "datapacktest", description = "Test datapack function item capturing.", permission = "op")
+public class DatapackTestCommand implements BasicCommand {
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
             sender.sendMessage("§cThis command can only be used by players.");
-            return true;
+            return;
         }
 
         if (!player.hasPermission("op")) {
             player.sendMessage("§cYou must be an OP to run this test command.");
-            return true;
+            return;
         }
 
         if (args.length < 2) {
             sendHelp(player);
-            return true;
+            return;
         }
 
         String subMode = args[0].toLowerCase();
@@ -55,7 +58,7 @@ public class DatapackTestCommand implements CommandExecutor, TabCompleter {
         } else if (subMode.equals("gun")) {
             if (args.length < 3) {
                 player.sendMessage("§cUsage: /datapacktest gun <gunId> <displayName>");
-                return true;
+                return;
             }
 
             String gunId = args[1];
@@ -85,7 +88,7 @@ public class DatapackTestCommand implements CommandExecutor, TabCompleter {
             sendHelp(player);
         }
 
-        return true;
+        return;
     }
 
     private void sendHelp(Player player) {
@@ -95,7 +98,8 @@ public class DatapackTestCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
+        CommandSender sender = stack.getSender();
         if (args.length == 1) {
             List<String> completions = new ArrayList<>();
             if ("func".startsWith(args[0].toLowerCase())) completions.add("func");

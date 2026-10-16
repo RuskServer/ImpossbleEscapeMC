@@ -58,7 +58,8 @@ public class QuestModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         this.dataModule = container.get(PlayerDataModule.class);
-        
+        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new com.lunar_prototype.impossbleEscapeMC.command.QuestCommand(this));
+
         plugin.getServer().getPluginManager().registerEvents(catalogReloadListener, plugin);
         loadQuests();
         setupEventBus();

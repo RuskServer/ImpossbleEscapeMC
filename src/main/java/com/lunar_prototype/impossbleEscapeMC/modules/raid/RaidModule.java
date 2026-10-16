@@ -58,6 +58,7 @@ public class RaidModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         loadMaps();
+        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new RaidCommand(this));
         // 出撃時の PDA の演出の間の操作の停止
         Bukkit.getPluginManager().registerEvents(new PdaIntro(), plugin);
         // レイド結果のキルログ: 弾が当たった時の様子 (武器・弾・距離・部位) を覚えておく

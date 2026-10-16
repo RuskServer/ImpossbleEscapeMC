@@ -37,7 +37,8 @@ public class TraderModule implements IModule {
     public void onEnable(ServiceContainer container) {
         this.dataModule = container.get(PlayerDataModule.class);
         this.economyModule = container.get(EconomyModule.class);
-        
+        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new TraderCommand(this));
+
         loadTraders();
         // 買うトレーダーの画面 (ダイアログ) の操作を受ける
         TraderDialog.init(this);
