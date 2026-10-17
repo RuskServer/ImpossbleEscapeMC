@@ -222,7 +222,7 @@ public class RigListener implements Listener {
     }
 
     private void showArmorConflict(Player player) {
-        player.sendActionBar(Component.text("アーマーリグと胸防具は同時に装備できません", NamedTextColor.RED));
+        player.sendActionBar(Component.text("装甲リグは胸防具や他のリグと同時に装備できません", NamedTextColor.RED));
     }
 
     private void scheduleSync(Player player) {
