@@ -8,10 +8,12 @@ import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.item.RigStats;
 import com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI;
+import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -39,6 +41,12 @@ public class RigModule implements IModule {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 if (isControlSuppressed(player)) continue;
+                if (syncEquippedRigModel(player)) {
+                    BackpackModule backpack = container.get(BackpackModule.class);
+                    if (backpack != null && backpack.getDisplayManager() != null) {
+                        backpack.getDisplayManager().sync(player);
+                    }
+                }
                 enforceLockedSlots(player);
                 syncLockedSlotPlaceholders(player);
             }
@@ -62,6 +70,23 @@ public class RigModule implements IModule {
     public ItemStack getEquippedRig(Player player) {
         ItemStack leggings = player.getInventory().getLeggings();
         return isRigItem(leggings) ? leggings : null;
+    }
+
+    /** 旧版リグも装備中に新しい装備アセットへ移す。 */
+    public boolean syncEquippedRigModel(Player player) {
+        ItemStack rig = getEquippedRig(player);
+        if (rig == null) return false;
+        String id = rig.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (!"micro_rig".equals(id) && !"d3rcx".equals(id)) return false;
+        NamespacedKey model = NamespacedKey.fromString("iem:" + id + "_3d");
+        ItemMeta meta = rig.getItemMeta();
+        var equippable = meta.getEquippable();
+        if (model.equals(equippable.getModel())) return false;
+        equippable.setModel(model);
+        meta.setEquippable(equippable);
+        rig.setItemMeta(meta);
+        player.getInventory().setLeggings(rig);
+        return true;
     }
 
     public int getEnabledMainInventorySlots(Player player) {

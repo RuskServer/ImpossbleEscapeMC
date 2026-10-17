@@ -166,6 +166,7 @@ public class RigListener implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> {
             // 次のtickまでに漁る画面が開いていたら触らない (持ち物の欄はバックパックの表示になっている)
             if (rigModule.isControlSuppressed(player)) return;
+            rigModule.syncEquippedRigModel(player);
             rigModule.enforceLockedSlots(player);
             rigModule.syncLockedSlotPlaceholders(player);
             BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
