@@ -7,6 +7,7 @@ public class ItemDefinition {
     public String type; // GUN / MED / LOOT
     public String material; // Bukkit material
     public String displayName;
+    public String description;
     public int rarity; // 1-5
     public int customModelData;
     public int maxDurability;

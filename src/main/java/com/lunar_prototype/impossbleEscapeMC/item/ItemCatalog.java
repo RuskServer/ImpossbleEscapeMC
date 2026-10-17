@@ -166,6 +166,12 @@ final class ItemCatalog {
         d3rcx.rigStats = rig(12, 0.25);
         items.add(d3rcx);
 
+        ItemDefinition sp_v = item("sp_v", "RIG", Material.IRON_INGOT, "SP-V \"Monolith\"", 5, 23, 900, 16000, 9);
+        sp_v.rigStats = rig(6, 0.25);
+        sp_v.armorStats = armor(5, 0, "LEGS", null);
+        sp_v.description = "Spectre製の実験的な次世代アーマーリグ。重厚な防護と引き換えに収納は少ない。";
+        items.add(sp_v);
+
         return items;
     }
 
