@@ -100,7 +100,7 @@ final class ItemCatalog {
         // cost: 軽量ヘルメット、1スロット+1占有
         fast_mt.armorStats = armor(3, 6, "HEAD", null);
         // バイザーを付けると CustomModelData 7 (バイザー付きのモデル)
-        fast_mt.armorStats.visors = List.of("FAST-MT_visor");
+        fast_mt.armorStats.visors = List.of("FAST-MT_visor", "PVS-14");
         fast_mt.armorStats.visorCustomModelData = 7;
         items.add(fast_mt);
 
@@ -110,6 +110,12 @@ final class ItemCatalog {
         fast_mt_visor.visorStats = visor("iem:visor");
         fast_mt_visor.visorStats.ricochetChance = 0.10;
         items.add(fast_mt_visor);
+
+        ItemDefinition pvs_14 = item("PVS-14", "VISOR", Material.DIAMOND, "§a[PVS-14] 暗視単眼鏡", 3, 11, 0, 400, 2);
+        pvs_14.visorStats = visor("iem:night_vision");
+        pvs_14.visorStats.helmetCustomModelData = 10;
+        pvs_14.description = "FAST-MTに装着する暗視装置。バイザーとは同時に装着できない。";
+        items.add(pvs_14);
 
         ItemDefinition trooper = item("Trooper", "ARMOR", Material.IRON_CHESTPLATE, "§b[Trooper] アーマー", 3, 0, 500, 8200, 6);
         // weight: 8.2kg

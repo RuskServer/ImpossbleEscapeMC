@@ -130,7 +130,7 @@ public class TraderQuantityGUI implements Listener {
         else if (slot == 22) {
             PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
             player.closeInventory();
-            parentGUI.handleBuy(traderItem.itemId, data, quantity);
+            parentGUI.handleBuy(traderItem, data, quantity);
             parentGUI.open();
         }
     }

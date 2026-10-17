@@ -272,6 +272,23 @@ final class QuestCatalog {
                 .requiresQuest("bastion_light_transport")
                 .handInFir("MF-UNTAR", 1).kill("SCAV", 5)
                 .money(15000).exp(2500).build());
+        quests.add(new QuestBuilder(module, "bastion_night_optics_trial")
+                .trader(BASTION).name("夜間装備の試験")
+                .description("回収した電池と配線で暗視装置を整備する。補給できる状態になればPVS-14の交換を許可する。")
+                .requiresLevel(3)
+                .requiresQuest("bastion_light_transport")
+                .handInFir("mini_battery", 1).handInFir("copper_wire", 2)
+                .unlockTrade(BASTION, "PVS-14")
+                .money(9000).exp(1600).build());
+        quests.add(new QuestBuilder(module, "bastion_night_optics_supply")
+                .trader(BASTION).name("夜間装備の定期補給")
+                .description("暗視装置の供給路を確保する。工具と電子部品を納め、一度生還してくれ。完了後はPVS-14をルーブルで販売する。")
+                .requiresLevel(9)
+                .requiresQuest("bastion_night_optics_trial")
+                .handInFir("tool_box", 1).handInFir("mini_battery", 2)
+                .extractAny(1)
+                .unlockTrade(BASTION, "PVS-14")
+                .money(22000).exp(3200).build());
         quests.add(new QuestBuilder(module, "bastion_carrying_capacity")
                 .trader(BASTION).name("積載能力の拡張")
                 .description("輸送量を増やす。大型バッグと容量のあるリグを回収し、二度生還してくれ。D3CRXの販売も許可する。")

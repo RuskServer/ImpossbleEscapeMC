@@ -13,6 +13,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -23,6 +24,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TraderGUI implements Listener {
+    private static final NamespacedKey TRADE_INDEX = new NamespacedKey("iem", "trader_trade_index");
     private static final int[] SELL_INPUT_SLOTS = {10, 11, 12, 13, 14, 15, 16};
     private static final int SELL_BUTTON_SLOT = 22;
     private static final int REPAIR_INPUT_SLOT = 13;
@@ -212,6 +215,7 @@ public class TraderGUI implements Listener {
         }
         meta.lore(lore);
         meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
+        meta.getPersistentDataContainer().set(TRADE_INDEX, PersistentDataType.INTEGER, trader.items.indexOf(ti));
         icon.setItemMeta(meta);
         return icon;
     }
@@ -231,10 +235,17 @@ public class TraderGUI implements Listener {
             lore.add(Component.text(traderModule.getUnlockRequirements(ti),
                     data.isQuestCompleted(ti.requiredQuestId) ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         }
-        lore.add(Component.text("価格: " + (long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.DARK_GRAY)
-                .decoration(TextDecoration.ITALIC, false));
+        if (ti.isBarter()) {
+            StringBuilder cost = new StringBuilder();
+            for (var c : ti.barter) cost.append(cost.length() > 0 ? "、" : "").append(TraderDialog.itemName(c.itemId())).append(" ×").append(c.amount());
+            lore.add(Component.text("交換: " + cost, NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("価格: " + (long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.DARK_GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
         meta.lore(lore);
         meta.getPersistentDataContainer().set(PDCKeys.ITEM_ID, PDCKeys.STRING, ti.itemId);
+        meta.getPersistentDataContainer().set(TRADE_INDEX, PersistentDataType.INTEGER, trader.items.indexOf(ti));
         icon.setItemMeta(meta);
         return icon;
     }
@@ -578,8 +589,7 @@ public class TraderGUI implements Listener {
                     PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
                     
                     if (event.isShiftClick()) {
-                        String itemId = clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-                        TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
+                        TraderItem ti = tradeOf(clicked);
                         if (ti != null) {
                             if (!traderModule.isUnlocked(data, ti)) {
                                 player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED));
@@ -675,16 +685,21 @@ public class TraderGUI implements Listener {
     }
 
     public void handleBuy(ItemStack clicked, PlayerData data, int quantity) {
-        handleBuy(clicked.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING), data, quantity);
+        handleBuy(tradeOf(clicked), data, quantity);
     }
 
-    /** 品物のIDで購入する (数量指定の画面から。品物の見本を作らずに済む) */
-    public void handleBuy(String itemId, PlayerData data, int quantity) {
-        TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
+    /** 数量指定の画面からも、選択した交換・現金販売の取引をそのまま購入する。 */
+    public void handleBuy(TraderItem ti, PlayerData data, int quantity) {
         if (ti == null) return;
         TraderModule.Purchase result = traderModule.purchase(player, trader, ti, quantity);
         result.messages().forEach(player::sendMessage);
         if (result.bought() > 0) setupBuyGUI();
+    }
+
+    private TraderItem tradeOf(ItemStack icon) {
+        if (icon == null || !icon.hasItemMeta()) return null;
+        Integer index = icon.getItemMeta().getPersistentDataContainer().get(TRADE_INDEX, PersistentDataType.INTEGER);
+        return index != null && index >= 0 && index < trader.items.size() ? trader.items.get(index) : null;
     }
 
     /** 売る欄の支給品の数 (どのトレーダーでも 0₽ で引き取る。中に物の入ったバッグは除く) */

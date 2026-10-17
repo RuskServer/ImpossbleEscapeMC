@@ -86,7 +86,7 @@ public final class AttachmentLayout {
             case "accessory" -> "アクセサリー";
             case "slide" -> "スライド";
             case "shell" -> "シェル";
-            case "visor" -> "バイザー";
+            case "visor" -> "顔面装備";
             default -> slot;
         };
     }

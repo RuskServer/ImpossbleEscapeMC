@@ -108,7 +108,7 @@ public class HelmetAttachmentGUIListener implements Listener {
             return false;
         }
         if (!HelmetVisors.fits(gui.helmetDef(), visor.id)) {
-            player.sendMessage(Component.text("このバイザーはこのヘルメットには付けられません", NamedTextColor.RED));
+            player.sendMessage(Component.text("この装着品はこのヘルメットには付けられません", NamedTextColor.RED));
             return false;
         }
         String previous = HelmetVisors.visorOf(helmet);
