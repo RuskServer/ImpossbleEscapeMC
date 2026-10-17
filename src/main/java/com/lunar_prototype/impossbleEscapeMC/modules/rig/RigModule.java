@@ -67,6 +67,29 @@ public class RigModule implements IModule {
         return def != null && (("RIG".equalsIgnoreCase(def.type)) || def.rigStats != null);
     }
 
+    public boolean isArmoredRigItem(ItemStack item) {
+        if (!isRigItem(item)) return false;
+        String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(id);
+        return def != null && def.rigStats != null && def.armorStats != null
+                && def.armorStats.armorClass > 0;
+    }
+
+    public boolean isChestArmor(ItemStack item) {
+        if (item == null || item.getType().isAir()) return false;
+        if (item.getType().name().endsWith("_CHESTPLATE")) return true;
+        if (!item.hasItemMeta()) return false;
+        String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(id);
+        return def != null && def.armorStats != null && def.rigStats == null
+                && "CHEST".equalsIgnoreCase(def.armorStats.slot);
+    }
+
+    public boolean conflictsWithEquippedArmor(Player player, ItemStack candidate) {
+        return (isArmoredRigItem(candidate) && isChestArmor(player.getInventory().getChestplate()))
+                || (isChestArmor(candidate) && isArmoredRigItem(player.getInventory().getLeggings()));
+    }
+
     public ItemStack getEquippedRig(Player player) {
         ItemStack leggings = player.getInventory().getLeggings();
         return isRigItem(leggings) ? leggings : null;

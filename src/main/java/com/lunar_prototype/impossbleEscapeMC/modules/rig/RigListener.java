@@ -3,18 +3,23 @@ package com.lunar_prototype.impossbleEscapeMC.modules.rig;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockDispenseArmorEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -24,6 +29,8 @@ import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 
 public class RigListener implements Listener {
+    private static final int LEGGINGS_SLOT = 37;
+    private static final int CHEST_SLOT = 38;
     private final RigModule rigModule;
     private final ImpossbleEscapeMC plugin;
 
@@ -35,6 +42,11 @@ public class RigListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (wouldEquipConflictingArmor(event, player)) {
+            event.setCancelled(true);
+            showArmorConflict(player);
+            return;
+        }
         if (rigModule.isControlSuppressed(player)) return;
 
         scheduleSync(player);
@@ -67,6 +79,17 @@ public class RigListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        for (var placed : event.getNewItems().entrySet()) {
+            int rawSlot = placed.getKey();
+            if (!player.getInventory().equals(event.getView().getInventory(rawSlot))) continue;
+            int slot = event.getView().convertSlot(rawSlot);
+            if ((slot == CHEST_SLOT || slot == LEGGINGS_SLOT)
+                    && rigModule.conflictsWithEquippedArmor(player, placed.getValue())) {
+                event.setCancelled(true);
+                showArmorConflict(player);
+                return;
+            }
+        }
         if (rigModule.isControlSuppressed(player)) return;
 
         scheduleSync(player);
@@ -105,13 +128,27 @@ public class RigListener implements Listener {
         scheduleSync(player);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
+        if (event.getAction().isRightClick() && event.useItemInHand() != Event.Result.DENY
+                && rigModule.conflictsWithEquippedArmor(event.getPlayer(), event.getItem())) {
+            event.setUseItemInHand(Event.Result.DENY);
+            showArmorConflict(event.getPlayer());
+            return;
+        }
         if (rigModule.isControlSuppressed(event.getPlayer())) return;
         ItemStack item = event.getItem();
         if (item == null) return;
         if (!rigModule.isRigItem(item)) return;
         scheduleSync(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onDispenseArmor(BlockDispenseArmorEvent event) {
+        if (!(event.getTargetEntity() instanceof Player player)) return;
+        if (!rigModule.conflictsWithEquippedArmor(player, event.getItem())) return;
+        event.setCancelled(true);
+        showArmorConflict(player);
     }
 
     @EventHandler
@@ -160,6 +197,32 @@ public class RigListener implements Listener {
 
         player.updateInventory();
         scheduleSync(player);
+    }
+
+    private boolean wouldEquipConflictingArmor(InventoryClickEvent event, Player player) {
+        Inventory clicked = event.getClickedInventory();
+        if (clicked == null || !clicked.equals(player.getInventory())) return false;
+
+        int slot = event.getSlot();
+        if (slot == CHEST_SLOT || slot == LEGGINGS_SLOT) {
+            ItemStack incoming = switch (event.getAction()) {
+                case PLACE_ALL, PLACE_SOME, PLACE_ONE, SWAP_WITH_CURSOR -> event.getCursor();
+                case HOTBAR_SWAP, HOTBAR_MOVE_AND_READD -> event.getHotbarButton() >= 0
+                        ? player.getInventory().getItem(event.getHotbarButton())
+                        : player.getInventory().getItemInOffHand();
+                default -> null;
+            };
+            return rigModule.conflictsWithEquippedArmor(player, incoming);
+        }
+
+        // プレイヤー自身の画面でのシフトクリックは、空の防具スロットへ自動装備できる。
+        return event.getView().getType() == InventoryType.CRAFTING
+                && event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY
+                && rigModule.conflictsWithEquippedArmor(player, event.getCurrentItem());
+    }
+
+    private void showArmorConflict(Player player) {
+        player.sendActionBar(Component.text("アーマーリグと胸防具は同時に装備できません", NamedTextColor.RED));
     }
 
     private void scheduleSync(Player player) {
