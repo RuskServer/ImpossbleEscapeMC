@@ -35,7 +35,7 @@ import java.util.Set;
  * <p>
  * 1回の操作で各インベントリのスロットがどう変わるかを先に求めて判定する。すでに超えている時 (ロビーで整理中など) は、
  * 使用量を増やす操作だけを止め、減らす・並べ替える操作はできるようにする。
- * リグ (ズボンの欄) を外す・小さいリグに替える操作も、持ち物が入りきらなくなるなら止める (落とさずに済むように)。
+ * リグの装備欄を外す・小さいリグに替える操作も、持ち物が入りきらなくなるなら止める (落とさずに済むように)。
  * 止めた時は音を鳴らし、容量のゲージ ({@link CapacityGauge}) を赤く光らせる。
  * 止められない経路であふれた分は {@link CostSlotManager} が片付ける。
  */
@@ -45,6 +45,8 @@ public class CostCapacityListener implements Listener {
     private static final int OFFHAND_SLOT = 40;
     /** プレイヤーのインベントリでのズボン (リグ) のスロット */
     private static final int LEGGINGS_SLOT = 37;
+    /** 装甲リグを着ける胸のスロット */
+    private static final int CHEST_SLOT = 38;
 
     /** 容量を超えるインベントリと、操作した後の使用量 */
     private record Overflow(int used, int capacity) {
@@ -97,7 +99,8 @@ public class CostCapacityListener implements Listener {
         Inventory clicked = event.getClickedInventory();
         if (clicked == null) return;
         ItemStack current = event.getCurrentItem();
-        if (clicked.equals(player.getInventory()) && event.getSlot() == LEGGINGS_SLOT) {
+        if (clicked.equals(player.getInventory())
+                && (event.getSlot() == LEGGINGS_SLOT || event.getSlot() == CHEST_SLOT)) {
             Overflow rig = rigChange(player, event, current);
             if (rig != null) {
                 event.setCancelled(true);
@@ -166,7 +169,8 @@ public class CostCapacityListener implements Listener {
         if (!event.getAction().isRightClick() || event.useItemInHand() == Event.Result.DENY || !isLimited(player)) return;
         RigModule rigModule = rigModule();
         ItemStack hand = event.getItem();
-        ItemStack worn = player.getInventory().getLeggings();
+        ItemStack worn = rigModule != null && rigModule.isArmoredRigItem(hand)
+                ? player.getInventory().getChestplate() : player.getInventory().getLeggings();
         if (rigModule == null || !rigModule.isRigItem(hand) || isEmpty(worn)) return;
         // 着けていたリグは手のスロットに入る
         int handSlot = event.getHand() == EquipmentSlot.OFF_HAND ? OFFHAND_SLOT : player.getInventory().getHeldItemSlot();
@@ -179,7 +183,7 @@ public class CostCapacityListener implements Listener {
     }
 
     /**
-     * ズボンの欄をクリックした結果、リグが外れる・替わって容量が足りなくなるなら、その時の使用量と容量 (足りれば null)。
+     * リグの装備欄をクリックした結果、リグが外れる・替わって容量が足りなくなるなら、その時の使用量と容量 (足りれば null)。
      * 外したリグはカーソル・ホットバー・持ち物のどれかに行く
      */
     private static Overflow rigChange(Player player, InventoryClickEvent event, ItemStack worn) {

@@ -16,6 +16,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -86,29 +87,51 @@ public class RigModule implements IModule {
     }
 
     public boolean conflictsWithEquippedArmor(Player player, ItemStack candidate) {
-        return (isArmoredRigItem(candidate) && isChestArmor(player.getInventory().getChestplate()))
-                || (isChestArmor(candidate) && isArmoredRigItem(player.getInventory().getLeggings()));
+        ItemStack chest = player.getInventory().getChestplate();
+        ItemStack leggings = player.getInventory().getLeggings();
+        if (isArmoredRigItem(candidate)) {
+            return isChestArmor(chest) || isArmoredRigItem(chest) || isRigItem(leggings);
+        }
+        if (isChestArmor(candidate)) return isArmoredRigItem(chest) || isArmoredRigItem(leggings);
+        return isRigItem(candidate) && isArmoredRigItem(chest);
     }
 
     public ItemStack getEquippedRig(Player player) {
+        ItemStack chest = player.getInventory().getChestplate();
+        if (isArmoredRigItem(chest)) return chest;
         ItemStack leggings = player.getInventory().getLeggings();
         return isRigItem(leggings) ? leggings : null;
     }
 
-    /** 旧版リグも装備中に新しい装備アセットへ移す。 */
+    /** 旧版リグの装備アセットと、脚スロットに残った旧 SP-V を更新する。 */
     public boolean syncEquippedRigModel(Player player) {
+        boolean movedToChest = false;
+        ItemStack oldLeggings = player.getInventory().getLeggings();
+        if (isArmoredRigItem(oldLeggings)
+                && (player.getInventory().getChestplate() == null
+                    || player.getInventory().getChestplate().getType().isAir())) {
+            ItemMeta oldMeta = oldLeggings.getItemMeta();
+            var oldEquippable = oldMeta.getEquippable();
+            oldEquippable.setSlot(EquipmentSlot.CHEST);
+            oldMeta.setEquippable(oldEquippable);
+            oldLeggings.setItemMeta(oldMeta);
+            player.getInventory().setLeggings(null);
+            player.getInventory().setChestplate(oldLeggings);
+            movedToChest = true;
+        }
         ItemStack rig = getEquippedRig(player);
-        if (rig == null) return false;
+        if (rig == null) return movedToChest;
         String id = rig.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        if (!"micro_rig".equals(id) && !"d3rcx".equals(id) && !"sp_v".equals(id)) return false;
+        if (!"micro_rig".equals(id) && !"d3rcx".equals(id) && !"sp_v".equals(id)) return movedToChest;
         NamespacedKey model = NamespacedKey.fromString("iem:" + id + "_3d");
         ItemMeta meta = rig.getItemMeta();
         var equippable = meta.getEquippable();
-        if (model.equals(equippable.getModel())) return false;
+        if (model.equals(equippable.getModel())) return movedToChest;
         equippable.setModel(model);
         meta.setEquippable(equippable);
         rig.setItemMeta(meta);
-        player.getInventory().setLeggings(rig);
+        if (isArmoredRigItem(rig)) player.getInventory().setChestplate(rig);
+        else player.getInventory().setLeggings(rig);
         return true;
     }
 
