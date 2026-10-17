@@ -124,9 +124,9 @@ final class ItemCatalog {
         mf_untar.armorStats = armor(2, 3, null, null);
         items.add(mf_untar);
 
-        ItemDefinition untar = item("UNTAR", "ARMOR", Material.GOLDEN_HELMET, "§f[UNTAR] ヘルメット", 2, 0, 350, 1800, 2);
+        ItemDefinition untar = item("UNTAR", "ARMOR", Material.DIAMOND, "§f[UNTAR] ヘルメット", 2, 0, 350, 1800, 2);
         // weight: 1.8kg
-        untar.armorStats = armor(2, 4, null, null);
+        untar.armorStats = armor(2, 9, "HEAD", null);
         items.add(untar);
 
         // --- 医療品 ---
