@@ -106,10 +106,11 @@ public class BackpackDisplayManager {
         if (rigModule != null) {
             rigItem = rigModule.getEquippedRig(player);
         }
-        // 装備アセットで描く Micro Rig は、従来の item display と二重に表示しない。
+        // 3D 装備アセットで描くリグは、従来の item display と二重に表示しない。
         if (rigItem != null && rigItem.hasItemMeta()
                 && rigItem.getItemMeta().getEquippable() != null
-                && NamespacedKey.fromString("iem:micro_rig_3d").equals(rigItem.getItemMeta().getEquippable().getModel())) {
+                && (NamespacedKey.fromString("iem:micro_rig_3d").equals(rigItem.getItemMeta().getEquippable().getModel())
+                    || NamespacedKey.fromString("iem:d3rcx_3d").equals(rigItem.getItemMeta().getEquippable().getModel()))) {
             rigItem = null;
         }
 

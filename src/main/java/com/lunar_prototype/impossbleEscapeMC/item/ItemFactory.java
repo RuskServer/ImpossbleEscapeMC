@@ -175,8 +175,8 @@ public class ItemFactory {
                         equippable.setSwappable(def.armorStats.swappable);
                         equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
                     }
-                    if ("micro_rig".equals(def.id)) {
-                        equippable.setModel(NamespacedKey.fromString("iem:micro_rig_3d"));
+                    if ("micro_rig".equals(def.id) || "d3rcx".equals(def.id)) {
+                        equippable.setModel(NamespacedKey.fromString("iem:" + def.id + "_3d"));
                     }
 
                     meta.setEquippable(equippable);
