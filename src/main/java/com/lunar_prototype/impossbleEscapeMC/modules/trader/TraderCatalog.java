@@ -80,7 +80,11 @@ final class TraderCatalog {
                         // 最初から買える
                         item("flashlight", 2800, 0, 1, null, null),
                         // 交換 (仮の値)
-                        barter("micro_rig", 1, 1, 3, null, cost("tool_box", 1), cost("bolts", 4))
+                        barter("micro_rig", 1, 1, 3, null, cost("tool_box", 1), cost("bolts", 4)),
+                        // Spectre試作装備: 防具とリグを素材に、電子部品で制御系を組む。
+                        barter("sp_v", 1, 1, 20, "bastion_monolith_prototype",
+                                cost("Trooper", 2), cost("d3rcx", 1),
+                                cost("graphics_card", 1), cost("tool_box", 2))
                 )));
 
         traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,

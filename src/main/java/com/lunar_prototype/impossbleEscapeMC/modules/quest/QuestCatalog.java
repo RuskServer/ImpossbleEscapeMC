@@ -318,5 +318,15 @@ final class QuestCatalog {
                 .requiresQuest("bastion_computing_resources")
                 .handInFir("mechanical_golden_watch", 1).extractAny(3)
                 .money(145000).exp(5000).build());
+        quests.add(new QuestBuilder(module, "bastion_monolith_prototype")
+                .trader(BASTION).name("モノリス計画 - 試験調達")
+                .description("Spectre製の試作装甲リグを入手するには、防護材と制御用の電源が必要だ。クラス4防具と小型バッテリーを現地で回収し、護衛任務を終えて生還してくれ。完了後はSP-Vの交換を認める。")
+                .requiresLevel(20)
+                .requiresQuest("bastion_protection_selection")
+                .requiresQuest("bastion_computing_resources")
+                .handInArmorFir(4, 1).handInFir("mini_battery", 4)
+                .kill("SCAV", 12).extractAny(2)
+                .unlockTrade(BASTION, "sp_v")
+                .money(50000).exp(6000).build());
     }
 }
