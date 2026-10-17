@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import me.libraryaddict.disguise.DisguiseAPI;
@@ -199,7 +200,7 @@ public class ScavSpawner implements Listener {
             DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
             if (profile == null) continue;
             ItemStack gun = DatapackGunCatalog.createItem(world, profile);
-            if (gun != null) return gun;
+            if (gun != null) return DatapackGunCondition.scavGun(gun);
         }
         return null;
     }
