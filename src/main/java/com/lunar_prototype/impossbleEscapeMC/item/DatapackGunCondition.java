@@ -27,7 +27,7 @@ public final class DatapackGunCondition {
 
     public static ItemStack ensure(ItemStack gun) {
         if (DatapackGunCatalog.gunIdOf(gun) == null || state(gun).getIntOr(DURABILITY_KEY, -1) >= 0) return gun;
-        return syncDisplay(set(gun, MAX_DURABILITY, false, 0));
+        return set(gun, MAX_DURABILITY, false, 0);
     }
 
     public static ItemStack scavGun(ItemStack gun) {
@@ -52,7 +52,7 @@ public final class DatapackGunCondition {
         return state(gun).getIntOr(DISPLAYED_DURABILITY_KEY, -1) != durability(gun);
     }
 
-    /** 表示コンポーネントは持ち替え判定に含まれるため、射撃が止まってから呼ぶ。 */
+    /** 表示コンポーネントは持ち替え判定に含まれるため、手に持っていない銃だけに呼ぶ。 */
     public static ItemStack syncDisplay(ItemStack gun) {
         int durability = durability(gun);
         ItemStack updated = DatapackAmmo.editState(gun,

@@ -49,11 +49,11 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
     private static final String SETTING_HOLDER = "#toisarm.settings.reload_requires_ammo";
     private static final String SETTING_OBJECTIVE = "_";
     private static final int SETTING_REFRESH_TICKS = 100;
-    private static final int CONDITION_DISPLAY_IDLE_TICKS = 10;
+    private static final int CONDITION_DISPLAY_REFRESH_TICKS = 20;
     private static final String[] RELOAD_TIMERS = {"toisarm.timer.reload", "toisarm.timer.empty_reload", "toisarm.timer.reload_loop"};
 
     /** 前のtickに見た、手に持った銃の弾数 */
-    private record Seen(String instanceId, int rounds, boolean reloading, int capacity, int lastShotTick) {
+    private record Seen(String instanceId, int rounds, boolean reloading, int capacity) {
     }
 
     private final Map<UUID, Seen> seen = new HashMap<>();
@@ -61,6 +61,7 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
 
     @Override
     public void run() {
+        boolean refreshStoredDisplays = tick % CONDITION_DISPLAY_REFRESH_TICKS == 0;
         if (tick++ % SETTING_REFRESH_TICKS == 0) enableAmmoRequirement();
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (DatapackGunnerManager.isGunner(player)) {
@@ -68,6 +69,19 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
                 continue;
             }
             update(player);
+            if (refreshStoredDisplays) syncStoredGunDisplays(player);
+        }
+    }
+
+    /** 手から離れた銃だけ耐久バーと説明文を更新する。選択中の銃は Toi の持ち替え判定にかかる。 */
+    private static void syncStoredGunDisplays(Player player) {
+        ItemStack[] storage = player.getInventory().getStorageContents();
+        int heldSlot = player.getInventory().getHeldItemSlot();
+        for (int slot = 0; slot < storage.length; slot++) {
+            if (slot == heldSlot || DatapackGunCatalog.gunIdOf(storage[slot]) == null) continue;
+            ItemStack gun = DatapackGunCondition.ensure(storage[slot]);
+            if (!DatapackGunCondition.displayOutdated(gun)) continue;
+            player.getInventory().setItem(slot, DatapackGunCondition.syncDisplay(gun));
         }
     }
 
@@ -99,8 +113,6 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         Seen previous = seen.get(id);
         // 同じ1丁を持ち続けている時だけ見る (同じ種類の別の銃に持ち替えた差を、リロードや付け替えと取り違えない)
         boolean sameGun = previous != null && previous.instanceId().equals(instanceId);
-        int currentTick = Bukkit.getCurrentTick();
-        int lastShotTick = sameGun ? previous.lastShotTick() : currentTick;
         if (limited && sameGun && previous.reloading() && rounds > previous.rounds()) {
             gun = loadFromInventory(player, gun, caliber, previous.rounds(), rounds - previous.rounds());
             rounds = rounds(gun);
@@ -116,7 +128,6 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
                 && previous.capacity() == capacity
                 ? Math.max(0, previous.rounds() - rounds) : 0;
         if (shots > 0) {
-            lastShotTick = currentTick;
             boolean wasJammed = DatapackGunCondition.isJammed(gun);
             int beforeDurability = DatapackGunCondition.durability(gun);
             gun = DatapackGunCondition.afterShots(gun, shots);
@@ -134,15 +145,6 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         if (DatapackGunCondition.isJammed(gun)) {
             gun = maintainCocking(player, gun);
         }
-        // lore/damage の変更は Toi の持ち替え判定にかかる。射撃・ボルト操作が落ち着いてから同期する。
-        if (currentTick - lastShotTick >= CONDITION_DISPLAY_IDLE_TICKS
-                && !DatapackGunCondition.isJammed(gun) && !reloading(player)
-                && score(player, "toisarm.timer.trigger", -1) < 0
-                && score(player, "toisarm.timer.bolt_action", -1) < 0
-                && DatapackGunCondition.displayOutdated(gun)) {
-            gun = DatapackGunCondition.syncDisplay(gun);
-            player.getInventory().setItemInMainHand(gun);
-        }
         rounds = rounds(gun);
 
         boolean hasAmmo = !limited || !DatapackAmmo.findAmmo(player, caliber).isEmpty();
@@ -151,7 +153,7 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         } else {
             player.removeScoreboardTag(ENOUGH_AMMO_TAG);
         }
-        seen.put(id, new Seen(instanceId, rounds, reloading(player), capacity, lastShotTick));
+        seen.put(id, new Seen(instanceId, rounds, reloading(player), capacity));
     }
 
     /** データパック既存のボルト操作タイマーを使い、薬室の状態もアイテムへ反映する。 */
