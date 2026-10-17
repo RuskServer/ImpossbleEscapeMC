@@ -14,6 +14,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -104,6 +105,12 @@ public class BackpackDisplayManager {
         ItemStack rigItem = null;
         if (rigModule != null) {
             rigItem = rigModule.getEquippedRig(player);
+        }
+        // 装備アセットで描く Micro Rig は、従来の item display と二重に表示しない。
+        if (rigItem != null && rigItem.hasItemMeta()
+                && rigItem.getItemMeta().getEquippable() != null
+                && NamespacedKey.fromString("iem:micro_rig_3d").equals(rigItem.getItemMeta().getEquippable().getModel())) {
+            rigItem = null;
         }
 
         if (backpackItem == null && rigItem == null) {
