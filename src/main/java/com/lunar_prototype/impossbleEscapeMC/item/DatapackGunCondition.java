@@ -3,8 +3,14 @@ package com.lunar_prototype.impossbleEscapeMC.item;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Toi's Armory の銃に、プラグイン側の耐久とジャム状態を保存する。 */
@@ -14,24 +20,20 @@ public final class DatapackGunCondition {
     private static final String DURABILITY_KEY = "iemc_durability";
     private static final String JAMMED_KEY = "iemc_jammed";
     private static final String PRD_STREAK_KEY = "iemc_jam_prd_streak";
+    private static final String DISPLAYED_DURABILITY_KEY = "iemc_displayed_durability";
 
     private DatapackGunCondition() {
     }
 
     public static ItemStack ensure(ItemStack gun) {
         if (DatapackGunCatalog.gunIdOf(gun) == null || state(gun).getIntOr(DURABILITY_KEY, -1) >= 0) return gun;
-        return set(gun, MAX_DURABILITY, false, 0);
+        return syncDisplay(set(gun, MAX_DURABILITY, false, 0));
     }
 
     public static ItemStack scavGun(ItemStack gun) {
         if (DatapackGunCatalog.gunIdOf(gun) == null) return gun;
         int durability = ThreadLocalRandom.current().nextInt(200, 501);
-        ItemStack worn = set(gun, durability, false, 0);
-        // SCAVの銃はプレイヤーが拾う前から消耗している。生成時だけ表示も合わせる。
-        // 発砲のたびに damage を書くと、データパックが持ち替えとして銃を再読み込みしてしまう。
-        worn.setData(DataComponentTypes.MAX_DAMAGE, MAX_DURABILITY);
-        worn.setData(DataComponentTypes.DAMAGE, MAX_DURABILITY - durability);
-        return worn;
+        return syncDisplay(set(gun, durability, false, 0));
     }
 
     public static int durability(ItemStack gun) {
@@ -44,6 +46,26 @@ public final class DatapackGunCondition {
 
     public static ItemStack clearJam(ItemStack gun) {
         return set(gun, durability(gun), false, 0);
+    }
+
+    public static boolean displayOutdated(ItemStack gun) {
+        return state(gun).getIntOr(DISPLAYED_DURABILITY_KEY, -1) != durability(gun);
+    }
+
+    /** 表示コンポーネントは持ち替え判定に含まれるため、射撃が止まってから呼ぶ。 */
+    public static ItemStack syncDisplay(ItemStack gun) {
+        int durability = durability(gun);
+        ItemStack updated = DatapackAmmo.editState(gun,
+                state -> state.putInt(DISPLAYED_DURABILITY_KEY, durability));
+        ItemMeta meta = updated.getItemMeta();
+        List<Component> lore = new ArrayList<>(meta.lore() == null ? List.of() : meta.lore());
+        lore.removeIf(line -> PlainTextComponentSerializer.plainText().serialize(line).startsWith("銃の耐久: "));
+        lore.add(Component.text("銃の耐久: " + durability + " / " + MAX_DURABILITY, NamedTextColor.GRAY));
+        meta.lore(lore);
+        updated.setItemMeta(meta);
+        updated.setData(DataComponentTypes.MAX_DAMAGE, MAX_DURABILITY);
+        updated.setData(DataComponentTypes.DAMAGE, MAX_DURABILITY - durability);
+        return updated;
     }
 
     /** 実際に消費された弾数だけ処理する。PRD の連続不発回数は銃ごとに保存する。 */
