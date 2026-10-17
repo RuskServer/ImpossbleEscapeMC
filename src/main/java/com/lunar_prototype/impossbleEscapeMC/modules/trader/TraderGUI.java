@@ -1,6 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
 import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
+import com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
@@ -309,6 +311,11 @@ public class TraderGUI implements Listener {
 
     private String getRepairError(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return "アイテムが無効です";
+        if (DatapackGunCatalog.gunIdOf(item) != null) {
+            if (!trader.canRepairWeapon) return "この店では武器を修理できません";
+            return DatapackGunCondition.durability(item) >= DatapackGunCondition.MAX_DURABILITY
+                    && !DatapackGunCondition.isJammed(item) ? "修理の必要がありません" : "不明なエラー";
+        }
         ItemMeta meta = item.getItemMeta();
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         if (itemId == null) return "修理不可能なアイテムです";
@@ -332,6 +339,7 @@ public class TraderGUI implements Listener {
 
     private boolean isRepairable(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
+        if (DatapackGunCatalog.gunIdOf(item) != null) return trader.canRepairWeapon;
         ItemMeta meta = item.getItemMeta();
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         if (itemId == null) return false;
@@ -348,6 +356,13 @@ public class TraderGUI implements Listener {
 
     private double calculateRepairCost(ItemStack item) {
         if (!isRepairable(item)) return 0;
+        String gunId = DatapackGunCatalog.gunIdOf(item);
+        if (gunId != null) {
+            double damageRatio = 1.0 - DatapackGunCondition.durability(item)
+                    / (double) DatapackGunCondition.MAX_DURABILITY;
+            return datapackGunRepairBasePrice(gunId) * damageRatio
+                    * TraderModule.repairMultiplier(player.getUniqueId());
+        }
         
         ItemMeta meta = item.getItemMeta();
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
@@ -368,6 +383,17 @@ public class TraderGUI implements Listener {
         return basePrice * damageRatio * TraderModule.repairMultiplier(player.getUniqueId());   // スキルで安くなる
     }
 
+    /** Brokerの買取基準価格を完品修理の基準額に使い、未取扱銃は武器の標準額にする。 */
+    private double datapackGunRepairBasePrice(String gunId) {
+        TraderDefinition broker = traderModule.getTrader("broker");
+        if (broker != null) {
+            for (TraderItem offer : broker.items) {
+                if (offer.itemId.equals(gunId) && offer.price > 0) return offer.price;
+            }
+        }
+        return TraderModule.getBaseWeaponRepairCost(1);
+    }
+
     private void handleRepair() {
         ItemStack target = inventory.getItem(REPAIR_INPUT_SLOT);
         double cost = calculateRepairCost(target);
@@ -375,22 +401,26 @@ public class TraderGUI implements Listener {
         if (cost <= 0) return;
 
         if (traderModule.getEconomyModule().withdraw(player.getUniqueId(), cost)) {
-            ItemMeta meta = target.getItemMeta();
-            String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-            ItemDefinition def = ItemRegistry.get(itemId);
+            if (DatapackGunCatalog.gunIdOf(target) != null) {
+                inventory.setItem(REPAIR_INPUT_SLOT, DatapackGunCondition.repair(target));
+            } else {
+                ItemMeta meta = target.getItemMeta();
+                String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+                ItemDefinition def = ItemRegistry.get(itemId);
 
-            // 耐久値をリセット
-            meta.getPersistentDataContainer().set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-            
-            // 武器の場合はジャムも解除
-            if ("GUN".equalsIgnoreCase(def.type)) {
-                meta.getPersistentDataContainer().set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0);
+                // 耐久値をリセット
+                meta.getPersistentDataContainer().set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+
+                // 武器の場合はジャムも解除
+                if ("GUN".equalsIgnoreCase(def.type)) {
+                    meta.getPersistentDataContainer().set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0);
+                }
+
+                target.setItemMeta(meta);
+
+                // 見た目を更新 (Lore, 耐久値バー)
+                ItemFactory.updateLore(target);
             }
-
-            target.setItemMeta(meta);
-            
-            // 見た目を更新 (Lore, 耐久値バー)
-            ItemFactory.updateLore(target);
 
             player.sendMessage(Component.text("アイテムを修理し、" + String.format("%.0f", cost) + "₽ を支払いました。", NamedTextColor.GREEN));
             updateRepairButton();
@@ -472,7 +502,13 @@ public class TraderGUI implements Listener {
 
             TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
             if (ti != null) {
-                total += ti.price * item.getAmount();
+                double price = ti.price;
+                if (DatapackGunCatalog.gunIdOf(item) != null) {
+                    double condition = DatapackGunCondition.durability(item)
+                            / (double) DatapackGunCondition.MAX_DURABILITY;
+                    price *= 0.2 + 0.8 * condition;
+                }
+                total += price * item.getAmount();
             }
         }
         return Math.floor(total * TraderModule.sellMultiplier(player.getUniqueId()));   // ブローカーの買取はスキルで上がる
