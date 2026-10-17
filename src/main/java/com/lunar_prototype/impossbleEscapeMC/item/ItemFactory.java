@@ -175,7 +175,7 @@ public class ItemFactory {
                         equippable.setSwappable(def.armorStats.swappable);
                         equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
                     }
-                    if ("micro_rig".equals(def.id) || "d3rcx".equals(def.id)) {
+                    if ("micro_rig".equals(def.id) || "d3rcx".equals(def.id) || "sp_v".equals(def.id)) {
                         equippable.setModel(NamespacedKey.fromString("iem:" + def.id + "_3d"));
                     }
 
@@ -355,6 +355,11 @@ public class ItemFactory {
         if (def != null && def.rigStats != null) {
             lore.add("§7スロット §f" + def.rigStats.size);
             lore.add("§7軽減 §f" + String.format("%.0f%%", def.rigStats.reduction * 100));
+            lore.add("");
+        }
+
+        if (def != null && def.description != null) {
+            lore.add("§8§o" + def.description);
             lore.add("");
         }
 

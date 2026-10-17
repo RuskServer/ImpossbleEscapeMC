@@ -110,7 +110,8 @@ public class BackpackDisplayManager {
         if (rigItem != null && rigItem.hasItemMeta()
                 && rigItem.getItemMeta().getEquippable() != null
                 && (NamespacedKey.fromString("iem:micro_rig_3d").equals(rigItem.getItemMeta().getEquippable().getModel())
-                    || NamespacedKey.fromString("iem:d3rcx_3d").equals(rigItem.getItemMeta().getEquippable().getModel()))) {
+                    || NamespacedKey.fromString("iem:d3rcx_3d").equals(rigItem.getItemMeta().getEquippable().getModel())
+                    || NamespacedKey.fromString("iem:sp_v_3d").equals(rigItem.getItemMeta().getEquippable().getModel()))) {
             rigItem = null;
         }
 

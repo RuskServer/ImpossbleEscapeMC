@@ -55,11 +55,11 @@ public final class BulletDamageModel {
         return Math.abs(lateral) > victim.getWidth() * ARMS_LATERAL_RATIO;
     }
 
-    /** 部位を守る防具の防具クラス。頭はヘルメット、胴はボディアーマー、腕・足は無し */
+    /** 部位を守る防具の防具クラス。胴はチェスト防具と装甲リグの高い方を使う。 */
     public static int armorClass(LivingEntity victim, String hitLocation) {
         return switch (hitLocation) {
             case HEAD -> armorClassFromSlot(victim, EquipmentSlot.HEAD);
-            case BODY -> armorClassFromSlot(victim, EquipmentSlot.CHEST);
+            case BODY -> Math.max(armorClassFromSlot(victim, EquipmentSlot.CHEST), armorClassFromArmoredRig(victim));
             default -> 0;
         };
     }
@@ -69,6 +69,16 @@ public final class BulletDamageModel {
         ItemStack item = entity.getEquipment().getItem(slot);
         if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return 0;
         return item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
+    }
+
+    private static int armorClassFromArmoredRig(LivingEntity entity) {
+        if (entity.getEquipment() == null) return 0;
+        ItemStack leggings = entity.getEquipment().getLeggings();
+        if (leggings == null || leggings.getType().isAir() || !leggings.hasItemMeta()) return 0;
+        String id = leggings.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(id);
+        if (def == null || def.rigStats == null || def.armorStats == null) return 0;
+        return armorClassFromSlot(entity, EquipmentSlot.LEGS);
     }
 
     /** 全銃共通の1発 (散弾は1粒) の威力。弾が不明な旧装備は固定5ダメージ。 */

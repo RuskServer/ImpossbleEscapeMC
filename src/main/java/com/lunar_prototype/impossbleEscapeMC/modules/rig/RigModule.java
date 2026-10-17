@@ -77,7 +77,7 @@ public class RigModule implements IModule {
         ItemStack rig = getEquippedRig(player);
         if (rig == null) return false;
         String id = rig.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        if (!"micro_rig".equals(id) && !"d3rcx".equals(id)) return false;
+        if (!"micro_rig".equals(id) && !"d3rcx".equals(id) && !"sp_v".equals(id)) return false;
         NamespacedKey model = NamespacedKey.fromString("iem:" + id + "_3d");
         ItemMeta meta = rig.getItemMeta();
         var equippable = meta.getEquippable();
