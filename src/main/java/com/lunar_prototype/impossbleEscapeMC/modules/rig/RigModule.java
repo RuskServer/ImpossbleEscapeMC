@@ -90,7 +90,7 @@ public class RigModule implements IModule {
         ItemStack chest = player.getInventory().getChestplate();
         ItemStack leggings = player.getInventory().getLeggings();
         if (isArmoredRigItem(candidate)) {
-            return isChestArmor(chest) || isArmoredRigItem(chest) || isRigItem(leggings);
+            return (isChestArmor(chest) && !isArmoredRigItem(chest)) || isRigItem(leggings);
         }
         if (isChestArmor(candidate)) return isArmoredRigItem(chest) || isArmoredRigItem(leggings);
         return isRigItem(candidate) && isArmoredRigItem(chest);
