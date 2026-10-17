@@ -101,10 +101,18 @@ public class CostCapacityListener implements Listener {
         ItemStack current = event.getCurrentItem();
         if (clicked.equals(player.getInventory())
                 && (event.getSlot() == LEGGINGS_SLOT || event.getSlot() == CHEST_SLOT)) {
+            RigModule rigModule = rigModule();
+            if (rigModule != null && rigModule.isRigItem(current)
+                    && locksOccupiedSlots(player, rigModule, nextRigForClick(player, event))) {
+                event.setCancelled(true);
+                player.sendActionBar(Component.text("このリグを替える前に、閉じるスロットの荷物を移してください", NamedTextColor.RED));
+                CapacityGauge.flash(player);
+                return;
+            }
             Overflow rig = rigChange(player, event, current);
             if (rig != null) {
                 event.setCancelled(true);
-                player.sendActionBar(Component.text("リグを外すと持ち物が入りきりません (" + rig.used() + " / " + rig.capacity() + " マス)",
+                player.sendActionBar(Component.text("リグを替えると持ち物が入りきりません (" + rig.used() + " / " + rig.capacity() + " マス)",
                         NamedTextColor.RED));
                 CapacityGauge.flash(player);
                 return;
@@ -169,11 +177,16 @@ public class CostCapacityListener implements Listener {
         if (!event.getAction().isRightClick() || event.useItemInHand() == Event.Result.DENY || !isLimited(player)) return;
         RigModule rigModule = rigModule();
         ItemStack hand = event.getItem();
-        ItemStack worn = rigModule != null && rigModule.isArmoredRigItem(hand)
-                ? player.getInventory().getChestplate() : player.getInventory().getLeggings();
+        ItemStack worn = rigModule == null ? null : rigModule.getEquippedRig(player);
         if (rigModule == null || !rigModule.isRigItem(hand) || isEmpty(worn)) return;
         // 着けていたリグは手のスロットに入る
         int handSlot = event.getHand() == EquipmentSlot.OFF_HAND ? OFFHAND_SLOT : player.getInventory().getHeldItemSlot();
+        if (locksOccupiedSlots(player, rigModule, hand)) {
+            event.setUseItemInHand(Event.Result.DENY);
+            player.sendActionBar(Component.text("このリグに替える前に、閉じるスロットの荷物を移してください", NamedTextColor.RED));
+            CapacityGauge.flash(player);
+            return;
+        }
         Overflow overflow = afterRigChange(player, rigModule, worn, hand, swapDelta(player, handSlot, worn, hand));
         if (overflow == null) return;
         event.setUseItemInHand(Event.Result.DENY);
@@ -208,10 +221,33 @@ public class CostCapacityListener implements Listener {
         };
     }
 
+    private static ItemStack nextRigForClick(Player player, InventoryClickEvent event) {
+        return switch (event.getAction()) {
+            case PLACE_ALL, PLACE_SOME, PLACE_ONE, SWAP_WITH_CURSOR -> event.getCursor();
+            case HOTBAR_SWAP, HOTBAR_MOVE_AND_READD -> event.getHotbarButton() >= 0
+                    ? player.getInventory().getItem(event.getHotbarButton())
+                    : player.getInventory().getItemInOffHand();
+            case PICKUP_ALL, PICKUP_HALF, PICKUP_ONE, PICKUP_SOME,
+                 DROP_ALL_SLOT, DROP_ONE_SLOT, MOVE_TO_OTHER_INVENTORY -> null;
+            default -> event.getCurrentItem();
+        };
+    }
+
     /** 外したリグ worn がスロット slot に入り、そこにあった other と入れ替わる時の使用量の変化 */
     private static int swapDelta(Player player, int slot, ItemStack worn, ItemStack other) {
         if (!CostSlotManager.isStorageSlot(player, player.getInventory(), slot)) return 0;
         return CostSlotManager.stackCost(worn) - CostSlotManager.stackCost(other);
+    }
+
+    /** リグを小さくすると使えなくなるスロットに実物が残っていないか。 */
+    private static boolean locksOccupiedSlots(Player player, RigModule rigModule, ItemStack next) {
+        int before = rigModule.getEnabledMainInventorySlots(player);
+        int after = rigModule.rigSlots(next);
+        for (int slot = RigModule.MAIN_INVENTORY_START + after;
+             slot < RigModule.MAIN_INVENTORY_START + before; slot++) {
+            if (CostSlotManager.stackCost(player.getInventory().getItem(slot)) > 0) return true;
+        }
+        return false;
     }
 
     /**

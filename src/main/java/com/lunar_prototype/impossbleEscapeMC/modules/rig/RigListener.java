@@ -131,6 +131,8 @@ public class RigListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction().isRightClick() && event.useItemInHand() != Event.Result.DENY
+                && trySwapRigAcrossSlots(event)) return;
+        if (event.getAction().isRightClick() && event.useItemInHand() != Event.Result.DENY
                 && rigModule.conflictsWithEquippedArmor(event.getPlayer(), event.getItem())) {
             event.setUseItemInHand(Event.Result.DENY);
             showArmorConflict(event.getPlayer());
@@ -141,6 +143,40 @@ public class RigListener implements Listener {
         if (item == null) return;
         if (!rigModule.isRigItem(item)) return;
         scheduleSync(event.getPlayer());
+    }
+
+    /** 装甲リグと通常リグは装備スロットが異なるので、バニラの右クリック交換に任せない。 */
+    private boolean trySwapRigAcrossSlots(PlayerInteractEvent event) {
+        ItemStack incoming = event.getItem();
+        if (!rigModule.isRigItem(incoming)) return false;
+        Player player = event.getPlayer();
+        boolean armored = rigModule.isArmoredRigItem(incoming);
+        ItemStack worn = armored ? player.getInventory().getLeggings() : player.getInventory().getChestplate();
+        if (armored ? !rigModule.isRigItem(worn) : !rigModule.isArmoredRigItem(worn)) return false;
+
+        ItemStack target = armored ? player.getInventory().getChestplate() : player.getInventory().getLeggings();
+        event.setUseItemInHand(Event.Result.DENY);
+        if (target != null && !target.getType().isAir()) {
+            showArmorConflict(player);
+            return true;
+        }
+
+        ItemStack replacement = incoming.clone();
+        ItemStack returned = worn.clone();
+        if (armored) {
+            player.getInventory().setLeggings(null);
+            player.getInventory().setChestplate(replacement);
+        } else {
+            player.getInventory().setChestplate(null);
+            player.getInventory().setLeggings(replacement);
+        }
+        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.OFF_HAND) {
+            player.getInventory().setItemInOffHand(returned);
+        } else {
+            player.getInventory().setItemInMainHand(returned);
+        }
+        scheduleSync(player);
+        return true;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
