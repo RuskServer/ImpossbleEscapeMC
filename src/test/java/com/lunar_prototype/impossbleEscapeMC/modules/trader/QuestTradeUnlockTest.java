@@ -23,7 +23,10 @@ public final class QuestTradeUnlockTest {
                 } else if (trader.id.equals("kovacs") && item.requiredQuestId != null) {
                     check(item.dailyLimit > 0, "quest-unlocked gear keeps its purchase cap: " + item.itemId);
                 }
-                if (trader.id.equals("bastion")) check(item.requiredLevel <= (item.itemId.equals("FAST-MT_visor") ? 15 : 10), "Bastion equipment level cap");
+                if (trader.id.equals("bastion")) {
+                    int levelCap = item.itemId.equals("sp_v") ? 20 : item.itemId.equals("FAST-MT_visor") ? 15 : 10;
+                    check(item.requiredLevel <= levelCap, "Bastion equipment level cap");
+                }
                 String quest = trader.id.equals("bastion") && item.itemId.equals("mbss") ? "bastion_logistics_02" : null;
                 if (quest == null) continue;
                 check(quest.equals(item.requiredQuestId), "catalog quest connected");
