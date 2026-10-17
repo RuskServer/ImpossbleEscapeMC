@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
+import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.minecraft.nbt.CompoundTag;
 import org.bukkit.inventory.ItemStack;
 
@@ -24,7 +25,13 @@ public final class DatapackGunCondition {
 
     public static ItemStack scavGun(ItemStack gun) {
         if (DatapackGunCatalog.gunIdOf(gun) == null) return gun;
-        return set(gun, ThreadLocalRandom.current().nextInt(200, 501), false, 0);
+        int durability = ThreadLocalRandom.current().nextInt(200, 501);
+        ItemStack worn = set(gun, durability, false, 0);
+        // SCAVの銃はプレイヤーが拾う前から消耗している。生成時だけ表示も合わせる。
+        // 発砲のたびに damage を書くと、データパックが持ち替えとして銃を再読み込みしてしまう。
+        worn.setData(DataComponentTypes.MAX_DAMAGE, MAX_DURABILITY);
+        worn.setData(DataComponentTypes.DAMAGE, MAX_DURABILITY - durability);
+        return worn;
     }
 
     public static int durability(ItemStack gun) {
