@@ -32,7 +32,7 @@ public final class DatapackGunCondition {
 
     public static ItemStack scavGun(ItemStack gun) {
         if (DatapackGunCatalog.gunIdOf(gun) == null) return gun;
-        int durability = ThreadLocalRandom.current().nextInt(200, 501);
+        int durability = ThreadLocalRandom.current().nextInt(200, 301);
         return syncDisplay(set(gun, durability, false, 0));
     }
 
