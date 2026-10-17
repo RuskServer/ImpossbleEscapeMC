@@ -33,6 +33,11 @@ public class RaidModule implements IModule {
     public static final int LATE_JOIN_WINDOW = 240; // 4 minutes (240 seconds)
     private final Map<String, Integer> mapTimers = new HashMap<>();
     private final Map<String, Long> lastCycleStartTime = new HashMap<>();
+    /**
+     * 回転の時刻 (0..CYCLE_DURATION-1。1 秒ずつ回る)。マップは名前の順に、周期を等分した枠でこの時刻に始まる ({@link RaidRotation})。
+     * 等分にずらしておけば、いつ来てもどこかのマップに途中参加しやすい
+     */
+    private int rotationElapsed;
     private BukkitRunnable globalTimerTask;
     private final Map<String, BossBar> queueBossBars = new HashMap<>();
     /** マップごとの、今の周期と次の周期の時間帯・天候 ({@link RaidConditions})。周期が切り替わると次が今になる */
@@ -79,7 +84,7 @@ public class RaidModule implements IModule {
             applyConditions(mapId);
         }
 
-        // Apply rotation offset if there are 2 maps (one starts at 5 mins)
+        // マップの開始を、周期をマップの数で等分した枠にずらして並べる
         applyRotationOffsets();
 
         loadState(); // 状態の復元
@@ -107,14 +112,38 @@ public class RaidModule implements IModule {
         }
     }
 
+    /** 周期の並びの順 (名前の順。再起動しても同じ) */
+    private List<String> rotationOrder() {
+        List<String> order = new ArrayList<>(maps.keySet());
+        java.util.Collections.sort(order);
+        return order;
+    }
+
+    /**
+     * どのマップも、枠どおりの所にいる扱いにする (回転の時刻を 0 から)。始まった時刻も残り時間に合わせる
+     * (枠の始まりから途中参加の時間を過ぎたマップは、今は途中参加できない)
+     */
     private void applyRotationOffsets() {
-        List<String> mapIds = new ArrayList<>(maps.keySet());
-        if (mapIds.size() >= 2) {
-            // 2つのマップがある場合、2番目のマップを5分(300秒)ずらす
-            String secondMap = mapIds.get(1);
-            mapTimers.put(secondMap, 300);
-            plugin.getLogger().info("Applied 5-minute offset to " + secondMap + " for rotation.");
+        rotationElapsed = 0;
+        List<String> order = rotationOrder();
+        for (int i = 0; i < order.size(); i++) placeOnSlot(order.get(i), order.size(), i);
+        if (order.size() >= 2) {
+            plugin.getLogger().info("Raid rotation: " + order.size() + " maps, one every "
+                    + formatTime(RaidRotation.spacing(CYCLE_DURATION, order.size())) + " " + order);
         }
+    }
+
+    /** そのマップの残り時間と始まった時刻を、今の回転の時刻での枠の位置にする */
+    private void placeOnSlot(String mapId, int mapCount, int index) {
+        int timer = RaidRotation.timerOnSlot(CYCLE_DURATION, mapCount, index, rotationElapsed);
+        mapTimers.put(mapId, timer);
+        lastCycleStartTime.put(mapId, System.currentTimeMillis() - (CYCLE_DURATION - timer) * 1000L);
+    }
+
+    /** レイド中の人か、出撃を待っている人がいるマップ (残り時間を急に動かさない) */
+    private boolean isBusy(String mapId) {
+        Set<UUID> queue = raidQueues.get(mapId);
+        return activeRaids.containsKey(mapId) || (queue != null && !queue.isEmpty());
     }
 
     private void saveState() {
@@ -131,6 +160,7 @@ public class RaidModule implements IModule {
         }
         state.put("activeRaids", raidPlayers);
         state.put("cycleStarts", new HashMap<>(lastCycleStartTime));
+        state.put("rotationElapsed", rotationElapsed);
         Map<String, Map<String, Object>> left = new HashMap<>();
         disconnected.forEach((id, d) -> left.put(id.toString(), Map.of("mapId", d.mapId(), "cycleStart", d.cycleStart())));
         state.put("disconnected", left);
@@ -157,6 +187,9 @@ public class RaidModule implements IModule {
                 }
             }
 
+            if (state.get("rotationElapsed") instanceof Number elapsed) {
+                rotationElapsed = Math.floorMod(elapsed.intValue(), CYCLE_DURATION);
+            }
             if (state.get("cycleStarts") instanceof Map<?, ?> starts) {
                 starts.forEach((id, start) -> {
                     if (maps.containsKey(String.valueOf(id)) && start instanceof Number n) lastCycleStartTime.put(String.valueOf(id), n.longValue());
@@ -199,12 +232,15 @@ public class RaidModule implements IModule {
         globalTimerTask = new BukkitRunnable() {
             @Override
             public void run() {
-                for (String mapId : new ArrayList<>(maps.keySet())) {
+                rotationElapsed = (rotationElapsed + 1) % CYCLE_DURATION;
+                List<String> order = rotationOrder();
+                for (String mapId : order) {
                     int timeLeft = mapTimers.getOrDefault(mapId, CYCLE_DURATION);
                     
                     if (timeLeft <= 0) {
                         onMapCycleEnd(mapId);
-                        mapTimers.put(mapId, CYCLE_DURATION);
+                        // 次の周期の長さで、枠からのずれを少しずつ戻す
+                        mapTimers.put(mapId, RaidRotation.nextLength(CYCLE_DURATION, order.size(), order.indexOf(mapId), rotationElapsed));
                     } else {
                         mapTimers.put(mapId, timeLeft - 1);
                     }
@@ -530,21 +566,32 @@ public class RaidModule implements IModule {
         forceStartCycle(null);
     }
 
+    /**
+     * 周期を今すぐ始め直す。マップを指定した時は、そのマップを基準にほかのマップを等間隔に並べ直す
+     * (レイド中・出撃待ちの人がいるマップは急に動かさず、周期の終わりごとに少しずつ寄せる)。
+     * 指定しない時は全部を始め直し、枠の後ろのマップほど最初の周期を長くして等間隔にする (レイドを短くしない)
+     */
     public void forceStartCycle(String targetMapId) {
+        List<String> order = rotationOrder();
         if (targetMapId != null) {
-            if (maps.containsKey(targetMapId)) {
-                onMapCycleEnd(targetMapId);
-                mapTimers.put(targetMapId, CYCLE_DURATION);
+            if (!maps.containsKey(targetMapId)) return;
+            onMapCycleEnd(targetMapId);
+            mapTimers.put(targetMapId, CYCLE_DURATION);
+            // 始め直したマップが、ちょうど自分の枠の始まりにいることにする
+            rotationElapsed = RaidRotation.slot(CYCLE_DURATION, order.size(), order.indexOf(targetMapId));
+            for (int i = 0; i < order.size(); i++) {
+                String mapId = order.get(i);
+                if (!mapId.equals(targetMapId) && !isBusy(mapId)) placeOnSlot(mapId, order.size(), i);
             }
             return;
         }
 
-        // 引数なしの場合は全マップをリセットし、回転オフセットを再適用する
-        for (String mapId : maps.keySet()) {
+        rotationElapsed = 0;
+        for (int i = 0; i < order.size(); i++) {
+            String mapId = order.get(i);
             onMapCycleEnd(mapId);
-            mapTimers.put(mapId, CYCLE_DURATION);
+            mapTimers.put(mapId, CYCLE_DURATION + RaidRotation.slot(CYCLE_DURATION, order.size(), i));
         }
-        applyRotationOffsets();
     }
 
     public RaidInstance getActiveRaid(String mapId) {
