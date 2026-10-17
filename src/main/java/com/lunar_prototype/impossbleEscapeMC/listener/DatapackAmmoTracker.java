@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo;
+import com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import net.kyori.adventure.text.Component;
@@ -77,6 +78,11 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             seen.remove(id);
             return;
         }
+        ItemStack conditioned = DatapackGunCondition.ensure(gun);
+        if (conditioned != gun) {
+            gun = conditioned;
+            player.getInventory().setItemInMainHand(gun);
+        }
         String caliber = DatapackAmmo.caliberOf(gunId);
         boolean limited = DatapackAmmo.hasAmmoFor(caliber);
         // 銃1丁ごとのIDを付ける (データパックは state を持ち替えの判定に使わないため、書いても持ち替え扱いにならない)
@@ -101,6 +107,27 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             refund(player, gun, caliber, previous.rounds() - rounds);
         }
 
+        // データパックは発砲スコアを tick 末尾で消すため、実際の弾数減少を見る。
+        // リロード中と容量変更時を除き、連射で1tickに複数発出ても弾数ぶん消耗させる。
+        int shots = sameGun && !previous.reloading() && !reloading(player)
+                && previous.capacity() == capacity
+                ? Math.max(0, previous.rounds() - rounds) : 0;
+        if (shots > 0) {
+            boolean wasJammed = DatapackGunCondition.isJammed(gun);
+            gun = DatapackGunCondition.afterShots(gun, shots);
+            player.getInventory().setItemInMainHand(gun);
+            if (!wasJammed && DatapackGunCondition.isJammed(gun)) {
+                gun = beginCocking(player, gun);
+                player.sendActionBar(Component.text("銃がジャムしました（耐久 "
+                        + DatapackGunCondition.durability(gun) + "/" + DatapackGunCondition.MAX_DURABILITY
+                        + "）。自動コッキング中", NamedTextColor.RED));
+            }
+        }
+        if (DatapackGunCondition.isJammed(gun)) {
+            gun = maintainCocking(player, gun);
+        }
+        rounds = rounds(gun);
+
         boolean hasAmmo = !limited || !DatapackAmmo.findAmmo(player, caliber).isEmpty();
         if (hasAmmo) {
             player.addScoreboardTag(ENOUGH_AMMO_TAG);
@@ -108,6 +135,35 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             player.removeScoreboardTag(ENOUGH_AMMO_TAG);
         }
         seen.put(id, new Seen(instanceId, rounds, reloading(player), capacity));
+    }
+
+    /** データパック既存のボルト操作タイマーを使い、薬室の状態もアイテムへ反映する。 */
+    private static ItemStack beginCocking(Player player, ItemStack gun) {
+        setScore(player, "toisarm.shootable", 0);
+        setScore(player, "toisarm.chamber", 0);
+        ItemStack updated = DatapackAmmo.withChamber(gun, 0);
+        player.getInventory().setItemInMainHand(updated);
+        if (score(player, "toisarm.ammo_remaining", 0) > 0) {
+            int ticks = Math.max(10, score(player, "toisarm.state.bolt_action", 10));
+            setScore(player, "toisarm.timer.bolt_action", ticks);
+        }
+        return updated;
+    }
+
+    private static ItemStack maintainCocking(Player player, ItemStack gun) {
+        int bolt = score(player, "toisarm.timer.bolt_action", -1);
+        int chamber = score(player, "toisarm.chamber", 0);
+        if (bolt < 0 && chamber == 1 && DatapackAmmo.chambered(gun)) {
+            ItemStack cleared = DatapackGunCondition.clearJam(gun);
+            player.getInventory().setItemInMainHand(cleared);
+            player.sendActionBar(Component.text("コッキング完了。ジャムを解除しました", NamedTextColor.GREEN));
+            return cleared;
+        }
+        setScore(player, "toisarm.shootable", 0);
+        if (bolt < 0 && score(player, "toisarm.ammo_remaining", 0) > 0 && !reloading(player)) {
+            return beginCocking(player, gun);
+        }
+        return gun;
     }
 
     /**
@@ -245,6 +301,9 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
      * リロードキーを押した時に出す文。満タンなら込めている弾と弾数、弾が無ければその口径、それ以外 (普通にリロードが始まる) はnull
      */
     static Component reloadPressMessage(Player player, ItemStack gun) {
+        if (DatapackGunCondition.isJammed(gun)) {
+            return Component.text("ジャム中: 弾があれば自動コッキングで解除", NamedTextColor.RED);
+        }
         String caliber = DatapackAmmo.caliberOf(DatapackGunCatalog.gunIdOf(gun));
         int magazine = DatapackAmmo.magazine(gun);
         boolean chambered = DatapackAmmo.chambered(gun);
@@ -263,7 +322,9 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             String count = magazine + (chambered ? "+1" : "");
             return Component.text("装填中: ", NamedTextColor.GRAY)
                     .append(Component.text(name, nameColor))
-                    .append(Component.text(" (" + count + ")", NamedTextColor.GRAY));
+                    .append(Component.text(" (" + count + ") 耐久 "
+                            + DatapackGunCondition.durability(gun) + "/" + DatapackGunCondition.MAX_DURABILITY,
+                            NamedTextColor.GRAY));
         }
         if (DatapackAmmo.hasAmmoFor(caliber) && DatapackAmmo.findAmmo(player, caliber).isEmpty()) {
             return Component.text("弾がありません (" + caliber + ")", NamedTextColor.RED);

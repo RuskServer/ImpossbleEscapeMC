@@ -113,6 +113,11 @@ public final class DatapackAmmo {
         });
     }
 
+    /** コッキング用に、銃アイテムに記録された薬室状態を更新する。 */
+    public static ItemStack withChamber(ItemStack gun, int chamber) {
+        return editState(gun, state -> state.putInt("chamber", chamber));
+    }
+
     /** 銃1丁ごとのID。まだ無ければnull */
     public static String instanceId(ItemStack gun) {
         String id = state(gun).getStringOr(INSTANCE_ID_KEY, "");
@@ -125,7 +130,7 @@ public final class DatapackAmmo {
         return editState(gun, state -> state.putString(INSTANCE_ID_KEY, id));
     }
 
-    private static ItemStack editState(ItemStack gun, java.util.function.Consumer<CompoundTag> edit) {
+    static ItemStack editState(ItemStack gun, java.util.function.Consumer<CompoundTag> edit) {
         net.minecraft.world.item.ItemStack nms = CraftItemStack.asNMSCopy(gun);
         CompoundTag root = nms.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         CompoundTag toisarm = root.getCompoundOrEmpty("toisarm");
@@ -164,7 +169,7 @@ public final class DatapackAmmo {
         caliberCache.clear();
     }
 
-    private static CompoundTag state(ItemStack gun) {
+    static CompoundTag state(ItemStack gun) {
         if (gun == null || gun.getType().isAir()) return new CompoundTag();
         CustomData customData = CraftItemStack.unwrap(gun).get(DataComponents.CUSTOM_DATA);
         return customData == null ? new CompoundTag() : customData.copyTag().getCompoundOrEmpty("toisarm").getCompoundOrEmpty("state");
