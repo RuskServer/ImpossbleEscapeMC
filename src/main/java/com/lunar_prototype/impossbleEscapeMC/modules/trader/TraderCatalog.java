@@ -119,6 +119,7 @@ final class TraderCatalog {
                         item("mbss", 9600, 0, 1, null, null),
                         item("d3rcx", 8000, 0, 1, null, null),
                         item("micro_rig", 5300, 0, 1, null, null),
+                        item("sp_v", 115000, 0, 1, null, null),
                         // --- Medical ---
                         item("ai2", 2500, 0, 1, null, null),
                         item("CAT", 900, 0, 1, null, null),
