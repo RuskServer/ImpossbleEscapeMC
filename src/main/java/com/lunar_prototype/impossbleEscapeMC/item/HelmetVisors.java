@@ -82,7 +82,9 @@ public final class HelmetVisors {
             pdc.remove(PDCKeys.HELMET_VISOR);
         }
 
-        int model = visor != null ? def.armorStats.visorCustomModelData : def.armorStats.customModelData;
+        int model = visor == null ? def.armorStats.customModelData
+                : visor.visorStats != null && visor.visorStats.helmetCustomModelData != 0
+                ? visor.visorStats.helmetCustomModelData : def.armorStats.visorCustomModelData;
         meta.setCustomModelData(model != 0 ? model : null);
         pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, def.weight + (visor != null ? visor.weight : 0));
 

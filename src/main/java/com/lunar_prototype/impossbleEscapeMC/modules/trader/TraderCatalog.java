@@ -76,11 +76,14 @@ final class TraderCatalog {
                         item("mbss", 12000, 10, 4, null, "bastion_logistics_02"),
                         item("FAST-MT", 43000, 10, 8, null, null),
                         item("FAST-MT_visor", 14000, 10, 15, null, "bastion_face_protection"),
+                        item("PVS-14", 38000, 2, 9, null, "bastion_night_optics_supply"),
                         item("Trooper", 62000, 10, 10, null, "bastion_protection_selection"),
                         // 最初から買える
                         item("flashlight", 2800, 0, 1, null, null),
                         // 交換 (仮の値)
                         barter("micro_rig", 1, 1, 3, null, cost("tool_box", 1), cost("bolts", 4)),
+                        barter("PVS-14", 1, 1, 3, "bastion_night_optics_trial",
+                                cost("mini_battery", 1), cost("copper_wire", 2), cost("tool_box", 1)),
                         // Spectre試作装備: 防具とリグを素材に、電子部品で制御系を組む。
                         barter("sp_v", 1, 1, 20, "bastion_monolith_prototype",
                                 cost("Trooper", 2), cost("d3rcx", 1),
@@ -113,6 +116,7 @@ final class TraderCatalog {
                         item("Altyn", 24000, 0, 1, null, null),
                         item("FAST-MT", 6500, 0, 1, null, null),
                         item("FAST-MT_visor", 2100, 0, 1, null, null),
+                        item("PVS-14", 7500, 0, 1, null, null),
                         item("UNTAR", 5800, 0, 1, null, null),
                         // --- Gear (Bags & Rigs) ---
                         item("tactical_sling_bag", 4800, 0, 1, null, null),

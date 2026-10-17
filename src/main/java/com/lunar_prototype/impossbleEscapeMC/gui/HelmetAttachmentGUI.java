@@ -120,7 +120,7 @@ public class HelmetAttachmentGUI implements InventoryHolder {
         List<Component> lore = new ArrayList<>();
         lore.add(line("空きスロット", NamedTextColor.DARK_GRAY));
         lore.add(Component.empty());
-        lore.add(line("付けられるバイザー:", NamedTextColor.GRAY));
+        lore.add(line("付けられる顔面装備:", NamedTextColor.GRAY));
         ItemDefinition def = helmetDef();
         if (def != null && def.armorStats.visors != null) {
             for (String visorId : def.armorStats.visors) {
@@ -129,7 +129,7 @@ public class HelmetAttachmentGUI implements InventoryHolder {
             }
         }
         lore.add(Component.empty());
-        lore.add(line("バイザーをカーソルに持ってクリックで装着", NamedTextColor.YELLOW));
+        lore.add(line("装着品をカーソルに持ってクリックで装着", NamedTextColor.YELLOW));
         lore.add(line("(インベントリからシフトクリックでも装着)", NamedTextColor.YELLOW));
         meta.lore(lore);
         // 見た目はパーツの絵文字 (リソースパック)

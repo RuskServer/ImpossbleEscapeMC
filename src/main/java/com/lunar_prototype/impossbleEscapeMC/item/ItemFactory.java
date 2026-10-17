@@ -309,13 +309,13 @@ public class ItemFactory {
             if (def.armorStats.visors != null && !def.armorStats.visors.isEmpty()) {
                 String visorId = pdc.get(PDCKeys.HELMET_VISOR, PDCKeys.STRING);
                 ItemDefinition visor = visorId != null ? ItemRegistry.get(visorId) : null;
-                lore.add("§7バイザー " + (visor != null ? visor.displayName : "§8なし"));
+                lore.add("§7顔面装備 " + (visor != null ? visor.displayName : "§8なし"));
             }
             lore.add("");
         }
 
         // =========================
-        // バイザー
+        // ヘルメットの顔面装備 (バイザー・暗視装置)
         // =========================
         if (def != null && def.visorStats != null) {
             List<String> helmets = new ArrayList<>();
