@@ -21,6 +21,7 @@ public final class DatapackGunCondition {
     private static final String JAMMED_KEY = "iemc_jammed";
     private static final String PRD_STREAK_KEY = "iemc_jam_prd_streak";
     private static final String DISPLAYED_DURABILITY_KEY = "iemc_displayed_durability";
+    private static final String SCAV_WORN_KEY = "iemc_scav_worn";
 
     private DatapackGunCondition() {
     }
@@ -33,7 +34,9 @@ public final class DatapackGunCondition {
     public static ItemStack scavGun(ItemStack gun) {
         if (DatapackGunCatalog.gunIdOf(gun) == null) return gun;
         int durability = ThreadLocalRandom.current().nextInt(200, 301);
-        return syncDisplay(set(gun, durability, false, 0));
+        ItemStack worn = set(gun, durability, false, 0);
+        worn = DatapackAmmo.editState(worn, state -> state.putInt(SCAV_WORN_KEY, 1));
+        return syncDisplay(worn);
     }
 
     public static int durability(ItemStack gun) {
@@ -46,6 +49,13 @@ public final class DatapackGunCondition {
 
     public static ItemStack clearJam(ItemStack gun) {
         return set(gun, durability(gun), false, 0);
+    }
+
+    /** 修理台に入れた銃を完品に戻す。SCAV由来の追加ジャム補正も消す。 */
+    public static ItemStack repair(ItemStack gun) {
+        ItemStack repaired = set(gun, MAX_DURABILITY, false, 0);
+        repaired = DatapackAmmo.editState(repaired, state -> state.putInt(SCAV_WORN_KEY, 0));
+        return syncDisplay(repaired);
     }
 
     public static boolean displayOutdated(ItemStack gun) {
@@ -72,10 +82,11 @@ public final class DatapackGunCondition {
     public static ItemStack afterShots(ItemStack gun, int shots) {
         int durability = durability(gun);
         int streak = state(gun).getIntOr(PRD_STREAK_KEY, 0);
+        boolean scavWorn = state(gun).getIntOr(SCAV_WORN_KEY, 0) == 1;
         boolean jammed = isJammed(gun);
         for (int i = 0; i < Math.min(shots, 30); i++) {
             if (durability > 0 && ThreadLocalRandom.current().nextInt(3) == 0) durability--;
-            double target = jamRate(durability);
+            double target = jamRate(durability) * (scavWorn ? 2.0 : 1.0);
             if (target == 0.0) {
                 streak = 0;
             } else if (!jammed) {
