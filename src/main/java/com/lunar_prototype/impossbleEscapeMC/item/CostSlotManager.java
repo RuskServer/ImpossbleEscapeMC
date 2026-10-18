@@ -92,6 +92,33 @@ public class CostSlotManager {
     }
 
     /**
+     * インベントリの中身から、置くべき占有マスだけを計算して返す (インベントリは書き換えない)。キーは占有マスを置くスロット。
+     * バックパックの表示のように、実体のインベントリを汚さずに占有マスを見せたい所で使う。
+     */
+    public static Map<Integer, ItemStack> costPlaceholders(Inventory inventory) {
+        Map<Integer, ItemStack> placeholders = new HashMap<>();
+        if (inventory == null) return placeholders;
+
+        int size = inventory.getSize();
+        int[] costs = new int[size];
+        boolean[] free = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            ItemStack item = inventory.getItem(i);
+            free[i] = item == null || item.getType() == Material.AIR || ItemFactory.isCostSlotPlaceholder(item);
+            costs[i] = free[i] ? 0 : stackCost(item);
+        }
+
+        int[] owners = placeholderOwners(costs, free, 0);
+        for (int i = 0; i < size; i++) {
+            if (owners[i] < 0) continue;
+            ItemStack owner = inventory.getItem(owners[i]);
+            placeholders.put(i, ItemFactory.createCostSlotPlaceholder(
+                    PlainTextComponentSerializer.plainText().serialize(owner.effectiveName()), stackCost(owner)));
+        }
+        return placeholders;
+    }
+
+    /**
      * 占有スロットの割り当て。costs・free は使えるスロットの中身のコストと空きか (並び順)、firstMain はメインの段が始まる番号
      * (それより前はホットバー。バックパックなら 0)。各番号に置く占有スロットがどの番号の物の分か (置かなければ -1) を返す。
      * <ol>

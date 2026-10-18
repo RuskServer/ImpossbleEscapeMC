@@ -12,6 +12,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
@@ -21,6 +22,7 @@ import org.bukkit.entity.Mannequin;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.ClickType;
@@ -28,6 +30,7 @@ import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
@@ -100,6 +103,24 @@ public class SearchGUI implements Listener {
         // マネキンへの右クリックはメインハンドの後にオフハンドでも来る (上と同じ理由で、メインハンドの時だけ開く)
         if (event.getHand() != EquipmentSlot.HAND) return;
         open(event.getPlayer(), mannequin);
+    }
+
+    /**
+     * レイド中は、ルートテーブルが設定されたコンテナ (漁るコンテナ) 以外を開けないようにする。
+     * 漁るコンテナは {@link #onInteract} が横取りして SearchGUI を開くので、ここには来ない。
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onContainerOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!(event.getInventory().getHolder() instanceof Container container)) return;
+        if (container.getPersistentDataContainer().has(PDCKeys.LOOT_TABLE_ID, PDCKeys.STRING)) return;
+        if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE) return;
+
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raidModule = plugin.getRaidModule();
+        if (raidModule == null || !raidModule.isInRaid(player)) return;
+
+        event.setCancelled(true);
+        player.sendActionBar(Component.text("レイド中はこのコンテナは漁れません", NamedTextColor.RED));
     }
 
     /**

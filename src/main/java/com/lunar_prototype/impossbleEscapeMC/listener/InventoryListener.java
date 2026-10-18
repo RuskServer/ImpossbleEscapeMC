@@ -103,6 +103,11 @@ public class InventoryListener implements Listener {
                 if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 // 定期的なコスト更新
                 com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
+                // バックパックGUIを開いている間は、その中身の占有マスも更新する
+                org.bukkit.inventory.Inventory top = player.getOpenInventory().getTopInventory();
+                if (top.getHolder() instanceof com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.BackpackInventoryHolder) {
+                    com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, top);
+                }
             }
         }, 0L, 5L).getTaskId();
     }

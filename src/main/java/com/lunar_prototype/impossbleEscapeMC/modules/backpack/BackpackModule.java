@@ -85,6 +85,13 @@ public class BackpackModule implements IModule {
 
         sessions.put(player.getUniqueId(), new BackpackSession(uid));
         player.openInventory(finalInv);
+        // 開いた直後は占有マスが無いので、次のtickでコストの占有マスを描く (開いている間は InventoryListener が更新する)
+        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
+            if (player.isOnline()
+                    && player.getOpenInventory().getTopInventory().getHolder() instanceof BackpackInventoryHolder) {
+                com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, finalInv);
+            }
+        });
         // ジッパーを開ける音 (本人にだけ聞こえる。リソースパックの IEM_shader/tools/backpack_sounds.py)
         player.playSound(player.getLocation(), "iem:backpack.open", org.bukkit.SoundCategory.PLAYERS, 0.8f,
                 0.95f + java.util.concurrent.ThreadLocalRandom.current().nextFloat() * 0.1f);

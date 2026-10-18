@@ -349,6 +349,8 @@ public class LootBackpackOverlayListener implements Listener {
     private void renderBackpackMode(Player player, OverlaySession session) {
         PlayerInventory inv = player.getInventory();
         int startIndex = getBackpackWindowStartIndex(session);
+        // バックパックのコスト (大きい物は複数マス) の占有マスを、実体を汚さずに表示だけする
+        Map<Integer, ItemStack> placeholders = CostSlotManager.costPlaceholders(session.backpackInventory);
 
         for (int i = 0; i < BACKPACK_DISPLAY_SLOTS.size(); i++) {
             int playerSlot = BACKPACK_DISPLAY_SLOTS.get(i);
@@ -356,7 +358,13 @@ public class LootBackpackOverlayListener implements Listener {
             ItemStack item;
             if (backpackSlot < session.backpackInventory.getSize()) {
                 ItemStack raw = session.backpackInventory.getItem(backpackSlot);
-                item = isForbiddenPlaceholder(raw) ? null : raw;
+                if (isForbiddenPlaceholder(raw)) {
+                    item = null;
+                } else if (raw == null || raw.getType().isAir()) {
+                    item = placeholders.get(backpackSlot);
+                } else {
+                    item = raw;
+                }
             } else {
                 item = createUnavailableSlotPlaceholder();
             }
