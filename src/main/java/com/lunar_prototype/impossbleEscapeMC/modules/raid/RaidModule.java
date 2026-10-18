@@ -480,12 +480,10 @@ public class RaidModule implements IModule {
             }
         }
 
-        // 1b. インスタンスはないが、サイクル開始直後（途中参加枠内）のものを次に優先
+        // 1b. 空いているマップは周期を待たずに今すぐ始まる (startRaidOnDemand) ので次に優先
         if (bestMapId == null) {
             for (String id : mapIds) {
-                long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(id, 0L)) / 1000;
-                // 全員が抜けてインスタンスが無くなっていても、この周期で死亡・脱出した人は除く
-                if (age < LATE_JOIN_WINDOW && !activeRaids.containsKey(id) && !finishedThisCycle(id, player)) {
+                if (!activeRaids.containsKey(id)) {
                     bestMapId = id;
                     break;
                 }

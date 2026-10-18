@@ -185,7 +185,8 @@ public class RaidSelectionGUI implements Listener {
             RaidInstance active = module.getActiveRaid(id);
             long age = (System.currentTimeMillis() - module.getMapLastStartTime(id)) / 1000;
             boolean lateJoinable = age < RaidModule.LATE_JOIN_WINDOW;
-            State state = lateJoinable ? State.LATE_JOIN : active != null ? State.LIVE : State.OPEN;
+            // インスタンスが無ければ空き。空きマップは周期を待たずに今すぐ始まる (startRaidOnDemand)
+            State state = active == null ? State.OPEN : lateJoinable ? State.LATE_JOIN : State.LIVE;
             return new MapStatus(id, state, id.equals(queuedMap), active != null ? active.getPlayerCount() : 0,
                     module.getQueueCount(id), module.getMapTimeLeft(id), module.getConditions(id), module.getNextConditions(id));
         }
@@ -266,19 +267,22 @@ public class RaidSelectionGUI implements Listener {
         TextColor color = STATE_COLORS[status.state().ordinal()];
         List<Component> lines = new ArrayList<>();
         lines.add(Component.text(status.id(), status.queued() ? NamedTextColor.GOLD : NamedTextColor.WHITE, TextDecoration.BOLD));
+        boolean instant = status.state() == State.OPEN;
         lines.add(Component.text(switch (status.state()) {
             case LATE_JOIN -> "進行中 (途中参加可能)";
             case LIVE -> "進行中 (レイド中)";
-            default -> "待機中 (空きあり)";
+            default -> instant ? "空きあり (即時出撃できます)" : "待機中 (空きあり)";
         }, color));
         if (status.state() != State.OPEN) lines.add(line("参加人数", status.players() + "名"));
         lines.add(line("待機人数", status.waiting() + "名"));
-        lines.add(line("出撃まで", formatTime(status.timeLeft())));
+        lines.add(line("出撃まで", instant ? "即時" : formatTime(status.timeLeft())));
         if (status.state() == State.LATE_JOIN && status.current() != null) lines.add(line("現在の現地", status.current().describe()));
         if (status.next() != null) lines.add(line("次の出撃", status.next().describe()));
         lines.add(Component.empty());
         if (status.queued()) {
             lines.add(Component.text("▶ 出撃待機中 (クリックで取り消し)", NamedTextColor.YELLOW));
+        } else if (instant) {
+            lines.add(Component.text("▶ クリックで即時出撃 (空きマップを今すぐ開始)", NamedTextColor.GREEN));
         } else if (status.state() == State.LATE_JOIN) {
             lines.add(Component.text("▶ クリックで途中参加", NamedTextColor.YELLOW));
         } else {
@@ -292,6 +296,7 @@ public class RaidSelectionGUI implements Listener {
                 Component.text("オートマッチング", NamedTextColor.GOLD, TextDecoration.BOLD),
                 Component.text("最適なレイドを自動で選んで出撃します", NamedTextColor.GRAY),
                 Component.text("- 途中参加できるレイドを優先", NamedTextColor.DARK_GRAY),
+                Component.text("- 空いているマップは即時出撃", NamedTextColor.DARK_GRAY),
                 Component.text("- なければ開始が最も近いマップ", NamedTextColor.DARK_GRAY),
                 Component.empty(),
                 Component.text("▶ クリックでマッチング開始", NamedTextColor.YELLOW));
