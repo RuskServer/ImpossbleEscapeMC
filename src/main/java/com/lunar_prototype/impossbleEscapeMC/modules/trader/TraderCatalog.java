@@ -1,6 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility.ItemCost;
+import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,8 +92,7 @@ final class TraderCatalog {
                                 cost("graphics_card", 1), cost("tool_box", 2))
                 )));
 
-        traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,
-                false, false, List.of(
+        List<TraderItem> brokerItems = new ArrayList<>(List.of(
                         // --- Common Items ---
                         item("scraps", 450, 0, 1, null, null),
                         item("toilet_paper", 300, 0, 1, null, null),
@@ -135,7 +136,16 @@ final class TraderCatalog {
                         item("graphics_card", 85000, 0, 1, null, null),
                         item("usb", 32000, 0, 1, null, null),
                         item("mechanical_golden_watch", 120000, 0, 1, null, null)
-                )));
+                ));
+        // 弾薬は全種類を買取対象にする。既存の購入価格を基準に、買取価格は小売相当の約10%。
+        // クラス5・6はクラス4の1.5倍・2倍相当として、店頭販売のない高級弾も売値を持たせる。
+        for (String ammoId : ItemRegistry.getAmmoIds()) {
+            if (brokerItems.stream().anyMatch(item -> item.itemId.equals(ammoId))) continue;
+            AmmoDefinition ammo = ItemRegistry.getAmmo(ammoId);
+            if (ammo != null) brokerItems.add(item(ammoId, ammoSellPrice(ammo), 0, 1, null, null));
+        }
+        traders.add(trader("broker", "§dBroker (Sell Only)", TraderType.SELL, 0,
+                false, false, brokerItems));
 
         return traders;
     }
@@ -178,5 +188,20 @@ final class TraderCatalog {
 
     private static ItemCost cost(String itemId, int amount) {
         return new ItemCost(itemId, amount);
+    }
+
+    private static double ammoSellPrice(AmmoDefinition ammo) {
+        double[] retailByClass = switch (ammo.caliber.toLowerCase(java.util.Locale.ROOT)) {
+            case "5.45x39mm" -> new double[]{100, 110, 150, 350, 525, 700};
+            case "5.56x45mm" -> new double[]{110, 120, 160, 350, 525, 700};
+            case "7.62x51mm", "7.62x54mmr" -> new double[]{180, 200, 240, 450, 675, 900};
+            case "9x39mm" -> new double[]{160, 180, 220, 450, 675, 900};
+            case "9x19mm" -> new double[]{70, 80, 90, 250, 375, 500};
+            case ".45acp" -> new double[]{90, 100, 120, 250, 375, 500};
+            case "12x70mm" -> new double[]{180, 200, 240, 350, 525, 700};
+            default -> new double[]{100, 110, 150, 250, 375, 500};
+        };
+        int index = Math.max(0, Math.min(retailByClass.length - 1, ammo.ammoClass - 1));
+        return Math.max(1, Math.round(retailByClass[index] * 0.10));
     }
 }

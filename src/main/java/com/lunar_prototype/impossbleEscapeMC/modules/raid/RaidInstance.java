@@ -1163,7 +1163,7 @@ public class RaidInstance {
             if (!com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn.isFir(item)) return;
             boolean usable = questModule != null && data != null
                     && com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn.usable(data, questModule, item);
-            loot.add(new RaidReport.LootStack(item.clone(), RaidResults.valueOf(item), usable));
+            loot.add(new RaidReport.LootStack(item.clone(), RaidResults.valueOf(player.getUniqueId(), item), usable));
         }, plugin.getServiceContainer().get(BackpackModule.class));
         loot.sort(Comparator.comparingLong(RaidReport.LootStack::value).reversed());
         return List.copyOf(loot);
@@ -1175,7 +1175,7 @@ public class RaidInstance {
         visitPlayerItems(player, item -> {
             if (item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer()
                     .getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1) {
-                total[0] += RaidResults.valueOf(item);
+                total[0] += RaidResults.valueOf(player.getUniqueId(), item);
             }
         }, plugin.getServiceContainer().get(BackpackModule.class));
         return total[0];

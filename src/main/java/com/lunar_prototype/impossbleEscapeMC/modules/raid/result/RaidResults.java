@@ -85,6 +85,11 @@ public final class RaidResults {
 
     /** 物の価値: 売るトレーダー (Broker など) の買い値 x 個数。売れない物は 0 */
     public static long valueOf(ItemStack item) {
+        return valueOf(null, item);
+    }
+
+    /** プレイヤーの売却スキル・銃の耐久度を反映した実売却見込み額。 */
+    public static long valueOf(UUID player, ItemStack item) {
         String id = QuestAutoHandIn.itemIdOf(item);
         if (id == null) return 0;
         TraderModule traders = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
@@ -93,9 +98,10 @@ public final class RaidResults {
         for (TraderDefinition trader : traders.getAllTraders()) {
             if (trader.type != TraderType.SELL || trader.items == null) continue;
             for (TraderItem ti : trader.items) {
-                if (id.equals(ti.itemId)) best = Math.max(best, ti.price);
+                if (id.equals(ti.itemId)) best = Math.max(best, TraderModule.conditionAdjustedSellPrice(ti, item));
             }
         }
-        return Math.round(best * item.getAmount());
+        double multiplier = player == null ? 1.0 : TraderModule.sellMultiplier(player);
+        return (long) Math.floor(best * item.getAmount() * multiplier);
     }
 }

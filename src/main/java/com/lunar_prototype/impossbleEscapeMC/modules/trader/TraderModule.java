@@ -242,6 +242,18 @@ public class TraderModule implements IModule {
         return SkillModule.multiplier(player, SkillStat.SELL_BROKER);
     }
 
+    /** Broker の 1 個あたり買取額。売却画面とレイド結果で同じ状態補正を使う。 */
+    public static double conditionAdjustedSellPrice(TraderItem offer, ItemStack item) {
+        if (offer == null || item == null) return 0;
+        double price = offer.price;
+        if (com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(item) != null) {
+            double condition = com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition.durability(item)
+                    / (double) com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition.MAX_DURABILITY;
+            price *= 0.2 + 0.8 * condition;
+        }
+        return price;
+    }
+
     /** 修理代の倍率 (スキルで下がる) */
     public static double repairMultiplier(UUID player) {
         return Math.max(0, SkillModule.multiplier(player, SkillStat.REPAIR_COST));

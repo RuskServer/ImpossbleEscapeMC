@@ -513,12 +513,7 @@ public class TraderGUI implements Listener {
 
             TraderItem ti = trader.items.stream().filter(i -> i.itemId.equals(itemId)).findFirst().orElse(null);
             if (ti != null) {
-                double price = ti.price;
-                if (DatapackGunCatalog.gunIdOf(item) != null) {
-                    double condition = DatapackGunCondition.durability(item)
-                            / (double) DatapackGunCondition.MAX_DURABILITY;
-                    price *= 0.2 + 0.8 * condition;
-                }
+                double price = TraderModule.conditionAdjustedSellPrice(ti, item);
                 total += price * item.getAmount();
             }
         }
