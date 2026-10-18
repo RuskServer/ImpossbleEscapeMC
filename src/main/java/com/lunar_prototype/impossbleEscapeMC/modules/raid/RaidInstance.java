@@ -33,6 +33,8 @@ public class RaidInstance {
     private final RaidMap map;
     private final Set<UUID> players = new HashSet<>();
     private final Set<UUID> raidMembers = new HashSet<>();
+    /** 出撃時点の防具クラスから決めた、各参加者向けSCAV弾薬クラス上限。nullは調整なし */
+    private final Map<UUID, Integer> scavAmmoClassCaps = new HashMap<>();
     private final List<RaidMap.ExtractionPoint> activeExtractions = new ArrayList<>();
     private final Map<UUID, Integer> extractionTimer = new HashMap<>();
     private final List<VirtualScav> virtualScavs = new ArrayList<>();
@@ -388,6 +390,8 @@ public class RaidInstance {
             boolean playerNearby = false;
             boolean tooCloseOrVisible = false;
             Location spawnLoc = vs.getSpawnLocation();
+            UUID nearestPlayerId = null;
+            double nearestPlayerDistance = Double.MAX_VALUE;
 
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
@@ -396,6 +400,10 @@ public class RaidInstance {
                 double dist = p.getLocation().distance(spawnLoc);
                 if (dist < 64) {
                     playerNearby = true;
+                    if (dist < nearestPlayerDistance) {
+                        nearestPlayerDistance = dist;
+                        nearestPlayerId = uuid;
+                    }
                 }
                 
                 // 目の前湧き防止チェック
@@ -405,7 +413,8 @@ public class RaidInstance {
             }
 
             if (playerNearby && !tooCloseOrVisible && !vs.isSpawned() && !vs.isDead()) {
-                UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc, raidSessionId, map.getMapId());
+                Integer ammoClassCap = nearestPlayerId == null ? null : scavAmmoClassCaps.get(nearestPlayerId);
+                UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc, raidSessionId, map.getMapId(), ammoClassCap);
                 if (uuid == null) continue;   // 出せなかった (銃が無い)。湧いていないままにして、次の判定でまた試す
                 vs.setEntityId(uuid);
                 vs.setSpawned(true);
@@ -415,6 +424,24 @@ public class RaidInstance {
                 vs.setEntityId(null);
             }
         }
+    }
+
+    /** 出撃時に装備しているヘルメット・胴防具のうち高い防具クラス。 */
+    private int equippedArmorClass(Player player) {
+        return Math.max(armorClass(player.getInventory().getHelmet()), armorClass(player.getInventory().getChestplate()));
+    }
+
+    private int armorClass(ItemStack item) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return 0;
+        return item.getItemMeta().getPersistentDataContainer()
+                .getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
+    }
+
+    /** 弱装備に対してだけSCAV弾薬の上限を下げる。防具クラス4以上は通常の抽選のまま。 */
+    private Integer scavAmmoClassCap(int armorClass) {
+        if (armorClass >= 4) return null;
+        if (armorClass >= 3) return 2;
+        return 1;
     }
 
     private boolean isLocationVisible(Player player, Location target) {
@@ -788,6 +815,10 @@ public class RaidInstance {
      * @param random       オフセット等の乱数生成に使う Random インスタンス
      */
     private void spawnGroup(List<Player> group, List<Location> spawns, Set<Location> usedThisWave, Random random) {
+        // パーティーは最も装備が強いメンバーを基準にする。誰か一人でも高装備ならグループ全員を弱体化対象外にする。
+        int groupArmorClass = group.stream().mapToInt(this::equippedArmorClass).max().orElse(0);
+        Integer ammoClassCap = scavAmmoClassCap(groupArmorClass);
+
         Location centerSpawn = findSafeSpawn(spawns, usedThisWave);
         if (centerSpawn != null) {
             usedThisWave.add(centerSpawn);
@@ -796,6 +827,7 @@ public class RaidInstance {
         for (Player player : group) {
             players.add(player.getUniqueId());
             raidMembers.add(player.getUniqueId());
+            scavAmmoClassCaps.put(player.getUniqueId(), ammoClassCap);
             getOrCreateRaidResult(player.getUniqueId());
             markRaidBroughtInItems(player);
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);

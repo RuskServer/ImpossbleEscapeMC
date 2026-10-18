@@ -85,6 +85,11 @@ public class ScavSpawner implements Listener {
     }
 
     public UUID spawnScav(Location loc, String raidSessionId, String mapId) {
+        return spawnScav(loc, raidSessionId, mapId, null);
+    }
+
+    /** レイド参加者の装備帯に応じた弾薬クラス上限を適用してスポーンさせる。 */
+    public UUID spawnScav(Location loc, String raidSessionId, String mapId, Integer maxAmmoClass) {
         // 銃を持たない SCAV は撃たず動かない的になるので、銃が無ければ出さない
         ItemStack gun = pickGun(loc.getWorld());
         if (gun == null) {
@@ -149,7 +154,7 @@ public class ScavSpawner implements Listener {
         // コントローラーを生成して登録
         ScavBrain.BrainLevel brainLevel = rollBrainLevel();
         // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
-        com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav, brainLevel);
+        com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav, brainLevel, maxAmmoClass);
         ScavController controller = new ScavController(plugin, scav, brainLevel);
         controllers.put(scav.getUniqueId(), controller);
         if (raidSessionId != null && !raidSessionId.isEmpty()) {

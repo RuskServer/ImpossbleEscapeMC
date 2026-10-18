@@ -54,6 +54,11 @@ public final class ScavAmmoSupply {
 
     /** 手に持っているデータパック銃に合わせて弾を割り当てる。データパック銃でない・弾が無い口径ならnull */
     public static ScavAmmoSupply assign(Mob scav, ScavBrain.BrainLevel level) {
+        return assign(scav, level, null);
+    }
+
+    /** 対象プレイヤー向けの動的難易度上限を適用して弾を割り当てる。上限nullなら通常抽選 */
+    public static ScavAmmoSupply assign(Mob scav, ScavBrain.BrainLevel level, Integer maxAmmoClass) {
         String gunId = DatapackGunCatalog.gunIdOf(scav.getEquipment().getItemInMainHand());
         DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
         String caliber = DatapackAmmo.caliberOf(gunId);
@@ -66,9 +71,18 @@ public final class ScavAmmoSupply {
         }
         ThreadLocalRandom random = ThreadLocalRandom.current();
         int ammoClass = rollClass(CLASS_WEIGHTS.get(level), random);
+        if (maxAmmoClass != null && maxAmmoClass > 0) {
+            ammoClass = Math.min(ammoClass, maxAmmoClass);
+            // 可能なら上限以下の弾だけから選ぶ。該当弾がなければ口径内の最弱弾へ落とす。
+            List<AmmoDefinition> cappedChoices = choices.stream()
+                    .filter(ammo -> ammo.ammoClass <= maxAmmoClass)
+                    .toList();
+            if (!cappedChoices.isEmpty()) choices = cappedChoices;
+        }
+        int targetAmmoClass = ammoClass;
         // そのクラスに近い弾 (同じ近さなら低いクラス、同じクラスが複数あればダメージの低い方)
         AmmoDefinition chosen = choices.stream()
-                .min(Comparator.comparingInt((AmmoDefinition a) -> Math.abs(a.ammoClass - ammoClass))
+                .min(Comparator.comparingInt((AmmoDefinition a) -> Math.abs(a.ammoClass - targetAmmoClass))
                         .thenComparingInt(a -> a.ammoClass)
                         .thenComparingDouble(a -> a.damage))
                 .orElseThrow();
