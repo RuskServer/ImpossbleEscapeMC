@@ -8,7 +8,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -21,9 +20,9 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import io.papermc.paper.event.player.PlayerSwapWithEquipmentSlotEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
@@ -129,54 +128,69 @@ public class RigListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onInteract(PlayerInteractEvent event) {
-        if (event.getAction().isRightClick() && event.useItemInHand() != Event.Result.DENY
-                && trySwapRigAcrossSlots(event)) return;
-        if (event.getAction().isRightClick() && event.useItemInHand() != Event.Result.DENY
-                && rigModule.conflictsWithEquippedArmor(event.getPlayer(), event.getItem())) {
-            event.setUseItemInHand(Event.Result.DENY);
-            showArmorConflict(event.getPlayer());
+    public void onSwapWithEquipmentSlot(PlayerSwapWithEquipmentSlotEvent event) {
+        Player player = event.getPlayer();
+        if (rigModule.isControlSuppressed(player)) return;
+
+        ItemStack incoming = event.getItemInHand();
+        if (!rigModule.isRigItem(incoming)) return;
+
+        boolean armored = rigModule.isArmoredRigItem(incoming);
+        ItemStack oppositeWorn = armored
+                ? player.getInventory().getLeggings()
+                : player.getInventory().getChestplate();
+        boolean crossSlotRig = armored
+                ? rigModule.isRigItem(oppositeWorn)
+                : rigModule.isArmoredRigItem(oppositeWorn);
+
+        if (crossSlotRig) {
+            event.setCancelled(true);
+            ItemStack target = armored
+                    ? player.getInventory().getChestplate()
+                    : player.getInventory().getLeggings();
+            if (target != null && !target.getType().isAir()) {
+                showArmorConflict(player);
+                return;
+            }
+
+            ItemStack hand = getHandStack(player, incoming);
+            if (hand == null) return;
+            ItemStack replacement = hand.clone();
+            ItemStack returned = oppositeWorn.clone();
+            if (armored) {
+                player.getInventory().setLeggings(null);
+                player.getInventory().setChestplate(replacement);
+            } else {
+                player.getInventory().setChestplate(null);
+                player.getInventory().setLeggings(replacement);
+            }
+            setHandStack(player, hand, returned);
+            scheduleSync(player);
             return;
         }
-        if (rigModule.isControlSuppressed(event.getPlayer())) return;
-        ItemStack item = event.getItem();
-        if (item == null) return;
-        if (!rigModule.isRigItem(item)) return;
-        scheduleSync(event.getPlayer());
-    }
 
-    /** 装甲リグと通常リグは装備スロットが異なるので、バニラの右クリック交換に任せない。 */
-    private boolean trySwapRigAcrossSlots(PlayerInteractEvent event) {
-        ItemStack incoming = event.getItem();
-        if (!rigModule.isRigItem(incoming)) return false;
-        Player player = event.getPlayer();
-        boolean armored = rigModule.isArmoredRigItem(incoming);
-        ItemStack worn = armored ? player.getInventory().getLeggings() : player.getInventory().getChestplate();
-        if (armored ? !rigModule.isRigItem(worn) : !rigModule.isArmoredRigItem(worn)) return false;
-
-        ItemStack target = armored ? player.getInventory().getChestplate() : player.getInventory().getLeggings();
-        event.setUseItemInHand(Event.Result.DENY);
-        if (target != null && !target.getType().isAir()) {
+        if (rigModule.conflictsWithEquippedArmor(player, incoming)) {
+            event.setCancelled(true);
             showArmorConflict(player);
-            return true;
-        }
-
-        ItemStack replacement = incoming.clone();
-        ItemStack returned = worn.clone();
-        if (armored) {
-            player.getInventory().setLeggings(null);
-            player.getInventory().setChestplate(replacement);
-        } else {
-            player.getInventory().setChestplate(null);
-            player.getInventory().setLeggings(replacement);
-        }
-        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.OFF_HAND) {
-            player.getInventory().setItemInOffHand(returned);
-        } else {
-            player.getInventory().setItemInMainHand(returned);
+            return;
         }
         scheduleSync(player);
-        return true;
+    }
+
+    private ItemStack getHandStack(Player player, ItemStack eventItem) {
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (mainHand != null && mainHand.isSimilar(eventItem)) return mainHand;
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+        return offHand != null && offHand.isSimilar(eventItem) ? offHand : null;
+    }
+
+    private void setHandStack(Player player, ItemStack oldHand, ItemStack replacement) {
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (mainHand != null && mainHand.isSimilar(oldHand)) {
+            player.getInventory().setItemInMainHand(replacement);
+        } else {
+            player.getInventory().setItemInOffHand(replacement);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

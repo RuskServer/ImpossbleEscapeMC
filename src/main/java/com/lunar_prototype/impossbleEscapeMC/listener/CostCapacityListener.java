@@ -9,7 +9,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -17,8 +16,7 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import io.papermc.paper.event.player.PlayerSwapWithEquipmentSlotEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
@@ -170,29 +168,35 @@ public class CostCapacityListener implements Listener {
         reject(changes.overflow(), player, () -> event.setCancelled(true));
     }
 
-    /** 持っているリグを右クリックで着け替える (バニラの防具の入れ替え) */
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onRigHotSwap(PlayerInteractEvent event) {
+    /** 装備交換イベントで、交換後のコストとリグ容量を事前判定する。 */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onRigHotSwap(PlayerSwapWithEquipmentSlotEvent event) {
         Player player = event.getPlayer();
-        if (!event.getAction().isRightClick() || event.useItemInHand() == Event.Result.DENY || !isLimited(player)) return;
+        if (!isLimited(player)) return;
         RigModule rigModule = rigModule();
-        ItemStack hand = event.getItem();
+        ItemStack hand = event.getItemInHand();
         ItemStack worn = rigModule == null ? null : rigModule.getEquippedRig(player);
         if (rigModule == null || !rigModule.isRigItem(hand) || isEmpty(worn)) return;
-        // 着けていたリグは手のスロットに入る
-        int handSlot = event.getHand() == EquipmentSlot.OFF_HAND ? OFFHAND_SLOT : player.getInventory().getHeldItemSlot();
         if (locksOccupiedSlots(player, rigModule, hand)) {
-            event.setUseItemInHand(Event.Result.DENY);
+            event.setCancelled(true);
             player.sendActionBar(Component.text("このリグに替える前に、閉じるスロットの荷物を移してください", NamedTextColor.RED));
             CapacityGauge.flash(player);
             return;
         }
+        int handSlot = getHandSlot(player, hand);
         Overflow overflow = afterRigChange(player, rigModule, worn, hand, swapDelta(player, handSlot, worn, hand));
         if (overflow == null) return;
-        event.setUseItemInHand(Event.Result.DENY);
+        event.setCancelled(true);
         player.sendActionBar(Component.text("このリグに替えると持ち物が入りきりません (" + overflow.used() + " / " + overflow.capacity() + " マス)",
                 NamedTextColor.RED));
         CapacityGauge.flash(player);
+    }
+
+    private static int getHandSlot(Player player, ItemStack eventHand) {
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (!isEmpty(mainHand) && mainHand.isSimilar(eventHand)) return player.getInventory().getHeldItemSlot();
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+        return !isEmpty(offHand) && offHand.isSimilar(eventHand) ? OFFHAND_SLOT : player.getInventory().getHeldItemSlot();
     }
 
     /**
