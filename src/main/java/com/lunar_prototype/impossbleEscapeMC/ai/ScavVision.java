@@ -26,6 +26,12 @@ public class ScavVision {
     private static final double CLOSE_AWARENESS_DISTANCE = 4.0;
     /** しゃがまずに動いている相手には、視野の外でもこの距離まで気付く (動きと物音は視界の端でも分かる) */
     private static final double MOVING_AWARENESS_DISTANCE = 8.0;
+    /** 発砲音・銃口光で暗所の視認性が少し上がるが、暗さの補正を無効にはしない。 */
+    private static final double GUNFIRE_VISIBILITY_BOOST = 1.2;
+    /** 発砲で周辺に気づきやすくなる視野角 (全幅)。以前の200度は暗所で背後まで捉えやすかった。 */
+    private static final double FIRING_FOV_ANGLE = 140.0;
+    /** 発砲を見た場合も、暗所の射撃ばらつきは半分残す。 */
+    private static final double GUNFIRE_DARKNESS_SPREAD_REDUCTION = 0.5;
     private LosSnapshot lastLosSnapshot = null;
     private float alertness = 0.25f;
 
@@ -133,16 +139,18 @@ public class ScavVision {
 
     /**
      * 追跡中のターゲットが見えているか。
-     * 一度捉えた相手は視野角・明るさに関係なく、視認距離内で遮蔽物が無ければ見えているとみなす
-     * (移動中は頭が進行方向を向くため、視野角で判定すると目の前の相手でも見失ってしまう)
+     * 一度捉えた相手は視野角に関係なく、視認距離内で遮蔽物が無ければ見えているとみなす
+     * (移動中は頭が進行方向を向くため、視野角で判定すると目の前の相手でも見失ってしまう)。暗さによる距離補正は残す。
      */
     public boolean checkTrackingVision(LivingEntity target) {
         Location eye = scav.getEyeLocation();
         Location targetLoc = target.getEyeLocation();
         if (eye.getWorld() != targetLoc.getWorld()) return false;
         double effectiveMaxVisionDistance = MAX_VISION_DISTANCE * (0.85 + (0.35 * alertness));
-        // 暗がりに逃げ込まれると、追っていても見失いやすい (見つける時より緩い)
-        if (!recentlyFired(target)) effectiveMaxVisionDistance *= trackingVisibility(targetLight(target, targetLoc.getBlock()));
+        // 暗がりに逃げ込まれると、追っていても見失いやすい (見つける時より緩い)。発砲は視認性を少し上げるだけ。
+        double visibility = trackingVisibility(targetLight(target, targetLoc.getBlock()));
+        if (recentlyFired(target)) visibility = Math.min(1.0, visibility * GUNFIRE_VISIBILITY_BOOST);
+        effectiveMaxVisionDistance *= visibility;
         if (eye.distanceSquared(targetLoc) > effectiveMaxVisionDistance * effectiveMaxVisionDistance) return false;
         return hasAdvancedLoS(target);
     }
@@ -188,11 +196,12 @@ public class ScavVision {
         return 1.0;
     }
 
-    /** 暗い所の相手を撃つ時に増えるばらつき (撃った直後は銃口の光で見えるので増えない) */
+    /** 暗い所の相手を撃つ時に増えるばらつき (発砲直後は光で手掛かりを得るため半分にする) */
     public static double darknessSpread(LivingEntity target) {
-        if (target == null || recentlyFired(target)) return 0.0;
+        if (target == null) return 0.0;
         int light = targetLight(target, target.getEyeLocation().getBlock());
-        return light < 4 ? 0.06 : light < 8 ? 0.03 : 0.0;
+        double spread = light < 4 ? 0.06 : light < 8 ? 0.03 : 0.0;
+        return recentlyFired(target) ? spread * GUNFIRE_DARKNESS_SPREAD_REDUCTION : spread;
     }
 
     private static boolean recentlyFired(LivingEntity target) {
@@ -221,7 +230,7 @@ public class ScavVision {
         Vector direction = eye.getDirection();
         double angle = direction.angle(toTarget) * 180 / Math.PI;
         double relaxedFovScale = 0.8 + (0.25 * alertness);
-        double currentFov = isFiring ? 200.0 : (FOV_ANGLE * relaxedFovScale);
+        double currentFov = isFiring ? FIRING_FOV_ANGLE : (FOV_ANGLE * relaxedFovScale);
         // すぐ近く (足音や気配が分かる距離) なら、視野の外でも気付く (壁越しは下の射線判定で弾く)。
         // しゃがまずに動いている相手は、もう少し遠くまで気付く
         boolean sneaking = target instanceof org.bukkit.entity.Player p && p.isSneaking();
@@ -238,7 +247,7 @@ public class ScavVision {
 
         if (sneaking) visibility *= Math.max(0, 0.6 + SkillModule.value(player, SkillStat.CROUCH_VISIBILITY));
         if (horizontalSpeed(target) > 0.1) visibility *= 1.2; // 歩き (約0.22ブロック/tick) 以上で動いている相手は目立つ
-        if (isFiring) visibility = 5.0; 
+        if (isFiring) visibility = Math.min(1.0, visibility * GUNFIRE_VISIBILITY_BOOST);
 
         double effectiveRange = effectiveMaxVisionDistance * visibility;
         if (dist > effectiveRange) return false;
