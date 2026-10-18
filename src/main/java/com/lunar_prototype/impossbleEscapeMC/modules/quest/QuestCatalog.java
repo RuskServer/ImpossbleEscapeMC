@@ -297,6 +297,15 @@ final class QuestCatalog {
                 .handInFir("mbss", 1).handInFir("d3rcx", 1).extractAny(2)
                 .unlockTrade(KOVACS, "d3rcx")
                 .money(28000).exp(3500).build());
+        quests.add(new QuestBuilder(module, "bastion_capacity_expansion")
+                .trader(BASTION).name("大容量バッグの供給")
+                .description("輸送手段をもう一段増やしたい。観光客向けの特大バックパックを現物で一つ持ち帰ってくれ。MBSS以上の収納だが、背負えば目立つ代物だ。SCAVから剥ぎ取るか、現場で拾ってこい。")
+                .requiresLevel(6)
+                .requiresQuest("bastion_logistics_02")
+                .handInFir("pilgrim_tourist_backpack", 1)
+                .extractAny(2)
+                .unlockTrade(BASTION, "pilgrim_tourist_backpack")
+                .money(26000).exp(3800).build());
         quests.add(new QuestBuilder(module, "bastion_protection_selection")
                 .trader(BASTION).name("防護装備の選別")
                 .description("クラス3以上の防具を一つ確保してくれ。SCAVの排除と三度の生還も頼む。完了後はTrooperを販売する。")

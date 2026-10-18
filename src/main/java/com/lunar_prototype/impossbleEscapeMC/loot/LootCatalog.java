@@ -84,6 +84,7 @@ final class LootCatalog {
                 item("Altyn", 3.0),
                 item("Slick", 3.0),
                 item("sp_v", 1.5),
+                item("pilgrim_tourist_backpack", 3.0),
                 item("pt_1", 10.0),
                 item("545x39_bs", 10.0, 5, 15)));
         // 2030年代の弾 (クラス5〜6)

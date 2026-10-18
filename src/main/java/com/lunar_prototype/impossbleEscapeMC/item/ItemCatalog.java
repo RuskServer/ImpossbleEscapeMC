@@ -159,6 +159,14 @@ final class ItemCatalog {
         mbss.backpackStats = backpack(36, 0.4);
         items.add(mbss);
 
+        // customModelData: 24 (pilgrim tourist backpack モデル)
+        // weight: 2200g (MBSS より大型で重い)
+        // size: 45 (MBSS の 36 を上回る大容量・9 の倍数)
+        ItemDefinition pilgrim_tourist_backpack = item("pilgrim_tourist_backpack", "BACKPACK", Material.IRON_INGOT, "Pilgrim Tourist Backpack", 4, 24, 0, 2200, 1);
+        pilgrim_tourist_backpack.backpackStats = backpack(45, 0.4);
+        pilgrim_tourist_backpack.description = "観光客向けの特大バックパック。MBSS を上回る収納を誇るが、背負えば否応なく目立つ。";
+        items.add(pilgrim_tourist_backpack);
+
         ItemDefinition tactical_sling_bag = item("tactical_sling_bag", "BACKPACK", Material.IRON_INGOT, "Tactical Sling Bag", 2, 14, 0, 600, 1);
         tactical_sling_bag.backpackStats = backpack(9, 0.2);
         items.add(tactical_sling_bag);

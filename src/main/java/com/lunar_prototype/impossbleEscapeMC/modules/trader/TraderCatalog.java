@@ -76,6 +76,7 @@ final class TraderCatalog {
                         item("MF-UNTAR", 9800, 10, 1, null, null),
                         item("micro_rig", 6700, 15, 1, null, null),
                         item("mbss", 12000, 10, 4, null, "bastion_logistics_02"),
+                        item("pilgrim_tourist_backpack", 24000, 5, 6, null, "bastion_capacity_expansion"),
                         item("FAST-MT", 43000, 10, 8, null, null),
                         item("FAST-MT_visor", 14000, 10, 15, null, "bastion_face_protection"),
                         item("PVS-14", 38000, 2, 9, null, "bastion_night_optics_supply"),
@@ -122,6 +123,7 @@ final class TraderCatalog {
                         // --- Gear (Bags & Rigs) ---
                         item("tactical_sling_bag", 4800, 0, 1, null, null),
                         item("mbss", 9600, 0, 1, null, null),
+                        item("pilgrim_tourist_backpack", 19200, 0, 1, null, null),
                         item("d3rcx", 8000, 0, 1, null, null),
                         item("micro_rig", 5300, 0, 1, null, null),
                         item("sp_v", 115000, 0, 1, null, null),
