@@ -146,6 +146,76 @@ public class RaidModule implements IModule {
         return activeRaids.containsKey(mapId) || (queue != null && !queue.isEmpty());
     }
 
+    /** 新しいレイドを始める前に、そのマップの状態をまっさらにする (セッションの区切り) */
+    private void resetMapForRaid(String mapId) {
+        finishedThisCycle.remove(mapId);
+        RaidMap map = maps.get(mapId);
+        if (map == null) return;
+        if (plugin.getLootManager() != null) {
+            plugin.getLootManager().refillContainers(map);
+        }
+        if (plugin.getCorpseManager() != null) {
+            org.bukkit.World world = Bukkit.getWorld(map.getWorldName());
+            if (world != null) {
+                plugin.getCorpseManager().cleanup(world);
+            }
+        }
+    }
+
+    /** このマップのインスタンスがまだ無ければ作る (二重生成しない) */
+    private RaidInstance createRaid(String mapId, List<Player> participants) {
+        RaidInstance existing = activeRaids.get(mapId);
+        if (existing != null) return existing;
+        RaidMap map = maps.get(mapId);
+        if (map == null) return null;
+        RaidInstance raid = new RaidInstance(plugin, map, participants);
+        activeRaids.put(mapId, raid);
+        return raid;
+    }
+
+    /** 待機列にいる人を出撃させる (ボスバーを片付けて、出撃できる人だけ) */
+    private List<Player> collectQueuedParticipants(String mapId) {
+        List<Player> participants = new ArrayList<>();
+        Set<UUID> playerUuids = raidQueues.get(mapId);
+        if (playerUuids == null) return participants;
+        BossBar bar = queueBossBars.get(mapId);
+        for (UUID uuid : playerUuids) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) continue;
+            if (bar != null) p.hideBossBar(bar);
+            if (isInRaid(p)) continue;
+            // 待機列に入った後で装備を増やせるため、実際の出撃直前にも容量を確認する。
+            if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) {
+                p.sendMessage(Component.text("持ち物が容量を超えています。整理してから再度出撃してください。", NamedTextColor.RED));
+                continue;
+            }
+            participants.add(p);
+        }
+        raidQueues.remove(mapId);
+        return participants;
+    }
+
+    /**
+     * 空いているマップで今すぐレイドを始める (物資・死体をリセットし、待機列も取り込む)。
+     * 周期の残り時間を待たずに始めるので、マップが空いた時の虚無時間が無くなる。二重生成しない。
+     */
+    private void startRaidOnDemand(String mapId, List<Player> group) {
+        if (activeRaids.containsKey(mapId)) return;
+        lastCycleStartTime.put(mapId, System.currentTimeMillis());
+        mapTimers.put(mapId, CYCLE_DURATION);
+        resetMapForRaid(mapId);
+        applyConditions(mapId);
+
+        List<Player> participants = new ArrayList<>(collectQueuedParticipants(mapId));
+        for (Player p : group) {
+            if (participants.contains(p) || isInRaid(p)) continue;
+            if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) continue;
+            participants.add(p);
+        }
+        group.forEach(this::leaveQueue);
+        createRaid(mapId, participants);
+    }
+
     private void saveState() {
         Map<String, Object> state = new HashMap<>();
         state.put("mapTimers", mapTimers);
@@ -287,14 +357,12 @@ public class RaidModule implements IModule {
     private void onMapCycleEnd(String mapId) {
         plugin.getLogger().info("Raid cycle ended for " + mapId + ". Starting new raids and MIA processing...");
         lastCycleStartTime.put(mapId, System.currentTimeMillis());
-        finishedThisCycle.remove(mapId);
 
         // 1. 既存レイドの終了処理 (MIA) - 対象マップのみ
         RaidInstance activeRaid = activeRaids.get(mapId);
         if (activeRaid != null) {
             activeRaid.handleMIA();
             activeRaid.stop();
-            activeRaids.remove(mapId);
         }
 
         // 1.5 時間帯・天候: 次の周期の分を今の周期にして、ワールドへ当てはめる (待機中に見せていた条件で出撃する)
@@ -303,53 +371,13 @@ public class RaidModule implements IModule {
         nextConditions.put(mapId, RaidConditions.roll(conditionRandom));
         applyConditions(mapId);
 
-        // 2. 物資リセット
-        if (plugin.getLootManager() != null) {
-            RaidMap map = maps.get(mapId);
-            if (map != null) {
-                plugin.getLootManager().refillContainers(map);
-            }
-        }
-
-        // 3. 死体消去
-        if (plugin.getCorpseManager() != null) {
-            RaidMap map = maps.get(mapId);
-            if (map != null) {
-                org.bukkit.World world = Bukkit.getWorld(map.getWorldName());
-                if (world != null) {
-                    plugin.getCorpseManager().cleanup(world);
-                }
-            }
-        }
+        // 2,3 物資リセット・死体消去
+        resetMapForRaid(mapId);
 
         // 4. 一斉スタート (キューの掃き出し) - 対象マップのみ
-        Set<UUID> playerUuids = raidQueues.get(mapId);
-        if (playerUuids != null && !playerUuids.isEmpty()) {
-            List<Player> participants = new ArrayList<>();
-            BossBar bar = queueBossBars.get(mapId);
-
-            for (UUID uuid : playerUuids) {
-                Player p = Bukkit.getPlayer(uuid);
-                if (p != null) {
-                    if (bar != null) p.hideBossBar(bar);
-                    if (isInRaid(p)) continue;
-                    // 待機列に入った後で装備を増やせるため、実際の出撃直前にも容量を確認する。
-                    if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) {
-                        p.sendMessage(Component.text("持ち物が容量を超えています。整理してから再度出撃してください。", NamedTextColor.RED));
-                        continue;
-                    }
-                    participants.add(p);
-                }
-            }
-
-            if (!participants.isEmpty()) {
-                RaidMap map = maps.get(mapId);
-                if (map != null) {
-                    RaidInstance raid = new RaidInstance(plugin, map, participants);
-                    activeRaids.put(mapId, raid);
-                }
-            }
-            raidQueues.remove(mapId);
+        List<Player> participants = collectQueuedParticipants(mapId);
+        if (!participants.isEmpty()) {
+            createRaid(mapId, participants);
         }
 
         Bukkit.broadcast(Component.text(mapId + " の新たなレイドサイクルが開始されました。", NamedTextColor.AQUA));
@@ -368,6 +396,7 @@ public class RaidModule implements IModule {
      */
     public boolean joinQueue(List<Player> group, String mapId) {
         if (!maps.containsKey(mapId) || group.isEmpty()) return false;
+        RaidInstance active = activeRaids.get(mapId);
         long age = (System.currentTimeMillis() - lastCycleStartTime.getOrDefault(mapId, 0L)) / 1000;
         boolean lateJoin = age < LATE_JOIN_WINDOW;
 
@@ -384,21 +413,23 @@ public class RaidModule implements IModule {
                 player.sendMessage(Component.text("持ち物が容量を超えています。整理してから出撃してください。", NamedTextColor.RED));
                 return false;
             }
-            // この周期ですでに死亡・脱出している場合は途中参加不可 (全員が抜けてインスタンスが作り直されても)
-            if (lateJoin && finishedThisCycle(mapId, player)) {
+            // 進行中のレイドに、この周期ですでに死亡・脱出した人は途中参加できない
+            // (マップが空いていれば新しいセッションを始めるので制限しない)
+            if (active != null && lateJoin && finishedThisCycle(mapId, player)) {
                 player.sendMessage(Component.text("このレイドセッションではすでに死亡・脱出しているため、再参加はできません。", NamedTextColor.RED));
                 return false;
             }
         }
 
+        // マップが空いていれば、周期を待たずに今すぐ開始する (虚無時間の解消)。中でリセットも行う。
+        if (active == null) {
+            startRaidOnDemand(mapId, group);
+            group.forEach(p -> p.sendMessage(Component.text(mapId + " のレイドを開始しました。", NamedTextColor.GREEN)));
+            return true;
+        }
+
         // 途中参加 (周期の始まりから LATE_JOIN_WINDOW 以内)
         if (lateJoin) {
-            RaidInstance active = activeRaids.get(mapId);
-            if (active == null) {
-                // インスタンスがなければ新規作成
-                active = new RaidInstance(plugin, maps.get(mapId), new ArrayList<>());
-                activeRaids.put(mapId, active);
-            }
             group.forEach(this::leaveQueue);
             active.joinInProgress(group);
             group.forEach(p -> p.sendMessage(Component.text(mapId + " のレイドに途中参加しました。", NamedTextColor.GREEN)));
@@ -614,6 +645,14 @@ public class RaidModule implements IModule {
         activeRaids.remove(mapId);
     }
 
+    /**
+     * まだ登録されているのが同じインスタンスの時だけ外す。
+     * 終了処理が遅れて走った古いインスタンスが、新しく始まったインスタンスを消してしまわないようにする。
+     */
+    public void removeRaid(String mapId, RaidInstance raid) {
+        activeRaids.remove(mapId, raid);
+    }
+
     public void onPlayerDeath(Player player) {
         for (RaidInstance raid : activeRaids.values()) {
             if (raid.isParticipant(player.getUniqueId())) {
@@ -669,10 +708,9 @@ public class RaidModule implements IModule {
                 && lastCycleStartTime.getOrDefault(d.mapId(), 0L) == d.cycleStart()) {
             RaidInstance raid = activeRaids.get(d.mapId());
             if (raid == null) {
-                raid = new RaidInstance(plugin, map, new ArrayList<>());
-                activeRaids.put(d.mapId(), raid);
+                raid = createRaid(d.mapId(), new ArrayList<>());
             }
-            if (raid.rejoin(player)) return;
+            if (raid != null && raid.rejoin(player)) return;
         }
         boolean inRaidWorld = maps.values().stream().anyMatch(m -> player.getWorld().getName().equals(m.getWorldName()));
         if (!inRaidWorld) return;

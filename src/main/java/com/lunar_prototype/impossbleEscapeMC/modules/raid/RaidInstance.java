@@ -669,7 +669,7 @@ public class RaidInstance {
         }
         players.clear();
         applyRaidRewardsAndShowResults();
-        plugin.getRaidModule().removeRaid(map.getMapId());
+        plugin.getRaidModule().removeRaid(map.getMapId(), this);
         if (plugin.getAiRaidLogger() != null) {
             plugin.getAiRaidLogger().endRaidSession(raidSessionId, endReason);
         }
