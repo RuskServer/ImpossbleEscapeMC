@@ -45,9 +45,12 @@ public class ScavSquad {
     }
 
     /** 救援参加者の接敵と、同じ敵への独立した接敵で救援枠を共有する。 */
-    public void enterCombat(UUID targetId) {
-        helpEncounter = HELP_ENCOUNTERS.contact(helpEncounter, scav.getUniqueId(), targetId,
+    public boolean enterCombat(UUID targetId) {
+        ScavHelpEncounter encounter = HELP_ENCOUNTERS.contact(helpEncounter, scav.getUniqueId(), targetId,
                 org.bukkit.Bukkit.getCurrentTick());
+        if (encounter == null) return false;
+        helpEncounter = encounter;
+        return true;
     }
 
     /** 受諾時に枠を消費する。接敵・死亡・離脱しても同じ交戦中は返さない。 */

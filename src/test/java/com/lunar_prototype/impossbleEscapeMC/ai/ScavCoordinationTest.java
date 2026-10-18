@@ -62,8 +62,11 @@ public final class ScavCoordinationTest {
         var separate=registry.contact(null,id(5),id(101),0);
         check(separate.recruit(id(2),40),"switching fight spends destination slot");
         check(encounter.full()&&!encounter.recruit(id(6),40),"switching never refunds source slot");
-        var merged=registry.contact(encounter,id(1),id(101),41);
-        check(merged.full()&&!separate.recruit(id(7),41),"merged references preserve cumulative cap");
+        check(registry.contact(encounter,id(1),id(101),41)==null,"oversized fights do not merge past combatant cap");
+        check(separate.recruit(id(7),41),"rejected merge leaves separate encounter active");
+        var small=registry.contact(null,id(8),id(102),41);
+        var merged=registry.contact(small,id(8),id(101),42);
+        check(merged!=null&&!merged.recruit(id(9),42),"merged encounters enforce total combatant cap");
         System.out.println("ScavCoordinationTest: all checks passed");
     }
 }

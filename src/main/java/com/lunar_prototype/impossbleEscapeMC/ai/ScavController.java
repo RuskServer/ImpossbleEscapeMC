@@ -426,20 +426,26 @@ public class ScavController {
         if (target == null) {
             target = vision.scanForTargets();
             if (target != null) {
-                scav.setTarget(target);
-                playScavVoice(ScavVoice.SPOTTED);
+                if (squad.enterCombat(target.getUniqueId())) {
+                    scav.setTarget(target);
+                    playScavVoice(ScavVoice.SPOTTED);
+                } else {
+                    target = null;
+                }
             }
         } else if (!sawTargetLastStep) {
             // 見失った相手を追っている間も、見えている別の相手がいればそちらに切り替える
             // (追跡中の相手の予測ばかり見て、目の前に来た別のプレイヤーに反応しないのを防ぐ)
             LivingEntity other = vision.scanForTargets();
             if (other != null && !other.getUniqueId().equals(target.getUniqueId())) {
-                target = other;
-                scav.setTarget(target);
-                lostTargetSteps = 0;
-                pursuitSteps = 0;
-                belief.clear();
-                playScavVoice(ScavVoice.SPOTTED);
+                if (squad.enterCombat(other.getUniqueId())) {
+                    target = other;
+                    scav.setTarget(target);
+                    lostTargetSteps = 0;
+                    pursuitSteps = 0;
+                    belief.clear();
+                    playScavVoice(ScavVoice.SPOTTED);
+                }
             }
         }
 

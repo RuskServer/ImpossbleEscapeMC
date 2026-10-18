@@ -25,6 +25,7 @@ public final class ScavDarknessTest {
         for (int light = 0; light <= 15; light++) {
             check(ScavVision.trackingVisibility(light) >= ScavVision.spotVisibility(light), "tracking >= spotting at " + light);
         }
+        check(ScavVision.trackingVisibility(0) == 0.12 && ScavVision.trackingVisibility(3) == 0.12, "dark tracking multiplier");
         System.out.println("ScavDarknessTest: sky darkening and visibility factors passed");
     }
 }

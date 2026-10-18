@@ -9,6 +9,7 @@ import java.util.UUID;
 /** Shared, cumulative reinforcement budget. Accessed on the server thread. */
 final class ScavHelpEncounter {
     static final int MAX_REINFORCEMENTS = 2;
+    static final int MAX_COMBATANTS = MAX_REINFORCEMENTS + 1;
     static final int QUIET_TICKS = 200;
 
     private ScavHelpEncounter parent = this;
@@ -45,7 +46,7 @@ final class ScavHelpEncounter {
         ScavHelpEncounter root = root();
         if (!active(now)) return false;
         if (root.reinforcements.contains(id)) return true; // renew the same responder
-        if (root.members.contains(id) || full()) return false;
+        if (root.members.contains(id) || full() || root.members.size() >= MAX_COMBATANTS) return false;
         root.members.add(id);
         root.reinforcements.add(id);
         return true;
@@ -62,11 +63,15 @@ final class ScavHelpEncounter {
             else if (known != null && known.root() != encounter) {
                 // Existing fights can meet: keep all spent slots, never grant a new budget.
                 ScavHelpEncounter other = known.root();
+                Set<UUID> combinedMembers = new HashSet<>(encounter.members);
+                combinedMembers.addAll(other.members);
+                if (combinedMembers.size() > MAX_COMBATANTS) return null;
                 encounter.members.addAll(other.members);
                 encounter.reinforcements.addAll(other.reinforcements);
                 encounter.searchPlan.merge(other.searchPlan);
                 other.parent = encounter;
             }
+            if (!encounter.members.contains(member) && encounter.members.size() >= MAX_COMBATANTS) return null;
             encounter.lastContactTick = now;
             encounter.members.add(member);
             if (target != null) byTarget.put(target, encounter);

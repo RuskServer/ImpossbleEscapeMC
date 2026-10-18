@@ -32,6 +32,7 @@ public class ScavVision {
     private static final double FIRING_FOV_ANGLE = 140.0;
     /** 発砲を見た場合も、暗所の射撃ばらつきは半分残す。 */
     private static final double GUNFIRE_DARKNESS_SPREAD_REDUCTION = 0.5;
+    private static final int DARK_LIGHT_THRESHOLD = 8;
     private LosSnapshot lastLosSnapshot = null;
     private float alertness = 0.25f;
 
@@ -152,7 +153,8 @@ public class ScavVision {
         if (recentlyFired(target)) visibility = Math.min(1.0, visibility * GUNFIRE_VISIBILITY_BOOST);
         effectiveMaxVisionDistance *= visibility;
         if (eye.distanceSquared(targetLoc) > effectiveMaxVisionDistance * effectiveMaxVisionDistance) return false;
-        return hasAdvancedLoS(target);
+        int requiredRays = targetLight(target, targetLoc.getBlock()) < DARK_LIGHT_THRESHOLD ? 3 : 1;
+        return hasAdvancedLoS(target, requiredRays);
     }
 
     /**
@@ -191,7 +193,7 @@ public class ScavVision {
 
     /** 追っている相手を見失わない距離の、明るさによる倍率 */
     static double trackingVisibility(int light) {
-        if (light < 4) return 0.25;
+        if (light < 4) return 0.12;
         if (light < 8) return 0.55;
         return 1.0;
     }
@@ -252,10 +254,10 @@ public class ScavVision {
         double effectiveRange = effectiveMaxVisionDistance * visibility;
         if (dist > effectiveRange) return false;
 
-        return hasAdvancedLoS(target);
+        return hasAdvancedLoS(target, light < DARK_LIGHT_THRESHOLD ? 5 : 1);
     }
 
-    private boolean hasAdvancedLoS(LivingEntity target) {
+    private boolean hasAdvancedLoS(LivingEntity target, int requiredClearRays) {
         Location eye = scav.getEyeLocation();
         World world = scav.getWorld();
         
@@ -329,7 +331,8 @@ public class ScavVision {
         }
 
         snapshot.rays = rays;
-        snapshot.visible = snapshot.primaryRay != null;
+        long clearRays = rays.stream().filter(ray -> ray.clear).count();
+        snapshot.visible = clearRays >= requiredClearRays;
         lastLosSnapshot = snapshot;
         return snapshot.visible;
     }
