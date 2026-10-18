@@ -118,6 +118,34 @@ public class CostSlotManager {
         return placeholders;
     }
 
+    /** ロビー向けのクライアント表示専用の占有マス。実インベントリは変更せず、配置操作も妨げない。 */
+    public static Map<Integer, ItemStack> lobbyCostPlaceholders(Player player) {
+        if (isInRaid(player)) return Map.of();
+        Inventory inventory = player.getInventory();
+        List<Integer> storageSlots = getEnabledStorageSlots(player, inventory);
+        if (storageSlots.isEmpty()) return Map.of();
+        List<ItemStack> contents = new ArrayList<>();
+        for (int slot : storageSlots) contents.add(inventory.getItem(slot));
+        int firstMain = 0;
+        while (firstMain < storageSlots.size() && storageSlots.get(firstMain) < HOTBAR_SIZE) firstMain++;
+        int[] costs = new int[contents.size()];
+        boolean[] free = new boolean[contents.size()];
+        for (int i = 0; i < contents.size(); i++) {
+            ItemStack item = contents.get(i);
+            free[i] = item == null || item.getType().isAir() || ItemFactory.isCostSlotPlaceholder(item);
+            costs[i] = free[i] ? 0 : stackCost(item);
+        }
+        int[] owners = placeholderOwners(costs, free, firstMain);
+        Map<Integer, ItemStack> placeholders = new HashMap<>();
+        for (int i = 0; i < owners.length; i++) {
+            if (owners[i] < 0) continue;
+            ItemStack owner = contents.get(owners[i]);
+            placeholders.put(storageSlots.get(i), ItemFactory.createCostSlotPlaceholder(
+                    PlainTextComponentSerializer.plainText().serialize(owner.effectiveName()), stackCost(owner)));
+        }
+        return placeholders;
+    }
+
     /**
      * 占有スロットの割り当て。costs・free は使えるスロットの中身のコストと空きか (並び順)、firstMain はメインの段が始まる番号
      * (それより前はホットバー。バックパックなら 0)。各番号に置く占有スロットがどの番号の物の分か (置かなければ -1) を返す。

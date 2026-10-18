@@ -186,7 +186,7 @@ public class RaidModule implements IModule {
             if (isInRaid(p)) continue;
             // 待機列に入った後で装備を増やせるため、実際の出撃直前にも容量を確認する。
             if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) {
-                p.sendMessage(Component.text("持ち物が容量を超えています。整理してから再度出撃してください。", NamedTextColor.RED));
+                sendCapacityWarning(p);
                 continue;
             }
             participants.add(p);
@@ -209,11 +209,21 @@ public class RaidModule implements IModule {
         List<Player> participants = new ArrayList<>(collectQueuedParticipants(mapId));
         for (Player p : group) {
             if (participants.contains(p) || isInRaid(p)) continue;
-            if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) continue;
+            if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) {
+                sendCapacityWarning(p);
+                continue;
+            }
             participants.add(p);
         }
         group.forEach(this::leaveQueue);
         createRaid(mapId, participants);
+    }
+
+    private static void sendCapacityWarning(Player player) {
+        int used = com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.usedCost(player, player.getInventory());
+        int capacity = com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.capacity(player, player.getInventory());
+        player.sendMessage(Component.text("持ち物が容量を超えています (" + used + " / " + capacity + " マス、あと "
+                + Math.max(0, used - capacity) + " マス整理が必要です)。整理してから再度出撃してください。", NamedTextColor.RED));
     }
 
     private void saveState() {
@@ -410,7 +420,7 @@ public class RaidModule implements IModule {
             }
             // 持ち物が容量を超えたままでは出撃させない (レイド中にあふれると足元に落とすことになるため、ロビーで整理してもらう)
             if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(player)) {
-                player.sendMessage(Component.text("持ち物が容量を超えています。整理してから出撃してください。", NamedTextColor.RED));
+                sendCapacityWarning(player);
                 return false;
             }
             // 進行中のレイドに、この周期ですでに死亡・脱出した人は途中参加できない

@@ -11,6 +11,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSe
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
+import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.minecraft.world.inventory.InventoryMenu;
 import org.bukkit.Bukkit;
@@ -69,6 +70,8 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
     /** プレイヤーごとのアイコン (dynamicIcon のボタン)。比べる用の元のアイテムと、パケット用に変換した物 */
     private final Map<UUID, Map<Integer, ItemStack>> playerIcons = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack>> playerPacketIcons = new ConcurrentHashMap<>();
+    /** ロビーの容量表示。サーバー側スロットには置かないため、操作を塞がない */
+    private final Map<UUID, Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack>> costSlotOverlays = new ConcurrentHashMap<>();
 
     private CraftingGridButtons(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -105,6 +108,7 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
         shown.keySet().retainAll(online);
         playerIcons.keySet().retainAll(online);
         playerPacketIcons.keySet().retainAll(online);
+        costSlotOverlays.keySet().retainAll(online);
     }
 
     /** 次の更新を待たずに、そのプレイヤーのボタンを作り直して送る */
@@ -123,6 +127,7 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
         }
         Set<Integer> current = shown.getOrDefault(player.getUniqueId(), Set.of());
         Set<Integer> iconChanged = updateIcons(player, desired);
+        refreshCostSlotOverlays(player, menu);
         if (desired.equals(current) && iconChanged.isEmpty()) return;
 
         Set<Integer> changed = new HashSet<>(desired);
@@ -130,6 +135,25 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
         changed.removeIf(slot -> desired.contains(slot) && current.contains(slot) && !iconChanged.contains(slot));
         // 先に表示状態を更新してから送る (送るパケットは onPacketSend でボタンに書き換わる)
         shown.put(player.getUniqueId(), Set.copyOf(desired));
+        for (int slot : changed) {
+            sendSlot(player, menu.getStateId(), slot, CraftItemStack.asBukkitCopy(menu.getSlot(slot).getItem()));
+        }
+
+    }
+
+    private void refreshCostSlotOverlays(Player player, InventoryMenu menu) {
+        Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> next = new ConcurrentHashMap<>();
+        CostSlotManager.lobbyCostPlaceholders(player).forEach((inventorySlot, item) -> {
+            int menuSlot = inventorySlot >= 0 && inventorySlot < 9 ? inventorySlot + 36 : inventorySlot;
+            next.put(menuSlot, SpigotConversionUtil.fromBukkitItemStack(item));
+        });
+        UUID id = player.getUniqueId();
+        Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> previous = costSlotOverlays.getOrDefault(id, Map.of());
+        Set<Integer> changed = new HashSet<>(previous.keySet());
+        changed.addAll(next.keySet());
+        changed.removeIf(slot -> java.util.Objects.equals(previous.get(slot), next.get(slot)));
+        if (changed.isEmpty()) return;
+        costSlotOverlays.put(id, Map.copyOf(next));
         for (int slot : changed) {
             sendSlot(player, menu.getStateId(), slot, CraftItemStack.asBukkitCopy(menu.getSlot(slot).getItem()));
         }
@@ -178,9 +202,18 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
 
         if (event.getPacketType() == PacketType.Play.Server.SET_SLOT) {
             WrapperPlayServerSetSlot packet = new WrapperPlayServerSetSlot(event);
-            if (packet.getWindowId() == PLAYER_INVENTORY_WINDOW_ID && slots.contains(packet.getSlot())) {
-                packet.setItem(iconFor(event.getUser(), packet.getSlot()));
-                event.markForReEncode(true);
+            if (packet.getWindowId() == PLAYER_INVENTORY_WINDOW_ID) {
+                if (slots.contains(packet.getSlot())) {
+                    packet.setItem(iconFor(event.getUser(), packet.getSlot()));
+                    event.markForReEncode(true);
+                } else {
+                    var overlays = costSlotOverlays.get(event.getUser().getUUID());
+                    var overlay = overlays != null ? overlays.get(packet.getSlot()) : null;
+                    if (overlay != null) {
+                        packet.setItem(overlay);
+                        event.markForReEncode(true);
+                    }
+                }
             }
         } else if (event.getPacketType() == PacketType.Play.Server.WINDOW_ITEMS) {
             WrapperPlayServerWindowItems packet = new WrapperPlayServerWindowItems(event);
@@ -188,6 +221,12 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
                 List<com.github.retrooper.packetevents.protocol.item.ItemStack> items = new ArrayList<>(packet.getItems());
                 for (int slot : slots) {
                     if (slot < items.size()) items.set(slot, iconFor(event.getUser(), slot));
+                }
+                Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> overlays = costSlotOverlays.get(event.getUser().getUUID());
+                if (overlays != null) {
+                    overlays.forEach((slot, icon) -> {
+                        if (slot < items.size() && !slots.contains(slot)) items.set(slot, icon);
+                    });
                 }
                 packet.setItems(items);
                 event.markForReEncode(true);

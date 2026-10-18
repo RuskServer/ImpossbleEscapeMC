@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.listener.CraftingGridButtons;
 import com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -50,6 +51,8 @@ public final class CapacityGauge {
 
     /** 赤く光らせる最後の tick */
     private static final Map<UUID, Integer> flashUntil = new ConcurrentHashMap<>();
+    /** ロビーで通知済みの容量超過数。変化時だけ action bar を出す */
+    private static final Map<UUID, Integer> lobbyOverages = new ConcurrentHashMap<>();
 
     private CapacityGauge() {
     }
@@ -65,6 +68,28 @@ public final class CapacityGauge {
         flashUntil.put(player.getUniqueId(), Bukkit.getCurrentTick() + FLASH_TICKS);
         CraftingGridButtons.get().refreshNow(player);
         Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), () -> CraftingGridButtons.get().refreshNow(player), FLASH_TICKS + 1L);
+    }
+
+    /** ロビーの容量超過が変化した時だけ、出撃準備の状態を action bar で知らせる。 */
+    public static void refreshLobbyStatus(Player player) {
+        if (!isShown(player)) {
+            lobbyOverages.remove(player.getUniqueId());
+            return;
+        }
+        RaidModule raid = ImpossbleEscapeMC.getInstance().getRaidModule();
+        if (raid != null && raid.isInRaid(player)) {
+            lobbyOverages.remove(player.getUniqueId());
+            return;
+        }
+        int capacity = CostSlotManager.capacity(player, player.getInventory());
+        int over = Math.max(0, CostSlotManager.usedCost(player, player.getInventory()) - capacity);
+        Integer previous = lobbyOverages.put(player.getUniqueId(), over);
+        if (previous != null && previous == over) return;
+        if (over > 0) {
+            player.sendActionBar(text("出撃準備: " + over + " マス超過。整理後に出撃できます", NamedTextColor.RED));
+        } else if (previous != null && previous > 0) {
+            player.sendActionBar(text("容量内です。出撃できます", NamedTextColor.GREEN));
+        }
     }
 
     /** 0〜LEVELS の目盛り。少しでも使っていれば 1 以上、満杯の時だけ LEVELS */
@@ -102,12 +127,22 @@ public final class CapacityGauge {
         meta.setCustomModelDataComponent(model);
         meta.setMaxStackSize(1);
 
-        NamedTextColor color = used > capacity ? NamedTextColor.RED : level(used, capacity) >= LEVELS - 2 ? NamedTextColor.YELLOW : NamedTextColor.GREEN;
-        meta.displayName(text("容量 " + used + " / " + capacity + " マス", color));
+        int over = Math.max(0, used - capacity);
+        boolean preparing = isPreparing(player);
+        NamedTextColor color = over > 0 ? NamedTextColor.RED : level(used, capacity) >= LEVELS - 2 ? NamedTextColor.YELLOW : NamedTextColor.GREEN;
+        meta.displayName(text(over > 0 && preparing
+                ? "出撃不可: " + used + " / " + capacity + " マス"
+                : (preparing ? "出撃容量 " : "容量 ") + used + " / " + capacity + " マス", color));
         List<Component> lore = new ArrayList<>();
-        lore.add(used > capacity
-                ? text(used - capacity + " マス超えています", NamedTextColor.RED)
-                : text("空き " + (capacity - used) + " マス", NamedTextColor.GRAY));
+        if (over > 0 && preparing) {
+            lore.add(text(over + " マス超過しています", NamedTextColor.RED));
+            lore.add(text("ロビーでは装備を追加・整理できます", NamedTextColor.GRAY));
+            lore.add(text("超過を解消すると出撃できます", NamedTextColor.YELLOW));
+        } else {
+            lore.add(over > 0
+                    ? text(over + " マス超えています", NamedTextColor.RED)
+                    : text("空き " + (capacity - used) + " マス", NamedTextColor.GRAY));
+        }
         List<Big> big = bigItems(player);
         if (!big.isEmpty()) {
             lore.add(Component.empty());
@@ -153,8 +188,13 @@ public final class CapacityGauge {
         PlayerInventory inventory = player.getInventory();
         int capacity = CostSlotManager.capacity(player, inventory);
         int used = CostSlotManager.usedCost(player, inventory);
-        player.sendMessage(text("容量 " + used + " / " + capacity + " マス (" + capacityBreakdown(player, capacity) + ")",
+        int over = Math.max(0, used - capacity);
+        boolean preparing = isPreparing(player);
+        player.sendMessage(text((preparing ? "出撃容量 " : "容量 ") + used + " / " + capacity + " マス (" + capacityBreakdown(player, capacity) + ")",
                 used > capacity ? NamedTextColor.RED : NamedTextColor.GREEN));
+        if (over > 0 && preparing) {
+            player.sendMessage(text("ロビーでは装備を追加・整理できます。出撃前に " + over + " マス分減らしてください。", NamedTextColor.RED));
+        }
         int small = 0;
         for (int slot = 0; slot <= RigModule.MAIN_INVENTORY_END; slot++) {
             if (slot == RaidMapManager.MAP_SLOT || !CostSlotManager.isStorageSlot(player, inventory, slot)) continue;
@@ -169,5 +209,10 @@ public final class CapacityGauge {
 
     private static Component text(String content, NamedTextColor color) {
         return Component.text(content, color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    private static boolean isPreparing(Player player) {
+        RaidModule raid = ImpossbleEscapeMC.getInstance().getRaidModule();
+        return raid == null || !raid.isInRaid(player);
     }
 }
