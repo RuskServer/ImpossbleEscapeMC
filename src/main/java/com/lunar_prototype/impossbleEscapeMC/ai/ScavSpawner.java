@@ -29,6 +29,7 @@ import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,7 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ScavSpawner implements Listener {
     private static final Random RANDOM = new Random();
     /** スポーン時に持たせる銃の候補 (Toi's Armory のデータパック銃の ID) */
-    private static final List<String> GUN_POOL = List.of("ak74", "m4a1", "m700", "mossberg_590");
+    private static final List<String> GUN_POOL = List.of(
+            "ak74", "as_val", "m4a1", "m700", "mossberg_590",
+            "mp5", "scar_h", "scorpion_evo3", "svd", "usp45", "uzi");
     /** 銃が無くて出せなかったことを、もう警告したか (続けて失敗してもログを 1 回に抑える。出せたら戻す) */
     private static volatile boolean warnedNoGun;
     private static final double BRAIN_LOW_CHANCE = 0.60;
@@ -55,6 +58,13 @@ public class ScavSpawner implements Listener {
     private static final double ARMOR_CLASS_3_CHANCE = 0.45;
     // class4 はレア
     private static final double ARMOR_CLASS_4_CHANCE = 0.10;
+    private static final double SPACE_PROBE_DISTANCE = 10.0;
+    private static final double ROOF_PROBE_DISTANCE = 8.0;
+    private static final double IDEAL_CLOSE_RANGE = 10.0;
+
+    private enum SpawnSpace { ENCLOSED, OPEN, MIXED }
+
+    private record GunCandidate(DatapackGunProfile profile) {}
 
     private final ImpossbleEscapeMC plugin;
     // UUIDごとにAIコントローラーを保持
@@ -91,7 +101,7 @@ public class ScavSpawner implements Listener {
     /** レイド参加者の装備帯に応じた弾薬クラス上限を適用してスポーンさせる。 */
     public UUID spawnScav(Location loc, String raidSessionId, String mapId, Integer maxAmmoClass) {
         // 銃を持たない SCAV は撃たず動かない的になるので、銃が無ければ出さない
-        ItemStack gun = pickGun(loc.getWorld());
+        ItemStack gun = pickGun(loc);
         if (gun == null) {
             if (!warnedNoGun) {
                 warnedNoGun = true;
@@ -198,16 +208,70 @@ public class ScavSpawner implements Listener {
      * SCAV に持たせる銃: 候補を混ぜた順に試し、データパックにある最初の銃。どれも無ければ null
      * (データパックが読めていない。1 丁の名前が変わっただけなら、ほかの銃で出す)
      */
-    private ItemStack pickGun(World world) {
-        List<String> pool = new ArrayList<>(GUN_POOL);
-        Collections.shuffle(pool, RANDOM);
-        for (String gunId : pool) {
+    private ItemStack pickGun(Location spawnLocation) {
+        World world = spawnLocation.getWorld();
+        if (world == null) return null;
+
+        SpawnSpace space = classifySpawnSpace(spawnLocation);
+        List<GunCandidate> candidates = new ArrayList<>();
+        for (String gunId : GUN_POOL) {
             DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
             if (profile == null) continue;
-            ItemStack gun = DatapackGunCatalog.createItem(world, profile);
+            candidates.add(new GunCandidate(profile));
+        }
+        while (!candidates.isEmpty()) {
+            double totalWeight = candidates.stream().mapToDouble(candidate -> gunWeight(candidate.profile(), space)).sum();
+            double roll = RANDOM.nextDouble() * totalWeight;
+            int selectedIndex = candidates.size() - 1;
+            for (int i = 0; i < candidates.size(); i++) {
+                roll -= gunWeight(candidates.get(i).profile(), space);
+                if (roll < 0) {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+
+            GunCandidate selected = candidates.remove(selectedIndex);
+            ItemStack gun = DatapackGunCatalog.createItem(world, selected.profile());
             if (gun != null) return DatapackGunCondition.scavGun(gun);
         }
         return null;
+    }
+
+    /** スポーン地点の水平4方向と頭上だけを見る軽量な地形判定。 */
+    private SpawnSpace classifySpawnSpace(Location spawnLocation) {
+        World world = spawnLocation.getWorld();
+        if (world == null) return SpawnSpace.MIXED;
+
+        Location origin = spawnLocation.clone().add(0, 1.0, 0);
+        Vector[] directions = {
+                new Vector(1, 0, 0), new Vector(-1, 0, 0),
+                new Vector(0, 0, 1), new Vector(0, 0, -1)
+        };
+        int blockedDirections = 0;
+        for (Vector direction : directions) {
+            if (world.rayTraceBlocks(origin, direction, SPACE_PROBE_DISTANCE,
+                    org.bukkit.FluidCollisionMode.NEVER, true) != null) {
+                blockedDirections++;
+            }
+        }
+        boolean roofed = world.rayTraceBlocks(origin, new Vector(0, 1, 0), ROOF_PROBE_DISTANCE,
+                org.bukkit.FluidCollisionMode.NEVER, true) != null;
+
+        if (blockedDirections >= 3) return SpawnSpace.ENCLOSED;
+        if (blockedDirections <= 1 && !roofed) return SpawnSpace.OPEN;
+        return SpawnSpace.MIXED;
+    }
+
+    /** 銃のAI交戦距離を地形に合わせて重み付けし、合わない銃も少しは残す。 */
+    private double gunWeight(DatapackGunProfile profile, SpawnSpace space) {
+        if (space == SpawnSpace.MIXED) return 1.0;
+
+        double range = Math.max(1.0, profile.preferredRange());
+        double ratio = space == SpawnSpace.ENCLOSED
+                ? IDEAL_CLOSE_RANGE / range
+                : range / IDEAL_CLOSE_RANGE;
+        return Math.max(0.2, ratio * ratio);
     }
 
     private void setupRandomBackpack(Mob scav) {
