@@ -69,6 +69,24 @@ public enum HideoutFacility {
 
     /** そのレベルにする素材 (決まっていなければ空) */
     public List<ItemCost> itemCosts(int level) {
+        if (this == WORKBENCH) {
+            return switch (level) {
+                case 1 -> List.of(new ItemCost("scraps", 3), new ItemCost("bolts", 4), new ItemCost("screwdriver", 1));
+                case 2 -> List.of(new ItemCost("tool_box", 1), new ItemCost("wrench", 1), new ItemCost("bolts", 4));
+                case 3 -> List.of(new ItemCost("tool_box", 2), new ItemCost("copper_wire", 4), new ItemCost("mini_battery", 1));
+                case 4 -> List.of(new ItemCost("tool_box", 3), new ItemCost("mini_battery", 3), new ItemCost("bolts", 8));
+                default -> List.of();
+            };
+        }
+        if (this == WATER) {
+            return switch (level) {
+                case 1 -> List.of(new ItemCost("water_filter", 1), new ItemCost("toilet_paper", 2), new ItemCost("bolts", 2));
+                case 2 -> List.of(new ItemCost("water_filter", 2), new ItemCost("copper_wire", 2));
+                case 3 -> List.of(new ItemCost("water_filter", 3), new ItemCost("tool_box", 1));
+                case 4 -> List.of(new ItemCost("water_filter", 4), new ItemCost("tool_box", 2), new ItemCost("mini_battery", 2));
+                default -> List.of();
+            };
+        }
         if (this == SKILL_TREE && level == 1) {
             return List.of(new ItemCost("tool_box", 1), new ItemCost("mini_battery", 3), new ItemCost("bolts", 4), new ItemCost("usb", 1));
         }

@@ -65,7 +65,7 @@ public class PlayerData {
     // 隠れ家システム
     private java.util.Map<String, Integer> hideoutLevels;
     private int hideoutIndex; // 隠れ家の配置場所を決めるインデックス (-1: 未割り当て)
-    private int hideoutBuiltVersion; // 隠れ家を建てた時の建築データの版 (HideoutLayout#version。違えば次に入った時に建て直す)
+    private int hideoutBuiltVersion = -1; // 隠れ家を建てた時の建築データの版 (HideoutLayout#version。違えば次に入った時に建て直す)
 
     // スキルツリー (習得したノードの id。SkillCatalog)
     private java.util.Set<String> skills;

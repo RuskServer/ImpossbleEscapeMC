@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
@@ -201,10 +202,8 @@ public final class HideoutDialog implements Listener {
 
     /** 上げられない理由 (上げられるなら null) */
     private String blocking(PlayerData data, HideoutFacility facility, List<Requirement> requirements) {
-        int level = data.getHideoutLevel(facility.id);
-        int max = facility.maxLevel(module.getLayout());
-        if (level >= max) return max == 0 ? "まだ建てられません" : "最大レベルです";
-        if (!module.getLayout().hasLayer(facility, level + 1)) return "Lv." + (level + 1) + " の建築が未作成";
+        String facilityBlock = module.upgradeBlockReason(data, facility);
+        if (facilityBlock != null) return facilityBlock;
         for (Requirement r : requirements) {
             if (r.have() >= r.need()) continue;
             return switch (r.kind()) {
@@ -406,6 +405,14 @@ public final class HideoutDialog implements Listener {
         }
         int next = data.getHideoutLevel(facility.id) + 1;
         long cost = facility.moneyCost(next);
+        // 建築の同期に失敗した場合は、費用を取る前に中断する。
+        try {
+            module.ensureBuilt(data);
+        } catch (IOException e) {
+            module.getPlugin().getLogger().log(Level.WARNING, "隠れ家を建てられませんでした", e);
+            notice(session, Component.text("隠れ家の建築を反映できませんでした", NamedTextColor.RED));
+            return;
+        }
         if (cost > 0 && (economy == null || !economy.withdraw(player.getUniqueId(), cost))) {
             notice(session, Component.text("所持金が足りません", NamedTextColor.RED));
             return;
@@ -426,8 +433,20 @@ public final class HideoutDialog implements Listener {
         try {
             module.upgrade(player, data, facility);
         } catch (IOException e) {
+            if (cost > 0 && economy != null) economy.deposit(player.getUniqueId(), cost);
+            List<org.bukkit.inventory.ItemStack> refund = new ArrayList<>();
+            for (HideoutFacility.ItemCost itemCost : facility.itemCosts(next)) {
+                org.bukkit.inventory.ItemStack item = ItemFactory.create(itemCost.itemId());
+                if (item == null) {
+                    module.getPlugin().getLogger().warning("隠れ家強化素材を返却できません: " + itemCost.itemId());
+                    continue;
+                }
+                item.setAmount(itemCost.amount());
+                refund.add(item);
+            }
+            module.deliver(player, data, refund);
             module.getPlugin().getLogger().log(Level.WARNING, "隠れ家の設備を建てられませんでした", e);
-            notice(session, Component.text("建築を反映できませんでした (次に入った時に建て直します)", NamedTextColor.RED));
+            notice(session, Component.text("建築に失敗したため費用を返却しました", NamedTextColor.RED));
             return;
         }
         notice(session, Component.text(facility.label + " を " + (next == 1 && facility != HideoutFacility.BASE ? "設置しました" : "Lv." + next + " にしました"),

@@ -158,6 +158,23 @@ public class HideoutModule implements IModule {
         data.setHideoutBuiltVersion(version);
     }
 
+    /** アップグレード前の共通検証。画面と実際の更新処理の両方で使う。 */
+    public String upgradeBlockReason(PlayerData data, HideoutFacility facility) {
+        if (data == null || facility == null) return "プレイヤーデータを読み込めません";
+        if (data.getHideoutIndex() < 0) return "先に隠れ家を作成してください";
+        if (layout.base() == null || !layout.baseSchematic().isFile()) return "ベースの建築が未作成です";
+        int level = data.getHideoutLevel(facility.id);
+        int next = level + 1;
+        if (level >= facility.maxLevel(layout)) return level == 0 ? "まだ建てられません" : "最大レベルです";
+        if (!layout.hasLayer(facility, next)) return "Lv." + next + " の建築が未作成です";
+        for (HideoutFacility.Prerequisite prerequisite : facility.prerequisites(next)) {
+            if (data.getHideoutLevel(prerequisite.facility().id) < prerequisite.level()) {
+                return prerequisite.facility().label + " Lv." + prerequisite.level() + " が必要です";
+            }
+        }
+        return null;
+    }
+
     /** 設備と建物のレベルをすべて 0 に戻し、ベースだけの状態に建て直す (運営用) */
     public void reset(Player player, PlayerData data) throws IOException {
         data.getHideoutLevels().clear();
@@ -366,27 +383,23 @@ public class HideoutModule implements IModule {
                 block.getX() - origin.getX(), block.getY() - origin.getY(), block.getZ() - origin.getZ());
     }
 
-    /**
-     * 設備を 1 レベル上げて、その差分を重ねる (建築データが変わっていれば建て直す)。
-     * 建築の反映に失敗しても上がったレベルは残し、次に入った時に建て直す
-     */
+    /** 設備を 1 レベル上げて、その差分を反映してからレベルを保存する。 */
     public void upgrade(Player player, PlayerData data, HideoutFacility facility) throws IOException {
+        String blocked = upgradeBlockReason(data, facility);
+        if (blocked != null) throw new IOException(blocked);
         int next = data.getHideoutLevel(facility.id) + 1;
-        data.setHideoutLevel(facility.id, next);
-        dataModule.saveAsync(player.getUniqueId());
-        if (data.getHideoutIndex() < 0) return;
         try {
-            if (data.getHideoutBuiltVersion() == layout.version()) {
-                builder.applyLayer(worldManager.getPlayerWorld(), origin(data.getHideoutIndex()), facility, next);
-            } else {
-                ensureBuilt(data);
-            }
+            // まず現行の建築データでベースを同期し、その後に差分を適用する。
+            // これにより、未建築状態のままレベルだけ進むことを防ぐ。
+            ensureBuilt(data);
+            builder.applyLayer(worldManager.getPlayerWorld(), origin(data.getHideoutIndex()), facility, next);
+            data.setHideoutLevel(facility.id, next);
         } catch (IOException e) {
             data.setHideoutBuiltVersion(-1);
-            throw e;
-        } finally {
             dataModule.saveAsync(player.getUniqueId());
+            throw e;
         }
+        dataModule.saveAsync(player.getUniqueId());
     }
 
     public ImpossbleEscapeMC getPlugin() {
