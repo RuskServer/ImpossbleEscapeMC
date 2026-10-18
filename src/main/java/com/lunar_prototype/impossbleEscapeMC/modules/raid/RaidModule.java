@@ -332,9 +332,13 @@ public class RaidModule implements IModule {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null) {
                     if (bar != null) p.hideBossBar(bar);
-                    if (!isInRaid(p)) {
-                        participants.add(p);
+                    if (isInRaid(p)) continue;
+                    // 待機列に入った後で装備を増やせるため、実際の出撃直前にも容量を確認する。
+                    if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) {
+                        p.sendMessage(Component.text("持ち物が容量を超えています。整理してから再度出撃してください。", NamedTextColor.RED));
+                        continue;
                     }
+                    participants.add(p);
                 }
             }
 

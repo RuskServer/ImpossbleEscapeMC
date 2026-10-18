@@ -37,6 +37,15 @@ public class CostSlotManager {
     public static void updateInventory(Player player, Inventory inventory) {
         if (inventory == null) return;
 
+        // ロビーは装備準備中の超過を許可する。占有表示が物理スロットを塞がないよう、プレイヤー欄では表示しない。
+        // 超過状態は容量ゲージで確認でき、出撃待機列への参加時に検査する。
+        if (inventory.getHolder() instanceof Player && !isInRaid(player)) {
+            for (int slot = 0; slot < inventory.getSize(); slot++) {
+                if (ItemFactory.isCostSlotPlaceholder(inventory.getItem(slot))) inventory.setItem(slot, null);
+            }
+            return;
+        }
+
         // 1. 現在の有効なストレージスロットを特定
         List<Integer> storageSlots = getEnabledStorageSlots(player, inventory);
         if (storageSlots.isEmpty()) return;
@@ -176,15 +185,10 @@ public class CostSlotManager {
 
     /**
      * あふれた分を片付ける。レイド中は、メイン→ホットバーの順に右下のアイテムから足元に落とし、何を落としたかを伝える。
-     * ロビーでは持ち物を失わせないよう落とさず、容量オーバーを知らせ続ける (整理するまで RaidModule が出撃を止める)
+     * ロビーではプレイヤー欄の占有表示を消して装備準備を許可し、容量ゲージと出撃時の検査で超過を知らせる。
      */
     private static void resolveOverflow(Player player, Inventory inventory, List<Integer> storageSlots, int over) {
-        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getRaidModule();
-        if (raidModule == null || !raidModule.isInRaid(player)) {
-            player.sendActionBar(Component.text("容量オーバー (使用 " + (storageSlots.size() + over) + " / " + storageSlots.size()
-                    + "): 持ち物を減らすまで出撃できません", NamedTextColor.RED));
-            return;
-        }
+        if (!isInRaid(player)) return;
 
         boolean playerInventory = inventory.equals(player.getInventory());
         List<Integer> order = new ArrayList<>();
@@ -251,5 +255,10 @@ public class CostSlotManager {
         }
 
         return slots;
+    }
+
+    private static boolean isInRaid(Player player) {
+        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getRaidModule();
+        return raidModule != null && raidModule.isInRaid(player);
     }
 }

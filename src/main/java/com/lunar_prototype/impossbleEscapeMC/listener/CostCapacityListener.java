@@ -4,6 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge;
 import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -28,12 +29,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 持ち物の大きさ (コスト) の合計が使えるスロットの数を超える操作を、入る前に止める。
+ * レイド中は、持ち物の大きさ (コスト) の合計が使えるスロットの数を超える操作を、入る前に止める。
  * 占有スロット (バリア) は空きスロットにしか置けないため、止めないと大きな物でインベントリを埋めて制限を素通りできてしまう。
  * <p>
- * 1回の操作で各インベントリのスロットがどう変わるかを先に求めて判定する。すでに超えている時 (ロビーで整理中など) は、
- * 使用量を増やす操作だけを止め、減らす・並べ替える操作はできるようにする。
- * リグの装備欄を外す・小さいリグに替える操作も、持ち物が入りきらなくなるなら止める (落とさずに済むように)。
+ * ロビーのプレイヤーインベントリではコスト超過を許可し、出撃開始時に容量内かを確認する。
+ * バックパック内部の容量と、リグ交換で実物がロックされる操作はロビーでも制限する。
+ * リグの装備欄を外す・小さいリグに替える操作も、レイド中に持ち物が入りきらなくなるなら止める (落とさずに済むように)。
  * 止めた時は音を鳴らし、容量のゲージ ({@link CapacityGauge}) を赤く光らせる。
  * 止められない経路であふれた分は {@link CostSlotManager} が片付ける。
  */
@@ -77,6 +78,8 @@ public class CostCapacityListener implements Listener {
             touched.addAll(slots.keySet());
             touched.addAll(added.keySet());
             for (Inventory inventory : touched) {
+                // ロビーのプレイヤーインベントリは装備準備中の超過を許可する。バックパック内部の容量は維持。
+                if (inventory.getHolder() instanceof Player && !isRaidCapacityEnforced(player)) continue;
                 int capacity = CostSlotManager.capacity(player, inventory);
                 if (capacity == 0) continue;
                 int before = CostSlotManager.usedCost(player, inventory);
@@ -107,7 +110,7 @@ public class CostCapacityListener implements Listener {
                 CapacityGauge.flash(player);
                 return;
             }
-            Overflow rig = rigChange(player, event, current);
+            Overflow rig = isRaidCapacityEnforced(player) ? rigChange(player, event, current) : null;
             if (rig != null) {
                 event.setCancelled(true);
                 player.sendActionBar(Component.text("リグを替えると持ち物が入りきりません (" + rig.used() + " / " + rig.capacity() + " マス)",
@@ -183,6 +186,7 @@ public class CostCapacityListener implements Listener {
             CapacityGauge.flash(player);
             return;
         }
+        if (!isRaidCapacityEnforced(player)) return;
         int handSlot = getHandSlot(player, hand);
         Overflow overflow = afterRigChange(player, rigModule, worn, hand, swapDelta(player, handSlot, worn, hand));
         if (overflow == null) return;
@@ -283,6 +287,13 @@ public class CostCapacityListener implements Listener {
     private static boolean isLimited(Player player) {
         GameMode mode = player.getGameMode();
         return (mode == GameMode.SURVIVAL || mode == GameMode.ADVENTURE) && !DatapackGunnerManager.isGunner(player);
+    }
+
+    /** ロビーでは容量超過の装備準備を許し、レイド中だけコスト上限を強制する。 */
+    private static boolean isRaidCapacityEnforced(Player player) {
+        if (!isLimited(player)) return false;
+        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getRaidModule();
+        return raidModule != null && raidModule.isInRaid(player);
     }
 
     private static boolean isEmpty(ItemStack item) {
