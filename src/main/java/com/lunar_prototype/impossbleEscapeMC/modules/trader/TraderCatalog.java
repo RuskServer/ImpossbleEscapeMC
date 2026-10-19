@@ -27,6 +27,7 @@ final class TraderCatalog {
         traders.add(trader("kovacs", "§cKovacs (Buy Only)", TraderType.BUY, 1,
                 false, true, List.of(
                         item("ak74", 15000, 0, 1, "AK-74M", null),
+                        item("usp45", 4800, 0, 20, null, null),
                         item("mossberg_590", 18000, 2, 4, "Mossberg 590", "kovacs_close_supply"),
                         item("uzi", 22000, 2, 4, "UZI", "kovacs_close_supply"),
                         item("svd", 65000, 2, 10, "SVD", "kovacs_marksman_02"),
