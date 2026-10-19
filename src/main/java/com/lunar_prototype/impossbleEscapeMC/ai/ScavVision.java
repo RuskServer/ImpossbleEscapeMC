@@ -30,8 +30,6 @@ public class ScavVision {
     private static final double GUNFIRE_VISIBILITY_BOOST = 1.2;
     /** 発砲で周辺に気づきやすくなる視野角 (全幅)。以前の200度は暗所で背後まで捉えやすかった。 */
     private static final double FIRING_FOV_ANGLE = 140.0;
-    /** 発砲を見た場合も、暗所の射撃ばらつきは半分残す。 */
-    private static final double GUNFIRE_DARKNESS_SPREAD_REDUCTION = 0.5;
     private static final int DARK_LIGHT_THRESHOLD = 8;
     private LosSnapshot lastLosSnapshot = null;
     private float alertness = 0.25f;
@@ -198,12 +196,11 @@ public class ScavVision {
         return 1.0;
     }
 
-    /** 暗い所の相手を撃つ時に増えるばらつき (発砲直後は光で手掛かりを得るため半分にする) */
+    /** 暗い所の相手を撃つ時に増えるばらつき (発砲しても精度は補正しない) */
     public static double darknessSpread(LivingEntity target) {
         if (target == null) return 0.0;
         int light = targetLight(target, target.getEyeLocation().getBlock());
-        double spread = light < 4 ? 0.06 : light < 8 ? 0.03 : 0.0;
-        return recentlyFired(target) ? spread * GUNFIRE_DARKNESS_SPREAD_REDUCTION : spread;
+        return light < 4 ? 0.06 : light < 8 ? 0.03 : 0.0;
     }
 
     private static boolean recentlyFired(LivingEntity target) {

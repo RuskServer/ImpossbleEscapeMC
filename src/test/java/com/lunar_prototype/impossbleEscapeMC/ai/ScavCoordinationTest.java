@@ -64,9 +64,12 @@ public final class ScavCoordinationTest {
         check(encounter.full()&&!encounter.recruit(id(6),40),"switching never refunds source slot");
         check(registry.contact(encounter,id(1),id(101),41)==null,"oversized fights do not merge past combatant cap");
         check(separate.recruit(id(7),41),"rejected merge leaves separate encounter active");
-        var small=registry.contact(null,id(8),id(102),41);
-        var merged=registry.contact(small,id(8),id(101),42);
-        check(merged!=null&&!merged.recruit(id(9),42),"merged encounters enforce total combatant cap");
+        // 合流後が上限 (3人) に収まる組み合わせで合流させ、その後の追加は拒否されることを確認する。
+        var pair=registry.contact(null,id(8),id(102),41);
+        pair.recruit(id(10),41);
+        var solo=registry.contact(null,id(11),id(103),41);
+        var merged=registry.contact(solo,id(11),id(102),42);
+        check(merged!=null&&!merged.recruit(id(12),42),"merged encounters enforce total combatant cap");
         System.out.println("ScavCoordinationTest: all checks passed");
     }
 }

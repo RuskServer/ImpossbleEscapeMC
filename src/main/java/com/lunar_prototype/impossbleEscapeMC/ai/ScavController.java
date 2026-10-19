@@ -232,6 +232,12 @@ public class ScavController {
     /** 単発で撃つ時の1発あたりの反動。単発の間隔は反動が収まる時間より短いため、小さくしないと単発でも散り続ける */
     private static final double RECOIL_SPREAD_PER_SINGLE_SHOT = 0.01;
     private static final double RECOIL_SPREAD_MAX = 0.24;
+    /** この距離 (ブロック) を超えると距離による拡散が始まる。近距離の殺傷力は維持する */
+    private static final double RANGE_SPREAD_START = 12.0;
+    /** 1ブロックあたりの距離拡散 (遠距離のレーザー化を防ぐ) */
+    private static final double RANGE_SPREAD_PER_BLOCK = 0.012;
+    /** 距離拡散の上限 (約10度) */
+    private static final double RANGE_SPREAD_MAX = 0.22;
     /** 前に引き金を引いてからこれだけ空いたら、反動は収まったとみなす (ms) */
     private static final long RECOIL_RESET_MS = 350;
     /** 反動が収まってから続けて引き金を引いた回数 */
@@ -247,6 +253,10 @@ public class ScavController {
      * 近くで遮蔽物から出た瞬間に撃たれるのは理不尽なため。これより遠くでピークし直してきた相手には反応し直さずに撃つ
      */
     private static final double CLOSE_REACQUIRE_DISTANCE = 8.0;
+    /** これ以内の鉢合わせでは、構えていても反応を高速化しない (近距離の即死を防ぐ) */
+    private static final double CLOSE_SNAP_DISTANCE = 12.0;
+    /** 反応時間の下限 (ms)。構えていてもこれ以上は反応に時間をかける */
+    private static final long MIN_REACTION_MS = 140;
 
     // --- ヒートマップの「安全」記録 ---
     /** 記録間隔 (約3秒)。毎ステップ記録すると「危険」(被弾1回 +2) をすぐ打ち消してしまう */
@@ -460,12 +470,16 @@ public class ScavController {
                 // 見つけた直後は反応時間をおいてから撃ち始める。
                 // 撃ち合い中に遮蔽物の端で見え隠れしただけの時は、反応し直さない (中距離以上でピークし直してきた相手は咎める)。
                 // 顔出しや、いそうな方向へ照準を向けていた時は、構えているぶん反応が速い
-                long reaction = rollReactionDelayMs();
-                if (tactics.getPeekPhase() > 0 || nowTick <= preAimUntilTick) reaction /= 3;
+                long reaction = Math.max(rollReactionDelayMs(), MIN_REACTION_MS);
+                boolean prepared = tactics.getPeekPhase() > 0 || nowTick <= preAimUntilTick;
+                boolean closeRange = scav.getWorld() == target.getWorld()
+                        && scav.getLocation().distanceSquared(target.getLocation()) <= CLOSE_SNAP_DISTANCE * CLOSE_SNAP_DISTANCE;
+                // 近距離の鉢合わせでは構えていても速く反応しない (即死回避)。速くするとしたら遠距離のレーン待ちだけ。
+                if (prepared && !closeRange) reaction /= 3;
                 fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + reaction);
             } else if (canSeeTarget && !sawTargetLastStep && closeReacquire) {
                 // 近くで見え直した時は、構えていても普通の反応時間をおく (出た瞬間に撃たない)
-                fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + rollReactionDelayMs());
+                fireHoldUntil = Math.max(fireHoldUntil, System.currentTimeMillis() + Math.max(rollReactionDelayMs(), MIN_REACTION_MS));
             }
             if (canSeeTarget) {
                 lastTargetVisibleTick = nowTick;
@@ -722,6 +736,7 @@ public class ScavController {
                             + (suppression * SUPPRESSION_SPREAD)
                             + (scav.getVelocity().length() > 0.1 ? 0.04 : 0)
                             + ScavVision.darknessSpread(target)
+                            + rangeSpread(target)
                             + Math.min(RECOIL_SPREAD_MAX, consecutivePulls * (fullAuto ? RECOIL_SPREAD_PER_PULL : RECOIL_SPREAD_PER_SINGLE_SHOT));
                     if (weapon.isManualAction()) {
                         inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
@@ -951,6 +966,13 @@ public class ScavController {
             case MID -> 0.11;
             case HIGH -> 0.04;
         };
+    }
+
+    /** 距離が離れるほど狙いが粗くなる。近距離の殺傷力はそのままに、遠距離のレーザー化を防ぐ */
+    private double rangeSpread(LivingEntity target) {
+        if (target == null || target.getWorld() != scav.getWorld()) return 0.0;
+        double distance = scav.getLocation().distance(target.getLocation());
+        return Math.min(RANGE_SPREAD_MAX, Math.max(0.0, distance - RANGE_SPREAD_START) * RANGE_SPREAD_PER_BLOCK);
     }
 
     /** 発見から撃ち始めるまでの反応時間 (ms)。ランクが高いほど速いが、毎回ばらつく */
@@ -1764,7 +1786,7 @@ public class ScavController {
         }
 
         if (brainLevel == ScavBrain.BrainLevel.HIGH) {
-            if ("head".equalsIgnoreCase(hitLocation)) {
+            if ("head".equalsIgnoreCase(hitLocation) || "face".equalsIgnoreCase(hitLocation)) {
                 memory.recognizedHeadArmorClass = getArmorClassFromSlot(victim, EquipmentSlot.HEAD);
             } else {
                 memory.recognizedChestArmorClass = getArmorClassFromSlot(victim, EquipmentSlot.CHEST);
