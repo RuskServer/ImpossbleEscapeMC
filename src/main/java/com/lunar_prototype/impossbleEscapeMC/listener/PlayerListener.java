@@ -20,6 +20,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -324,6 +326,27 @@ public class PlayerListener implements Listener {
                 controller.onDamage(nabe.getDamager());
             }
         }
+    }
+
+    /** ロビー (メインのワールド) では、プレイヤーからプレイヤーへの攻撃を無効にする */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onLobbyPvP(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player victim)) return;
+        if (!victim.getWorld().equals(org.bukkit.Bukkit.getWorlds().get(0))) return;
+        Player attacker = playerAttacker(event.getDamager());
+        if (attacker != null && !attacker.equals(victim)) event.setCancelled(true);
+    }
+
+    /**
+     * 直接攻撃・飛び道具・データパック銃 (Toi's Armory) のどれでも、攻撃したプレイヤーを返す (いなければ null)。
+     * データパック銃の弾は {@code damage ... by @p} で射手を攻撃者にするため、ダメージ種別に依存しない。
+     * SCAVのFakePlayerなら持ち主へ読み替える
+     */
+    private static Player playerAttacker(org.bukkit.entity.Entity damager) {
+        org.bukkit.entity.Entity shooter = com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.resolveShooter(damager);
+        if (shooter instanceof Player player) return player;
+        if (damager instanceof Projectile projectile && projectile.getShooter() instanceof Player player) return player;
+        return null;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
