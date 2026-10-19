@@ -83,7 +83,7 @@ public class MinigameCommand implements BasicCommand {
                 manager.startGame(args[1], rounds);
                 break;
             case "stop":
-                manager.stopGame();
+                manager.stopGame(true);
                 player.sendMessage("§cGame stopped.");
                 break;
         }

@@ -383,7 +383,7 @@ private void spawnPlayers() {
                     startRound();
                 } else {
                     displayFinalResult();
-                    stopGame();
+                    stopGame(true);
                 }
             }
         }.runTaskLater(plugin, 100);
@@ -508,6 +508,14 @@ private void spawnPlayers() {
         Bukkit.broadcast(Component.text("ゲーム終了！ 最終結果: Team1 [" + team1Wins + "] - [" + team2Wins + "] Team2", broadcastColor, TextDecoration.BOLD));
     }
     public void stopGame() {
+        stopGame(false);
+    }
+
+    /**
+     * @param sendToLobby 終わった試合の参加者をロビー (メインのワールド) のスポーンへ戻すか。
+     *                    プラグイン停止時は戻さない
+     */
+    public void stopGame(boolean sendToLobby) {
         isRunning = false;
         isCountdown = false;
         generation++;
@@ -517,11 +525,14 @@ private void spawnPlayers() {
         Set<UUID> participants = new HashSet<>();
         participants.addAll(team1);
         participants.addAll(team2);
+        Location lobbySpawn = sendToLobby ? Bukkit.getWorlds().get(0).getSpawnLocation() : null;
         for (UUID uuid : participants) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 restoreInventory(p);
                 p.setGameMode(GameMode.SURVIVAL);
+                // 試合が終わったらロビー (メインのワールド) に戻す
+                if (lobbySpawn != null) p.teleport(lobbySpawn);
             }
         }
         
