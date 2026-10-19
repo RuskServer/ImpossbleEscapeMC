@@ -1217,6 +1217,8 @@ public class ScavController {
         // 経路探索で立ち位置へ歩いている間は、進む方向を向かせる (照準で向きを上書きすると、
         // 移動の制御が1tickに90度までしか回れず、相手と反対側の場所へ進めなくなる)
         if (followingPath) return;
+        // 顔出し/戻りの歩行中は体を進行方向へ向ける (照準で上書きすると横滑り=瞬間移動に見える)
+        if (tactics.isPeekTraveling()) return;
         LivingEntity target = scav.getTarget();
         Vector ideal = null;
         double stepLerp;
