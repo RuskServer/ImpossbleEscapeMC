@@ -234,9 +234,12 @@ public class RaidSelectionGUI implements Listener {
             State shown = status.queued() ? State.QUEUED : status.state();
             char glyph = (char) (MARKER_BASE + site * 4 + shown.ordinal());
             line.append(Component.text(shift(SITE_LEFT[site])));
-            line.append(Component.text(String.valueOf(glyph))
+            Component marker = Component.text(String.valueOf(glyph))
                     .hoverEvent(HoverEvent.showText(mapTooltip(status)))
-                    .clickEvent(ClickEvent.custom(Key.key(KEY_NAMESPACE, MAP_PREFIX + i))));
+                    .clickEvent(ClickEvent.custom(Key.key(KEY_NAMESPACE, MAP_PREFIX + i)));
+            // 空き (即時出撃できる) マップの印は緑で示す
+            if (shown == State.OPEN) marker = marker.color(NamedTextColor.GREEN);
+            line.append(marker);
             line.append(Component.text(shift(-(SITE_LEFT[site] + MARKER_SIZE + 1))));
         }
 
