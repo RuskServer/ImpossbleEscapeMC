@@ -107,6 +107,7 @@ public final class RaidKillTracker implements Listener {
         if (hitLocation == null) return null;
         return switch (hitLocation) {
             case BulletDamageModel.HEAD -> "頭";
+            case BulletDamageModel.FACE -> "顔";
             case BulletDamageModel.BODY -> "胴";
             case BulletDamageModel.ARMS -> "腕";
             case BulletDamageModel.LEGS -> "脚";

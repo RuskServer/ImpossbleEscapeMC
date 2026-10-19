@@ -297,6 +297,10 @@ public class ItemFactory {
         // =========================
         if (def != null && def.armorStats != null) {
             lore.add("§7クラス §f" + def.armorStats.armorClass);
+            if (def.armorStats.coverage != null && !def.armorStats.coverage.isEmpty()) {
+                lore.add("§7防護範囲 §f" + def.armorStats.coverage.stream()
+                        .map(zone -> zone.label).collect(java.util.stream.Collectors.joining("・")));
+            }
             
             if (def.maxDurability > 0) {
                 int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);

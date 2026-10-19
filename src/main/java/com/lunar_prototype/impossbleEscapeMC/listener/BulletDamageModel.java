@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import com.lunar_prototype.impossbleEscapeMC.item.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ArmorStats;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import org.bukkit.Material;
@@ -17,6 +18,7 @@ import org.bukkit.util.Vector;
 public final class BulletDamageModel {
 
     public static final String HEAD = "head";
+    public static final String FACE = "face";
     public static final String BODY = "body";
     public static final String ARMS = "arms";
     public static final String LEGS = "legs";
@@ -41,9 +43,19 @@ public final class BulletDamageModel {
         double footY = victim.getLocation().getY();
         double headY = victim.getEyeLocation().getY();
         double height = headY - footY;
-        if (hit.getY() >= headY - HEAD_HEIGHT) return HEAD;
+        if (hit.getY() >= headY - HEAD_HEIGHT) return isFaceHit(victim, hit, headY) ? FACE : HEAD;
         if (hit.getY() <= footY + height * LEGS_RATIO) return LEGS;
         return isArm(victim, hit) ? ARMS : BODY;
+    }
+
+    /** 頭部の前面に入った弾を顔面として分ける。頭頂・側面・後頭部は頭部扱い。 */
+    private static boolean isFaceHit(LivingEntity victim, Vector hit, double eyeY) {
+        if (hit.getY() > eyeY + 0.08) return false;
+        Vector forward = victim.getEyeLocation().getDirection().setY(0);
+        if (forward.lengthSquared() < 1e-6) return false;
+        forward.normalize();
+        Vector fromEye = hit.clone().subtract(victim.getEyeLocation().toVector()).setY(0);
+        return fromEye.dot(forward) > victim.getWidth() * 0.15;
     }
 
     /** 胴の高さの着弾点が、体の向きに対して中心から左右に離れていれば腕 */
@@ -55,13 +67,26 @@ public final class BulletDamageModel {
         return Math.abs(lateral) > victim.getWidth() * ARMS_LATERAL_RATIO;
     }
 
-    /** 部位を守る防具の防具クラス。胴はチェスト防具と装甲リグの高い方を使う。 */
+    /** 着弾部位を防護する防具の防具クラス。重なった防具は高い方を使う。 */
     public static int armorClass(LivingEntity victim, String hitLocation) {
-        return switch (hitLocation) {
-            case HEAD -> armorClassFromSlot(victim, EquipmentSlot.HEAD);
-            case BODY -> Math.max(armorClassFromSlot(victim, EquipmentSlot.CHEST), armorClassFromArmoredRig(victim));
-            default -> 0;
-        };
+        ArmorStats.ProtectedZone zone = ArmorStats.ProtectedZone.fromHitLocation(hitLocation);
+        if (zone == null || victim.getEquipment() == null) return 0;
+        return Math.max(Math.max(armorClassFromCoveredSlot(victim, EquipmentSlot.HEAD, zone),
+                        armorClassFromCoveredSlot(victim, EquipmentSlot.CHEST, zone)),
+                Math.max(armorClassFromCoveredSlot(victim, EquipmentSlot.LEGS, zone),
+                        armorClassFromCoveredSlot(victim, EquipmentSlot.FEET, zone)));
+    }
+
+    private static int armorClassFromCoveredSlot(LivingEntity entity, EquipmentSlot slot, ArmorStats.ProtectedZone zone) {
+        ItemStack item = entity.getEquipment().getItem(slot);
+        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return 0;
+        var pdc = item.getItemMeta().getPersistentDataContainer();
+        int armorClass = pdc.getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
+        String id = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = ItemRegistry.get(id);
+        if (armorClass <= 0 || def == null || def.armorStats == null
+                || def.armorStats.coverage == null || !def.armorStats.coverage.contains(zone)) return 0;
+        return armorClass;
     }
 
     public static int armorClassFromSlot(LivingEntity entity, EquipmentSlot slot) {
@@ -93,7 +118,7 @@ public final class BulletDamageModel {
      */
     public static double damageForHit(double baseDamage, String hitLocation, boolean penetrated, int armorClass) {
         double damage = baseDamage;
-        if (HEAD.equals(hitLocation)) damage *= 1.2;
+        if (HEAD.equals(hitLocation) || FACE.equals(hitLocation)) damage *= 1.2;
         else if (LEGS.equals(hitLocation)) damage *= 0.6;
         if (!penetrated) return damage * NOT_PENETRATED_MULTIPLIER;
         int clamped = Math.max(0, Math.min(MAX_ARMOR_CLASS, armorClass));
@@ -105,7 +130,7 @@ public final class BulletDamageModel {
      * 無ければ元からバイザーと一体のヘルメット (Altyn など) の跳弾率で判定する。入射方向が不明なら判定しない。
      */
     public static boolean visorRicochets(LivingEntity victim, String hitLocation, Vector incomingDirection) {
-        if (!HEAD.equals(hitLocation) || incomingDirection == null || victim.getEquipment() == null) return false;
+        if ((!HEAD.equals(hitLocation) && !FACE.equals(hitLocation)) || incomingDirection == null || victim.getEquipment() == null) return false;
         double chance = faceShieldRicochetChance(victim.getEquipment().getHelmet());
         return rollVisorRicochet(hitLocation, chance, victim.getEyeLocation().getDirection(), incomingDirection, Math.random());
     }

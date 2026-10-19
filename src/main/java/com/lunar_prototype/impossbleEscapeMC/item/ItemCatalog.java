@@ -86,6 +86,7 @@ final class ItemCatalog {
         altyn.armorStats = armor(4, 3, "HEAD", "minecraft:misc/altyn_overray");
         // 元から厚い防弾バイザーと一体。正面からの頭部被弾を跳ね返すことがある
         altyn.armorStats.ricochetChance = 0.20;
+        altyn.armorStats.coverage = List.of(ArmorStats.ProtectedZone.HEAD, ArmorStats.ProtectedZone.FACE);
         items.add(altyn);
 
         ItemDefinition slick = item("Slick", "ARMOR", Material.DIAMOND_CHESTPLATE, "§6[Slick] アーマー", 4, 0, 600, 6500, 9);
@@ -183,6 +184,7 @@ final class ItemCatalog {
         ItemDefinition sp_v = item("sp_v", "RIG", Material.IRON_INGOT, "SP-V \"Monolith\"", 5, 23, 900, 16000, 9);
         sp_v.rigStats = rig(6, 0.25);
         sp_v.armorStats = armor(5, 0, "CHEST", null);
+        sp_v.armorStats.coverage = List.of(ArmorStats.ProtectedZone.BODY, ArmorStats.ProtectedZone.ARMS);
         sp_v.description = "Spectre製の実験的な次世代アーマーリグ。重厚な防護と引き換えに収納は少ない。";
         items.add(sp_v);
 
@@ -221,6 +223,9 @@ final class ItemCatalog {
         stats.customModelData = customModelData;
         stats.slot = slot;
         stats.cameraOverlay = cameraOverlay;
+        stats.coverage = "HEAD".equalsIgnoreCase(slot)
+                ? List.of(ArmorStats.ProtectedZone.HEAD)
+                : List.of(ArmorStats.ProtectedZone.BODY);
         return stats;
     }
 

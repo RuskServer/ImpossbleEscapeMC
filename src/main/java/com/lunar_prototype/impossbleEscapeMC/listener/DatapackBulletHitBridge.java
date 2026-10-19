@@ -135,7 +135,12 @@ public class DatapackBulletHitBridge implements Listener {
     }
 
     private static String hitLocation(LivingEntity victim, Vector entry) {
-        if (victim.getScoreboardTags().contains(CRIT_HIT_TAG)) return BulletDamageModel.HEAD;
+        if (victim.getScoreboardTags().contains(CRIT_HIT_TAG)) {
+            if (entry != null && BulletDamageModel.FACE.equals(BulletDamageModel.hitLocation(victim, entry))) {
+                return BulletDamageModel.FACE;
+            }
+            return BulletDamageModel.HEAD;
+        }
         if (entry == null) return BulletDamageModel.BODY;
         String location = BulletDamageModel.hitLocation(victim, entry);
         // 頭はデータパックの判定 (CRIT_HIT) に合わせる。付いていなければ胴として扱う

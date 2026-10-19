@@ -22,7 +22,7 @@ import java.util.Locale;
  * 以前に作られたアイテムを今の見た目に直す。tooltip_style については、以前は minecraft:&lt;色&gt;_frame.png を付けていたが、
  * クライアントはそこから minecraft:tooltip/&lt;色&gt;_frame.png_background という無いスプライトを探すので説明の表示が壊れていた。
  * 弾のアイコン (iem:ammo/&lt;id&gt;) ができる前に作られた弾にも、アイコンを付ける。
- * 参加した時の手持ちとエンダーチェスト、開いたインベントリ (スタッシュ・コンテナなど) の中身を直す。
+ * 防具の防護範囲表示を含む現行ステータス表記を、参加時の手持ち・エンダーチェストと開いたインベントリに適用する。
  * 旧金ヘルメット版 UNTAR も Diamond/CMD 9 に移し、元の耐久・FIR・支給品などのデータを保つ。
  */
 public class TooltipStyleMigration implements Listener {
@@ -54,7 +54,20 @@ public class TooltipStyleMigration implements Listener {
         ItemMeta meta = item.getItemMeta();
         boolean changed = fixTooltipStyle(meta) | fixAmmoModel(meta);
         if (changed) item.setItemMeta(meta);
-        return upgradedUntar || changed;
+        boolean armorLoreUpdated = fixArmorCoverageLore(item);
+        return upgradedUntar || changed || armorLoreUpdated;
+    }
+
+    private static boolean fixArmorCoverageLore(ItemStack item) {
+        String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        var def = ItemRegistry.get(id);
+        if (def == null || def.armorStats == null || def.armorStats.coverage == null || def.armorStats.coverage.isEmpty()) return false;
+        String expected = "§7防護範囲 §f" + def.armorStats.coverage.stream()
+                .map(zone -> zone.label).collect(java.util.stream.Collectors.joining("・"));
+        java.util.List<String> lore = item.getItemMeta().getLore();
+        if (lore != null && lore.contains(expected)) return false;
+        ItemFactory.updateLore(item);
+        return true;
     }
 
     private static boolean fixLegacyUntar(ItemStack item) {

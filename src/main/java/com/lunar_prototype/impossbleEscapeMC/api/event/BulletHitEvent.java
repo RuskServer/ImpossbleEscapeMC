@@ -15,7 +15,7 @@ public class BulletHitEvent extends Event {
     private final LivingEntity victim;
     private final LivingEntity shooter;
     private final double damage;
-    private final String hitLocation; // head, arms, legs, body
+    private final String hitLocation; // head, face, arms, legs, body
     private final boolean penetrated;
     private final int ammoClass;
     /** 防具などで軽減される前のダメージ。不明な場合はNaN */
