@@ -271,6 +271,45 @@ public final class OpponentBelief {
         return new Estimate(new Location(world, sx / sw, sy / sw, sz / sw), bestMass / total, 0.0);
     }
 
+    /**
+     * 各方位を向いた時に視界へ入れて不確かさを消せる粒子重みの合計 (情報利得) を返す。
+     * return[b] は yaw = -PI + b * 2PI / bins の向きを向いた時の利得。最も不確かさを下げる
+     * 向きを選ぶのに使う。視界の外に残った候補点 (死角) の重みだけが対象。
+     *
+     * @param eye         目の位置
+     * @param fovDegrees  視野角 (全幅・度)
+     * @param maxDistance 見える最大距離
+     * @param bins        方位の分割数
+     */
+    public double[] scanGainByBearing(Location eye, double fovDegrees, double maxDistance, int bins) {
+        double[] gain = new double[bins];
+        if (!isActive() || eye.getWorld() != world || bins <= 0) return gain;
+        double halfFov = Math.toRadians(fovDegrees / 2.0);
+        double step = (Math.PI * 2.0) / bins;
+        int span = (int) Math.ceil(halfFov / step);
+        for (int i = 0; i < PARTICLES; i++) {
+            if (weight[i] <= 0.0) continue;
+            double dx = x[i] - eye.getX();
+            double dz = z[i] - eye.getZ();
+            double dist = Math.hypot(dx, dz);
+            if (dist < 1.0E-3 || dist > maxDistance) continue;
+            double bearing = Math.atan2(-dx, dz);
+            int center = (int) Math.round((bearing + Math.PI) / step);
+            for (int o = -span; o <= span; o++) {
+                int b = ((center + o) % bins + bins) % bins;
+                double yaw = -Math.PI + b * step;
+                if (Math.abs(wrapAngle(bearing - yaw)) <= halfFov) gain[b] += weight[i];
+            }
+        }
+        return gain;
+    }
+
+    private static double wrapAngle(double a) {
+        while (a > Math.PI) a -= Math.PI * 2.0;
+        while (a < -Math.PI) a += Math.PI * 2.0;
+        return a;
+    }
+
     private void recordFrontier(int i, double mass) {
         int slot = frontierNext;
         fx[slot] = x[i];

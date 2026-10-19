@@ -70,6 +70,14 @@ public final class ScavCoordinationTest {
         var solo=registry.contact(null,id(11),id(103),41);
         var merged=registry.contact(solo,id(11),id(102),42);
         check(merged!=null&&!merged.recruit(id(12),42),"merged encounters enforce total combatant cap");
+        // 情報利得の方位スコアは、不確かさが残っている方向を向いた時に高くなる。
+        var belief=new OpponentBelief();
+        belief.reset(new Location(world,20,64,0),null);
+        int bins=16;
+        double[] gain=belief.scanGainByBearing(new Location(world,0,64,0),100.0,96.0,bins);
+        int toward=(int)Math.round(((-Math.PI/2)+Math.PI)/(Math.PI*2/bins))%bins; // +X 方向
+        int away=(toward+bins/2)%bins;
+        check(gain[toward]>0.0&&gain[toward]>gain[away],"information gain favors the direction of the unknown");
         System.out.println("ScavCoordinationTest: all checks passed");
     }
 }

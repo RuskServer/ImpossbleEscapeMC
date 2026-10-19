@@ -20,8 +20,8 @@ public final class ScavHelpEncounterTest {
         check(rescue == root, "rescuer keeps original encounter on contact");
         check(!rescue.recruit(id(5), 40), "rescuer cannot expand the group");
         var independent = registry.contact(null, id(6), id(100), 80);
-        check(independent == root, "same enemy shares budget");
-        check(!independent.recruit(id(7), 80), "independent caller cannot expand the group");
+        check(independent == null, "full encounter rejects an unrelated caller");
+        check(registry.contact(null, id(7), id(100), 80) == null, "same enemy keeps rejecting while full");
         check(!root.recruit(id(1), 80), "original caller cannot be recruited as rescue");
         // No departure/death refund: UUIDs stay spent while contact continues.
         registry.contact(root, id(1), id(100), 199);
@@ -35,9 +35,14 @@ public final class ScavHelpEncounterTest {
         check(switched == next, "target switch does not reset encounter budget");
         var other = registry.contact(null, id(9), id(102), 400);
         check(other.recruit(id(10), 400), "separate fight has separate budget");
-        var merged = registry.contact(next, id(1), id(102), 401);
-        check(merged.full() && other.full(), "meeting fights merge spent slots");
-        check(!other.recruit(id(11), 401), "old references observe merged budget");
+        // 同じ戦闘員を含む二つの戦闘は、合計3人に収まる範囲で合流できる。
+        var fightA = registry.contact(null, id(14), id(103), 402);
+        fightA.recruit(id(15), 402);
+        var fightB = registry.contact(null, id(14), id(104), 402);
+        fightB.recruit(id(16), 402);
+        var merged = registry.contact(fightB, id(14), id(103), 403);
+        check(merged == fightB && merged.full() && fightA.full(), "meeting fights merge spent slots");
+        check(!fightA.recruit(id(17), 403), "old references observe merged budget");
         var anonymous = registry.contact(null, id(12), null, 500);
         check(anonymous.recruit(id(13), 500), "unknown-attacker encounter works");
         check(registry.contact(anonymous, id(13), null, 501) == anonymous,

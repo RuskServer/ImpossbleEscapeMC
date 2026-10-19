@@ -306,6 +306,27 @@ public class ScavController {
     /** 警戒していない時の独り言の頻度 (平均1分に1回) と、独り言を言う時に近くにいるべきプレイヤーの距離 */
     private static final double IDLE_VOICE_CHANCE_PER_STEP = STEP_TICKS / (20.0 * 60.0);
     private static final double IDLE_VOICE_PLAYER_RANGE = 24.0;
+    /** 巡回でぶらつく範囲 (ホームからの距離) */
+    private static final double PATROL_RADIUS_MIN = 4.0;
+    private static final double PATROL_RADIUS_MAX = 14.0;
+    /** これ以上ホームから離れたら巡回を切り上げて戻る */
+    private static final double PATROL_LEASH_DISTANCE = 20.0;
+    private static final double PATROL_SPEED = 0.75;
+    /** 巡回先に着いてから次を決めるまでの待ち (tick) */
+    private static final int PATROL_PAUSE_MIN_TICKS = 40;
+    private static final int PATROL_PAUSE_MAX_TICKS = 140;
+    /** 巡回中の経路再指示間隔 (tick) */
+    private static final int PATROL_REPATH_TICKS = 20;
+    /** 巡回先に到達できないまま諦めるまでの時間 (tick) */
+    private static final int PATROL_TIMEOUT_TICKS = 200;
+    /** 情報利得ベースの索敵で試す方位の分割数 */
+    private static final int SCAN_BINS = 16;
+    /** 選んだ向きを保つ時間 (tick)。毎stepで再最適化すると賢すぎるため */
+    private static final int SCAN_COMMIT_TICKS = 60;
+    /** 索敵で見る先の距離 */
+    private static final double SCAN_LOOK_DISTANCE = 10.0;
+    /** 最良からこの割合以上の方位からランダムに選ぶ (厳密な最適解に寄せないための幅) */
+    private static final double SCAN_GAIN_TOLERANCE = 0.8;
     /** 前のステップでリロード中だったか (弾切れでリロードを始めた瞬間を知るため) */
     private boolean wasReloading;
     /** 視認中に味方へ位置を伝える間隔 (tick) */
@@ -337,6 +358,14 @@ public class ScavController {
     private UUID lastLoggedTargetId = null;
     private boolean initializedTargetState = false;
     private final Location homeLocation;
+    /** 巡回先。RELAXED の時だけ使う */
+    private Location patrolTarget = null;
+    private int patrolTargetSinceTick = 0;
+    private int patrolPauseUntilTick = 0;
+    private int nextPatrolRepathTick = 0;
+    /** 情報利得ベースの索敵で今向けている先と、次に選び直すtick */
+    private Location scanLookPoint = null;
+    private int scanUntilTick = 0;
     private Location lastHeardSoundLocation = null;
     private int investigateTicks = 0;
     private BehaviorState behaviorState = BehaviorState.RELAXED;
@@ -535,6 +564,10 @@ public class ScavController {
         updateBehaviorState();
         // 自分で敵を捉えていない時は、呼ばれていれば味方の救援に向かう
         boolean assisting = target == null && lastKnownLocation == null && handleAssist();
+        if (target != null || lastKnownLocation != null || assisting) {
+            patrolTarget = null;
+            scanLookPoint = null;
+        }
         if (target == null && lastKnownLocation == null && !assisting) {
             handleIdleOrReturnHome(raidSessionId);
         }
@@ -1084,9 +1117,7 @@ public class ScavController {
         }
 
         if (lastKnownLocation == null) {
-            if (isAlerted && Math.random() < 0.05) {
-                scav.setRotation(scav.getLocation().getYaw() + (float)(Math.random()-0.5)*90f, (float)(Math.random()-0.5)*40f);
-            }
+            if (isAlerted) scanForInformation();
             return;
         }
         // 捜索中も、照準は相手が出てきそうな所 (分からなければ一番ありそうな場所) へ向けておく
@@ -1132,6 +1163,43 @@ public class ScavController {
     private void updatePreAim(Location loc) {
         preAimPoint = loc.clone().add(0, 1.5, 0);
         preAimUntilTick = Bukkit.getCurrentTick() + PRE_AIM_HOLD_TICKS;
+    }
+
+    /**
+     * 死角のうち、最も不確かさを減らせる向きを選んで照準を向ける (情報利得ベースの索敵)。
+     * 分隊共有や視認で得た belief だけを使い、相手の実座標は見ない。選んだ向きは一定時間保持する。
+     */
+    private void scanForInformation() {
+        int now = Bukkit.getCurrentTick();
+        if (scanLookPoint == null || now >= scanUntilTick) {
+            scanLookPoint = chooseScanPoint();
+            scanUntilTick = now + SCAN_COMMIT_TICKS;
+        }
+        if (scanLookPoint != null && scanLookPoint.getWorld() == scav.getWorld()) {
+            updatePreAim(scanLookPoint);
+        }
+    }
+
+    /** 情報利得が最大になる (死角を最も減らせる) 向きの先を選ぶ */
+    private Location chooseScanPoint() {
+        double chosen = Math.random() * Math.PI * 2.0 - Math.PI;
+        if (belief.isActive()) {
+            double[] gain = belief.scanGainByBearing(scav.getEyeLocation(), vision.fovDegrees(), vision.maxVisionDistance(), SCAN_BINS);
+            double best = 0.0;
+            for (double g : gain) best = Math.max(best, g);
+            if (best > 0.0) {
+                // 最良から一定割合以内の方位からランダムに選ぶ。厳密な最適解へ毎回向かうと賢すぎるため
+                double threshold = best * SCAN_GAIN_TOLERANCE;
+                List<Integer> candidates = new ArrayList<>();
+                for (int b = 0; b < SCAN_BINS; b++) {
+                    if (gain[b] >= threshold) candidates.add(b);
+                }
+                int pick = candidates.get((int) (Math.random() * candidates.size()));
+                chosen = -Math.PI + pick * (Math.PI * 2.0 / SCAN_BINS);
+            }
+        }
+        Location eye = scav.getEyeLocation();
+        return eye.clone().add(-Math.sin(chosen) * SCAN_LOOK_DISTANCE, -1.5, Math.cos(chosen) * SCAN_LOOK_DISTANCE);
     }
 
     /**
@@ -1229,6 +1297,7 @@ public class ScavController {
 
         isAlerted = true;
         lastHeardSoundLocation = source.clone();
+        patrolTarget = null;
 
         SoundArc arc = classifySoundArc(source);
         int baseInvestigate = (behaviorState == BehaviorState.RELAXED) ? 40 : 100;
@@ -1921,25 +1990,31 @@ public class ScavController {
 
         if (!moved && behaviorState == BehaviorState.RELAXED) {
             double homeDist = scav.getLocation().distance(homeLocation);
-            if (homeDist > 3.0) {
-                scav.getPathfinder().moveTo(homeLocation, 0.75);
+            if (homeDist > PATROL_LEASH_DISTANCE) {
+                // 縄張りから離れすぎた: 巡回をやめてホームへ戻る
+                patrolTarget = null;
+                scav.getPathfinder().moveTo(homeLocation, PATROL_SPEED);
                 if (!returningHome && raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
                     Map<String, Object> payload = new HashMap<>();
                     payload.put("homeDistance", homeDist);
                     plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "RETURN_HOME_START", payload);
                 }
                 returningHome = true;
-            } else if (homeDist <= 1.5) {
-                scav.getPathfinder().stopPathfinding();
-                if (returningHome && raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
-                    Map<String, Object> payload = new HashMap<>();
-                    payload.put("homeDistance", homeDist);
-                    plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "RETURN_HOME_DONE", payload);
+            } else {
+                if (returningHome) {
+                    returningHome = false;
+                    if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {
+                        Map<String, Object> payload = new HashMap<>();
+                        payload.put("homeDistance", homeDist);
+                        plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "RETURN_HOME_DONE", payload);
+                    }
                 }
-                returningHome = false;
+                // 戦闘・捜索・救援が無い時はホーム周辺を巡回する
+                patrolStep(Bukkit.getCurrentTick());
             }
         } else {
             returningHome = false;
+            if (behaviorState != BehaviorState.RELAXED) patrolTarget = null;
         }
 
         // 警戒していない時は、たまに独り言を言う (近くのプレイヤーにだけ聞こえる距離なので、誰もいなければ言わない)
@@ -1947,6 +2022,66 @@ public class ScavController {
                 && !scav.getLocation().getNearbyPlayers(IDLE_VOICE_PLAYER_RANGE).isEmpty()) {
             playScavVoice(ScavVoice.IDLE);
         }
+    }
+
+    /** 敵を見失っている間、ホーム周辺をゆっくり巡回する */
+    private void patrolStep(int now) {
+        if (patrolTarget == null) {
+            if (now < patrolPauseUntilTick) {
+                scav.getPathfinder().stopPathfinding();
+                return;
+            }
+            patrolTarget = pickPatrolPoint();
+            if (patrolTarget == null) {
+                patrolPauseUntilTick = now + PATROL_PAUSE_MIN_TICKS;
+                return;
+            }
+            patrolTargetSinceTick = now;
+            nextPatrolRepathTick = now;
+        }
+
+        if (scav.getLocation().distanceSquared(patrolTarget) <= 4.0) {
+            scav.getPathfinder().stopPathfinding();
+            patrolTarget = null;
+            patrolPauseUntilTick = now + PATROL_PAUSE_MIN_TICKS
+                    + (int) (Math.random() * (PATROL_PAUSE_MAX_TICKS - PATROL_PAUSE_MIN_TICKS));
+            return;
+        }
+
+        // 到達できない地点を選んだ場合は諦めて次を探す
+        if (now - patrolTargetSinceTick > PATROL_TIMEOUT_TICKS) {
+            scav.getPathfinder().stopPathfinding();
+            patrolTarget = null;
+            patrolPauseUntilTick = now + PATROL_PAUSE_MIN_TICKS;
+            return;
+        }
+
+        if (now >= nextPatrolRepathTick) {
+            scav.getPathfinder().moveTo(patrolTarget, PATROL_SPEED);
+            nextPatrolRepathTick = now + PATROL_REPATH_TICKS;
+        }
+    }
+
+    /** ホーム周辺で立てる地点を探す。見つからなければ null */
+    private Location pickPatrolPoint() {
+        if (homeLocation.getWorld() == null) return null;
+        int baseY = (int) Math.floor(homeLocation.getY());
+        for (int attempt = 0; attempt < 8; attempt++) {
+            double angle = Math.random() * Math.PI * 2.0;
+            double radius = PATROL_RADIUS_MIN + Math.random() * (PATROL_RADIUS_MAX - PATROL_RADIUS_MIN);
+            int x = (int) Math.floor(homeLocation.getX() + Math.cos(angle) * radius);
+            int z = (int) Math.floor(homeLocation.getZ() + Math.sin(angle) * radius);
+            for (int dy = 2; dy >= -3; dy--) {
+                Block feet = homeLocation.getWorld().getBlockAt(x, baseY + dy, z);
+                Block head = homeLocation.getWorld().getBlockAt(x, baseY + dy + 1, z);
+                Block ground = homeLocation.getWorld().getBlockAt(x, baseY + dy - 1, z);
+                if (feet.isPassable() && head.isPassable() && !feet.isLiquid() && !head.isLiquid()
+                        && ground.getType().isSolid()) {
+                    return new Location(homeLocation.getWorld(), x + 0.5, baseY + dy, z + 0.5);
+                }
+            }
+        }
+        return null;
     }
 
     private void decayAlertness() {
