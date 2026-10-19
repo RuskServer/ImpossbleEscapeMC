@@ -3,11 +3,16 @@ package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,6 +37,7 @@ final class HideoutSlots {
         this.file = new File(folder, "slots.json");
         this.logger = logger;
         load();
+        reserveExistingPlayerSlots(new File(folder.getParentFile(), "userdata"));
     }
 
     /** 台帳に載った番号か、新しく決めた番号 */
@@ -52,9 +58,82 @@ final class HideoutSlots {
     }
 
     private int next() {
-        int max = -1;
-        for (int slot : slots.values()) max = Math.max(max, slot);
-        return max + 1;
+        int slot = 0;
+        while (slots.containsValue(slot)) slot++;
+        return slot;
+    }
+
+    /**
+     * 台帳導入前から保存されているプレイヤーの番号を先に予約する。
+     * オフラインの人や、まだ隠れ家に入ったことがない人の番号を知らずに再利用すると、
+     * 別の人が visit した時の建て直しで元の隠れ家を上書きしてしまう。
+     */
+    private void reserveExistingPlayerSlots(File dataFolder) {
+        Map<UUID, File> players = new HashMap<>();
+        File[] files = dataFolder.listFiles((dir, name) -> name.toLowerCase().endsWith(".json"));
+        if (files != null) {
+            for (File main : files) {
+                try {
+                    UUID player = UUID.fromString(main.getName().substring(0, main.getName().length() - 5));
+                    players.put(player, main);
+                } catch (IllegalArgumentException ignored) {
+                    // userdata に UUID 以外の JSON があっても無視する。
+                }
+            }
+        }
+        File[] backupDirs = new File(dataFolder, "backups").listFiles(File::isDirectory);
+        if (backupDirs != null) {
+            for (File backupDir : backupDirs) {
+                try {
+                    UUID player = UUID.fromString(backupDir.getName());
+                    players.putIfAbsent(player, new File(dataFolder, player + ".json"));
+                } catch (IllegalArgumentException ignored) {
+                    // UUID 形式でないバックアップフォルダーは無視する。
+                }
+            }
+        }
+
+        boolean changed = false;
+        List<UUID> orderedPlayers = new ArrayList<>(players.keySet());
+        orderedPlayers.sort(Comparator.comparing(UUID::toString));
+        for (UUID player : orderedPlayers) {
+            if (slots.containsKey(player)) continue;
+
+            PlayerData data = readExistingData(player, players.get(player), new File(dataFolder, "backups"));
+            if (data == null || data.getHideoutIndex() < 0) continue;
+
+            int oldSlot = data.getHideoutIndex();
+            int reserved = slots.containsValue(oldSlot) ? next() : oldSlot;
+            slots.put(player, reserved);
+            changed = true;
+            if (reserved != oldSlot) {
+                logger.warning("隠れ家番号 " + oldSlot + " が重複しています。未登録プレイヤー " + player
+                        + " の番号を " + reserved + " に割り当てます");
+            }
+        }
+        if (changed) save();
+    }
+
+    private PlayerData readExistingData(UUID player, File main, File backupRoot) {
+        List<File> candidates = new ArrayList<>();
+        candidates.add(main);
+        File backupDir = new File(backupRoot, player.toString());
+        for (int i = 1; i <= 3; i++) candidates.add(new File(backupDir, i + ".json"));
+        File[] daily = backupDir.listFiles((dir, name) -> name.startsWith("daily-") && name.endsWith(".json"));
+        if (daily != null) {
+            Arrays.sort(daily, Comparator.comparing(File::getName).reversed());
+            candidates.addAll(Arrays.asList(daily));
+        }
+        for (File candidate : candidates) {
+            if (!candidate.isFile()) continue;
+            try {
+                PlayerData data = GSON.fromJson(Files.readString(candidate.toPath(), StandardCharsets.UTF_8), PlayerData.class);
+                if (data != null && player.equals(data.getUuid())) return data;
+            } catch (IOException | RuntimeException e) {
+                logger.warning("既存の隠れ家番号を読み取れませんでした: " + candidate + ": " + e.getMessage());
+            }
+        }
+        return null;
     }
 
     private void load() {
