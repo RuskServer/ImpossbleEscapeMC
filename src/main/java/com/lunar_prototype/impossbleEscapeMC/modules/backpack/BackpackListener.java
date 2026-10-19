@@ -18,13 +18,16 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -83,24 +86,18 @@ public class BackpackListener implements Listener {
             }
         }
 
-        // Right-click to open backpack from player's inventory
+        // Right-click to open backpack from player's inventory (装備していなくてもよい)
         if (event.getWhoClicked() instanceof Player player
                 && event.getClick().isRightClick()
+                && isPlayerCraftingGrid(view)
                 && event.getClickedInventory() != null
                 && event.getClickedInventory().equals(player.getInventory())
                 && backpackModule.isBackpackItem(event.getCurrentItem())) {
 
             if (!isPlayableMode(player)) return;
 
-            // バックパックスロットはオフハンド固定
-            if (event.getSlot() != 40) {
-                player.sendMessage("§cバックパックはオフハンドに装備して開いてください。");
-                event.setCancelled(true);
-                return;
-            }
-
             event.setCancelled(true);
-            backpackModule.openBackpackFromOffhand(player);
+            backpackModule.openBackpackFromSlot(player, event.getSlot());
             return;
         }
 
@@ -161,6 +158,26 @@ public class BackpackListener implements Listener {
             }
 
         }
+    }
+
+    /** 手に持ったままのバックパックを右クリックで開く (装備は不要) */
+    @EventHandler(ignoreCancelled = true)
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+
+        Player player = event.getPlayer();
+        if (!isPlayableMode(player)) return;
+
+        // すでにバックパックを開いていたら何もしない (両手イベントの二重処理を防ぐ)
+        if (player.getOpenInventory().getTopInventory().getHolder()
+                instanceof BackpackModule.BackpackInventoryHolder) return;
+
+        EquipmentSlot hand = event.getHand();
+        int slot = hand == EquipmentSlot.OFF_HAND ? 40 : player.getInventory().getHeldItemSlot();
+        if (!backpackModule.isBackpackItem(player.getInventory().getItem(slot))) return;
+
+        event.setCancelled(true);
+        backpackModule.openBackpackFromSlot(player, slot);
     }
 
     @EventHandler(ignoreCancelled = true)

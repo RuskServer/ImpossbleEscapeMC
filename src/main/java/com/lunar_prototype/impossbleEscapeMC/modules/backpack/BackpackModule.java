@@ -52,12 +52,22 @@ public class BackpackModule implements IModule {
     }
 
     public boolean openBackpackFromOffhand(Player player) {
-        ItemStack offhand = player.getInventory().getItemInOffHand();
-        if (!isBackpackItem(offhand)) {
-            player.sendMessage("§cオフハンドにバックパックを装備してください。");
+        return openBackpackFromSlot(player, 40);
+    }
+
+    /**
+     * プレイヤーの持ち物の任意のスロット (40 = オフハンド) にあるバックパックを開く。
+     * 装備していなくても、そのスロットのバックパックをそのまま開ける
+     */
+    public boolean openBackpackFromSlot(Player player, int slot) {
+        ItemStack item = player.getInventory().getItem(slot);
+        if (!isBackpackItem(item)) {
+            player.sendMessage("§cそのスロットにバックパックがありません。");
             return false;
         }
-        openBackpack(player, offhand);
+        openBackpack(player, item);
+        // UID を必ずアイテム側に残す (保存時に UID で持ち物から探し直すため)
+        player.getInventory().setItem(slot, item);
         return true;
     }
 
@@ -99,14 +109,14 @@ public class BackpackModule implements IModule {
 
     public void handleClose(Player player, Inventory inventory) {
         if (!(inventory.getHolder() instanceof BackpackInventoryHolder)) return;
-        saveInventoryToOffhandBackpack(player, inventory);
+        saveInventoryToBackpack(player, inventory);
         sessions.remove(player.getUniqueId());
     }
 
     public void saveBackpackFromOpenInventory(Player player) {
         Inventory top = player.getOpenInventory().getTopInventory();
         if (!(top.getHolder() instanceof BackpackInventoryHolder)) return;
-        saveInventoryToOffhandBackpack(player, top);
+        saveInventoryToBackpack(player, top);
     }
 
     public boolean isBackpackItem(ItemStack item) {
@@ -178,23 +188,27 @@ public class BackpackModule implements IModule {
         }
     }
 
-    private void saveInventoryToOffhandBackpack(Player player, Inventory inventory) {
-        ItemStack offhand = player.getInventory().getItemInOffHand();
-        if (!isBackpackItem(offhand)) {
-            player.sendMessage("§cバックパックがオフハンドから外れたため保存できませんでした。");
-            return;
-        }
-
-        String currentUid = ensureBackpackUid(offhand);
+    private void saveInventoryToBackpack(Player player, Inventory inventory) {
         BackpackSession session = sessions.get(player.getUniqueId());
-        if (session == null || !session.backpackUid.equals(currentUid)) {
-            player.sendMessage("§c別のバックパックに持ち替えたため保存を中断しました。");
+        if (session == null) return;
+
+        // 開いている間に別のスロットへ移しても保存できるよう、UID で持ち物から探し直す
+        ItemStack backpack = findBackpackByUid(player, session.backpackUid);
+        if (backpack == null) {
+            player.sendMessage("§cバックパックが見つからないため保存できませんでした。");
             return;
         }
 
-        if (offhand.getItemMeta() == null) return;
+        saveBackpackInventory(backpack, inventory);
+    }
 
-        saveBackpackInventory(offhand, inventory);
+    private ItemStack findBackpackByUid(Player player, String uid) {
+        for (int i = 0; i <= 40; i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (!isBackpackItem(item)) continue;
+            if (uid.equals(ensureBackpackUid(item))) return item;
+        }
+        return null;
     }
 
     private LoadInventoryResult loadInventory(ItemStack backpackItem, int size) {
