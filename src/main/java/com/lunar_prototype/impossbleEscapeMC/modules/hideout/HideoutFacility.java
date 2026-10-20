@@ -69,6 +69,15 @@ public enum HideoutFacility {
 
     /** そのレベルにする素材 (決まっていなければ空) */
     public List<ItemCost> itemCosts(int level) {
+        if (this == STASH) {
+            return switch (level) {
+                case 1 -> List.of();
+                case 2 -> List.of(new ItemCost("scraps", 8), new ItemCost("bolts", 8), new ItemCost("screwdriver", 2));
+                case 3 -> List.of(new ItemCost("tool_box", 2), new ItemCost("copper_wire", 8), new ItemCost("wrench", 2));
+                case 4 -> List.of(new ItemCost("tool_box", 3), new ItemCost("mini_battery", 4), new ItemCost("wrench", 4));
+                default -> List.of();
+            };
+        }
         if (this == WORKBENCH) {
             return switch (level) {
                 case 1 -> List.of(new ItemCost("scraps", 3), new ItemCost("bolts", 4), new ItemCost("screwdriver", 1));

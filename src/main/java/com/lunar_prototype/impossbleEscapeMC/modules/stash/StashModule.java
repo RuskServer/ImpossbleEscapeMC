@@ -43,8 +43,16 @@ public class StashModule implements IModule {
         try {
             if (serialized != null) {
                 inv = SerializationUtil.deserializeInventory(serialized, title);
-                // Ensure size matches current unlock level (in case it was upgraded)
-                if (inv.getSize() != rows * 9) {
+                if (inv.getSize() > rows * 9) {
+                    // 前の版は 1 ページ 6 行だった。縮めると下の段の物が消えるので、その大きさのまま開く
+                    rows = inv.getSize() / 9;
+                    background = rows == 6 ? GuiBackground.STASH_6 : GuiBackground.STASH_3;
+                    title = background.title(page + "/" + getMaxUnlockedPage(data.getStashLevel()));
+                    Inventory same = org.bukkit.Bukkit.createInventory(null, inv.getSize(), title);
+                    for (int i = 0; i < inv.getSize(); i++) same.setItem(i, inv.getItem(i));
+                    inv = same;
+                } else if (inv.getSize() != rows * 9) {
+                    // Ensure size matches current unlock level (in case it was upgraded)
                     Inventory newInv = org.bukkit.Bukkit.createInventory(null, rows * 9, title);
                     for (int i = 0; i < Math.min(inv.getSize(), newInv.getSize()); i++) {
                         newInv.setItem(i, inv.getItem(i));
@@ -77,18 +85,18 @@ public class StashModule implements IModule {
         }
     }
 
+    /** 開放するページ (添字 = スタッシュのレベル)。Lv1=1, Lv2=2, Lv3=3,4, Lv4=5 */
+    private static final int[] MAX_PAGE = {0, 1, 2, 4, 5};
+    /** 1 ページの行数 (27 枠) */
+    private static final int PAGE_ROWS = 3;
+
     public int getRows(int stashLevel, int page) {
-        if (page < 1 || page > 5) return 0;
-        
-        int totalHalfPages = stashLevel;
-        int startHalfPage = (page - 1) * 2 + 1;
-        
-        if (totalHalfPages < startHalfPage) return 0; // Page not unlocked
-        if (totalHalfPages >= startHalfPage + 1) return 6; // Both halves unlocked
-        return 3; // Only first half unlocked
+        if (page < 1 || page > getMaxUnlockedPage(stashLevel)) return 0;
+        return PAGE_ROWS;
     }
     
     public int getMaxUnlockedPage(int stashLevel) {
-        return (stashLevel + 1) / 2;
+        int level = Math.max(0, Math.min(stashLevel, MAX_PAGE.length - 1));
+        return MAX_PAGE[level];
     }
 }

@@ -138,9 +138,13 @@ public final class HideoutDialog implements Listener {
 
     private void openFor(Player player) {
         player.closeInventory();
-        Session session = sessions.computeIfAbsent(player.getUniqueId(), id -> new Session());
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        if (!camera.isActive(player) && inOwnHideout(player, data)) {
+        if (!inOwnHideout(player, data)) {
+            player.sendMessage(Component.text("隠れ家の中で開いてください。", NamedTextColor.RED));
+            return;
+        }
+        Session session = sessions.computeIfAbsent(player.getUniqueId(), id -> new Session());
+        if (!camera.isActive(player)) {
             camera.start(player, module.cameraPose(data, FACILITIES[session.index]));
         }
         show(player, session);
@@ -396,6 +400,10 @@ public final class HideoutDialog implements Listener {
 
     private void upgrade(Player player, PlayerData data, Session session) {
         HideoutFacility facility = FACILITIES[session.index];
+        if (!inOwnHideout(player, data)) {
+            notice(session, Component.text("隠れ家の中で強化してください", NamedTextColor.RED));
+            return;
+        }
         EconomyModule economy = module.getPlugin().getServiceContainer().get(EconomyModule.class);
         long money = economy != null ? (long) economy.getBalance(player.getUniqueId()) : 0;
         String blocking = blocking(data, facility, requirements(player, data, facility, money));
