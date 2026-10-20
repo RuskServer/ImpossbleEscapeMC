@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientClickWindow;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetCursorItem;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetSlot;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
@@ -43,9 +44,6 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
     /** プレイヤー自身のインベントリ画面 */
     private static final int PLAYER_INVENTORY_WINDOW_ID = 0;
     private static final int CRAFTING_RESULT_SLOT = 0;
-    private static final int CURSOR_WINDOW_ID = -1;
-    private static final int CURSOR_SLOT = -1;
-
     /**
      * @param slot    インベントリ画面 (window 0) のクラフトグリッドのスロット (1〜4)
      * @param visible 表示する条件 (メインスレッドで評価)
@@ -186,10 +184,20 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
 
     private void sendSlot(Player player, int stateId, int slot, ItemStack item) {
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, new WrapperPlayServerSetSlot(
-                slot == CURSOR_SLOT ? CURSOR_WINDOW_ID : PLAYER_INVENTORY_WINDOW_ID,
+                PLAYER_INVENTORY_WINDOW_ID,
                 stateId,
                 slot,
                 SpigotConversionUtil.fromBukkitItemStack(item)));
+    }
+
+    /**
+     * カーソルアイテムをクライアントに送る。
+     * 旧プロトコルの SET_SLOT (windowId=-1) はこのバージョンのクライアントでは処理されないため、
+     * SET_CURSOR_ITEM パケットを使う。
+     */
+    private void sendCursor(Player player, ItemStack item) {
+        PacketEvents.getAPI().getPlayerManager().sendPacket(player,
+                new WrapperPlayServerSetCursorItem(SpigotConversionUtil.fromBukkitItemStack(item)));
     }
 
     // --- パケット ---
@@ -255,7 +263,7 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
             InventoryMenu menu = ((CraftPlayer) player).getHandle().inventoryMenu;
             sendSlot(player, stateId, slot, CraftItemStack.asBukkitCopy(menu.getSlot(slot).getItem()));
             sendSlot(player, stateId, CRAFTING_RESULT_SLOT, CraftItemStack.asBukkitCopy(menu.getSlot(CRAFTING_RESULT_SLOT).getItem()));
-            sendSlot(player, stateId, CURSOR_SLOT, player.getItemOnCursor());
+            sendCursor(player, player.getItemOnCursor());
             button.onClick().accept(player);
         });
     }
