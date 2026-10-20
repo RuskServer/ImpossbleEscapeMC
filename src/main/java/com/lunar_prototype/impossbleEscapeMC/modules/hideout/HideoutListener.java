@@ -10,6 +10,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.entity.Player;
@@ -17,6 +18,7 @@ import org.bukkit.event.entity.EntityExhaustionEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.EquipmentSlot;
 
 public class HideoutListener implements Listener {
     private final HideoutModule module;
@@ -63,30 +65,29 @@ public class HideoutListener implements Listener {
         for (Player player : world.getPlayers()) enforceAdventure(player);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onSignInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        // 右クリックは手ごとに来ることがあるので、メインハンドの時だけ (画面を2回開かない)
-        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         Block block = event.getClickedBlock();
         if (block == null) return;
 
-        // 自分の隠れ家の、設備が置いたブロック: その設備の画面を開く (チェストなどの元の動作はさせない)
+        // 自分の隠れ家の、設備が置いたブロック: その設備の画面を開く (チェストなどの元の動作はさせない)。
+        // 右クリックは手ごとに来るので画面はメインハンドでだけ開くが、イベントは両手とも止める。
+        // 止めないと、オフハンドのバックパックを BackpackListener が拾ってバックパックの画面を開いてしまう
         HideoutFacility facility = module.facilityAt(event.getPlayer(), block);
-        if (facility == HideoutFacility.STASH) {
+        boolean opensScreen = facility == HideoutFacility.STASH || facility == HideoutFacility.SKILL_TREE
+                || (facility != null && CraftRecipes.crafts(facility));
+        if (opensScreen) {
             event.setCancelled(true);
-            StashModule stash = module.getPlugin().getServiceContainer().get(StashModule.class);
-            if (stash != null) new StashPageSelectorGUI(event.getPlayer(), stash).open();
-            return;
-        }
-        if (facility == HideoutFacility.SKILL_TREE) {
-            event.setCancelled(true);
-            com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillTreeDialog.open(event.getPlayer());
-            return;
-        }
-        if (facility != null && CraftRecipes.crafts(facility)) {
-            event.setCancelled(true);
-            CraftDialog.open(event.getPlayer(), facility);
+            if (event.getHand() != EquipmentSlot.HAND) return;
+            if (facility == HideoutFacility.STASH) {
+                StashModule stash = module.getPlugin().getServiceContainer().get(StashModule.class);
+                if (stash != null) new StashPageSelectorGUI(event.getPlayer(), stash).open();
+            } else if (facility == HideoutFacility.SKILL_TREE) {
+                com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillTreeDialog.open(event.getPlayer());
+            } else {
+                CraftDialog.open(event.getPlayer(), facility);
+            }
             return;
         }
 
@@ -94,14 +95,23 @@ public class HideoutListener implements Listener {
 
         // 看板の1行目をチェックして種類を判別 (エディターで書いてNBT保存する想定)
         String line1 = PlainTextComponentSerializer.plainText().serialize(sign.line(0)).toLowerCase();
-        
+
+        // 画面を開く看板も、オフハンドのバックパックが開かないように両手とも止める
+        if (line1.contains("workbench") || line1.contains("hideout")) {
+            event.setCancelled(true);
+            if (event.getHand() != EquipmentSlot.HAND) return;
+            if (line1.contains("workbench")) {
+                CraftDialog.open(event.getPlayer(), HideoutFacility.WORKBENCH);
+            } else {
+                HideoutDialog.open(event.getPlayer());
+            }
+            return;
+        }
+
+        if (event.getHand() != EquipmentSlot.HAND) return;
         if (line1.contains("generator")) {
             event.getPlayer().sendMessage("発電機の燃料メニュー（未実装）を開きます。");
             // new GeneratorGUI(module, event.getPlayer()).open();
-        } else if (line1.contains("workbench")) {
-            CraftDialog.open(event.getPlayer(), HideoutFacility.WORKBENCH);
-        } else if (line1.contains("hideout")) {
-            HideoutDialog.open(event.getPlayer());
         }
     }
 }
