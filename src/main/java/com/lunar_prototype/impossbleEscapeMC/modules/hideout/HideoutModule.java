@@ -88,8 +88,8 @@ public class HideoutModule implements IModule {
         World world = worldManager.getPlayerWorld();
         if (world == null) return null;
         BlockVector3 origin = origin(index);
-        if (base == null) return new Location(world, origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5);
-        return new Location(world, origin.getX() + base.spawnX, origin.getY() + base.spawnY, origin.getZ() + base.spawnZ,
+        if (base == null) return new Location(world, origin.x() + 0.5, origin.y(), origin.z() + 0.5);
+        return new Location(world, origin.x() + base.spawnX, origin.y() + base.spawnY, origin.z() + base.spawnZ,
                 base.spawnYaw, base.spawnPitch);
     }
 
@@ -217,28 +217,28 @@ public class HideoutModule implements IModule {
         // /hideout camera で記録した位置があればそれ
         HideoutLayout.CameraPose recorded = layout.camera(facility);
         if (recorded != null) {
-            return new Location(world, origin.getX() + recorded.x, origin.getY() + recorded.y, origin.getZ() + recorded.z,
+            return new Location(world, origin.x() + recorded.x, origin.y() + recorded.y, origin.z() + recorded.z,
                     recorded.yaw, recorded.pitch);
         }
-        Vector spawn = new Vector(origin.getX() + base.spawnX, origin.getY() + base.spawnY + 1.6, origin.getZ() + base.spawnZ);
+        Vector spawn = new Vector(origin.x() + base.spawnX, origin.y() + base.spawnY + 1.6, origin.z() + base.spawnZ);
         int level = data.getHideoutLevel(facility.id);
         Set<BlockVector3> blocks = facility == HideoutFacility.BASE ? Set.of()
                 : builder.placedBlocks(facility, Math.max(level, Math.min(level + 1, layout.highestLevel(facility))));
         Vector target;
         double extent;
         if (blocks.isEmpty()) {
-            target = new Vector(origin.getX() + base.sizeX / 2.0, origin.getY() + base.sizeY / 3.0, origin.getZ() + base.sizeZ / 2.0);
+            target = new Vector(origin.x() + base.sizeX / 2.0, origin.y() + base.sizeY / 3.0, origin.z() + base.sizeZ / 2.0);
             return look(new Location(world, spawn.getX(), spawn.getY(), spawn.getZ()), target);
         }
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
         for (BlockVector3 b : blocks) {
-            minX = Math.min(minX, b.getX()); maxX = Math.max(maxX, b.getX());
-            minY = Math.min(minY, b.getY()); maxY = Math.max(maxY, b.getY());
-            minZ = Math.min(minZ, b.getZ()); maxZ = Math.max(maxZ, b.getZ());
+            minX = Math.min(minX, b.x()); maxX = Math.max(maxX, b.x());
+            minY = Math.min(minY, b.y()); maxY = Math.max(maxY, b.y());
+            minZ = Math.min(minZ, b.z()); maxZ = Math.max(maxZ, b.z());
         }
-        target = new Vector(origin.getX() + (minX + maxX + 1) / 2.0, origin.getY() + (minY + maxY + 1) / 2.0,
-                origin.getZ() + (minZ + maxZ + 1) / 2.0);
+        target = new Vector(origin.x() + (minX + maxX + 1) / 2.0, origin.y() + (minY + maxY + 1) / 2.0,
+                origin.z() + (minZ + maxZ + 1) / 2.0);
         extent = Math.max(maxX - minX, Math.max(maxY - minY, maxZ - minZ)) + 1;
 
         // 入った時の位置の方 (横向き) から、設備の大きさに合わせた距離で、少し上から
@@ -380,7 +380,7 @@ public class HideoutModule implements IModule {
         if (data == null || data.getHideoutIndex() < 0) return null;
         BlockVector3 origin = origin(data.getHideoutIndex());
         return builder.ownerAt(facility -> data.getHideoutLevel(facility.id),
-                block.getX() - origin.getX(), block.getY() - origin.getY(), block.getZ() - origin.getZ());
+                block.getX() - origin.x(), block.getY() - origin.y(), block.getZ() - origin.z());
     }
 
     /** 設備を 1 レベル上げて、その差分を反映してからレベルを保存する。 */

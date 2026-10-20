@@ -118,7 +118,13 @@ public final class HideoutBuilder {
         // 消えるエンティティを先に消す (支えのブロックが変わる前に)
         if (layer != null && !layer.removed.isEmpty()) removeEntities(world, area(origin, base), new HashSet<>(layer.removed));
         File schematic = layout.layerSchematic(facility, level);
-        if (schematic.isFile()) paste(world, origin, schematic, true);
+        if (schematic.isFile()) {
+            logger.fine("hideout: " + facility.id + " Lv." + level + " を " + schematic.getName() + " から貼ります");
+            paste(world, origin, schematic, true);
+        } else if (layer != null && layer.placed != null && !layer.placed.isEmpty()) {
+            logger.warning("hideout: " + facility.id + " Lv." + level + " は置いた記録が " + layer.placed.size()
+                    + " マスありますが " + schematic.getName() + " がありません");
+        }
         if (layer != null) spawn(world, origin, layer.added);
     }
 
@@ -185,16 +191,16 @@ public final class HideoutBuilder {
         copyToFile(player.getWorld(), region, min, layout.baseSchematic());
 
         HideoutLayout.Base base = new HideoutLayout.Base();
-        base.sizeX = max.getX() - min.getX() + 1;
-        base.sizeY = max.getY() - min.getY() + 1;
-        base.sizeZ = max.getZ() - min.getZ() + 1;
+        base.sizeX = max.x() - min.x() + 1;
+        base.sizeY = max.y() - min.y() + 1;
+        base.sizeZ = max.z() - min.z() + 1;
         Location at = player.getLocation();
-        base.spawnX = at.getX() - min.getX();
-        base.spawnY = at.getY() - min.getY();
-        base.spawnZ = at.getZ() - min.getZ();
+        base.spawnX = at.getX() - min.x();
+        base.spawnY = at.getY() - min.y();
+        base.spawnZ = at.getZ() - min.z();
         base.spawnYaw = at.getYaw();
         base.spawnPitch = at.getPitch();
-        BoundingBox box = new BoundingBox(min.getX(), min.getY(), min.getZ(), max.getX() + 1, max.getY() + 1, max.getZ() + 1);
+        BoundingBox box = new BoundingBox(min.x(), min.y(), min.z(), max.x() + 1, max.y() + 1, max.z() + 1);
         int n = 0;
         for (HideoutLayout.EntityEntry entry : capture(player.getWorld(), min, box)) {
             base.entities.add(withKey(entry, "base_" + n++));
@@ -241,13 +247,17 @@ public final class HideoutBuilder {
      */
     public HideoutLayout.Base saveBaseFromEditor(World world) throws IOException {
         HideoutLayout.Base base = requireBase();
+        HideoutLayout.Reference reference = layout.reference(HideoutFacility.BASE, 0);
+        if (reference != null && reference.version != layout.version()) {
+            throw new IOException("編集を始めた後にベースかほかの差分が保存されています。/hideout edit base 0 reset で区画を作り直してください");
+        }
         BlockVector3 origin = editorOrigin(HideoutFacility.BASE, 0);
         loadChunks(world, origin, base);
         CuboidRegion region = new CuboidRegion(BukkitAdapter.adapt(world), origin,
                 origin.add(base.sizeX - 1, base.sizeY - 1, base.sizeZ - 1));
         copyToFile(world, region, origin, layout.baseSchematic());
-        BoundingBox box = new BoundingBox(origin.getX(), origin.getY(), origin.getZ(),
-                origin.getX() + base.sizeX, origin.getY() + base.sizeY, origin.getZ() + base.sizeZ);
+        BoundingBox box = new BoundingBox(origin.x(), origin.y(), origin.z(),
+                origin.x() + base.sizeX, origin.y() + base.sizeY, origin.z() + base.sizeZ);
         List<HideoutLayout.EntityEntry> captured = capture(world, origin, box);
         Set<String> used = new HashSet<>();
         for (HideoutLayout.EntityEntry entry : captured) {
@@ -270,10 +280,21 @@ public final class HideoutBuilder {
 
     /** 編集した区画を、編集を始めた時の状態と比べて差分として保存する */
     public SaveResult saveLayer(World world, HideoutFacility target, int level) throws IOException {
+        return saveLayer(world, target, level, false);
+    }
+
+    /**
+     * @param force 区画の大半が変わっていても保存する (参照がずれている時の誤爆を防ぐため、普段は拒否する)
+     */
+    public SaveResult saveLayer(World world, HideoutFacility target, int level, boolean force) throws IOException {
         HideoutLayout.Base base = requireBase();
         HideoutLayout.Reference reference = layout.reference(target, level);
         File referenceFile = layout.referenceSchematic(target, level);
         if (reference == null || !referenceFile.isFile()) throw new IOException("先に /hideout edit " + target.id + " " + level + " で編集を始めてください");
+        if (reference.version != layout.version()) {
+            throw new IOException("編集を始めた後にベースかほかの差分が保存されています。/hideout edit " + target.id + " "
+                    + level + " reset で区画を作り直してください");
+        }
         BlockVector3 origin = editorOrigin(target, level);
         loadChunks(world, origin, base);
         // 編集を始めた時の状態を、比べる区画に貼る
@@ -293,24 +314,26 @@ public final class HideoutBuilder {
                 }
             }
         }
+        long volume = (long) (base.sizeX + 2 * MARGIN) * (base.sizeY + 2 * MARGIN) * (base.sizeZ + 2 * MARGIN);
+        if (!force && changed.size() * 5 > volume * 3) {
+            throw new IOException("区画の " + (changed.size() * 100 / Math.max(1L, volume))
+                    + "% が変わっています (参照がずれている可能性)。意図した変更なら /hideout save "
+                    + target.id + " " + level + " force");
+        }
         File schematic = layout.layerSchematic(target, level);
-        if (changed.isEmpty()) {
-            if (schematic.isFile() && !schematic.delete()) throw new IOException("古い差分を消せませんでした: " + schematic);
-        } else {
-            writeDiff(world, origin, changed, schematic);
+
+        HideoutLayout.Layer layer = new HideoutLayout.Layer();
+        layer.placed = new ArrayList<>();
+        for (Map.Entry<BlockVector3, BaseBlock> e : changed.entrySet()) {
+            if (!e.getValue().getBlockType().getMaterial().isAir()) {
+                layer.placed.add(new int[]{e.getKey().x(), e.getKey().y(), e.getKey().z()});
+            }
         }
 
         // エンティティ: キーが同じで中身も位置も同じ物は変わっていない。それ以外は、前の物を消して今の物を置く
         Map<String, HideoutLayout.EntityEntry> old = new HashMap<>();
         for (HideoutLayout.EntityEntry entry : reference.entities) {
             if (entry.key() != null) old.put(entry.key(), entry);
-        }
-        HideoutLayout.Layer layer = new HideoutLayout.Layer();
-        layer.placed = new ArrayList<>();
-        for (Map.Entry<BlockVector3, BaseBlock> e : changed.entrySet()) {
-            if (!e.getValue().getBlockType().getMaterial().isAir()) {
-                layer.placed.add(new int[]{e.getKey().getX(), e.getKey().getY(), e.getKey().getZ()});
-            }
         }
         Set<String> kept = new HashSet<>();
         int n = 0;
@@ -325,7 +348,21 @@ public final class HideoutBuilder {
         for (String key : old.keySet()) {
             if (!kept.contains(key)) layer.removed.add(key);
         }
+
+        // 何も変わっていないレベルは作らない (空の差分が「作ってあるレベル」として数えられるのを防ぐ)
+        if (changed.isEmpty() && layer.added.isEmpty() && layer.removed.isEmpty()) {
+            layout.deleteLayer(target, level);
+            logger.info("hideout: " + target.id + " Lv." + level + " は変更が無いので差分を消しました");
+            return new SaveResult(0, 0, 0);
+        }
+        if (changed.isEmpty()) {
+            if (schematic.isFile() && !schematic.delete()) throw new IOException("古い差分を消せませんでした: " + schematic);
+        } else {
+            writeDiff(world, origin, changed, schematic);
+        }
         layout.saveLayer(target, level, layer);
+        logger.info("hideout: " + target.id + " Lv." + level + " の差分を保存: ブロック " + changed.size()
+                + " / エンティティ +" + layer.added.size() + " -" + layer.removed.size());
         return new SaveResult(changed.size(), layer.added.size(), layer.removed.size());
     }
 
@@ -342,12 +379,12 @@ public final class HideoutBuilder {
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
         for (BlockVector3 p : changed.keySet()) {
-            minX = Math.min(minX, p.getX());
-            minY = Math.min(minY, p.getY());
-            minZ = Math.min(minZ, p.getZ());
-            maxX = Math.max(maxX, p.getX());
-            maxY = Math.max(maxY, p.getY());
-            maxZ = Math.max(maxZ, p.getZ());
+            minX = Math.min(minX, p.x());
+            minY = Math.min(minY, p.y());
+            minZ = Math.min(minZ, p.z());
+            maxX = Math.max(maxX, p.x());
+            maxY = Math.max(maxY, p.y());
+            maxZ = Math.max(maxZ, p.z());
         }
         CuboidRegion region = new CuboidRegion(BukkitAdapter.adapt(world),
                 origin.add(minX, minY, minZ), origin.add(maxX, maxY, maxZ));
@@ -429,7 +466,7 @@ public final class HideoutBuilder {
             if (snapshot == null) continue;
             Location at = entity.getLocation();
             entries.add(new HideoutLayout.EntityEntry(key, snapshot.getAsString(),
-                    at.getX() - origin.getX(), at.getY() - origin.getY(), at.getZ() - origin.getZ(), at.getYaw(), at.getPitch()));
+                    at.getX() - origin.x(), at.getY() - origin.y(), at.getZ() - origin.z(), at.getYaw(), at.getPitch()));
         }
         return entries;
     }
@@ -438,7 +475,7 @@ public final class HideoutBuilder {
         for (HideoutLayout.EntityEntry entry : entries) {
             try {
                 EntitySnapshot snapshot = Bukkit.getEntityFactory().createEntitySnapshot(entry.snbt());
-                Location at = new Location(world, origin.getX() + entry.x(), origin.getY() + entry.y(), origin.getZ() + entry.z(),
+                Location at = new Location(world, origin.x() + entry.x(), origin.y() + entry.y(), origin.z() + entry.z(),
                         entry.yaw(), entry.pitch());
                 Entity entity = snapshot.createEntity(at);
                 entity.addScoreboardTag(TAG_PREFIX + entry.key());
@@ -485,13 +522,13 @@ public final class HideoutBuilder {
     }
 
     private static BoundingBox area(BlockVector3 origin, HideoutLayout.Base base) {
-        return new BoundingBox(origin.getX() - MARGIN, origin.getY() - MARGIN, origin.getZ() - MARGIN,
-                origin.getX() + base.sizeX + MARGIN, origin.getY() + base.sizeY + MARGIN, origin.getZ() + base.sizeZ + MARGIN);
+        return new BoundingBox(origin.x() - MARGIN, origin.y() - MARGIN, origin.z() - MARGIN,
+                origin.x() + base.sizeX + MARGIN, origin.y() + base.sizeY + MARGIN, origin.z() + base.sizeZ + MARGIN);
     }
 
     private static void loadChunks(World world, BlockVector3 origin, HideoutLayout.Base base) {
-        int minX = (origin.getX() - MARGIN) >> 4, maxX = (origin.getX() + base.sizeX + MARGIN) >> 4;
-        int minZ = (origin.getZ() - MARGIN) >> 4, maxZ = (origin.getZ() + base.sizeZ + MARGIN) >> 4;
+        int minX = (origin.x() - MARGIN) >> 4, maxX = (origin.x() + base.sizeX + MARGIN) >> 4;
+        int minZ = (origin.z() - MARGIN) >> 4, maxZ = (origin.z() + base.sizeZ + MARGIN) >> 4;
         for (int cx = minX; cx <= maxX; cx++) {
             for (int cz = minZ; cz <= maxZ; cz++) world.getChunkAt(cx, cz);
         }

@@ -169,8 +169,16 @@ public final class HideoutLayout {
 
     // --- 差分 ---
 
+    /**
+     * そのレベルが実際に何かを変えているか。ブロックの差分か、増減するエンティティが無いなら「無い」とみなす
+     * (変更が無いまま保存したレベルを、アップグレードできるレベルとして数えないため)
+     */
     public boolean hasLayer(HideoutFacility facility, int level) {
-        return layerJson(facility, level).isFile();
+        if (!layerJson(facility, level).isFile()) return false;
+        if (layerSchematic(facility, level).isFile()) return true;
+        Layer layer = layer(facility, level);
+        return layer != null
+                && ((layer.added != null && !layer.added.isEmpty()) || (layer.removed != null && !layer.removed.isEmpty()));
     }
 
     public Layer layer(HideoutFacility facility, int level) {
@@ -180,6 +188,18 @@ public final class HideoutLayout {
     public void saveLayer(HideoutFacility facility, int level, Layer layer) throws IOException {
         write(layerJson(facility, level), layer);
         bumpVersion();
+    }
+
+    /** 差分を丸ごと消す (ブロックと json の両方)。何か消した時だけ版を上げる */
+    public boolean deleteLayer(HideoutFacility facility, int level) throws IOException {
+        boolean deleted = false;
+        for (File file : new File[]{layerSchematic(facility, level), layerJson(facility, level)}) {
+            if (!file.isFile()) continue;
+            if (!file.delete()) throw new IOException("差分を消せませんでした: " + file);
+            deleted = true;
+        }
+        if (deleted) bumpVersion();
+        return deleted;
     }
 
     /** 作ってある一番上のレベル (Lv.1 から続いている分。無ければ 0) */

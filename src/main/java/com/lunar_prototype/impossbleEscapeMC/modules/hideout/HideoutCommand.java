@@ -129,7 +129,7 @@ public class HideoutCommand implements BasicCommand {
                     + "/hideout edit " + target.facility.id + " " + target.level + " reset (この区画の編集は消えます)", NamedTextColor.GOLD));
         }
         BlockVector3 origin = HideoutBuilder.editorOrigin(target.facility, target.level);
-        player.teleport(new Location(world, origin.getX() + base.spawnX, origin.getY() + base.spawnY, origin.getZ() + base.spawnZ,
+        player.teleport(new Location(world, origin.x() + base.spawnX, origin.y() + base.spawnY, origin.z() + base.spawnZ,
                 base.spawnYaw, base.spawnPitch));
     }
 
@@ -168,7 +168,7 @@ public class HideoutCommand implements BasicCommand {
         player.sendMessage(Component.text("ワールド: " + block.getWorld().getName() + " / 隠れ家のワールド: "
                 + (hideoutWorld != null ? hideoutWorld.getName() : "null") + " / 一致: " + worlds.isPlayerWorld(block.getWorld()), NamedTextColor.GOLD));
         BlockVector3 origin = module.origin(data.getHideoutIndex());
-        int x = block.getX() - origin.getX(), y = block.getY() - origin.getY(), z = block.getZ() - origin.getZ();
+        int x = block.getX() - origin.x(), y = block.getY() - origin.y(), z = block.getZ() - origin.z();
         player.sendMessage(Component.text("隠れ家の番号: " + data.getHideoutIndex() + " / 原点: " + origin + " / ブロック: "
                 + block.getType() + " at (" + x + ", " + y + ", " + z + ")", NamedTextColor.GOLD));
         player.sendMessage(Component.text("持ち主の判定: " + module.facilityAt(player, block) + " / 建てた時の版: "
@@ -205,9 +205,9 @@ public class HideoutCommand implements BasicCommand {
         }
         Location eye = player.getEyeLocation();
         HideoutLayout.CameraPose pose = new HideoutLayout.CameraPose();
-        pose.x = eye.getX() - origin.getX();
-        pose.y = eye.getY() - origin.getY();
-        pose.z = eye.getZ() - origin.getZ();
+        pose.x = eye.getX() - origin.x();
+        pose.y = eye.getY() - origin.y();
+        pose.z = eye.getZ() - origin.z();
         pose.yaw = eye.getYaw();
         pose.pitch = eye.getPitch();
         try {
@@ -222,7 +222,7 @@ public class HideoutCommand implements BasicCommand {
 
     private void handleSave(Player player, String[] args) {
         if (!player.isOp()) return;
-        Target target = target(player, args, "/hideout save <設備> <レベル>");
+        Target target = target(player, args, "/hideout save <設備> <レベル> [force]");
         if (target == null) return;
         World world = module.getWorldManager().getEditorWorld();
         if (HideoutBuilder.isBaseItself(target.facility, target.level)) {
@@ -241,7 +241,8 @@ public class HideoutCommand implements BasicCommand {
             return;
         }
         try {
-            HideoutBuilder.SaveResult result = module.getBuilder().saveLayer(world, target.facility, target.level);
+            boolean force = args.length > 3 && args[3].equalsIgnoreCase("force");
+            HideoutBuilder.SaveResult result = module.getBuilder().saveLayer(world, target.facility, target.level, force);
             player.sendMessage(Component.text(target.facility.label + " Lv." + target.level + " の差分を保存しました (ブロック "
                     + result.blocks() + "、エンティティ +" + result.addedEntities() + " / -" + result.removedEntities() + ")",
                     NamedTextColor.GREEN));
