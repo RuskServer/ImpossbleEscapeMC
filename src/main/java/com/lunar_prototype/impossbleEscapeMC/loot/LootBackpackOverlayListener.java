@@ -61,22 +61,34 @@ public class LootBackpackOverlayListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onLootSessionStart(LootSessionStartEvent event) {
-        Player player = event.getPlayer();
+        Inventory top = event.getPlayer().getOpenInventory().getTopInventory();
+        if (!(top.getHolder() instanceof SearchGUI.SearchHolder)) return;
+        beginSession(event.getPlayer(), top);
+    }
+
+    /**
+     * バックパックのオーバーレイを始める (ルート漁り・スタッシュ)。オフハンドにバックパックが無ければ何もしない。
+     * 画面を開いた後に呼ぶこと (カーソルに載っていたアイテムは InventoryOpenEvent で持ち物へ戻っている)。
+     *
+     * @return 始めたら true
+     */
+    public boolean beginSession(Player player, Inventory hostInventory) {
         BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
-        if (backpackModule == null) return;
+        if (backpackModule == null || hostInventory == null) return false;
 
         ItemStack offhand = player.getInventory().getItemInOffHand();
-        if (!backpackModule.isBackpackItem(offhand)) return;
+        if (!backpackModule.isBackpackItem(offhand)) return false;
 
         endSession(player, LootSessionEndReason.OTHER);
 
         String backpackUid = backpackModule.ensureBackpackUid(offhand);
-        OverlaySession session = new OverlaySession(backpackUid, backpackModule.loadBackpackInventory(offhand));
+        OverlaySession session = new OverlaySession(backpackUid, backpackModule.loadBackpackInventory(offhand), hostInventory);
         snapshotInitialState(player, session);
         sessions.put(player.getUniqueId(), session);
 
         setSystemSuppressed(player, true);
         switchMode(player, session, ViewMode.BACKPACK);
+        return true;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -89,7 +101,7 @@ public class LootBackpackOverlayListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         OverlaySession session = sessions.get(player.getUniqueId());
         if (session == null) return;
-        if (!(event.getView().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder)) return;
+        if (!session.isHost(event.getView().getTopInventory())) return;
 
         cleanupMisplacedButtons(player, session);
 
@@ -138,7 +150,7 @@ public class LootBackpackOverlayListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         OverlaySession session = sessions.get(player.getUniqueId());
         if (session == null) return;
-        if (!(event.getView().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder)) return;
+        if (!session.isHost(event.getView().getTopInventory())) return;
 
         if (session.mode == ViewMode.BACKPACK) {
             for (int rawSlot : event.getRawSlots()) {
@@ -173,9 +185,9 @@ public class LootBackpackOverlayListener implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
         if (!sessions.containsKey(player.getUniqueId())) return;
-        if (event.getInventory().getHolder() instanceof SearchGUI.SearchHolder) return;
 
-        // SearchGUIのClose経由で終端イベントが来る想定だが、保険として復元を保証する
+        // 漁り (SearchGUI) は自分でも LootSessionEndEvent を出すが、終了済みなら no-op。
+        // スタッシュなどほかのホストはここで終える。
         endSession(player, LootSessionEndReason.OTHER);
     }
 
@@ -312,7 +324,7 @@ public class LootBackpackOverlayListener implements Listener {
     }
 
     private void syncSessionState(Player player, OverlaySession session) {
-        if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder)) return;
+        if (!session.isHost(player.getOpenInventory().getTopInventory())) return;
 
         if (session.mode == ViewMode.BACKPACK) {
             syncBackpackFromDisplay(player, session);
@@ -622,14 +634,21 @@ public class LootBackpackOverlayListener implements Listener {
     private static class OverlaySession {
         final String backpackUid;
         final Inventory backpackInventory;
+        final Inventory hostInventory;
         final ItemStack[] playerRowsShadow = new ItemStack[OVERLAY_SIZE];
         ItemStack savedToggleSlotItem;
         int rowOffset = 0;
         ViewMode mode = ViewMode.BACKPACK;
 
-        private OverlaySession(String backpackUid, Inventory backpackInventory) {
+        private OverlaySession(String backpackUid, Inventory backpackInventory, Inventory hostInventory) {
             this.backpackUid = backpackUid;
             this.backpackInventory = backpackInventory;
+            this.hostInventory = hostInventory;
+        }
+
+        /** オーバーレイの対象になる画面 (スタッシュ・漁り) か */
+        private boolean isHost(Inventory inventory) {
+            return hostInventory != null && hostInventory.equals(inventory);
         }
     }
 }

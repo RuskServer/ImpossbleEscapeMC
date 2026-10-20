@@ -26,6 +26,14 @@ public class StashGUI implements Listener {
     public void open() {
         Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
         player.openInventory(inventory);
+        // オフハンドにバックパックがあれば、ルート漁りと同じオーバーレイで持ち物の段に中身を出す。
+        // openInventory の後 (InventoryOpenEvent でカーソルのアイテムが持ち物へ戻った後) に始める
+        if (player.getOpenInventory().getTopInventory().equals(inventory)) {
+            com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay =
+                    ImpossbleEscapeMC.getInstance().getServiceContainer()
+                            .get(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class);
+            if (overlay != null) overlay.beginSession(player, inventory);
+        }
     }
 
     @EventHandler
