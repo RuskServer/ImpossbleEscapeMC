@@ -87,6 +87,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // Plugin startup logic
         instance = this;
         saveDefaultConfig(); // Config must be saved first
+        // ダイアログの文字の幅の表 (画面を作る前に。無ければクライアントのフォントから作る)
+        com.lunar_prototype.impossbleEscapeMC.util.FontWidthCache.load(this);
 
         // 基盤の初期化
         serviceContainer = new ServiceContainer();

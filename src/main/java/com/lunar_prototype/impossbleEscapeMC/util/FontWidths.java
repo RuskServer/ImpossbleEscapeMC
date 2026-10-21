@@ -2,9 +2,9 @@ package com.lunar_prototype.impossbleEscapeMC.util;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,7 +12,9 @@ import java.util.Map;
  * バニラの既定のフォントで、文字列がクライアントの画面で何画素 (GUI の画素) 進むか。
  * <p>
  * ダイアログの本文は行ごとに中央揃えになるので、作り込んだ画面で字を思った位置に置くには幅が要る。
- * 表 (resources/font/default_widths.txt) は IEM_shader/tools/font_widths.py が 26.3 のクライアントから作る。
+ * 表はプラグインに入れず、サーバーがクライアントのフォントから作って入れる ({@link FontWidthCache} → {@link #install})。
+ * テストでは環境変数 IEM_FONT_WIDTHS に表のファイル ({@link FontWidthTable} で作る) を渡す。
+ * 表が入るまでは、どの字も unifont の全角の送り ({@link #FALLBACK}) とみなす。
  * 「Unicode フォントを強制」をオンにしたクライアントでは英数字の幅が変わる (その時は少しずれる)
  */
 public final class FontWidths {
@@ -24,13 +26,24 @@ public final class FontWidths {
     private static final byte[] BMP = new byte[0x10000];
     private static final boolean[] UNIHEX = new boolean[0x10000];
     private static final Map<Integer, Integer> SUPPLEMENTARY = new HashMap<>();
+    private static volatile boolean loaded;
 
     static {
         java.util.Arrays.fill(BMP, (byte) FALLBACK);
         java.util.Arrays.fill(UNIHEX, true);
-        try (InputStream in = FontWidths.class.getResourceAsStream("/font/default_widths.txt")) {
-            if (in == null) throw new IllegalStateException("font/default_widths.txt がありません");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        String path = System.getenv("IEM_FONT_WIDTHS");
+        if (path != null && !path.isBlank()) {
+            try {
+                install(Path.of(path));
+            } catch (IOException e) {
+                throw new IllegalStateException("IEM_FONT_WIDTHS の表を読めませんでした: " + path, e);
+            }
+        }
+    }
+
+    /** 表のファイルを読み込む */
+    public static synchronized void install(Path table) throws IOException {
+        try (BufferedReader reader = Files.newBufferedReader(table, StandardCharsets.UTF_8)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.isBlank() || line.startsWith("#")) continue;
@@ -48,9 +61,13 @@ public final class FontWidths {
                     }
                 }
             }
-        } catch (IOException e) {
-            throw new IllegalStateException("font/default_widths.txt を読めませんでした", e);
         }
+        loaded = true;
+    }
+
+    /** 表が入っているか */
+    public static boolean isLoaded() {
+        return loaded;
     }
 
     private FontWidths() {
