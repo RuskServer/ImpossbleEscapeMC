@@ -19,7 +19,8 @@ import java.util.Set;
 import java.util.logging.Level;
 
 /**
- * 納品に使う物のある場所 (トレーダーの納品の画面 {@link QuestHandInDialog} と、レイド結果の自動の納品 {@link QuestAutoHandIn} が使う)。
+ * 納品に使う物のある場所 (トレーダーの納品の画面 {@link QuestHandInDialog} と、レイド結果の自動の納品 {@link QuestAutoHandIn} が使う。
+ * トレーダーの修理の画面も、着ている防具・オフハンドを足しスタッシュを除いて使う: {@link #scan(Player, PlayerData, boolean, boolean)})。
  * <ul>
  *   <li>並びの順: 持ち物 (ホットバーと持ち物の欄)、持ち物のバックパックの中、オフハンドのバックパックの中、スタッシュのページ順
  *       (各ページの欄、続いてそのページのバックパックの中)</li>
@@ -28,33 +29,53 @@ import java.util.logging.Level;
  * </ul>
  * 読み書きは {@link Store}: スタッシュのページとバッグの中身は読んだ物を使い回し、{@link Store#save} でバッグ・ページへ書き戻す
  */
-final class HandInPlaces {
+public final class HandInPlaces {
 
     /** 物のある場所の種類 */
-    enum Kind { INVENTORY, OFFHAND_BAG, STASH }
+    public enum Kind { INVENTORY, OFFHAND_BAG, STASH }
 
     /**
      * 1 つの物 (スタック) の場所。kind の欄 slot (スタッシュはページ page の欄)。inner が 0 以上なら、その欄のバックパックの中の欄。
-     * オフハンドのバックパックの中は OFFHAND_BAG (slot は使わない)
+     * オフハンドのバックパックの中は OFFHAND_BAG (slot は使わない)。着ている防具・オフハンドの物は INVENTORY の欄 36..40
      */
-    record Source(Kind kind, int page, int slot, int inner) {
+    public record Source(Kind kind, int page, int slot, int inner) {
         boolean inBag() {
             return kind == Kind.OFFHAND_BAG || inner >= 0;
         }
     }
 
     /** 物 1 つと、その場所・場所の名前 (画面に出す) */
-    record Entry(Source source, String place, ItemStack item) {
+    public record Entry(Source source, String place, ItemStack item) {
     }
 
     private HandInPlaces() {
     }
 
-    /** 並びの順に、空でない物を集める (物は読んだ時の写し) */
+    /** 着ている防具・オフハンドの欄 (PlayerInventory の番号) と、場所の名前 */
+    private static final int[] EQUIPPED_SLOTS = {39, 38, 37, 36, 40};
+    private static final String[] EQUIPPED_PLACES = {"装備中 (頭)", "装備中 (胴)", "装備中 (脚)", "装備中 (足)", "オフハンド"};
+
+    /** 並びの順に、空でない物を集める (物は読んだ時の写し。納品: 着ている物は除き、スタッシュは含める) */
     static List<Entry> scan(Player player, PlayerData data) {
+        return scan(player, data, false, true);
+    }
+
+    /**
+     * 並びの順に、空でない物を集める。equipped なら最初に着ている防具・オフハンドの物 (バックパックは除く)、
+     * stash ならスタッシュのページも
+     */
+    public static List<Entry> scan(Player player, PlayerData data, boolean equipped, boolean stash) {
         BackpackModule backpacks = backpackModule();
         List<Entry> out = new ArrayList<>();
         List<Entry> bagged = new ArrayList<>();
+        if (equipped) {
+            for (int i = 0; i < EQUIPPED_SLOTS.length; i++) {
+                ItemStack item = player.getInventory().getItem(EQUIPPED_SLOTS[i]);
+                if (!empty(item) && !isBag(backpacks, item)) {
+                    out.add(new Entry(new Source(Kind.INVENTORY, 0, EQUIPPED_SLOTS[i], -1), EQUIPPED_PLACES[i], item.clone()));
+                }
+            }
+        }
         ItemStack[] storage = player.getInventory().getStorageContents();
         for (int slot = 0; slot < storage.length; slot++) {
             ItemStack item = storage[slot];
@@ -75,6 +96,7 @@ final class HandInPlaces {
                 add(out, backpacks, new Source(Kind.OFFHAND_BAG, 0, -1, inner), plain(offhand) + " (オフハンド)", bag.getItem(inner));
             }
         }
+        if (!stash) return out;
         for (Map.Entry<Integer, Inventory> page : stashPages(data).entrySet()) {
             ItemStack[] items = page.getValue().getContents();
             bagged.clear();
@@ -124,7 +146,7 @@ final class HandInPlaces {
     }
 
     /** 物を読み直して書き戻すための入れ物 (スタッシュのページとバッグの中身は、読んだ物を使い回して最後に書く) */
-    static final class Store {
+    public static final class Store {
         private final Player player;
         private final PlayerData data;
         private final BackpackModule backpacks;
@@ -133,7 +155,7 @@ final class HandInPlaces {
         /** バッグ (持っている場所の Source、inner = -1) → 中身 */
         private final Map<Source, Inventory> bags = new LinkedHashMap<>();
 
-        Store(Player player, PlayerData data) {
+        public Store(Player player, PlayerData data) {
             this.player = player;
             this.data = data;
             this.backpacks = backpackModule();
@@ -155,7 +177,7 @@ final class HandInPlaces {
             });
         }
 
-        ItemStack get(Source source) {
+        public ItemStack get(Source source) {
             if (source.inBag()) {
                 Inventory bag = bag(source);
                 return bag != null ? bag.getItem(source.inner()) : null;
@@ -165,7 +187,7 @@ final class HandInPlaces {
             return page != null ? page.getItem(source.slot()) : null;
         }
 
-        void set(Source source, ItemStack item) {
+        public void set(Source source, ItemStack item) {
             if (source.inBag()) {
                 Inventory bag = bag(source);
                 if (bag != null) bag.setItem(source.inner(), item);
@@ -179,7 +201,7 @@ final class HandInPlaces {
         }
 
         /** 変えたバッグの中身をバッグに書き、バッグとスタッシュのページを戻す */
-        void save() {
+        public void save() {
             for (Map.Entry<Source, Inventory> entry : bags.entrySet()) {
                 Source bag = entry.getKey();
                 ItemStack item = bagItem(bag);
@@ -203,7 +225,7 @@ final class HandInPlaces {
         }
     }
 
-    static String plain(ItemStack item) {
+    public static String plain(ItemStack item) {
         return PlainTextComponentSerializer.plainText().serialize(item.effectiveName());
     }
 

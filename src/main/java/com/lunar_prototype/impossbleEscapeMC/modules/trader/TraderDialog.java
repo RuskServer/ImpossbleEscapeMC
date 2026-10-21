@@ -857,7 +857,7 @@ public final class TraderDialog implements Listener {
             case "repair" -> {
                 SESSIONS.remove(player.getUniqueId());
                 player.closeDialog();
-                new TraderGUI(module, trader, player).openRepair();
+                RepairDialog.open(player, trader);
                 return;
             }
             case "sort" -> session.sort = effectiveSort(session).next();
