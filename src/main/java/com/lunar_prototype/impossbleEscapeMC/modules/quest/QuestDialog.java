@@ -766,7 +766,10 @@ public final class QuestDialog implements Listener {
             String name = h.getItemId() != null ? itemName(h.getItemId()) : h.getItemType();
             return name + count + " 納品";
         }
-        if (o instanceof KillEntityObjective k) return k.getEntityType() + " 排除" + count;
+        if (o instanceof KillEntityObjective k) {
+            String conditions = k.shortConditions();
+            return k.getEntityType() + " 排除" + (conditions.isEmpty() ? "" : " (" + conditions + ")") + count;
+        }
         if (o instanceof ExtractObjective x) {
             return (x.getMapId() != null ? x.getMapId() : "任意のマップ") + " から脱出" + (x.getTargetAmount() > 1 ? count : "");
         }

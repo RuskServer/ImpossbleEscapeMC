@@ -863,6 +863,11 @@ public class RaidInstance {
         }
     }
 
+    /** このレイドのマップ名 (脱出の目標と同じ) */
+    public String getMapId() {
+        return map.getMapId();
+    }
+
     public int getPlayerCount() {
         return players.size();
     }

@@ -11,6 +11,11 @@ public abstract class AbstractQuestObjective implements QuestObjective {
         this.label = label;
     }
 
+    /** 説明文を指定してあるか */
+    public boolean hasLabel() {
+        return label != null;
+    }
+
     @Override
     public final String getDescription() {
         return label != null ? label : defaultDescription();

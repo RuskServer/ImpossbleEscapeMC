@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import java.util.HashMap;
@@ -22,7 +23,8 @@ public class QuestListener implements Listener {
         this.dataModule = dataModule;
     }
 
-    @EventHandler
+    // 当たりの記録 (RaidKillTracker) は、プレイヤーが倒れた時にレイドの処理 (PlayerListener・NORMAL) が消すので、その前に読む
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onKill(EntityDeathEvent event) {
         org.bukkit.entity.LivingEntity victim = event.getEntity();
         Player killer = victim.getKiller();
@@ -66,6 +68,22 @@ public class QuestListener implements Listener {
             }
         } catch (IllegalArgumentException ignored) {
             // ワールド不一致などで距離計算できない場合は距離条件を判定しない
+        }
+        // マップ・ヘッドショット・銃の条件 (倒した人が参加中のレイドと、倒した人が最後に当てた 1 発から)
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids =
+                com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC.getInstance().getRaidModule();
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidInstance raid = raids != null ? raids.getRaidOf(killer) : null;
+        if (raid != null) params.put("mapId", raid.getMapId());
+        com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidKillTracker.Hit hit =
+                com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidKillTracker.lastHit(victim.getUniqueId(), killer.getUniqueId());
+        if (hit != null) {
+            params.put("headshot", "頭".equals(hit.part()) || "顔".equals(hit.part()));
+            String gunId = com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(hit.weapon());
+            if (gunId != null) {
+                params.put("weaponId", gunId);
+                WeaponClass weaponClass = WeaponClass.of(gunId);
+                if (weaponClass != null) params.put("weaponClass", weaponClass.name());
+            }
         }
         questModule.getEventBus().fire(killer, data, QuestTrigger.KILL_ENTITY, params);
     }

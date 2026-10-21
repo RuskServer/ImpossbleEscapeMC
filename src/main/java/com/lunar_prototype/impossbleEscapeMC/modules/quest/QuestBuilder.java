@@ -76,6 +76,37 @@ public final class QuestBuilder {
         return this;
     }
 
+    /** 直前の討伐を、このマップ (脱出の目標と同じマップ名) で倒した時だけにする */
+    public QuestBuilder onMap(String mapId) {
+        return replaceKill(k -> k.onMap(mapId));
+    }
+
+    /** 直前の討伐を、ヘッドショット (頭・顔) で倒した時だけにする */
+    public QuestBuilder headshot() {
+        return replaceKill(KillEntityObjective::headshot);
+    }
+
+    /** 直前の討伐を、この種類の銃で倒した時だけにする */
+    public QuestBuilder with(WeaponClass weaponClass) {
+        return replaceKill(k -> k.with(weaponClass));
+    }
+
+    /** 直前の討伐を、この銃 (データパックの銃 ID。name は表示名) で倒した時だけにする */
+    public QuestBuilder withWeapon(String gunId, String name) {
+        return replaceKill(k -> k.withWeapon(gunId, name));
+    }
+
+    /** 直前の目標 (討伐) に条件を足す。説明文 (label) は条件の後に付ける */
+    private QuestBuilder replaceKill(java.util.function.UnaryOperator<KillEntityObjective> change) {
+        int last = objectives.size() - 1;
+        if (last < 0 || !(objectives.get(last) instanceof KillEntityObjective kill)) {
+            throw new IllegalStateException("クエスト " + id + ": 条件を付ける討伐の目標がありません");
+        }
+        if (kill.hasLabel()) throw new IllegalStateException("クエスト " + id + ": 討伐の条件は label() より前に付ける");
+        objectives.set(last, change.apply(kill));
+        return this;
+    }
+
     /** FIR (レイドで拾った) 品の納品 */
     public QuestBuilder handInFir(String itemId, int amount) {
         objectives.add(new HandInObjective(itemId, null, amount, true));
