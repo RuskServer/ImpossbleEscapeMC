@@ -44,6 +44,9 @@ public class RaidInstance {
     private final long startTime;
     private final String raidSessionId;
     private BukkitRunnable task;
+    /** 脱出範囲の表示 (範囲に入っている人にだけ円周を描く) */
+    private final ExtractionRange extractionRange = new ExtractionRange();
+    private org.bukkit.scheduler.BukkitTask rangeTask;
     /** 中央上のコンパスと右上の残り時間 (プレイヤーごとのボスバー) */
     private final RaidHud hud;
     private int respawnTicks = 0;
@@ -275,6 +278,23 @@ public class RaidInstance {
             }
         };
         task.runTaskTimer(plugin, 0, 20);
+        rangeTask = Bukkit.getScheduler().runTaskTimer(plugin, this::showExtractionRanges,
+                ExtractionRange.INTERVAL_TICKS, ExtractionRange.INTERVAL_TICKS);
+    }
+
+    /** 脱出地点の範囲に入っている人に、その範囲の円周を見せる (判定は checkExtractions と同じ) */
+    private void showExtractionRanges() {
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) continue;
+            for (RaidMap.ExtractionPoint ep : activeExtractions) {
+                Location epLoc = ep.getLocation(map.getWorldName());
+                if (epLoc != null && p.getWorld().equals(epLoc.getWorld()) && p.getLocation().distance(epLoc) <= ep.getRadius()) {
+                    extractionRange.show(p, ep, epLoc);
+                    break;
+                }
+            }
+        }
     }
 
     /**
@@ -635,6 +655,7 @@ public class RaidInstance {
         ended = true;
 
         if (task != null) task.cancel();
+        if (rangeTask != null) rangeTask.cancel();
         hud.stop();
         endSequence.stop();
 
@@ -964,6 +985,7 @@ public class RaidInstance {
         if (ended) return;
         ended = true;
         if (task != null) task.cancel();
+        if (rangeTask != null) rangeTask.cancel();
         hud.stop();
         endSequence.stop();
         for (VirtualScav vs : virtualScavs) {
