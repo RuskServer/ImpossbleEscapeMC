@@ -173,6 +173,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.starter.StarterKit.init(this);
         // データパック銃の命中もプラグイン銃と同じBulletHitEventとして通知する (負傷・アドレナリン・SCAVの命中記録)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletHitBridge(), this);
+        // データパックの作業用エンティティがレイドのワールドに残って銃が壊れるのを防ぐ
+        com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.init(this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.TooltipStyleMigration(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUIListener(), this);
@@ -251,6 +253,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
         com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
