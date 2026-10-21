@@ -3,6 +3,10 @@ package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -22,13 +26,15 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * レイド中の HUD: 画面の中央上にコンパス (向いている方位と、今回のレイドの脱出地点の方角・距離)、右上に残り時間。
+ * レイド中の HUD: 画面の中央上にコンパス (向いている方位と、今回のレイドの脱出地点・タスクの地点の方角・距離)、右上に残り時間。
  * <p>
  * プレイヤーごとの白いボスバーの題名に、リソースパックのフォント iem:hud の文字を並べて描く
  * (文字・幅・空白は IEM_shader/tools/hud_compass.py と同じ。白いボスバーのバーはパックで透明にしてある)。
  * <ul>
  *   <li>帯は幅 {@link #STRIP} GUI px、1 px = 1°で、向いている方位の左右 90°を映す</li>
  *   <li>脱出地点は非常口の看板の印と距離。帯の外 (後ろ側) は端に矢印で出す。PDA の設定で消せる ({@link PlayerData#isHideExtractMarkers})</li>
+ *   <li>タスクの地点 (受けているクエストの、まだ着いていない到達の目標で、このワールドの物) は琥珀色の菱形の印と距離。
+ *       出し方・消し方は脱出地点と同じ</li>
  *   <li>残り時間は決まった色 ({@link #TIMER}) で、帯の中央の少し左で終わるように書く。
  *       文字のシェーダー (text.vsh) がその色の文字を画面の幅の半分だけ右へずらすので、右上の隅に来る</li>
  * </ul>
@@ -50,11 +56,20 @@ final class RaidHud {
     // 文字と幅 (hud_compass.py の GLYPHS と同じ)。クライアントは 幅 + 1 だけ進める
     private static final char BG = '', TICK = '', CENTER_MARK = '', EXTRACT = '',
             EDGE_LEFT = '', EDGE_RIGHT = '', DIGIT_0 = '', METER = '';
+    private static final char QUEST = '', QUEST_EDGE_LEFT = '', QUEST_EDGE_RIGHT = '', QUEST_DIGIT_0 = '',
+            QUEST_METER = '';
     /** 45°ごとの方位の文字と幅 (N, NE, E, SE, S, SW, W, NW) */
     private static final char[] DIRECTION = {'', '', '', '', '', '', '', ''};
     private static final int[] DIRECTION_WIDTH = {5, 8, 5, 7, 5, 9, 5, 10};
-    private static final int TICK_WIDTH = 1, CENTER_WIDTH = 3, EXTRACT_WIDTH = 11, EDGE_WIDTH = 4, DIGIT_WIDTH = 3,
+    private static final int TICK_WIDTH = 1, CENTER_WIDTH = 3, EXTRACT_WIDTH = 11, QUEST_WIDTH = 9, EDGE_WIDTH = 4, DIGIT_WIDTH = 3,
             METER_WIDTH = 5;
+
+    /** 印の種類 (印・帯の端の矢印・距離の数字の文字) */
+    private record Marker(char mark, int width, char edgeLeft, char edgeRight, char digit0, char meter) {
+    }
+
+    private static final Marker EXTRACT_MARKER = new Marker(EXTRACT, EXTRACT_WIDTH, EDGE_LEFT, EDGE_RIGHT, DIGIT_0, METER);
+    private static final Marker QUEST_MARKER = new Marker(QUEST, QUEST_WIDTH, QUEST_EDGE_LEFT, QUEST_EDGE_RIGHT, QUEST_DIGIT_0, QUEST_METER);
     /** 空白の文字: +2^i が U+E500+i、-2^i が U+E510+i (i = 0..8) */
     private static final char SPACE_POSITIVE = '', SPACE_NEGATIVE = '';
 
@@ -123,15 +138,35 @@ final class RaidHud {
     private Component title(Player player) {
         Location here = player.getLocation();
         List<double[]> targets = new ArrayList<>();
-        if (!hideMarkers(player)) {
+        List<double[]> quests = new ArrayList<>();
+        PlayerData data = playerData(player);
+        if (data == null || !data.isHideExtractMarkers()) {
             for (RaidMap.ExtractionPoint point : extractions) {
                 Location target = point.getLocation(map.getWorldName());
                 if (target != null && target.getWorld() == here.getWorld()) {
                     targets.add(new double[]{target.getX() - here.getX(), target.getZ() - here.getZ()});
                 }
             }
+            if (data != null) collectQuestTargets(data, here, quests);
         }
-        return compose(here.getYaw(), targets, timeLeft);
+        return compose(here.getYaw(), targets, quests, timeLeft);
+    }
+
+    /** 受けているクエストの、まだ着いていない到達の目標のうち、このワールドの物への水平の差 {dx, dz} */
+    private void collectQuestTargets(PlayerData data, Location here, List<double[]> out) {
+        QuestModule quests = plugin.getServiceContainer().get(QuestModule.class);
+        if (quests == null) return;
+        String world = here.getWorld().getName();
+        for (ActiveQuest active : data.getActiveQuests().values()) {
+            QuestDefinition def = quests.getQuest(active.getQuestId());
+            if (def == null) continue;
+            for (int i = 0; i < def.getObjectives().size(); i++) {
+                if (def.getObjectives().get(i) instanceof ReachLocationObjective reach && !reach.isCompleted(active, i)
+                        && world.equalsIgnoreCase(reach.getWorldName())) {
+                    out.add(new double[]{reach.getX() - here.getX(), reach.getZ() - here.getZ()});
+                }
+            }
+        }
     }
 
     /**
@@ -139,9 +174,10 @@ final class RaidHud {
      *
      * @param yaw      マイクラの yaw (0 = 南、90 = 西)
      * @param targets  脱出地点への水平の差 {dx, dz}
+     * @param quests   タスクの地点への水平の差 {dx, dz}
      * @param timeLeft 残り秒数
      */
-    static Component compose(double yaw, List<double[]> targets, int timeLeft) {
+    static Component compose(double yaw, List<double[]> targets, List<double[]> quests, int timeLeft) {
         Line line = new Line();
         line.glyph(0, BG, STRIP, HUD_NO_SHADOW);
 
@@ -160,38 +196,43 @@ final class RaidHud {
         }
         line.glyph(CENTER - CENTER_WIDTH / 2, CENTER_MARK, CENTER_WIDTH, HUD_NO_SHADOW);
 
-        for (double[] target : targets) {
-            double bearing = Math.toDegrees(Math.atan2(target[0], -target[1]));
-            double rel = wrap180(bearing - heading);
-            int x;
-            if (Math.abs(rel) <= VISIBLE) {
-                x = CENTER + (int) Math.round(rel);
-                line.glyph(x - EXTRACT_WIDTH / 2, EXTRACT, EXTRACT_WIDTH, HUD);
-            } else if (rel < 0) {
-                x = 2;
-                line.glyph(0, EDGE_LEFT, EDGE_WIDTH, HUD);
-            } else {
-                x = STRIP - 3;
-                line.glyph(STRIP - EDGE_WIDTH, EDGE_RIGHT, EDGE_WIDTH, HUD);
-            }
-            distance(line, x, (int) Math.round(Math.hypot(target[0], target[1])));
-        }
+        // 脱出地点を後に描いて、重なった時は上に出す
+        for (double[] target : quests) marker(line, heading, target, QUEST_MARKER);
+        for (double[] target : targets) marker(line, heading, target, EXTRACT_MARKER);
 
         timer(line, Math.max(0, timeLeft));
         line.moveTo(STRIP);
         return line.build();
     }
 
+    /** 地点の印と距離。帯の外 (後ろ側) は端に矢印 */
+    private static void marker(Line line, double heading, double[] target, Marker marker) {
+        double bearing = Math.toDegrees(Math.atan2(target[0], -target[1]));
+        double rel = wrap180(bearing - heading);
+        int x;
+        if (Math.abs(rel) <= VISIBLE) {
+            x = CENTER + (int) Math.round(rel);
+            line.glyph(x - marker.width() / 2, marker.mark(), marker.width(), HUD);
+        } else if (rel < 0) {
+            x = 2;
+            line.glyph(0, marker.edgeLeft(), EDGE_WIDTH, HUD);
+        } else {
+            x = STRIP - 3;
+            line.glyph(STRIP - EDGE_WIDTH, marker.edgeRight(), EDGE_WIDTH, HUD);
+        }
+        distance(line, x, (int) Math.round(Math.hypot(target[0], target[1])), marker);
+    }
+
     /** 印の下に距離 (m) を中央揃えで書く (帯からはみ出さない) */
-    private static void distance(Line line, int x, int meters) {
+    private static void distance(Line line, int x, int meters, Marker marker) {
         String digits = Integer.toString(Math.min(meters, 9999));
         int width = digits.length() * (DIGIT_WIDTH + 1) + METER_WIDTH;
         int left = Math.max(0, Math.min(STRIP - width, x - width / 2));
         for (char c : digits.toCharArray()) {
-            line.glyph(left, (char) (DIGIT_0 + (c - '0')), DIGIT_WIDTH, HUD);
+            line.glyph(left, (char) (marker.digit0() + (c - '0')), DIGIT_WIDTH, HUD);
             left += DIGIT_WIDTH + 1;
         }
-        line.glyph(left, METER, METER_WIDTH, HUD);
+        line.glyph(left, marker.meter(), METER_WIDTH, HUD);
     }
 
     /** 残り時間 (バニラのフォントの数字は幅 5 + 1、コロンは 1 + 1)。帯の中央の TIMER_MARGIN 左で終わる */
@@ -205,10 +246,9 @@ final class RaidHud {
         line.text(CENTER + 1 - TIMER_MARGIN - width, text, width, style);
     }
 
-    private boolean hideMarkers(Player player) {
+    private PlayerData playerData(Player player) {
         PlayerDataModule module = plugin.getServiceContainer().get(PlayerDataModule.class);
-        PlayerData data = module != null ? module.getPlayerData(player.getUniqueId()) : null;
-        return data != null && data.isHideExtractMarkers();
+        return module != null ? module.getPlayerData(player.getUniqueId()) : null;
     }
 
     private static double wrap360(double degrees) {
