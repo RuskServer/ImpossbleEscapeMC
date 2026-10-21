@@ -75,6 +75,12 @@ public final class GunSettingsDialog implements Listener {
             this.next = next;
         }
 
+        /** ボタンの ID (スコアの名前。小文字なので Key に使える) の設定 (無ければ null) */
+        static Setting byId(String id) {
+            for (Setting setting : values()) if (setting.id.equals(id)) return setting;
+            return null;
+        }
+
         int next(int value) {
             return next.applyAsInt(value);
         }
@@ -121,7 +127,7 @@ public final class GunSettingsDialog implements Listener {
         List<ActionButton> buttons = new ArrayList<>();
         for (Setting setting : Setting.values()) {
             buttons.add(ActionButton.create(setting.label(get(player, setting.id, setting.fallback)), null, BUTTON_W,
-                    action("set/" + setting.name())));
+                    action("set/" + setting.id)));
         }
         buttons.add(ActionButton.create(Component.text("推奨設定にリセットする", NamedTextColor.RED), null, 150, action("reset")));
         ActionButton close = ActionButton.create(Component.text("閉じる"), null, 150, null);
@@ -154,12 +160,8 @@ public final class GunSettingsDialog implements Listener {
     private static void handle(Player player, String action) {
         if (!player.isOnline() || objective(Setting.KEYBIND_SWAP.id) == null) return;
         if (action.startsWith("set/")) {
-            Setting setting;
-            try {
-                setting = Setting.valueOf(action.substring("set/".length()));
-            } catch (IllegalArgumentException e) {
-                return;
-            }
+            Setting setting = Setting.byId(action.substring("set/".length()));
+            if (setting == null) return;
             set(player, setting.id, setting.next(get(player, setting.id, setting.fallback)));
             show(player);
         } else if (action.equals("reset")) {
@@ -202,7 +204,12 @@ public final class GunSettingsDialog implements Listener {
         if (objective != null) objective.getScore(player.getName()).setScore(value);
     }
 
+    /** ボタンの Key (Key の値は小文字・数字・_-./ だけ) */
+    static Key actionKey(String action) {
+        return Key.key(NS, PREFIX + action);
+    }
+
     private static DialogAction action(String action) {
-        return DialogAction.customClick(Key.key(NS, PREFIX + action), null);
+        return DialogAction.customClick(actionKey(action), null);
     }
 }

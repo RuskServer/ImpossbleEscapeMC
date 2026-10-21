@@ -39,6 +39,13 @@ public final class GunSettingsDialogTest {
         }
         check(GunSettingsDialog.LOCKED.get("move_comp.enable") == 1 && GunSettingsDialog.LOCKED.get("move_comp.rate") == 60,
                 "move_comp locked at the datapack defaults");
+        // ボタンの Key が作れる (大文字などが入ると Key.key が例外を投げ、画面が開かない) と、ID から設定に戻せる
+        for (Setting setting : Setting.values()) {
+            GunSettingsDialog.actionKey("set/" + setting.id);
+            check(Setting.byId(setting.id) == setting, setting + " byId");
+        }
+        for (String action : new String[]{"reset", "reset_yes", "back"}) GunSettingsDialog.actionKey(action);
+        check(Setting.byId("move_comp.rate") == null, "locked setting has no button");
         System.out.println("GunSettingsDialogTest OK");
     }
 }
