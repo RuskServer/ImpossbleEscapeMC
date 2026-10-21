@@ -160,10 +160,11 @@ public class BackpackListener implements Listener {
         }
     }
 
-    /** 手に持ったままのバックパックを右クリックで開く (装備は不要) */
+    /** メインハンドに持ったバックパックを右クリックで開く (装備は不要。オフハンドに持った物は開かない) */
     @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
 
         Player player = event.getPlayer();
         if (!isPlayableMode(player)) return;
@@ -172,8 +173,7 @@ public class BackpackListener implements Listener {
         if (player.getOpenInventory().getTopInventory().getHolder()
                 instanceof BackpackModule.BackpackInventoryHolder) return;
 
-        EquipmentSlot hand = event.getHand();
-        int slot = hand == EquipmentSlot.OFF_HAND ? 40 : player.getInventory().getHeldItemSlot();
+        int slot = player.getInventory().getHeldItemSlot();
         if (!backpackModule.isBackpackItem(player.getInventory().getItem(slot))) return;
 
         event.setCancelled(true);
