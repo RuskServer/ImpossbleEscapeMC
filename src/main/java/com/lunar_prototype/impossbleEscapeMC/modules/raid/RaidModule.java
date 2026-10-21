@@ -300,6 +300,7 @@ public class RaidModule implements IModule {
                     if (!uuids.isEmpty()) {
                         RaidInstance raid = new RaidInstance(plugin, map, new ArrayList<>());
                         raid.restoreParticipants(uuids); // 復元用メソッド
+                        raid.keepExistingGroundItems();   // 再起動の前に落ちた物は覚えていないので、残っている物をこのレイドの物とする
                         activeRaids.put(mapId, raid);
                     }
                 }
