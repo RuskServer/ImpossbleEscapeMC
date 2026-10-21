@@ -49,6 +49,8 @@ public class RaidInstance {
     private int respawnTicks = 0;
     private String endReason = "raid_end";
     private boolean ended = false;
+    /** このレイドの間にマップのワールドに落ちたアイテム (RaidGroundItems。終わったら消す) */
+    private final Set<UUID> groundItems = new HashSet<>();
     private static final double MIN_SCAV_SPAWN_DISTANCE = 24.0;
 
     private enum RaidOutcome {
@@ -650,6 +652,10 @@ public class RaidInstance {
                 plugin.getCorpseManager().cleanup(world);
             }
         }
+        // 落ちているアイテムも消す (読み込まれていない所の物は、読み込まれた時に RaidGroundItems が消す)
+        org.bukkit.World raidWorld = Bukkit.getWorld(map.getWorldName());
+        if (raidWorld != null) RaidGroundItems.clear(raidWorld);
+        groundItems.clear();
 
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
@@ -861,6 +867,21 @@ public class RaidInstance {
                 if (protect) applySpawnProtection(joined);
             });
         }
+    }
+
+    /** このレイドのマップのワールド名 */
+    public String getWorldName() {
+        return map.getWorldName();
+    }
+
+    /** このレイドの間に落ちたアイテムとして覚える */
+    void trackGroundItem(UUID item) {
+        if (!ended) groundItems.add(item);
+    }
+
+    /** このレイドの間に落ちたアイテムか */
+    boolean isGroundItem(UUID item) {
+        return groundItems.contains(item);
     }
 
     /** このレイドのマップ名 (脱出の目標と同じ) */

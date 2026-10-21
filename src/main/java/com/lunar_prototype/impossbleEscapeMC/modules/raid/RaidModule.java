@@ -68,6 +68,8 @@ public class RaidModule implements IModule {
         Bukkit.getPluginManager().registerEvents(new PdaIntro(), plugin);
         // レイド結果のキルログ: 弾が当たった時の様子 (武器・弾・距離・部位) を覚えておく
         Bukkit.getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidKillTracker(), plugin);
+        // レイドのマップに落ちたアイテムは、そのレイドが終わったら消す
+        Bukkit.getPluginManager().registerEvents(new RaidGroundItems(this), plugin);
         
         // Initialize BossBars and Timers for each map
         for (String mapId : maps.keySet()) {
@@ -798,6 +800,22 @@ public class RaidModule implements IModule {
 
     public Map<String, RaidMap> getMaps() {
         return maps;
+    }
+
+    /** このワールドで動いているレイド (無ければ null) */
+    public RaidInstance getRaidInWorld(org.bukkit.World world) {
+        for (RaidInstance raid : activeRaids.values()) {
+            if (world.getName().equals(raid.getWorldName())) return raid;
+        }
+        return null;
+    }
+
+    /** どれかのレイドのマップのワールドか */
+    public boolean isRaidWorld(org.bukkit.World world) {
+        for (RaidMap map : maps.values()) {
+            if (world.getName().equals(map.getWorldName())) return true;
+        }
+        return false;
     }
 
     public Collection<RaidInstance> getActiveRaids() {
