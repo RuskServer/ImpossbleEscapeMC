@@ -35,7 +35,7 @@ public class LootCommand implements BasicCommand {
         if (!player.isOp()) return;
 
         if (args.length < 1) {
-            player.sendMessage("§c/loot <container|egg|refill>");
+            player.sendMessage("§c/loot <container|egg|groundegg|remover|refill>");
             return;
         }
 
@@ -43,6 +43,11 @@ public class LootCommand implements BasicCommand {
         switch (sub) {
             case "container" -> handleContainer(player, args);
             case "egg" -> handleEgg(player, args);
+            case "groundegg" -> handleGroundEgg(player, args);
+            case "remover" -> {
+                player.getInventory().addItem(plugin.getLootEggListener().createRemover());
+                player.sendMessage(Component.text("ルート削除ツールを付与しました (クレートか、地面ルートの地点の床を右クリック)", NamedTextColor.GREEN));
+            }
             case "refill" -> {
                 if (args.length > 1 && args[1].equalsIgnoreCase("this")) {
                     Block b = player.getTargetBlockExact(5);
@@ -106,24 +111,11 @@ public class LootCommand implements BasicCommand {
                 player.sendMessage(Component.text("このコンテナをマップ " + mapId + " のルートコンテナ(Crate: " + crateId + ")として登録しました。", NamedTextColor.GREEN));
             }
             case "remove" -> {
-                // 登録を外してからブロックを消す。中身は先に空にする (チェストは置き換えると中身を落とすため)
-                List<String> removedFrom = new ArrayList<>();
-                for (RaidMap map : plugin.getRaidModule().getMaps().values()) {
-                    if (map.removeLootContainersAt(block.getLocation()) > 0) {
-                        plugin.getRaidModule().saveMap(map);
-                        removedFrom.add(map.getMapId());
-                    }
-                }
+                List<String> removedFrom = plugin.getLootManager().removeLootContainer(block);
                 if (removedFrom.isEmpty()) {
                     player.sendMessage(Component.text("このコンテナはどのマップにもルートコンテナとして登録されていません。", NamedTextColor.RED));
                     return;
                 }
-                if (block.getState() instanceof org.bukkit.block.Chest chest) {
-                    chest.getBlockInventory().clear();
-                } else {
-                    ((Container) block.getState()).getInventory().clear();
-                }
-                block.setType(org.bukkit.Material.AIR);
                 player.sendMessage(Component.text("ルートコンテナの登録を外し、ブロックを消しました (" + String.join(", ", removedFrom) + ")", NamedTextColor.GREEN));
             }
         }
@@ -142,10 +134,19 @@ public class LootCommand implements BasicCommand {
         player.sendMessage(Component.text("ルート設置用エッグを付与しました: " + crateId + " (" + mapId + ")", NamedTextColor.GREEN));
     }
 
+    private void handleGroundEgg(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(Component.text("使用法: /loot groundegg <mapId> <crateId>", NamedTextColor.RED));
+            return;
+        }
+        player.getInventory().addItem(plugin.getLootEggListener().createGroundEgg(args[1], args[2]));
+        player.sendMessage(Component.text("地面ルート設置用エッグを付与しました: " + args[2] + " (" + args[1] + ")", NamedTextColor.GREEN));
+    }
+
     @Override
     public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
-        if (args.length == 1) return Arrays.asList("container", "egg", "refill");
+        if (args.length == 1) return Arrays.asList("container", "egg", "groundegg", "remover", "refill");
 
         if (args[0].equalsIgnoreCase("container")) {
             if (args.length == 2) return Arrays.asList("set", "remove");
@@ -153,7 +154,7 @@ public class LootCommand implements BasicCommand {
             if (args.length == 4 && args[1].equalsIgnoreCase("set")) return plugin.getLootManager().getCrateIds();
         }
 
-        if (args[0].equalsIgnoreCase("egg")) {
+        if (args[0].equalsIgnoreCase("egg") || args[0].equalsIgnoreCase("groundegg")) {
             if (args.length == 2) return plugin.getRaidModule().getMapIds();
             if (args.length == 3) return plugin.getLootManager().getCrateIds();
         }

@@ -73,7 +73,7 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | `/scavspawn [x y z]` | Manually spawn a SCAV. Use `heatmap` to toggle spawn map. | `op` |
 | `/raid <join\|leave\|start\|extract\|scavspawn>` | Complete raid queueing and map interactions. | `op` |
 | `/party <create\|invite\|accept\|leave\|kick\|info\|chat>` | Squad management and secure communication. | *None (All Players)* |
-| `/loot <container\|egg\|refill\|reload>` | Manage, refill, and place loot crates. | `op` |
+| `/loot <container\|egg\|groundegg\|remover\|refill>` | Place, remove and refill loot crates and ground loot spots. | `op` |
 | `/trader <open\|reload> [traderId]` | Shop from local traders or reload traders layout. | `op` / `impossbleescapemc.trader.reload` |
 | `/mg <create\|setspawn\|split\|start\|stop\|loadout>` | Manage active minigame lobby parameters. | `op` |
 

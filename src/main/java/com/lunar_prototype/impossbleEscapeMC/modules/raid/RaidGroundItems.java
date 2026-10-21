@@ -18,7 +18,7 @@ import org.bukkit.event.world.EntitiesLoadEvent;
  *   <li>チャンクが読み込まれた時、レイドのマップのワールドのアイテムで、今のレイドが覚えていない物は消す
  *       (終わった時に読み込まれていなかった所に落ちていた物と、前のレイドの残り)</li>
  * </ul>
- * レイドのマップに最初から置くアイテム (地面の戦利品) は無いので、落ちているアイテムはどれもレイド中に落ちた物
+ * 地面ルートはレイドが動き出してから置き、そのレイドが覚える (RaidModule#createRaid) ので、ほかの落ちた物と同じに扱う
  */
 final class RaidGroundItems implements Listener {
 

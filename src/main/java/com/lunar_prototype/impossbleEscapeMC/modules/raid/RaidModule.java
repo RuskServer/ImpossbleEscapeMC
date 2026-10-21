@@ -172,6 +172,11 @@ public class RaidModule implements IModule {
         if (map == null) return null;
         RaidInstance raid = new RaidInstance(plugin, map, participants);
         activeRaids.put(mapId, raid);
+        // 地面ルートはレイドが動き出してから置く (このレイドが落ちた物として覚え、終わったら消す: RaidGroundItems)
+        if (plugin.getLootManager() != null) {
+            int placed = plugin.getLootManager().spawnGroundLoot(map, item -> raid.trackGroundItem(item.getUniqueId()));
+            if (!map.getGroundLoot().isEmpty()) plugin.getLogger().info("Ground loot for " + mapId + ": " + placed + "/" + map.getGroundLoot().size());
+        }
         return raid;
     }
 

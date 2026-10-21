@@ -14,6 +14,8 @@ public class RaidMap {
     private final List<ExtractionPoint> extractionPoints = new ArrayList<>();
     private final List<ScavSpawnPoint> scavSpawnPoints = new ArrayList<>();
     private List<LootContainer> lootContainers = new ArrayList<>(); // Changed to non-final for safety
+    /** 地面ルートの地点 (古い JSON には無いので null になりうる) */
+    private List<GroundLootPoint> groundLoot = new ArrayList<>();
 
     public RaidMap(String mapId) {
         this.mapId = mapId;
@@ -110,6 +112,26 @@ public class RaidMap {
         return before - lootContainers.size();
     }
 
+    /** 地面ルートの地点を足す (block はアイテムを置くブロックの位置。そのブロックの床の真ん中に置く) */
+    public void addGroundLoot(Location block, String crateId) {
+        ensureWorld(block);
+        if (groundLoot == null) groundLoot = new ArrayList<>();
+        groundLoot.add(new GroundLootPoint(new double[]{block.getBlockX(), block.getBlockY(), block.getBlockZ()}, crateId));
+    }
+
+    /** block と同じブロックの位置の地面ルートの地点を外す (このマップのワールドの時だけ)。外した数 */
+    public int removeGroundLootAt(Location block) {
+        if (groundLoot == null || !isWorld(block.getWorld())) return 0;
+        int before = groundLoot.size();
+        groundLoot.removeIf(p -> p.isAt(block));
+        return before - groundLoot.size();
+    }
+
+    public List<GroundLootPoint> getGroundLoot() {
+        if (groundLoot == null) groundLoot = new ArrayList<>();
+        return groundLoot;
+    }
+
     public List<LootContainer> getLootContainers() {
         if (lootContainers == null) {
             lootContainers = new ArrayList<>();
@@ -169,6 +191,32 @@ public class RaidMap {
 
     public static class LootCrateReference {
         // Alias for compatibility if needed, but we use LootContainer class name for now
+    }
+
+    /** 地面ルートの地点: レイドの始めに、クレートと同じ種類 (crateId) の中身から 1 個を床に置く */
+    public static class GroundLootPoint {
+        private final double[] coords;   // ブロックの位置
+        private final String crateId;
+
+        public GroundLootPoint(double[] coords, String crateId) {
+            this.coords = coords;
+            this.crateId = crateId;
+        }
+
+        /** アイテムを置く所 (ブロックの床の真ん中) */
+        public Location getLocation(String worldName) {
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) return null;
+            return new Location(world, coords[0] + 0.5, coords[1] + 0.05, coords[2] + 0.5);
+        }
+
+        public String getCrateId() {
+            return crateId;
+        }
+
+        boolean isAt(Location block) {
+            return (int) coords[0] == block.getBlockX() && (int) coords[1] == block.getBlockY() && (int) coords[2] == block.getBlockZ();
+        }
     }
 
     public static class LootContainer {

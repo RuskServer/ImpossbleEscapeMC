@@ -140,6 +140,63 @@ public class LootManager {
         plugin.getLogger().info("Refilled container " + crateId + " with " + items.size() + " items.");
     }
 
+    /** 地面ルートの地点に置く確率 */
+    private static final double GROUND_LOOT_CHANCE = 0.5;
+
+    /**
+     * 地面ルートを置く (レイドの始めに、レイドが動き出してから呼ぶ。置いた物はレイドが覚え、終わったら消える)。
+     * 地点ごとに {@link #GROUND_LOOT_CHANCE} で、クレートと同じ種類の中身から 1 個。置いたアイテムは placed に渡す
+     */
+    public int spawnGroundLoot(RaidMap map, java.util.function.Consumer<org.bukkit.entity.Item> placed) {
+        String worldName = map.getWorldName();
+        org.bukkit.World world = worldName != null ? Bukkit.getWorld(worldName) : null;
+        if (world == null) return 0;
+        Random random = new Random();
+        int count = 0;
+        for (RaidMap.GroundLootPoint point : map.getGroundLoot()) {
+            if (random.nextDouble() >= GROUND_LOOT_CHANCE) continue;
+            Location loc = point.getLocation(worldName);
+            ItemStack item = rollOne(world, point.getCrateId(), random);
+            if (loc == null || item == null) continue;
+            // 未ロードのチャンクは読み込んで置く。置いた直後に下ろすと置いた物の保存と重なるので、下ろすのはサーバーに任せる
+            world.getChunkAt(loc.getBlockX() >> 4, loc.getBlockZ() >> 4).load();
+            placed.accept(world.dropItem(loc, item, dropped -> dropped.setVelocity(new org.bukkit.util.Vector())));
+            count++;
+        }
+        return count;
+    }
+
+    /** クレートの種類の中身から 1 個 (中身が無ければ null) */
+    private ItemStack rollOne(org.bukkit.World world, String crateId, Random random) {
+        LootCrate crate = lootCrates.get(crateId);
+        LootTable table = crate != null ? selectWeightedTable(crate) : lootTables.get(crateId);
+        if (table == null) return null;
+        List<ItemStack> items = LootRoller.roll(world, table);
+        return items.isEmpty() ? null : items.get(random.nextInt(items.size()));
+    }
+
+    /**
+     * block のルートコンテナの登録を (どのマップからも) 外し、ブロックを消す。外したマップの ID (登録が無ければ空で、何もしない)。
+     * 中身は先に空にする (チェストは置き換えると中身を落とすため)
+     */
+    public List<String> removeLootContainer(Block block) {
+        List<String> removedFrom = new ArrayList<>();
+        for (RaidMap map : plugin.getRaidModule().getMaps().values()) {
+            if (map.removeLootContainersAt(block.getLocation()) > 0) {
+                plugin.getRaidModule().saveMap(map);
+                removedFrom.add(map.getMapId());
+            }
+        }
+        if (removedFrom.isEmpty()) return removedFrom;
+        if (block.getState() instanceof org.bukkit.block.Chest chest) {
+            chest.getBlockInventory().clear();
+        } else if (block.getState() instanceof Container container) {
+            container.getInventory().clear();
+        }
+        block.setType(Material.AIR);
+        return removedFrom;
+    }
+
     private LootTable selectWeightedTable(LootCrate crate) {
         double totalWeight = crate.tableWeights.values().stream().mapToDouble(d -> d).sum();
         double r = Math.random() * totalWeight;
