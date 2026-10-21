@@ -73,6 +73,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
  *   <li>行のチェックで直す・直さないが切り替わる。開いた時は、この店で直せる物をすべて選んである</li>
  *   <li>修理する時に物を読み直し、まだそこにある同じ物だけ、修理代をまとめて払って直す (所持金が足りなければ何もしない)</li>
  * </ul>
+ * レイドから帰った時の結果の画面からも開く ({@link #openAfterRaid})。その時は物ごとに、それを直せるトレーダー
+ * (武器は Kovacs、アーマーは Bastion) の修理として出す。修理代はトレーダーで直すのと同じ
  */
 public final class RepairDialog implements Listener {
 
@@ -147,20 +149,45 @@ public final class RepairDialog implements Listener {
 
     // ---- 修理の要る物 ----
 
-    /** 修理の要る物 1 つ。key は場所と物の ID (押された時・修理する時に、同じ物か確かめる) */
-    private record Row(String key, HandInPlaces.Source source, String place, ItemStack item, Repairs.Quote quote) {
+    /**
+     * 修理の要る物 1 つ。key は場所と物の ID (押された時・修理する時に、同じ物か確かめる)。
+     * traderName はレイドの後の修理の時の、それを直すトレーダー (トレーダーの画面では null)
+     */
+    private record Row(String key, HandInPlaces.Source source, String place, ItemStack item, Repairs.Quote quote, String traderName) {
     }
 
+    /** trader が null なら、物ごとにそれを直せるトレーダーで見積もる (どこでも直せない物は出さない) */
     private static List<Row> collect(TraderModule module, TraderDefinition trader, Player player, PlayerData data) {
         List<Row> rows = new ArrayList<>();
         for (HandInPlaces.Entry entry : HandInPlaces.scan(player, data, true, false)) {
-            Repairs.Quote quote = Repairs.quote(module, trader, player.getUniqueId(), entry.item());
+            Repairs.Quote quote = null;
+            String traderName = null;
+            if (trader != null) {
+                quote = Repairs.quote(module, trader, player.getUniqueId(), entry.item());
+            } else {
+                for (TraderDefinition t : module.getAllTraders()) {
+                    if (!t.canRepairWeapon && !t.canRepairArmor) continue;
+                    Repairs.Quote q = Repairs.quote(module, t, player.getUniqueId(), entry.item());
+                    if (q != null && q.allowed()) {
+                        quote = q;
+                        traderName = traderName(t);
+                        break;
+                    }
+                }
+            }
             if (quote == null) continue;
             HandInPlaces.Source s = entry.source();
             String key = s.kind() + ":" + s.page() + ":" + s.slot() + ":" + s.inner() + "|" + idOf(entry.item());
-            rows.add(new Row(key, s, entry.place(), entry.item(), quote));
+            rows.add(new Row(key, s, entry.place(), entry.item(), quote, traderName));
         }
         return rows;
+    }
+
+    /** トレーダーの名前 (色の記号と「(Buy Only)」のような添え書きを外す) */
+    private static String traderName(TraderDefinition trader) {
+        String name = trader.displayName != null ? trader.displayName.replaceAll("§.", "") : trader.id;
+        int paren = name.indexOf(" (");
+        return paren > 0 ? name.substring(0, paren) : name;
     }
 
     /** 同じ物か確かめるための ID (データパック銃の ID か、アイテムの ID) */
@@ -173,7 +200,10 @@ public final class RepairDialog implements Listener {
     // ---- 開く ----
 
     private static final class Session {
+        /** 修理するトレーダー (null はレイドの後の修理: 物ごとに直せるトレーダー) */
         final TraderDefinition trader;
+        /** レイドの後の修理の時の、戻る・次へ (トレーダーの画面では null) */
+        Runnable back, next;
         /** 選んでいる行の key (null は開いた時の選び方: この店で直せる物すべて) */
         Set<String> selected;
         /** 今出している行 (押された番号から引く) */
@@ -201,6 +231,26 @@ public final class RepairDialog implements Listener {
             instance = new RepairDialog();
             Bukkit.getPluginManager().registerEvents(instance, ImpossbleEscapeMC.getInstance());
         }
+    }
+
+    /**
+     * レイドから帰った時の修理の画面を開く (結果の画面の、戦利品の次)。back・next は戻る・次へのボタンで開く画面
+     */
+    public static void openAfterRaid(Player player, Runnable back, Runnable next) {
+        ensureRegistered();
+        player.closeInventory();
+        Session session = new Session(null);
+        session.back = back;
+        session.next = next;
+        SESSIONS.put(player.getUniqueId(), session);
+        show(player, session);
+    }
+
+    /** レイドの後に直せる物があるか (結果の画面で、修理のページを出すか決める) */
+    public static boolean hasRepairsAfterRaid(Player player) {
+        TraderModule module = traderModule();
+        PlayerData data = module != null ? module.getDataModule().getPlayerData(player.getUniqueId()) : null;
+        return data != null && !collect(module, null, player, data).isEmpty();
     }
 
     /** トレーダーの修理の画面を開く */
@@ -237,14 +287,15 @@ public final class RepairDialog implements Listener {
         body.add(DialogBody.plainMessage(join(headerLines(new HeaderView(money, count, total))), BODY_W));
         for (int i = 0; i < rows.size(); i++) {
             Row row = rows.get(i);
-            RowView view = new RowView(HandInPlaces.plain(row.item()), row.place(), row.quote().ratio(), row.quote().jammed(),
+            String place = row.traderName() != null ? row.place() + " ・ " + row.traderName() : row.place();
+            RowView view = new RowView(HandInPlaces.plain(row.item()), place, row.quote().ratio(), row.quote().jammed(),
                     row.quote().cost(), session.isSelected(row), row.quote().allowed(), row.quote().reason(), "toggle/" + i);
             body.add(DialogBody.item(row.item()).description(DialogBody.plainMessage(join(rowLines(view)), ROW_BODY_W))
                     .showTooltip(true).showDecorations(true).width(ITEM_BOX).height(ITEM_BOX).build());
         }
         if (rows.isEmpty()) body.add(DialogBody.plainMessage(Component.text("修理の要る物はありません", NOTE), BODY_W));
 
-        Component title = Component.text("修理 ― " + session.trader.displayName);
+        Component title = Component.text(session.trader != null ? "修理 ― " + session.trader.displayName : "修理 ― 帰還後の整備");
         if (session.notice != null && Bukkit.getCurrentTick() <= session.noticeUntil) {
             title = title.append(Component.text("  " + session.notice, AMBER));
         }
@@ -254,8 +305,15 @@ public final class RepairDialog implements Listener {
                 Component.text(count > 0 ? "チェックした物を修理する" : "直す物が選ばれていません", NOTE), 150, action("go"));
         boolean allSelected = rows.stream().filter(r -> r.quote().allowed()).allMatch(session::isSelected);
         ActionButton all = ActionButton.create(Component.text(allSelected ? "選択を外す" : "すべて選ぶ"), null, 150, action("all"));
-        ActionButton back = ActionButton.create(Component.text("戻る"), null, 150, action("back"));
-        DialogType type = DialogType.multiAction(List.of(go, all, back)).columns(3).exitAction(back).build();
+        DialogType type;
+        if (session.trader != null) {
+            ActionButton back = ActionButton.create(Component.text("戻る"), null, 150, action("back"));
+            type = DialogType.multiAction(List.of(go, all, back)).columns(3).exitAction(back).build();
+        } else {
+            ActionButton back = ActionButton.create(Component.text("戻る: 戦利品"), null, 150, action("back"));
+            ActionButton next = ActionButton.create(Component.text("次へ: クエスト納品"), null, 150, action("next"));
+            type = DialogType.multiAction(List.of(go, all, back, next)).columns(2).exitAction(next).build();
+        }
         player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(type)));
     }
 
@@ -335,8 +393,17 @@ public final class RepairDialog implements Listener {
             }
             case "back" -> {
                 SESSIONS.remove(player.getUniqueId());
+                if (session.trader == null) {
+                    if (session.back != null) session.back.run();
+                    return;
+                }
                 TraderModule module = traderModule();
                 if (module != null) TraderDialog.open(module, session.trader, player);
+                return;
+            }
+            case "next" -> {
+                SESSIONS.remove(player.getUniqueId());
+                if (session.next != null) session.next.run();
                 return;
             }
             default -> {

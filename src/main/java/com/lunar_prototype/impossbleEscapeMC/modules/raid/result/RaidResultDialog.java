@@ -293,7 +293,12 @@ public final class RaidResultDialog implements Listener {
         QuestAutoHandIn auto = autoHandIn(player);
         List<QuestAutoHandIn.Target> plan = auto != null ? auto.plan() : List.of();
         List<DialogBody> body = new ArrayList<>();
-        body.add(header(session.report, "戻る: 戦利品", "loot"));
+        // 戦利品の次に修理を挟んだ時 (脱出できて、まだ直す物がある) は、戻ると修理へ
+        boolean repairBack = session.report.survived()
+                && com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.hasRepairsAfterRaid(player);
+        String backLabel = repairBack ? "戻る: 修理" : "戻る: 戦利品";
+        String backAction = repairBack ? "repair" : "loot";
+        body.add(header(session.report, backLabel, backAction));
         for (QuestAutoHandIn.Target t : plan) {
             String item = t.sample() != null ? plain(t.sample()) : "";
             body.add(itemRow(t.sample(), join(handInLines(new HandInView(t.quest().getDisplayName(), traderName(t.quest().getTraderId()),
@@ -306,7 +311,7 @@ public final class RaidResultDialog implements Listener {
         }
         ActionButton next = ActionButton.create(Component.text("次へ: キルログ"), null, 150, action("page/kills"));
         ActionButton first = plan.isEmpty()
-                ? ActionButton.create(Component.text("戻る: 戦利品"), null, 150, action("loot"))
+                ? ActionButton.create(Component.text(backLabel), null, 150, action(backAction))
                 : ActionButton.create(Component.text("まとめて納品  (" + plan.size() + "件)"), Component.text("使う物を確かめてから納品する"), 150, action("bulk"));
         showDialog(player, session, body, DialogType.confirmation(first, next));
     }
@@ -553,6 +558,13 @@ public final class RaidResultDialog implements Listener {
                 session.animTick = ANIM_TICKS;
                 player.closeDialog();
                 RaidResultLootGUI.open(player, session.report);
+                return;
+            }
+            case "repair" -> {
+                stopAnim(session);
+                RaidReport report = session.report;
+                com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.openAfterRaid(player,
+                        () -> RaidResultLootGUI.open(player, report), () -> showPage(player, report, Page.HANDIN));
                 return;
             }
             case "kills" -> session.killFilter = parts.length > 1 && !parts[1].equals("all")

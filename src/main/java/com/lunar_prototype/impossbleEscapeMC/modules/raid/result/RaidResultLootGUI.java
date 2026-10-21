@@ -50,11 +50,14 @@ public final class RaidResultLootGUI implements InventoryHolder {
     private final RaidReport report;
     private final int page;
     private final boolean byType;
+    /** 次へで修理 (脱出できて直す物がある時) */
+    private final boolean repairNext;
     private final Inventory inventory;
 
-    private RaidResultLootGUI(RaidReport report, int page, boolean byType) {
+    private RaidResultLootGUI(RaidReport report, int page, boolean byType, boolean repairNext) {
         this.report = report;
         this.byType = byType;
+        this.repairNext = repairNext;
         List<RaidReport.LootStack> loot = sorted(report.loot(), byType);
         int pages = Math.max(1, (loot.size() + PER_PAGE - 1) / PER_PAGE);
         this.page = Math.max(0, Math.min(page, pages - 1));
@@ -62,7 +65,8 @@ public final class RaidResultLootGUI implements InventoryHolder {
         this.inventory = Bukkit.createInventory(this, 54, title(report, shown));
         for (int i = 0; i < shown.size(); i++) inventory.setItem(FIRST_SLOT + i, display(shown.get(i)));
         inventory.setItem(BACK_SLOT, UiIcon.EXP.item(Component.text("戻る: 経験値")));
-        inventory.setItem(NEXT_SLOT, UiIcon.QUEST.item(Component.text("次へ: クエスト納品")));
+        inventory.setItem(NEXT_SLOT, repairNext ? button(Material.ANVIL, "次へ: 修理")
+                : UiIcon.QUEST.item(Component.text("次へ: クエスト納品")));
         inventory.setItem(SORT_SLOT, UiIcon.TRADE.item(Component.text(byType ? "並び: 種類順 (押すと価値順)" : "並び: 価値順 (押すと種類順)")));
         if (this.page > 0) inventory.setItem(PREV_SLOT, button(Material.ARROW, "前のページ (" + this.page + "/" + pages + ")"));
         if (this.page < pages - 1) inventory.setItem(NEXT_PAGE_SLOT, button(Material.ARROW, "次のページ (" + (this.page + 2) + "/" + pages + ")"));
@@ -77,7 +81,9 @@ public final class RaidResultLootGUI implements InventoryHolder {
             listener = new ClickListener();
             Bukkit.getPluginManager().registerEvents(listener, ImpossbleEscapeMC.getInstance());
         }
-        player.openInventory(new RaidResultLootGUI(report, page, byType).inventory);
+        // 脱出できて直す物がある時は、戦利品の次に修理 (トレーダーと同じ修理代) を挟む
+        boolean repairNext = report.survived() && com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.hasRepairsAfterRaid(player);
+        player.openInventory(new RaidResultLootGUI(report, page, byType, repairNext).inventory);
     }
 
     @Override
@@ -165,7 +171,10 @@ public final class RaidResultLootGUI implements InventoryHolder {
             if (event.getCurrentItem() == null || event.getCurrentItem().getType().isAir()) return;
             Runnable next = switch (slot) {
                 case BACK_SLOT -> () -> RaidResultDialog.showPage(player, gui.report, RaidResultDialog.Page.EXP);
-                case NEXT_SLOT -> () -> RaidResultDialog.showPage(player, gui.report, RaidResultDialog.Page.HANDIN);
+                case NEXT_SLOT -> gui.repairNext
+                        ? () -> com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.openAfterRaid(player,
+                                () -> open(player, gui.report), () -> RaidResultDialog.showPage(player, gui.report, RaidResultDialog.Page.HANDIN))
+                        : () -> RaidResultDialog.showPage(player, gui.report, RaidResultDialog.Page.HANDIN);
                 case SORT_SLOT -> () -> open(player, gui.report, 0, !gui.byType);
                 case PREV_SLOT -> gui.page > 0 ? () -> open(player, gui.report, gui.page - 1, gui.byType) : null;
                 case NEXT_PAGE_SLOT -> () -> open(player, gui.report, gui.page + 1, gui.byType);
