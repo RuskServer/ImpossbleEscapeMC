@@ -1,3 +1,14 @@
 /target/
 /.paper-nms/
 /Toi's Armory/
+
+# 手元の物 (サーバーのログ・バックアップ・書き出したマップ・画像・試験の出力など) は local/ に置く (AGENTS.md)
+/local/
+/logs/
+/archive-*.tar.gz
+
+# IDE の設定とビルドの生成物
+/.idea/
+/.vscode/
+*.iml
+/dependency-reduced-pom.xml
