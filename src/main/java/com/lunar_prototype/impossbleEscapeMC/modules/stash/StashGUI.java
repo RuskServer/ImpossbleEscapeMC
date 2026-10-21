@@ -15,8 +15,12 @@ public class StashGUI implements Listener {
     private final Inventory inventory;
     private final int page;
     private final StashModule module;
+    /** タイトル (下の欄をバックパックの表示にした時のも) */
+    private final java.util.function.Function<com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.Bag, Component> title;
 
-    public StashGUI(Player player, Inventory inventory, int page, StashModule module) {
+    public StashGUI(Player player, Inventory inventory, int page, StashModule module,
+                    java.util.function.Function<com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.Bag, Component> title) {
+        this.title = title;
         this.player = player;
         this.inventory = inventory;
         this.page = page;
@@ -32,7 +36,7 @@ public class StashGUI implements Listener {
             com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay =
                     ImpossbleEscapeMC.getInstance().getServiceContainer()
                             .get(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class);
-            if (overlay != null) overlay.beginSession(player, inventory);
+            if (overlay != null) overlay.beginSession(player, inventory, title);
         }
     }
 

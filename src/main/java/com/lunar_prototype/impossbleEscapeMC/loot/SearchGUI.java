@@ -144,10 +144,15 @@ public class SearchGUI implements Listener {
             holder.getSessionSearchedSlots().addAll(getSearchedSlots(pdc));
         }
 
-        Inventory guiInv = Bukkit.createInventory(holder, realInv.getSize(), Component.text("Searching..."));
+        Inventory guiInv = Bukkit.createInventory(holder, realInv.getSize(), title(realInv.getSize() / 9, null));
         updateInventory(guiInv, source);
         player.openInventory(guiInv);
         Bukkit.getPluginManager().callEvent(new LootSessionStartEvent(player, detectSourceType(source), source, realInv));
+    }
+
+    /** 漁る画面のタイトル (下の欄は bag が null ならいつもの「インベントリ」、あればバックパックの表示) */
+    public static Component title(int rows, com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.Bag bag) {
+        return com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.title("Searching...", rows, bag);
     }
 
     private Container getLiveContainer(Object source) {

@@ -72,7 +72,10 @@ public class StashModule implements IModule {
             return;
         }
 
-        new StashGUI(player, inv, page, this).open();
+        // バックパックの表示に切り替えた時のタイトル (下の欄の名前と背景だけが変わる)
+        GuiBackground shown = inv.getSize() == 54 ? GuiBackground.STASH_6 : GuiBackground.STASH_3;
+        String pageLabel = page + "/" + getMaxUnlockedPage(data.getStashLevel());
+        new StashGUI(player, inv, page, this, bag -> shown.title(pageLabel, bag)).open();
     }
 
     public void saveStash(Player player, int page, Inventory inventory) {

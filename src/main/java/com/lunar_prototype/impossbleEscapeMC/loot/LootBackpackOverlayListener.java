@@ -1,7 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel;
+import com.lunar_prototype.impossbleEscapeMC.gui.OpenTitle;
 import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndEvent;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndReason;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionStartEvent;
@@ -11,6 +15,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -33,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 
 public class LootBackpackOverlayListener implements Listener {
     private static final int OVERLAY_START = 9;
@@ -63,16 +69,18 @@ public class LootBackpackOverlayListener implements Listener {
     public void onLootSessionStart(LootSessionStartEvent event) {
         Inventory top = event.getPlayer().getOpenInventory().getTopInventory();
         if (!(top.getHolder() instanceof SearchGUI.SearchHolder)) return;
-        beginSession(event.getPlayer(), top);
+        int rows = top.getSize() / 9;
+        beginSession(event.getPlayer(), top, bag -> SearchGUI.title(rows, bag));
     }
 
     /**
      * バックパックのオーバーレイを始める (ルート漁り・スタッシュ)。オフハンドにバックパックが無ければ何もしない。
      * 画面を開いた後に呼ぶこと (カーソルに載っていたアイテムは InventoryOpenEvent で持ち物へ戻っている)。
      *
+     * @param title その画面のタイトル。下の欄をバックパックの表示にした時は袋を渡す (null ならいつもの「インベントリ」)
      * @return 始めたら true
      */
-    public boolean beginSession(Player player, Inventory hostInventory) {
+    public boolean beginSession(Player player, Inventory hostInventory, Function<InventoryPanel.Bag, net.kyori.adventure.text.Component> title) {
         BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
         if (backpackModule == null || hostInventory == null) return false;
 
@@ -82,7 +90,7 @@ public class LootBackpackOverlayListener implements Listener {
         endSession(player, LootSessionEndReason.OTHER);
 
         String backpackUid = backpackModule.ensureBackpackUid(offhand);
-        OverlaySession session = new OverlaySession(backpackUid, backpackModule.loadBackpackInventory(offhand), hostInventory);
+        OverlaySession session = new OverlaySession(backpackUid, backpackModule.loadBackpackInventory(offhand), hostInventory, title);
         snapshotInitialState(player, session);
         sessions.put(player.getUniqueId(), session);
 
@@ -388,6 +396,7 @@ public class LootBackpackOverlayListener implements Listener {
         inv.setItem(SCROLL_INFO_SLOT, createScrollInfoButton(session.rowOffset + 1, maxRow + 1));
         inv.setItem(SCROLL_DOWN_SLOT, createScrollButton("§e▼ 下へ", session.rowOffset < maxRow, GUI_TRIGGER_SCROLL_DOWN));
         renderToggleButton(player, session);
+        refreshTitle(player, session);
     }
 
     private void renderPlayerMode(Player player, OverlaySession session) {
@@ -396,6 +405,39 @@ public class LootBackpackOverlayListener implements Listener {
             inv.setItem(OVERLAY_START + i, cloneOrNull(session.playerRowsShadow[i]));
         }
         renderToggleButton(player, session);
+        refreshTitle(player, session);
+    }
+
+    /**
+     * 下の欄の名前と背景 (タイトル) を今の表示に合わせる。替える時は画面のタイトルを送り直す (中身も送り直す) ので、
+     * 表示・袋の名前・使っているマスが変わった時だけ
+     */
+    private void refreshTitle(Player player, OverlaySession session) {
+        if (!session.isHost(player.getOpenInventory().getTopInventory())) return;
+        InventoryPanel.Bag bag = session.mode == ViewMode.BACKPACK ? bagOf(player, session) : null;
+        String key = bag == null ? "player" : bag.toString();
+        if (key.equals(session.titleKey)) return;
+        session.titleKey = key;
+        OpenTitle.set(player, session.title.apply(bag));
+    }
+
+    /** バックパックの表示に出す袋 (オフハンドのバックパックの名前、中身のコストの合計、容量) */
+    private InventoryPanel.Bag bagOf(Player player, OverlaySession session) {
+        int used = 0;
+        for (ItemStack item : session.backpackInventory.getContents()) {
+            if (!isForbiddenPlaceholder(item)) used += CostSlotManager.stackCost(item);
+        }
+        return new InventoryPanel.Bag(itemName(player.getInventory().getItemInOffHand()), used, session.backpackInventory.getSize());
+    }
+
+    /** 品物の名前 (アイテムの定義の名前。色の記号は外す) */
+    private static String itemName(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return "";
+        String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        ItemDefinition def = id != null ? ItemRegistry.get(id) : null;
+        String name = def != null && def.displayName != null ? def.displayName
+                : net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(item.effectiveName());
+        return name.replaceAll("§.", "");
     }
 
     private void syncBackpackFromDisplay(Player player, OverlaySession session) {
@@ -538,11 +580,29 @@ public class LootBackpackOverlayListener implements Listener {
 
     private void renderToggleButton(Player player, OverlaySession session) {
         PlayerInventory inv = player.getInventory();
-        inv.setItem(TOGGLE_SLOT, createToggleButton(session.mode));
+        inv.setItem(TOGGLE_SLOT, createToggleButton(player, session.mode));
     }
 
-    private ItemStack createToggleButton(ViewMode mode) {
-        ItemStack item = new ItemStack(Material.COMPASS);
+    /**
+     * 切り替えボタン。今の表示の入れ物の見た目にする: バックパックの表示ならそのバックパック、いつもの表示なら着ているリグ
+     * (無ければコンパス)。見た目 (モデル) だけを写し、中身などのデータは持たせない
+     */
+    private ItemStack createToggleButton(Player player, ViewMode mode) {
+        ItemStack look = null;
+        if (mode == ViewMode.BACKPACK) {
+            look = player.getInventory().getItemInOffHand();
+        } else {
+            RigModule rigModule = plugin.getServiceContainer().get(RigModule.class);
+            if (rigModule != null) look = rigModule.getEquippedRig(player);
+        }
+        ItemStack item;
+        if (look != null && !look.getType().isAir()) {
+            item = new ItemStack(look.getType());
+            item.copyDataFrom(look, type -> type == io.papermc.paper.datacomponent.DataComponentTypes.ITEM_MODEL
+                    || type == io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA);
+        } else {
+            item = new ItemStack(Material.COMPASS);
+        }
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(mode == ViewMode.BACKPACK ? "§a[ 表示: バックパック ]" : "§b[ 表示: 通常インベントリ ]");
@@ -562,6 +622,8 @@ public class LootBackpackOverlayListener implements Listener {
         if (meta != null) {
             meta.setDisplayName(enabled ? title : "§8" + title.replace("§e", ""));
             meta.setLore(Collections.singletonList(enabled ? "§7クリックで1行スクロール" : "§8これ以上スクロールできません"));
+            String model = triggerId == GUI_TRIGGER_SCROLL_UP ? "bag_scroll_up" : "bag_scroll_down";
+            meta.setItemModel(new NamespacedKey("iem", enabled ? model : model + "_off"));
             meta.getPersistentDataContainer().set(PDCKeys.GUI_TRIGGER, PDCKeys.INTEGER, triggerId);
             item.setItemMeta(meta);
         }
@@ -573,6 +635,7 @@ public class LootBackpackOverlayListener implements Listener {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName("§b[ スクロール ]");
+            meta.setItemModel(new NamespacedKey("iem", "bag_scroll_page"));
             meta.setLore(Collections.singletonList("§7行: " + currentPage + " / " + Math.max(1, maxPage)));
             meta.getPersistentDataContainer().set(PDCKeys.GUI_TRIGGER, PDCKeys.INTEGER, GUI_TRIGGER_SCROLL_INFO);
             item.setItemMeta(meta);
@@ -602,6 +665,7 @@ public class LootBackpackOverlayListener implements Listener {
         if (meta != null) {
             meta.setDisplayName("§8[ 使用不可 ]");
             meta.setLore(Collections.singletonList("§7バックパック容量外のスロットです"));
+            meta.setItemModel(new NamespacedKey("iem", "cost_slot"));   // コストのサイズ制限と同じ絵
             meta.getPersistentDataContainer().set(PDCKeys.GUI_TRIGGER, PDCKeys.INTEGER, GUI_TRIGGER_UNAVAILABLE);
             item.setItemMeta(meta);
         }
@@ -635,15 +699,20 @@ public class LootBackpackOverlayListener implements Listener {
         final String backpackUid;
         final Inventory backpackInventory;
         final Inventory hostInventory;
+        /** 画面のタイトル (袋を渡すと下の欄をバックパックの表示にしたもの) と、最後に送ったタイトルの中身 */
+        final Function<InventoryPanel.Bag, net.kyori.adventure.text.Component> title;
+        String titleKey;
         final ItemStack[] playerRowsShadow = new ItemStack[OVERLAY_SIZE];
         ItemStack savedToggleSlotItem;
         int rowOffset = 0;
         ViewMode mode = ViewMode.BACKPACK;
 
-        private OverlaySession(String backpackUid, Inventory backpackInventory, Inventory hostInventory) {
+        private OverlaySession(String backpackUid, Inventory backpackInventory, Inventory hostInventory,
+                               Function<InventoryPanel.Bag, net.kyori.adventure.text.Component> title) {
             this.backpackUid = backpackUid;
             this.backpackInventory = backpackInventory;
             this.hostInventory = hostInventory;
+            this.title = title;
         }
 
         /** オーバーレイの対象になる画面 (スタッシュ・漁り) か */

@@ -21,6 +21,8 @@ import java.util.List;
  * 字は絵に焼き込まない: 画面の名前 (上の帯の液晶)・案内の字・型番の刻印は、ここでバニラの字を重ねる
  * (横は iem:gui の ±2^i の空白、縦はバニラの字をずらしたフォント iem:shift_&lt;n&gt;。IEM_shader/tools/shift_fonts.py)。
  * PDA から開く画面は上の帯に小さな液晶があり、{@link #title(String)} でその右端にページ番号などを出せる (x = 136 から)
+ * <p>
+ * 下の欄 (自分の持ち物) の名前「インベントリ」もここで書く (バニラの字はパックで空にしてある。{@link InventoryPanel})
  */
 public enum GuiBackground {
     PDA(0xE100, 3, null, null, engraving("КПК-3М", 4, false),
@@ -97,6 +99,7 @@ public enum GuiBackground {
     }
 
     private final String tiles;
+    private final int chestRows;
     private final String stripName;
     private final String stripSub;
     private final Engraving engraving;
@@ -114,6 +117,7 @@ public enum GuiBackground {
             }
         }
         this.tiles = text.toString();
+        this.chestRows = chestRows;
         this.stripName = stripName;
         this.stripSub = stripSub;
         this.engraving = engraving;
@@ -122,17 +126,22 @@ public enum GuiBackground {
 
     /** チェスト画面のタイトルに渡す背景 */
     public Component title() {
-        return build("", null);
+        return build("", null, null);
     }
 
     /** 背景の後ろに、同じフォント (iem:gui) の文字 overlay (背景の上に重ねる線など。描き終えると x = 176 に戻る) を足したタイトル */
     public Component titleWith(String overlay) {
-        return build(overlay, null);
+        return build(overlay, null, null);
     }
 
     /** 上の帯の液晶の右端に label (ページ番号など、半角5文字くらいまで) を出すタイトル */
     public Component title(String label) {
-        return build("", label);
+        return build("", label, null);
+    }
+
+    /** 下の欄をバックパックの表示 (bag。null ならいつもの「インベントリ」) にしたタイトル。label は {@link #title(String)} と同じ */
+    public Component title(String label, InventoryPanel.Bag bag) {
+        return build("", label, bag);
     }
 
     /** 「1/3」のようなページ表示 (page は 0 始まり) */
@@ -140,7 +149,7 @@ public enum GuiBackground {
         return title((page + 1) + "/" + pageCount);
     }
 
-    private Component build(String overlay, String pageLabel) {
+    private Component build(String overlay, String pageLabel, InventoryPanel.Bag bag) {
         // 背景 (白にしないと、タイトルの色 (暗い灰色) で背景が暗く染まる)。描き終えると画面の左から 176 にいる
         Component background = Component.text(tiles + overlay).font(GUI_FONT).color(NamedTextColor.WHITE);
         DialogLine line = new DialogLine(GUI_FONT, SPACE_POS, SPACE_NEG);
@@ -164,6 +173,7 @@ public enum GuiBackground {
             line.moveTo(x - TITLE_X).text(font, l.text(), l.ink().color, null, null);
         }
         if (pageLabel != null) line.moveTo(LABEL_X - TITLE_X).text(pageLabel, Ink.AMBER.color);
+        InventoryPanel.append(line, chestRows, bag);
         Component labelsComponent = line.build().shadowColor(ShadowColor.none());
         return Component.textOfChildren(background, labelsComponent);
     }
