@@ -202,6 +202,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AmbienceService.init(this);
         // 落ちているアイテム (寝かせた見た目・左クリックで拾う)
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.init(this);
+        // レイド中、同じパーティーの味方を青く光らせる (味方の画面でだけ)
+        com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.init(this);
 
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
@@ -246,6 +248,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
         }

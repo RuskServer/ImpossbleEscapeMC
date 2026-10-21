@@ -56,6 +56,9 @@ public class ScoreboardHandler {
             for (Player other : Bukkit.getOnlinePlayers()) {
                 if (other.equals(player)) continue;
                 if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(other)) continue; // SCAVのデータパック銃用FakePlayer
+                // パーティーの味方 (PartyGlow の青のチーム。そちらでも名札は出さない) はそのチームに置いたままにする
+                Team current = scoreboard.getEntryTeam(other.getName());
+                if (current != null && current.getName().equals(com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.TEAM)) continue;
                 if (!nameTagTeam.hasEntry(other.getName())) {
                     nameTagTeam.addEntry(other.getName());
                 }
