@@ -53,9 +53,9 @@ final class SignalFlares {
     private static final int LIGHT_LEVELS = 4;
 
     /** 打ち上げから点くまで (tick) と、点く高さ (地面から、m) */
-    private static final int RISE_TICKS = 30;
-    private static final double APEX_MIN = 40.0;
-    private static final double APEX_MAX = 55.0;
+    private static final int RISE_TICKS = 40;
+    private static final double APEX_MIN = 60.0;
+    private static final double APEX_MAX = 75.0;
     /** 点いてから燃え尽きるまで (tick)。最後の FADE_TICKS で暗くなる。点いてすぐ IGNITE_TICKS で明るくなる */
     private static final int BURN_TICKS = 220;
     private static final int IGNITE_TICKS = 6;
