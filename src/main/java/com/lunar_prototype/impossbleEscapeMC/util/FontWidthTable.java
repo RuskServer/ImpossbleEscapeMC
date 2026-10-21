@@ -25,7 +25,7 @@ import java.util.zip.ZipInputStream;
  * バニラの既定のフォント (minecraft:default) の、字ごとの送り幅 (GUI の画素) の表を、クライアントのフォントから作る
  * ({@link FontWidths} が読む。表はプラグインに入れず、サーバーで作る: {@link FontWidthCache})。
  * <p>
- * クライアントの計算 (26.3 を逆コンパイルして確認):
+ * クライアントの計算 (26.3 の表示と同じになるようにしたもの):
  * <ul>
  *   <li>字はプロバイダーを上から探し、最初に持っているものを使う: include/space → include/default (絵の字) → include/unifont</li>
  *   <li>絵の字: 幅 = 塗られている一番右の列 + 1、送り = (int)(0.5 + 幅 x 倍率) + 1。倍率 = height / 絵の1マスの高さ</li>
