@@ -44,7 +44,7 @@ public final class GunSettingsDialogTest {
             GunSettingsDialog.actionKey("set/" + setting.id);
             check(Setting.byId(setting.id) == setting, setting + " byId");
         }
-        for (String action : new String[]{"reset", "reset_yes", "back"}) GunSettingsDialog.actionKey(action);
+        for (String action : new String[]{"reset", "reset_yes", "back", "close"}) GunSettingsDialog.actionKey(action);
         check(Setting.byId("move_comp.rate") == null, "locked setting has no button");
         System.out.println("GunSettingsDialogTest OK");
     }

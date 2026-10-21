@@ -130,7 +130,7 @@ public final class GunSettingsDialog implements Listener {
                     action("set/" + setting.id)));
         }
         buttons.add(ActionButton.create(Component.text("推奨設定にリセットする", NamedTextColor.RED), null, 150, action("reset")));
-        ActionButton close = ActionButton.create(Component.text("閉じる"), null, 150, null);
+        ActionButton close = ActionButton.create(Component.text("閉じる"), null, 150, action("close"));
         DialogBase base = DialogBase.builder(Component.text("銃の設定")).canCloseWithEscape(true).pause(false)
                 .afterAction(DialogBase.DialogAfterAction.NONE).build();
         DialogType type = DialogType.multiAction(buttons).columns(1).exitAction(close).build();
@@ -173,6 +173,8 @@ public final class GunSettingsDialog implements Listener {
             show(player);
         } else if (action.equals("back")) {
             show(player);
+        } else if (action.equals("close")) {
+            player.closeDialog();
         }
     }
 
