@@ -56,6 +56,7 @@ import java.util.UUID;
  *       (iem:grade_&lt;バイザーの効果&gt;。最初の段でバイザーをかける。目の手前のガラスなのでレンズフレアより下)。
  *       雨に濡れると水滴付きの物 (iem:grade_visor_rain_&lt;段階&gt;) に替える。効果は IEM_shader/tools/post_effects.py が作る</li>
  *   <li>数値の画素: 画作りの無い時だけ iem:control。数値の画素を隣の行の色で隠す (画作りがある時は画作りが隠している)</li>
+ *   <li>まぶしさ: ほかの人のフラッシュライトを向けられている間 iem:dazzle_&lt;段階&gt; ({@link #setDazzle}。段階は FlashlightDazzle が決める)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
  *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
@@ -181,6 +182,8 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Key> flareLight = new HashMap<>();
     /** フラッシュライトの層をかけているプレイヤー (点けたフラッシュライトを手に持っている間) */
     private final Set<UUID> flashlit = new HashSet<>();
+    /** まぶしさの層の段 (ほかの人のフラッシュライトを向けられている間。FlashlightDazzle が決める) */
+    private final Map<UUID, Integer> dazzle = new HashMap<>();
     /** バイザーの層のエフェクト (バイザーを付けたヘルメットをかぶっている間。雨に濡れていれば水滴の付いた物) */
     private final Map<UUID, Key> visor = new HashMap<>();
     /** バイザーの濡れ具合 (tick。雨の中で増え、雨の当たらない所で減る。バイザーを外すと乾く) */
@@ -341,6 +344,13 @@ public final class ScreenEffectService implements Listener {
     }
 
     /** その名前の時間割がまだ続いているか */
+    /** ほかの人のフラッシュライトを向けられた時のまぶしさの段 (1〜3、0 で外す)。画作りをかけている間 (生きている間) だけかける */
+    public static void setDazzle(Player player, int level) {
+        if (instance == null) return;
+        Integer previous = level > 0 ? instance.dazzle.put(player.getUniqueId(), level) : instance.dazzle.remove(player.getUniqueId());
+        if (!java.util.Objects.equals(previous, level > 0 ? level : null)) instance.refresh(player);
+    }
+
     public static boolean isPlaying(Player player, String name) {
         if (instance == null) return false;
         Playback playback = instance.playing.get(player.getUniqueId());
@@ -607,6 +617,8 @@ public final class ScreenEffectService implements Listener {
         if (graded.contains(playerId)) effects.add(visorEffect != null ? Key.key(NAMESPACE, "grade_" + visorEffect.value()) : GRADE);
         // 画作り (grade.fsh) は数値の画素を自分で隠すので、数値の画素を隠す層は画作りの無い時だけ
         if (!graded.contains(playerId)) effects.add(CONTROL);
+        Integer dazzleLevel = dazzle.get(playerId);
+        if (dazzleLevel != null && graded.contains(playerId)) effects.add(Key.key(NAMESPACE, "dazzle_" + dazzleLevel));
         Key woundEffect = wound.get(playerId);
         if (woundEffect != null) effects.add(woundEffect);
         Playback playback = playing.get(playerId);
@@ -640,6 +652,7 @@ public final class ScreenEffectService implements Listener {
         visorWet.remove(playerId);
         sentWet.remove(playerId);
         flashlit.remove(playerId);
+        dazzle.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
@@ -662,6 +675,7 @@ public final class ScreenEffectService implements Listener {
         flareLight.remove(playerId);
         visor.remove(playerId);
         flashlit.remove(playerId);
+        dazzle.remove(playerId);
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);

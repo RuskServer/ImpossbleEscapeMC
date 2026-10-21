@@ -166,8 +166,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 容量のゲージ (クラフトグリッドの左下) と、大きい物の説明の「サイズ N マス」
         com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge.init();
         com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.init();
-        // フラッシュライトの点け消し
+        // フラッシュライトの点け消しと、向けられた時のまぶしさ
         com.lunar_prototype.impossbleEscapeMC.item.Flashlight.init(this);
+        com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.init(this);
         // 初めて参加したプレイヤーのスタッシュに初期物資を入れる
         com.lunar_prototype.impossbleEscapeMC.modules.starter.StarterKit.init(this);
         // データパック銃の命中もプラグイン銃と同じBulletHitEventとして通知する (負傷・アドレナリン・SCAVの命中記録)
@@ -249,6 +250,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
         com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
