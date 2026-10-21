@@ -141,7 +141,10 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
 
     private void refreshCostSlotOverlays(Player player, InventoryMenu menu) {
         Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack> next = new ConcurrentHashMap<>();
-        CostSlotManager.lobbyCostPlaceholders(player).forEach((inventorySlot, item) -> {
+        // ほかの画面 (スタッシュ・漁る画面など) を開いている間は出さない。下の欄は同じ持ち物を見せているので、偽の占有マスが
+        // そこに見えてしまい (バックパックの表示中は中身の上に)、クライアントとサーバーの中身が食い違う。閉じたら次の更新で戻る
+        boolean ownInventory = player.getOpenInventory().getType() == org.bukkit.event.inventory.InventoryType.CRAFTING;
+        if (ownInventory) CostSlotManager.lobbyCostPlaceholders(player).forEach((inventorySlot, item) -> {
             int menuSlot = inventorySlot >= 0 && inventorySlot < 9 ? inventorySlot + 36 : inventorySlot;
             next.put(menuSlot, SpigotConversionUtil.fromBukkitItemStack(item));
         });
@@ -205,8 +208,11 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
     /** 本人に送るインベントリのパケットに、見せているボタンを差し込む */
     @Override
     public void onPacketSend(PacketSendEvent event) {
-        Set<Integer> slots = shownFor(event.getUser());
-        if (slots.isEmpty()) return;
+        User user = event.getUser();
+        if (user == null || user.getUUID() == null) return;
+        Set<Integer> slots = shownFor(user);
+        // ボタンが無くても、ロビーの占有マスは差し込む (ボタンが無い時に送り直された持ち物で、占有マスが消えていた)
+        if (slots.isEmpty() && costSlotOverlays.getOrDefault(user.getUUID(), Map.of()).isEmpty()) return;
 
         if (event.getPacketType() == PacketType.Play.Server.SET_SLOT) {
             WrapperPlayServerSetSlot packet = new WrapperPlayServerSetSlot(event);
