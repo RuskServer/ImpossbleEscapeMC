@@ -665,7 +665,6 @@ public class LootBackpackOverlayListener implements Listener {
         if (meta != null) {
             meta.setDisplayName("§8[ 使用不可 ]");
             meta.setLore(Collections.singletonList("§7バックパック容量外のスロットです"));
-            meta.setItemModel(new NamespacedKey("iem", "cost_slot"));   // コストのサイズ制限と同じ絵
             meta.getPersistentDataContainer().set(PDCKeys.GUI_TRIGGER, PDCKeys.INTEGER, GUI_TRIGGER_UNAVAILABLE);
             item.setItemMeta(meta);
         }
