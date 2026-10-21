@@ -15,10 +15,11 @@ public final class SunShadowServiceTest {
         if (!condition) throw new AssertionError(message);
     }
 
-    /** iem_sun.glsl と同じ読み方: 下 3bit が倍率の段、上 1bit が太陽が当たっているか */
+    /** iem_sun.glsl と同じ読み方: 値 2 つ (下・上の 14bit) に 7 ブロック、4bit ずつ。下 3bit が倍率の段、上 1bit が太陽が当たっているか */
     private static int code(int[] values, int x, int y, int z) {
         int g = x + W * (z + D * y);
-        return (values[g / 3] >> ((g % 3) * 4)) & 15;
+        int word = values[2 * (g / 7)] | values[2 * (g / 7) + 1] << 14;
+        return (word >> ((g % 7) * 4)) & 15;
     }
 
     private static int level(SunShadowService.Grids grids, int x, int y, int z) {
@@ -73,7 +74,12 @@ public final class SunShadowServiceTest {
         double s = Math.sqrt(0.5);
         SunShadowService.Light day = new SunShadowService.Light(java.util.UUID.randomUUID(), new double[]{s, s, 0}, 1.0, 1.0);
         SunShadowService.Grids out = SunShadowService.computeLight(wall(0, 15), 0, 0, 0, day);
-        check(out.light().length == (W * H * D + 2) / 3, "light count " + out.light().length);
+        check(out.light().length == 2 * ((W * H * D + 6) / 7), "light count " + out.light().length);
+        for (int v : out.light()) check(v >= 0 && v < 1 << 14, "light value fits 14 bits " + v);
+        // 全部 (ヘッダー・光の格子・光の種類・遠くの太陽の影とその外側) がデータの画素に入る
+        int cells = SunShadowService.PAYLOAD + out.light().length + out.kinds().length
+                + SunShadowService.FAR_COLUMNS * SunShadowService.FAR_COLUMNS + SunShadowService.OUTER_COLUMNS * SunShadowService.OUTER_COLUMNS;
+        check(cells <= SunShadowService.DATA_CAPACITY, "data fits " + cells + " / " + SunShadowService.DATA_CAPACITY);
         check(out.kinds().length == (SunShadowService.CW * SunShadowService.CH * SunShadowService.CD + 6) / 7, "kind count");
         check(sunlit(out, 35, 1, 10) && level(out, 35, 1, 10) >= SunShadowService.LEVEL_ONE, "east of the wall: sunlit " + level(out, 35, 1, 10));
         check(!sunlit(out, 25, 1, 10) && level(out, 25, 1, 10) < SunShadowService.LEVEL_ONE, "west of the wall: shade " + level(out, 25, 1, 10));
@@ -127,6 +133,29 @@ public final class SunShadowServiceTest {
         check((east & 127) == 1 && (east >> 7) == 1, "east of the building: ground in sun " + (east >> 7));
         int roof = farValues[30 + SunShadowService.FAR_COLUMNS * 10];
         check((roof & 127) == 21 && (roof >> 7) == 21, "roof: ground 21, sunlit");
+
+        // 外側の遠くの太陽の影: 同じく x = 200..215 (z は全部) の高さ 40 の建物。太陽は東の上 45°。高さは 2 ブロックおき
+        int ow = (SunShadowService.OUTER_SPAN + 2 * SunShadowService.OUTER_SUN_REACH) / SunShadowService.OUTER_SAMPLE;
+        int od = SunShadowService.OUTER_SPAN / SunShadowService.OUTER_SAMPLE;
+        int[] outerHeights = new int[ow * od];
+        for (int z = 0; z < od; z++) {
+            for (int x = 0; x < ow; x++) {
+                int wx = x * SunShadowService.OUTER_SAMPLE - SunShadowService.OUTER_SUN_REACH;
+                outerHeights[x + ow * z] = wx >= 200 && wx < 216 ? 40 : 0;
+            }
+        }
+        int[] outerValues = SunShadowService.outerColumns(outerHeights, 0, new double[]{s, s, 0});
+        check(outerValues.length == SunShadowService.OUTER_COLUMNS * SunShadowService.OUTER_COLUMNS, "outer count");
+        // 列 x: 列 24 = 192..199 (建物のすぐ西、日陰)、列 20 = 160..167 (西 33〜40 ブロック、影の端あたり)、列 30 = 240.. (東、日なた)
+        int shade = outerValues[24 + SunShadowService.OUTER_COLUMNS * 5], sunny = outerValues[30 + SunShadowService.OUTER_COLUMNS * 5];
+        check((shade & 127) == 1 && (shade >> 7) > 30, "outer: west of the building in shade " + (shade >> 7));
+        check((sunny & 127) == 1 && (sunny >> 7) == 1, "outer: east of the building in sun " + (sunny >> 7));
+        int top = outerValues[25 + SunShadowService.OUTER_COLUMNS * 5];
+        check((top & 127) == 41 && (top >> 7) == 41, "outer: building top " + (top & 127) + " / " + (top >> 7));
+        // 読み込まれていない所だけの列は、地面も日なたも一番上 (何もしない)
+        java.util.Arrays.fill(outerHeights, SunShadowService.NO_HEIGHT);
+        int none = SunShadowService.outerColumns(outerHeights, 0, new double[]{s, s, 0})[0];
+        check((none & 127) == SunShadowService.FAR_HEIGHT - 1, "outer: unloaded column is ignored " + (none & 127));
         System.out.println("SunShadowServiceTest OK");
     }
 }

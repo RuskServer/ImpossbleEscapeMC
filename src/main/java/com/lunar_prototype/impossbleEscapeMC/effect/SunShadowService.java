@@ -57,7 +57,7 @@ public final class SunShadowService {
     private static final int DATA_PITCH = 8;
     private static final float DATA_SCALE = 1f / (256f * DATA_PITCH * 0.025f);
     /** データの画素の数 (iem_control.glsl の IEM_DATA_CAPACITY) */
-    private static final int DATA_CAPACITY = 512 * 32;
+    static final int DATA_CAPACITY = 512 * 32;
     /** テキストの部品 1 つの文字の数 (ネットワークでは部品ごとに 65535 バイトまでの文字列 (NBT) になる。1 文字 3 バイト) */
     private static final int CELLS_PER_PART = 4096;
     /** mod (IEM_Compatibility) へ送るチャンネル。中身は値を 0 番から 2 バイトずつ (ビッグエンディアン) */
@@ -67,11 +67,13 @@ public final class SunShadowService {
     private static final int MAGIC = 0x2B6C;
     /**
      * ヘッダー: 3 = 印、4〜6 = 格子の原点 (1024 で割った余り)、7〜9 = 光の格子の大きさ (ブロック)、10〜12 = 光の種類の格子の大きさ (マス)、
-     * 13〜15 = 遠くの太陽の影の原点 (1024 で割った余り)、16・17 = 遠くの太陽の影の列の数 (x・z。夜は 0)。
-     * 中身は PAYLOAD 番から光の格子 (値 1 つに 3 ブロック、4bit ずつ: 下 3bit が倍率の段、上 1bit が太陽が当たっているか)、
-     * 光の種類の格子 (値 1 つに 7 マス、2bit ずつ)、遠くの太陽の影 (値 1 つに 1 列: 下 7bit が地面の上の高さ、上 7bit が日なたの始まる高さ。原点の y から)
+     * 13〜15 = 遠くの太陽の影の原点 (1024 で割った余り)、16・17 = 遠くの太陽の影の列の数 (x・z。夜は 0)、
+     * 18〜20 = 外側の遠くの太陽の影の原点 (1024 で割った余り)、21・22 = 外側の列の数 (x・z。夜は 0)。
+     * 中身は PAYLOAD 番から光の格子 (値 2 つに 7 ブロック: 2 つを下・上の 14bit とした 28bit に 4bit ずつ。下 3bit が倍率の段、上 1bit が太陽が当たっているか)、
+     * 光の種類の格子 (値 1 つに 7 マス、2bit ずつ)、遠くの太陽の影 (値 1 つに 1 列: 下 7bit が地面の上の高さ、上 7bit が日なたの始まる高さ。原点の y から)、
+     * 外側の遠くの太陽の影 (並びは遠くの太陽の影と同じ)
      */
-    private static final int HEADER = 3, PAYLOAD = 18;
+    static final int HEADER = 3, PAYLOAD = 23;
     /** 格子の大きさ (ブロック) */
     public static final int W = 48, H = 16, D = 48;
     /** 光の種類の格子の 1 マスの大きさ (ブロック) と、マスの数 */
@@ -111,6 +113,14 @@ public final class SunShadowService {
     static final int FAR_COLUMN = 2, FAR_SPAN = 112, FAR_COLUMNS = FAR_SPAN / FAR_COLUMN, FAR_HEIGHT = 128;
     static final int FAR_SUN_REACH = 64, FAR_STEP = 8;
     private static final long FAR_REFRESH = 30_000;
+    /**
+     * 外側の遠くの太陽の影 (遠くの太陽の影の外。遠景用に粗く): OUTER_SPAN x OUTER_SPAN ブロックを OUTER_COLUMN ブロック四方の列ごとに。
+     * 高さマップは OUTER_SAMPLE ブロックおきに取り (OUTER_STEP ブロック動くか OUTER_REFRESH ごと)、影は太陽の側へ OUTER_SUN_REACH ブロックまで見る。
+     * 列の地面は一番低いもの (列の中の地面がどれも屋外として扱われるように)、日なたの始まる高さは平均。高さの原点は遠くの太陽の影と同じ
+     */
+    static final int OUTER_COLUMN = 8, OUTER_COLUMNS = 44, OUTER_SPAN = OUTER_COLUMN * OUTER_COLUMNS;
+    static final int OUTER_SAMPLE = 2, OUTER_SUN_REACH = 96, OUTER_STEP = 16;
+    private static final long OUTER_REFRESH = 60_000;
     /** 光の種類 (シェーダーが色を決める): 空・跳ね返り、太陽、暖かい光源、冷たい光源 */
     static final int KIND_SKY = 0, KIND_SUN = 1, KIND_WARM = 2, KIND_COOL = 3;
     /** 太陽・光源ブロックの光をその種類にする、光の量に対する割合 */
@@ -123,6 +133,9 @@ public final class SunShadowService {
         int fx = Integer.MIN_VALUE, fy, fz;   // 遠くの太陽の影の原点
         int[] heights;                        // 遠くの太陽の影の列の高さ (高さマップ。原点 fx - FAR_SUN_REACH, fz)
         long heightsAt;
+        int gx = Integer.MIN_VALUE, gz;       // 外側の遠くの太陽の影の原点 (y は fy)
+        int[] outerHeights;                   // 外側の高さマップ (OUTER_SAMPLE ブロックおき。原点 gx - OUTER_SUN_REACH, gz)
+        long outerHeightsAt;
         double angle = Double.NaN;
         long computedAt;
         boolean computing;
@@ -175,7 +188,7 @@ public final class SunShadowService {
             State old = states.remove(player.getUniqueId());
             if (old == null) return;
             // 覚えている影を消させてから (1 秒後に) 表示を消す
-            setData(old, null, null);
+            setData(old, null, null, null);
             TextDisplay display = old.display;
             if (display != null) Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), display::remove, 20L);
             return;
@@ -242,6 +255,16 @@ public final class SunShadowService {
             state.heightsAt = System.currentTimeMillis();
         }
         int[] farHeights = heights;
+        // 外側の遠くの太陽の影: 原点は OUTER_STEP ブロックごと
+        int gx = Math.floorDiv(at.getBlockX(), OUTER_STEP) * OUTER_STEP - OUTER_SPAN / 2 + OUTER_STEP / 2;
+        int gz = Math.floorDiv(at.getBlockZ(), OUTER_STEP) * OUTER_STEP - OUTER_SPAN / 2 + OUTER_STEP / 2;
+        boolean outerMoved = gx != state.gx || gz != state.gz;
+        int[] outer = outerMoved ? null : state.outerHeights;
+        if (day && (outer == null || System.currentTimeMillis() - state.outerHeightsAt > OUTER_REFRESH)) {
+            outer = outerHeights(world, gx, gz);
+            state.outerHeightsAt = System.currentTimeMillis();
+        }
+        int[] outerHeights = outer;
         Light light = new Light(world.getUID(), day ? sun : null, sunStrength(sun[1]) * (world.hasStorm() ? RAIN_SUN : 1.0), daylight(sun[1]));
         // チャンクの写しだけをメインスレッドで取り、ブロックを読むのと計算は別スレッドで
         Snapshot.Area area = Snapshot.area(world, ox, oy, oz, day ? sun : new double[]{0, 1, 0});
@@ -251,6 +274,7 @@ public final class SunShadowService {
             Snapshot snapshot = Snapshot.of(chunks, area, ox, oy, oz);
             Grids grids = computeLight(snapshot, ox, oy, oz, light);
             int[] far = day && farHeights != null ? farColumns(farHeights, fy, sun) : new int[0];
+            int[] outerFar = day && outerHeights != null ? outerColumns(outerHeights, fy, sun) : new int[0];
             Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
                 state.computing = false;
                 if (states.get(player.getUniqueId()) != state) return;
@@ -258,7 +282,10 @@ public final class SunShadowService {
                 state.fy = fy;
                 state.fz = fz;
                 state.heights = farHeights;
-                setData(state, grids, far);
+                state.gx = gx;
+                state.gz = gz;
+                state.outerHeights = outerHeights;
+                setData(state, grids, far, outerFar);
             });
         });
     }
@@ -756,7 +783,7 @@ public final class SunShadowService {
             }
         }
         // 固体のブロック: 隣の空気の段の平均、太陽が当たっているかは多い方
-        int[] values = new int[(W * H * D + 2) / 3];
+        int[] words = new int[(W * H * D + 6) / 7];
         for (int y = 0; y < H; y++) {
             for (int z = 0; z < D; z++) {
                 for (int x = 0; x < W; x++) {
@@ -777,9 +804,15 @@ public final class SunShadowService {
                         lv = count > 0 ? Math.round((float) sum / count) : LEVEL_ONE;
                         lit = count > 0 && litCount * 2 > count;
                     }
-                    values[g / 3] |= (lv | (lit ? 8 : 0)) << ((g % 3) * 4);
+                    words[g / 7] |= (lv | (lit ? 8 : 0)) << ((g % 7) * 4);
                 }
             }
+        }
+        // 値 (14bit) 2 つに 7 ブロック (28bit) ずつ
+        int[] values = new int[2 * words.length];
+        for (int i = 0; i < words.length; i++) {
+            values[2 * i] = words[i] & 0x3FFF;
+            values[2 * i + 1] = words[i] >>> 14;
         }
         // 4. 光の種類 (2 ブロックごと。空気の中で一番多い種類。全部固体なら空)
         int[] kinds = new int[(CW * CH * CD + 6) / 7];
@@ -1031,18 +1064,85 @@ public final class SunShadowService {
         return values;
     }
 
+    /**
+     * 外側の遠くの太陽の影の高さマップ (OUTER_SAMPLE ブロックおき。メインスレッドで。x は gx - OUTER_SUN_REACH から、z は gz から)。
+     * 読み込まれていないチャンクは読み込ませず、{@link #NO_HEIGHT} とする。並びは x + 幅 x z
+     */
+    static int[] outerHeights(World world, int gx, int gz) {
+        int width = (OUTER_SPAN + 2 * OUTER_SUN_REACH) / OUTER_SAMPLE, depth = OUTER_SPAN / OUTER_SAMPLE;
+        int x0 = gx - OUTER_SUN_REACH;
+        int[] heights = new int[width * depth];
+        for (int z = 0; z < depth; z++) {
+            for (int x = 0; x < width; x++) {
+                int wx = x0 + x * OUTER_SAMPLE, wz = gz + z * OUTER_SAMPLE;
+                heights[x + width * z] = world.isChunkLoaded(wx >> 4, wz >> 4)
+                        ? world.getHighestBlockYAt(wx, wz, org.bukkit.HeightMap.MOTION_BLOCKING) : NO_HEIGHT;
+            }
+        }
+        return heights;
+    }
+
+    /** 高さマップの、読み込まれていないチャンクの印 */
+    static final int NO_HEIGHT = -100_000;
+
+    /**
+     * 外側の遠くの太陽の影の列 (OUTER_COLUMNS x OUTER_COLUMNS) を詰める (並びは farColumns と同じ)。影は farColumns と同じく太陽の側から伝える。
+     * 列の地面は一番低いもの、日なたの始まる高さは平均 (どちらも読み込まれている所だけ。全部読み込まれていなければ、地面も日なたも一番上)
+     */
+    static int[] outerColumns(int[] heights, int fy, double[] sun) {
+        int width = (OUTER_SPAN + 2 * OUTER_SUN_REACH) / OUTER_SAMPLE, depth = OUTER_SPAN / OUTER_SAMPLE;
+        double slope = Math.abs(sun[0]) < 1e-3 ? 1e9 : sun[1] / Math.abs(sun[0]) * OUTER_SAMPLE;
+        int step = sun[0] > 0 ? 1 : -1;   // 太陽のある側
+        double[] start = new double[width * depth];
+        for (int z = 0; z < depth; z++) {
+            double shadow = -1e9;
+            for (int k = 0; k < width; k++) {
+                int x = step > 0 ? width - 1 - k : k;
+                int h = heights[x + width * z];
+                double ground = h == NO_HEIGHT ? -1e9 : h + 1;
+                shadow = Math.max(ground, shadow - slope);
+                start[x + width * z] = shadow;
+            }
+        }
+        int per = OUTER_COLUMN / OUTER_SAMPLE, offset = OUTER_SUN_REACH / OUTER_SAMPLE;
+        int[] values = new int[OUTER_COLUMNS * OUTER_COLUMNS];
+        for (int cz = 0; cz < OUTER_COLUMNS; cz++) {
+            for (int cx = 0; cx < OUTER_COLUMNS; cx++) {
+                int ground = Integer.MAX_VALUE, count = 0;
+                double sum = 0;
+                for (int i = 0; i < per * per; i++) {
+                    int x = offset + cx * per + i % per, z = cz * per + i / per;
+                    int h = heights[x + width * z];
+                    if (h == NO_HEIGHT) continue;
+                    ground = Math.min(ground, h + 1);
+                    sum += start[x + width * z];
+                    count++;
+                }
+                if (count == 0) {
+                    values[cx + OUTER_COLUMNS * cz] = (FAR_HEIGHT - 1) | (FAR_HEIGHT - 1) << 7;
+                    continue;
+                }
+                int g = Math.clamp(ground - fy, 0, FAR_HEIGHT - 1);
+                int lit = Math.clamp((int) Math.round(sum / count) - fy, g, FAR_HEIGHT - 1);
+                values[cx + OUTER_COLUMNS * cz] = g | lit << 7;
+            }
+        }
+        return values;
+    }
+
     // ---- 送る ----
 
     /** 格子の値をデータの文字にしてテキストディスプレイに書く (grids が null なら「光なし」: ヘッダーの印のマスを 0 にして、覚えている値を消させる)。
-     * far は遠くの太陽の影 (夜は空) */
-    private static void setData(State state, Grids grids, int[] far) {
+     * far・outer は遠くの太陽の影とその外側 (夜は空) */
+    private static void setData(State state, Grids grids, int[] far, int[] outer) {
         Player player = Bukkit.getPlayer(state.playerId);
         boolean channel = player != null && viaChannel(player);
         if (!channel && state.display == null) return;
         int[] light = grids != null ? grids.light() : new int[0];
         int[] kinds = grids != null ? grids.kinds() : new int[0];
         if (grids == null || far == null) far = new int[0];
-        int cells = Math.min(DATA_CAPACITY, PAYLOAD + light.length + kinds.length + far.length);
+        if (grids == null || outer == null) outer = new int[0];
+        int cells = Math.min(DATA_CAPACITY, PAYLOAD + light.length + kinds.length + far.length + outer.length);
         int[] data = new int[cells];
         data[HEADER] = grids != null ? MAGIC : 0;
         data[HEADER + 1] = state.ox & 1023;
@@ -1059,8 +1159,13 @@ public final class SunShadowService {
         data[HEADER + 12] = state.fz & 1023;
         data[HEADER + 13] = far.length > 0 ? FAR_COLUMNS : 0;
         data[HEADER + 14] = FAR_COLUMNS;
+        data[HEADER + 15] = state.gx & 1023;
+        data[HEADER + 16] = state.fy & 1023;
+        data[HEADER + 17] = state.gz & 1023;
+        data[HEADER + 18] = outer.length > 0 ? OUTER_COLUMNS : 0;
+        data[HEADER + 19] = OUTER_COLUMNS;
         int at = PAYLOAD;
-        for (int[] part : new int[][]{light, kinds, far}) {
+        for (int[] part : new int[][]{light, kinds, far, outer}) {
             int n = Math.min(part.length, cells - at);
             System.arraycopy(part, 0, data, at, n);
             at += n;
