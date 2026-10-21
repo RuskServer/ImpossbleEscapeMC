@@ -196,6 +196,10 @@ public class RaidModule implements IModule {
                 sendCapacityWarning(p);
                 continue;
             }
+            if (com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.overCarryLimit(p)) {
+                com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.sendCarryLimitWarning(p);
+                continue;
+            }
             participants.add(p);
         }
         raidQueues.remove(mapId);
@@ -218,6 +222,10 @@ public class RaidModule implements IModule {
             if (participants.contains(p) || isInRaid(p)) continue;
             if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(p)) {
                 sendCapacityWarning(p);
+                continue;
+            }
+            if (com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.overCarryLimit(p)) {
+                com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.sendCarryLimitWarning(p);
                 continue;
             }
             participants.add(p);
@@ -429,6 +437,11 @@ public class RaidModule implements IModule {
             // 持ち物が容量を超えたままでは出撃させない (レイド中にあふれると足元に落とすことになるため、ロビーで整理してもらう)
             if (com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.isOverCapacity(player)) {
                 sendCapacityWarning(player);
+                return false;
+            }
+            // 探知グレネードは持ち込める数が決まっている
+            if (com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.overCarryLimit(player)) {
+                com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.sendCarryLimitWarning(player);
                 return false;
             }
             // 進行中のレイドに、この周期ですでに死亡・脱出した人は途中参加できない

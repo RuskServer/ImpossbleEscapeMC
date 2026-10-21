@@ -57,6 +57,7 @@ final class TraderCatalog {
                         item("12x70_flechette", 260, 120, 4, null, "kovacs_shotgun_trial"),
                         item("ekp_8", 9000, 3, 5, null, "kovacs_optic_reserve"),
                         item("eotech_xps2", 11000, 3, 10, null, "kovacs_coastal_marksman"),
+                        item("unrg7k_ekho", 18000, 2, 8, null, "kovacs_recon_supply"),
                         item("545x39_pp", 350, 60, 8, null, "kovacs_penetration"),
                         item("556x45_m855", 350, 60, 8, null, "kovacs_penetration"),
                         item("762x51_m62", 450, 60, 8, null, "kovacs_penetration"),

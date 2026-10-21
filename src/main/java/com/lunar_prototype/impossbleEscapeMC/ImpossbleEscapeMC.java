@@ -206,6 +206,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.init(this);
         // レイド中、同じパーティーの味方を青く光らせる (味方の画面でだけ)
         com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.init(this);
+        // 探知グレネード (UNRG-7K) と、映った相手の縁取り
+        com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.init(this);
         // 銃 (Toi's Armory) の設定の画面と、移動補完の固定
         com.lunar_prototype.impossbleEscapeMC.gui.GunSettingsDialog.init(this);
 
@@ -253,6 +255,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.shutdown();
         if (scavSpawner != null) {
             scavSpawner.cleanup();
         }

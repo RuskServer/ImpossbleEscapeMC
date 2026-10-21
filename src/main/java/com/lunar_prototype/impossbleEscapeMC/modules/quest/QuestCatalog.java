@@ -388,6 +388,16 @@ final class QuestCatalog {
                 .killAtDistance("SCAV", 4, 40.0, null).onMap(COAST).with(WeaponClass.MARKSMAN)
                 .unlockTrade(KOVACS, "eotech_xps2")
                 .money(32000).exp(4800).build());
+        quests.add(new QuestBuilder(module, "kovacs_recon_supply")
+                .trader(KOVACS).name("潜む相手を炙り出せ")
+                .description("国連軍の探知弾の写しが流れてきた。UNRG-7K、説明書も無い代物だ。動かすための電池を集めて、"
+                        + "物陰に潜んだSCAVを至近距離で片付けてこい。使い物になりそうなら販売に回す。")
+                .requiresLevel(8)
+                .requiresQuest("kovacs_headhunter")
+                .handInFir("mini_battery", 2)
+                .killAtDistance("SCAV", 5, null, 10.0)
+                .unlockTrade(KOVACS, "unrg7k_ekho")
+                .money(22000).exp(3400).build());
 
         // --- Pharmakon ---
         quests.add(new QuestBuilder(module, "pharmakon_factory_sweep")

@@ -55,7 +55,12 @@ final class ItemCatalog {
         // --- 道具 ---
         // フラッシュライト: 手 (メイン・オフハンド) に持っている間、視線の先を照らす (Flashlight・ポストエフェクト iem:flashlight)
         ItemDefinition flashlight = item("flashlight", "TOOL", Material.IRON_INGOT, "フラッシュライト", 2, 21, 0, 150, 1);
+        // 探知グレネード (modules/grenade/ReconGrenade)。モデルはパックの diamond の custom_model_data 12
+        ItemDefinition unrg7k_ekho = item("unrg7k_ekho", "GRENADE", Material.DIAMOND, "UNRG-7K \"Ekho\"", 3, 12, 0, 420, 1);
+        unrg7k_ekho.description = "国連軍が Spectre の SP-E を写した UNRG-7 を、さらに誰かが写した物。説明書は無い。"
+                + "投げると着弾から 1 秒後に周囲 15m を音響で探知し、動く物を短い間だけ映し出す。1 回のレイドに 2 個まで持ち込める。";
         items.add(flashlight);
+        items.add(unrg7k_ekho);
 
         ItemDefinition dry_fuel = item("dry_fuel", "LOOT", Material.IRON_INGOT, "§f固形燃料", 2, 19, 0, 300, 1);
         // weight: 0.3kg
