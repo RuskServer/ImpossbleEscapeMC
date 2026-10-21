@@ -410,9 +410,21 @@ public class LootBackpackOverlayListener implements Listener {
 
     /**
      * 下の欄の名前と背景 (タイトル) を今の表示に合わせる。替える時は画面のタイトルを送り直す (中身も送り直す) ので、
-     * 表示・袋の名前・使っているマスが変わった時だけ
+     * 表示・袋の名前・使っているマスが変わった時だけ。
+     * <p>
+     * 送り直すのは次の tick (クリックの処理が終わってから)。クリックの処理の途中 (漁る画面が取った物をバックパックに入れる時など)
+     * に送ると、取る前の中身がクライアントに届き、その後の「空になった」の知らせが送られずに、取った物が残って見える
      */
     private void refreshTitle(Player player, OverlaySession session) {
+        if (session.titlePending) return;
+        session.titlePending = true;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            session.titlePending = false;
+            if (sessions.get(player.getUniqueId()) == session && player.isOnline()) sendTitle(player, session);
+        });
+    }
+
+    private void sendTitle(Player player, OverlaySession session) {
         if (!session.isHost(player.getOpenInventory().getTopInventory())) return;
         InventoryPanel.Bag bag = session.mode == ViewMode.BACKPACK ? bagOf(player, session) : null;
         String key = bag == null ? "player" : bag.toString();
@@ -701,6 +713,8 @@ public class LootBackpackOverlayListener implements Listener {
         /** 画面のタイトル (袋を渡すと下の欄をバックパックの表示にしたもの) と、最後に送ったタイトルの中身 */
         final Function<InventoryPanel.Bag, net.kyori.adventure.text.Component> title;
         String titleKey;
+        /** 次の tick にタイトルを送る予定があるか */
+        boolean titlePending;
         final ItemStack[] playerRowsShadow = new ItemStack[OVERLAY_SIZE];
         ItemStack savedToggleSlotItem;
         int rowOffset = 0;
