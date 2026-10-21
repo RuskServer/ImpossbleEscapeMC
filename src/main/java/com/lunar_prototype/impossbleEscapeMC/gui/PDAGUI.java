@@ -32,9 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PDAGUI implements Listener {
-    /** Toi's Armoryのダイアログ入力。2で設定ダイアログを開く */
-    private static final String DATAPACK_DIALOG_INPUT_OBJECTIVE = "toisarm.trigger.input";
-    private static final int DATAPACK_SETTINGS_INPUT = 2;
     /** 隠れ家のボタン (中の段の左端。支給装備は出撃画面から開く) */
     private static final int HIDEOUT_SLOT = 9;
 
@@ -167,12 +164,12 @@ public class PDAGUI implements Listener {
         quests.setItemMeta(questsMeta);
         inventory.setItem(16, quests);
 
-        // Settings (設定) ボタンをスロット17に追加: 銃はToi's Armoryデータパックなので、データパックの設定ダイアログを開く
+        // Settings (設定) ボタンをスロット17に追加: 銃はToi's Armoryデータパックなので、その設定をプラグインの画面で変える (GunSettingsDialog)
         ItemStack settingsBtn = new ItemStack(Material.REPEATER);
         ItemMeta settingsMeta = settingsBtn.getItemMeta();
         settingsMeta.displayName(Component.text("Settings (銃の操作設定)", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         List<Component> settingsLore = new ArrayList<>();
-        settingsLore.add(Component.text("キー割り当て・視点/移動補完などの", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        settingsLore.add(Component.text("キー割り当て・視点移動補完などの", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         settingsLore.add(Component.text("銃の操作設定を行います", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         settingsLore.add(Component.empty());
         settingsLore.add(Component.text("クリックして設定画面を開く", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
@@ -227,16 +224,6 @@ public class PDAGUI implements Listener {
         closeMeta.displayName(Component.text("閉じる", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         close.setItemMeta(closeMeta);
         inventory.setItem(22, close);
-    }
-
-    /** データパックのメニューの設定ボタン (trigger toisarm.trigger.input set 2) と同じく、次のtickに設定ダイアログを開かせる */
-    private void openDatapackSettings() {
-        org.bukkit.scoreboard.Objective input = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(DATAPACK_DIALOG_INPUT_OBJECTIVE);
-        if (input == null) {
-            player.sendMessage(Component.text("銃の設定を開けません (Toi's Armory データパックが読み込まれていません)", NamedTextColor.RED));
-            return;
-        }
-        input.getScore(player.getName()).setScore(DATAPACK_SETTINGS_INPUT);
     }
 
     private ItemStack createPartyButton() {
@@ -331,7 +318,7 @@ public class PDAGUI implements Listener {
             com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog.openPda(player);
         } else if (slot == 17) {
             player.closeInventory();
-            openDatapackSettings();
+            GunSettingsDialog.open(player);
         } else if (slot == 12) {
             LevelModule levelModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(LevelModule.class);
             if (levelModule.getLevel(player.getUniqueId()) < 10) {

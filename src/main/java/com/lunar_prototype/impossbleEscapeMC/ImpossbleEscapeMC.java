@@ -204,6 +204,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.init(this);
         // レイド中、同じパーティーの味方を青く光らせる (味方の画面でだけ)
         com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.init(this);
+        // 銃 (Toi's Armory) の設定の画面と、移動補完の固定
+        com.lunar_prototype.impossbleEscapeMC.gui.GunSettingsDialog.init(this);
 
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
