@@ -41,7 +41,7 @@ public final class QuestExpansionTest {
         Map<String,AmmoDefinition> ammoMap = registry("AMMO_MAP");
         items.forEach(i -> itemMap.put(i.id, i)); ammo.forEach(i -> ammoMap.put(i.id, i));
         var definitions = QuestCatalog.create(null);
-        check(definitions.size() == 33, "33 quests");
+        check(definitions.size() == 44, "44 quests");
         Map<String,QuestDefinition> byId = new HashMap<>();
         Map<String,Integer> counts = new HashMap<>();
         Set<String> calibers = new HashSet<>();
@@ -68,7 +68,7 @@ public final class QuestExpansionTest {
             }
         }
         check(byId.keySet().containsAll(LEGACY), "legacy IDs preserved");
-        check(counts.equals(Map.of("kovacs",15,"pharmakon",6,"bastion",12)), "trader quest counts");
+        check(counts.equals(Map.of("kovacs",18,"pharmakon",8,"bastion",18)), "trader quest counts");
         check(calibers.size()==8, "all eight calibers covered");
         for (String id : byId.keySet()) visit(id,byId,new HashSet<>(),new HashSet<>());
         List<TraderDefinition> traders = catalog("com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCatalog", "create");
@@ -106,6 +106,6 @@ public final class QuestExpansionTest {
         check(!extract.isCompleted(extraction,0),"first extract partial");
         extract.updateProgress(null,null,extraction,0,QuestTrigger.RAID_EXTRACT,Map.of("mapId","map_b"));
         check(extract.isCompleted(extraction,0),"different maps counted");
-        System.out.println("QuestExpansionTest: all checks passed (33 quests, 22 independent additions, 8 calibers, loot, unlocks, FIR progression)");
+        System.out.println("QuestExpansionTest: all checks passed (44 quests, 33 independent additions, 8 calibers, loot, unlocks, FIR progression)");
     }
 }

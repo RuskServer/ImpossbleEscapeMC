@@ -16,8 +16,9 @@ final class QuestCatalog {
     private static final String PHARMAKON = "pharmakon";
     private static final String BASTION = "bastion";
 
-    /** 脱出の目標に渡るマップ名 */
+    /** 脱出の目標・討伐のマップの条件に渡るマップ名 */
     private static final String FACTORY = "ノヴォザリエ薬品工場";
+    private static final String COAST = "ノヴォザリエ沿岸工業地区";
 
     private QuestCatalog() {
     }
@@ -148,6 +149,7 @@ final class QuestCatalog {
                 .build());
 
         addIndependentQuests(module, quests);
+        addCombatQuests(module, quests);
         return quests;
     }
 
@@ -354,5 +356,81 @@ final class QuestCatalog {
                 .kill("SCAV", 12).extractAny(2)
                 .unlockTrade(BASTION, "sp_v")
                 .money(50000).exp(6000).build());
+    }
+
+    /**
+     * 討伐の条件 (マップ・ヘッドショット・銃の種類・銃) を使う系列。独立系列の後に受けられる。
+     * マップの条件はそのマップのレイド (ローテーションで開いている時) でだけ進む
+     */
+    private static void addCombatQuests(QuestModule module, List<QuestDefinition> quests) {
+        // --- Kovacs ---
+        quests.add(new QuestBuilder(module, "kovacs_shotgun_trial")
+                .trader(KOVACS).name("散弾の手応え")
+                .description("Mossbergを仕入れたが、客に勧める前に実戦での止める力を確かめたい。ショットガンでSCAVを片付けてこい。完了後はフレシェット弾を販売に回す。")
+                .requiresLevel(4)
+                .requiresQuest("kovacs_close_supply")
+                .kill("SCAV", 6).with(WeaponClass.SHOTGUN)
+                .unlockTrade(KOVACS, "12x70_flechette")
+                .money(14000).exp(2200).build());
+        quests.add(new QuestBuilder(module, "kovacs_headhunter")
+                .trader(KOVACS).name("急所を射抜け")
+                .description("照準器が良くても、当てる場所を選べなきゃ意味がない。頭を狙ってSCAVを仕留めてこい。完了後はM700を販売する。")
+                .requiresLevel(7)
+                .requiresQuest("kovacs_optic_reserve")
+                .kill("SCAV", 5).headshot()
+                .unlockTrade(KOVACS, "m700")
+                .money(20000).exp(3200).build());
+        quests.add(new QuestBuilder(module, "kovacs_coastal_marksman")
+                .trader(KOVACS).name("沿岸の長距離射撃")
+                .description("沿岸工業地区は見通しが利く。狙撃銃を持ち込み、40メートル以上離れた位置からSCAVを撃ち抜いてこい。完了後はEOTechも販売に回す。")
+                .requiresLevel(10)
+                .requiresQuest("kovacs_headhunter")
+                .killAtDistance("SCAV", 4, 40.0, null).onMap(COAST).with(WeaponClass.MARKSMAN)
+                .unlockTrade(KOVACS, "eotech_xps2")
+                .money(32000).exp(4800).build());
+
+        // --- Pharmakon ---
+        quests.add(new QuestBuilder(module, "pharmakon_factory_sweep")
+                .trader(PHARMAKON).name("薬品庫への道")
+                .description("薬品工場の保管庫に、まだ使える医薬品が残っているかもしれないの。でも周りをSCAVがうろついていて近づけないわ。工場でSCAVを排除して、無事に戻ってきて。うまくいったら、浄水フィルターを分けてあげるわ。")
+                .requiresLevel(4)
+                .requiresQuest("pharmakon_transport_security")
+                .kill("SCAV", 6).onMap(FACTORY).extractAny(1)
+                .unlockTrade(PHARMAKON, "water_filter")
+                .money(16000).exp(2600).build());
+        quests.add(new QuestBuilder(module, "pharmakon_quiet_escort")
+                .trader(PHARMAKON).name("静かな護送")
+                .description("負傷者の護送は屋内を抜けることが多いわ。取り回しのいいサブマシンガンで、通路に陣取るSCAVを片付けてちょうだい。Kovacsに話を通して、MP5を卸してもらうわ。")
+                .requiresLevel(6)
+                .requiresQuest("pharmakon_factory_sweep")
+                .kill("SCAV", 5).with(WeaponClass.SMG)
+                .unlockTrade(KOVACS, "mp5")
+                .money(22000).exp(3200).build());
+
+        // --- Bastion ---
+        quests.add(new QuestBuilder(module, "bastion_coastal_clearance")
+                .trader(BASTION).name("沿岸の掃討")
+                .description("沿岸工業地区を通る搬送路を開きたい。あそこに居座るSCAVを排除し、生還してくれ。道が開けばKovacsがM4A1を仕入れられる。")
+                .requiresLevel(5)
+                .requiresQuest("bastion_escort_equipment")
+                .kill("SCAV", 8).onMap(COAST).extractAny(1)
+                .unlockTrade(KOVACS, "m4a1")
+                .money(20000).exp(3000).build());
+        quests.add(new QuestBuilder(module, "bastion_rifle_drill")
+                .trader(BASTION).name("支給銃の実地試験")
+                .description("護衛隊にはAK-74Mを支給する予定だ。支給の前に、実戦で使い勝手を確かめてくれ。結果次第で、KovacsにBS弾を卸させよう。")
+                .requiresLevel(7)
+                .requiresQuest("bastion_coastal_clearance")
+                .kill("SCAV", 8).withWeapon("ak74", "AK-74M")
+                .unlockTrade(KOVACS, "545x39_bs")
+                .money(24000).exp(3600).build());
+        quests.add(new QuestBuilder(module, "bastion_close_quarters")
+                .trader(BASTION).name("屋内の制圧")
+                .description("工場の中を通る搬送路は見通しが悪い。15メートル以内の距離でSCAVを仕留め、屋内を制圧できることを示してくれ。完了後はAltynを販売する。")
+                .requiresLevel(9)
+                .requiresQuest("bastion_rifle_drill")
+                .killAtDistance("SCAV", 6, null, 15.0).onMap(FACTORY)
+                .unlockTrade(BASTION, "Altyn")
+                .money(28000).exp(4200).build());
     }
 }

@@ -31,6 +31,10 @@ final class TraderCatalog {
                         item("mossberg_590", 18000, 2, 4, "Mossberg 590", "kovacs_close_supply"),
                         item("uzi", 22000, 2, 4, "UZI", "kovacs_close_supply"),
                         item("svd", 65000, 2, 10, "SVD", "kovacs_marksman_02"),
+                        // 討伐の条件の系列で解放する銃
+                        item("m700", 35000, 2, 7, "M700", "kovacs_headhunter"),
+                        item("mp5", 26000, 2, 6, "MP5", "pharmakon_quiet_escort"),
+                        item("m4a1", 30000, 2, 5, "M4A1", "bastion_coastal_clearance"),
                         // クラス1弾は全口径を初期販売。標準弾・貫通弾は既存の条件で解放する。
                         // 初期の銃 (AK-74M) と初期販売の弾は購入制限なし
                         item("545x39_hp", 100, 0, 1, null, null),
@@ -50,7 +54,9 @@ final class TraderCatalog {
                         item("762x51_fmj_28", 240, 120, 3, null, "kovacs_western_supply"),
                         item("9x19_pst_gzh", 90, 180, 4, null, "kovacs_close_supply"),
                         item("45acp_match_fmj_26", 120, 180, 4, null, "kovacs_close_supply"),
+                        item("12x70_flechette", 260, 120, 4, null, "kovacs_shotgun_trial"),
                         item("ekp_8", 9000, 3, 5, null, "kovacs_optic_reserve"),
+                        item("eotech_xps2", 11000, 3, 10, null, "kovacs_coastal_marksman"),
                         item("545x39_pp", 350, 60, 8, null, "kovacs_penetration"),
                         item("556x45_m855", 350, 60, 8, null, "kovacs_penetration"),
                         item("762x51_m62", 450, 60, 8, null, "kovacs_penetration"),
@@ -59,6 +65,7 @@ final class TraderCatalog {
                         item("9x19_7n21", 250, 60, 8, null, "kovacs_penetration"),
                         item("45acp_ap", 250, 60, 8, null, "kovacs_penetration"),
                         item("12x70_tss", 350, 24, 8, null, "kovacs_penetration"),
+                        item("545x39_bs", 600, 60, 8, null, "bastion_rifle_drill"),
                         // 交換 (仮の値)
                         barter("556x45_m855", 30, 2, 4, "kovacs_rewiring", cost("copper_wire", 2), cost("bolts", 2))
                 )));
@@ -67,6 +74,7 @@ final class TraderCatalog {
                 false, false, List.of(
                         item("ai2", 3200, 50, 1, null, null),
                         item("CAT", 1200, 50, 1, null, null),
+                        item("water_filter", 4400, 5, 4, null, "pharmakon_factory_sweep"),
                         // 交換 (仮の値)
                         barter("CAT", 1, 3, 1, null, cost("cigarettes", 2), cost("toilet_paper", 1))
                 )));
@@ -82,6 +90,7 @@ final class TraderCatalog {
                         item("FAST-MT_visor", 14000, 10, 15, null, "bastion_face_protection"),
                         item("PVS-14", 38000, 2, 9, null, "bastion_night_optics_supply"),
                         item("Trooper", 62000, 10, 10, null, "bastion_protection_selection"),
+                        item("Altyn", 52000, 4, 9, null, "bastion_close_quarters"),
                         // 最初から買える
                         item("flashlight", 2800, 0, 1, null, null),
                         // 交換 (仮の値)
