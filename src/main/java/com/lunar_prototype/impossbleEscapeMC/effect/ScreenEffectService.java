@@ -58,7 +58,7 @@ import java.util.UUID;
  *   <li>数値の画素: 画作りの無い時だけ iem:control。数値の画素を隣の行の色で隠す (画作りがある時は画作りが隠している)</li>
  *   <li>まぶしさ: ほかの人のフラッシュライトを向けられている間 iem:dazzle_&lt;段階&gt; ({@link #setDazzle}。段階は FlashlightDazzle が決める)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
- *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
+ *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光・ロアのムービー ({@link #playLoreIntro})。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
  * </ol>
  * 付け外しするのは iem 名前空間のエフェクトだけで、他のポストエフェクトには触れない。
@@ -290,6 +290,20 @@ public final class ScreenEffectService implements Listener {
             steps.add(new Step(Key.key(NAMESPACE, "intro_" + i), INTRO_STAGE_TICKS, false));
         }
         instance.start(player, steps, true);
+    }
+
+    // --- ロアのムービー (iem:lore_intro。絵コンテはリソースパックの tools/lore_movie.json) ---
+    private static final Key LORE_INTRO = Key.key(NAMESPACE, "lore_intro");
+    /** ムービーの長さ。絵コンテ (lore_movie.json) の duration と同じにする */
+    public static final int LORE_INTRO_TICKS = 16 * 20;
+
+    /**
+     * ロアのムービーを流す (画面全体を描きかえるエフェクトを長さの分だけかける。動きはシェーダーが、かかった最初のフレームからの経過で決める)。
+     * 読み込み待ちの間は始めない (始まりを見逃さないように)
+     */
+    public static void playLoreIntro(Player player) {
+        if (instance == null) return;
+        instance.start(player, List.of(new Step(LORE_INTRO, LORE_INTRO_TICKS, false)));
     }
 
     // --- 出撃時の PDA (iem:pda_*。IEM_shader/tools/raid_pda.py) ---

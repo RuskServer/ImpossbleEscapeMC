@@ -66,6 +66,11 @@ public class ShaderDebugCommand implements BasicCommand {
             toggleDataTest(player);
             return;
         }
+        if (args.length > 0 && args[0].equalsIgnoreCase("lore")) {
+            ScreenEffectService.playLoreIntro(player);
+            player.sendMessage(Component.text("ロアのムービーを流します (" + ScreenEffectService.LORE_INTRO_TICKS / 20 + " 秒)", NamedTextColor.AQUA));
+            return;
+        }
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
             if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {
                 SunShadowService.clearOverride(player);
