@@ -67,8 +67,11 @@ public class ShaderDebugCommand implements BasicCommand {
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("lore")) {
-            ScreenEffectService.playLoreIntro(player);
-            player.sendMessage(Component.text("ロアのムービーを流します (" + ScreenEffectService.LORE_INTRO_TICKS / 20 + " 秒)", NamedTextColor.AQUA));
+            if (!com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.play(player)) {
+                player.sendMessage(Component.text("ロアのムービーを見ている途中です", NamedTextColor.RED));
+                return;
+            }
+            player.sendMessage(Component.text("ロアのムービーを流します (" + ScreenEffectService.LORE_INTRO_TICKS / 20 + " 秒。見ている間はスペクテイター)", NamedTextColor.AQUA));
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {

@@ -295,15 +295,31 @@ public final class ScreenEffectService implements Listener {
     // --- ロアのムービー (iem:lore_intro。絵コンテはリソースパックの tools/lore_movie.json) ---
     private static final Key LORE_INTRO = Key.key(NAMESPACE, "lore_intro");
     /** ムービーの長さ。絵コンテ (lore_movie.json) の duration と同じにする */
-    public static final int LORE_INTRO_TICKS = 16 * 20;
+    private static final int LORE_INTRO_MOVIE_TICKS = 84 * 20;
+    /**
+     * ムービーの後にかけておく余り。ムービーの時計はクライアントがエフェクトを組み立てて最初に描いた時から進むので、
+     * シェーダーの組み立てに時間がかかっても最後が欠けないようにする (その間は最後のロゴがそのまま出ている)
+     */
+    private static final int LORE_INTRO_SLACK_TICKS = 6 * 20;
+    /** ムービーをかけている長さ (ロゴの後、レイド開始の演出の段 intro_1〜6 で画面に戻す) */
+    public static final int LORE_INTRO_TICKS = LORE_INTRO_MOVIE_TICKS + LORE_INTRO_SLACK_TICKS;
+
+    /** ムービーの後、画面に戻す段 (intro_1〜6) の長さ */
+    public static final int LORE_INTRO_RETURN_TICKS = (INTRO_STAGES - 1) * INTRO_STAGE_TICKS;
 
     /**
      * ロアのムービーを流す (画面全体を描きかえるエフェクトを長さの分だけかける。動きはシェーダーが、かかった最初のフレームからの経過で決める)。
-     * 読み込み待ちの間は始めない (始まりを見逃さないように)
+     * 終わったら、暗い画面からレイド開始の演出と同じ段 (intro_1〜6) で画面に戻す。読み込み待ちの間は始めない (始まりを見逃さないように)。
+     * onEnd はムービーの画面を外した時 (画面に戻し始める時) に呼ぶ (無ければ null)
      */
-    public static void playLoreIntro(Player player) {
+    public static void playLoreIntro(Player player, Runnable onEnd) {
         if (instance == null) return;
-        instance.start(player, List.of(new Step(LORE_INTRO, LORE_INTRO_TICKS, false)));
+        List<Step> steps = new ArrayList<>();
+        steps.add(new Step(LORE_INTRO, LORE_INTRO_TICKS, false));
+        for (int i = 1; i < INTRO_STAGES; i++) {
+            steps.add(new Step(Key.key(NAMESPACE, "intro_" + i), INTRO_STAGE_TICKS, false, i == 1 ? onEnd : null));
+        }
+        instance.start(player, steps);
     }
 
     // --- 出撃時の PDA (iem:pda_*。IEM_shader/tools/raid_pda.py) ---
