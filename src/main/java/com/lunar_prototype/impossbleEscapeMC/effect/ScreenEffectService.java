@@ -295,7 +295,7 @@ public final class ScreenEffectService implements Listener {
     // --- ロアのムービー (iem:lore_intro。絵コンテはリソースパックの tools/lore_movie.json) ---
     private static final Key LORE_INTRO = Key.key(NAMESPACE, "lore_intro");
     /** ムービーの長さ。絵コンテ (lore_movie.json) の duration と同じにする */
-    private static final int LORE_INTRO_MOVIE_TICKS = 84 * 20;
+    private static final int LORE_INTRO_MOVIE_TICKS = 1930;   // 96.5 秒
     /**
      * ムービーの後にかけておく余り。ムービーの時計はクライアントがエフェクトを組み立てて最初に描いた時から進むので、
      * シェーダーの組み立てに時間がかかっても最後が欠けないようにする (その間は最後のロゴがそのまま出ている)
