@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
+import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackGunCondition;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
@@ -55,7 +56,8 @@ final class Repairs {
         if (def == null || def.maxDurability <= 0) return null;
         boolean weapon = "GUN".equalsIgnoreCase(def.type);
         if (def.armorStats == null && !weapon) return null;
-        int durability = meta.getPersistentDataContainer().getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+        int durability = def.armorStats != null ? ArmorDurability.current(item, def)
+                : meta.getPersistentDataContainer().getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
         if (durability >= def.maxDurability) return null;
         double base = def.armorStats != null ? TraderModule.getBaseArmorRepairCost(def.armorStats.armorClass)
                 : TraderModule.getBaseWeaponRepairCost(def.rarity);
@@ -73,10 +75,15 @@ final class Repairs {
     /** 直した物 (耐久を最大に、ジャムを解く。説明の耐久の表示も直す) */
     static ItemStack repair(ItemStack item) {
         if (DatapackGunCatalog.gunIdOf(item) != null) return DatapackGunCondition.repair(item);
+        ItemDefinition def = ArmorDurability.definition(item);
+        if (def != null && def.armorStats != null) {
+            ItemStack armor = ArmorDurability.repair(item);
+            return armor != null ? armor : item;
+        }
         ItemStack repaired = item.clone();
         ItemMeta meta = repaired.getItemMeta();
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        ItemDefinition def = itemId != null ? ItemRegistry.get(itemId) : null;
+        def = itemId != null ? ItemRegistry.get(itemId) : null;
         if (def == null) return repaired;
         meta.getPersistentDataContainer().set(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
         if ("GUN".equalsIgnoreCase(def.type)) meta.getPersistentDataContainer().set(PDCKeys.JAMMED, PDCKeys.BOOLEAN, (byte) 0);

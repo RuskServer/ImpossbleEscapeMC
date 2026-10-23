@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.item.factory;
 
+import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AttachmentDefinition;
@@ -311,7 +312,9 @@ public class ItemFactory {
             }
             
             if (def.maxDurability > 0) {
-                int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+                // バニラの耐久バーだけが減っている古い防具も、表示と PDC を今の耐久に合わせる
+                int durability = ArmorDurability.current(item, def);
+                pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, durability);
                 lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
             }
             if (def.armorStats.ricochetChance > 0) {

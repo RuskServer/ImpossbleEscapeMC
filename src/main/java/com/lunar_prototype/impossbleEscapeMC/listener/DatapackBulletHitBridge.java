@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
+import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo;
 import org.bukkit.Bukkit;
@@ -18,11 +19,13 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.Collection;
+import java.util.UUID;
 
 /**
  * Toi's Armoryデータパック銃の命中に、プラグイン銃と同じ部位判定・防具の貫通判定を入れ、{@link BulletHitEvent} として通知する。
@@ -34,8 +37,8 @@ import java.util.Collection;
  *   <li>胴・腕・足: ダメージを与えている最中の弾 (BULLET と HIT_ENTITY タグの付いた marker) は、その tick の移動先に
  *       進行方向を向いて置かれている。その位置と向きから当たり判定の箱への入射点を逆算する</li>
  * </ul>
- * 基礎ダメージはデータパックの値 (距離による減衰・頭の倍率込み) のまま、足は×0.6、防具を貫通しなければ×0.15 にし、
- * バニラの防具による軽減は外す (プラグイン銃と同じく防具クラスで判断するため)。
+ * 基礎ダメージはデータパックの値 (距離による減衰・頭の倍率込み) のまま、足は×0.6、防具を貫通しなければ
+ * ダメージなし (打撲なし) にし、バニラの防具による軽減は外す (プラグイン銃と同じく防具クラスで判断するため)。
  */
 public class DatapackBulletHitBridge implements Listener {
 
@@ -55,7 +58,8 @@ public class DatapackBulletHitBridge implements Listener {
     /** プレイヤーの弾がSCAVに当たった時の制圧 */
     private static final float HIT_SUPPRESSION = 0.5f;
 
-    private record HitResult(String hitLocation, boolean penetrated, double rawDamage, int ammoClass) {
+    private record HitResult(String hitLocation, boolean penetrated, double rawDamage, int ammoClass,
+                             BulletDamageModel.ArmorPiece armor) {
     }
 
     /** LOW で決めた部位・貫通を MONITOR の通知で使う (ダメージイベントは入れ子にならないため1件で足りる) */
@@ -81,8 +85,12 @@ public class DatapackBulletHitBridge implements Listener {
             victim.getWorld().playSound(victim.getEyeLocation(), org.bukkit.Sound.ENTITY_ARROW_HIT_PLAYER, 1.0f, 1.3f);
             return;
         }
-        int armorClass = BulletDamageModel.armorClass(victim, hitLocation);
-        boolean penetrated = BulletDamageModel.penetrates(ammoClass, armorClass);
+        BulletDamageModel.ArmorPiece armor = BulletDamageModel.armorPiece(victim, hitLocation);
+        int armorClass = armor != null ? armor.armorClass() : 0;
+        Entity shooter = DatapackGunnerManager.resolveShooter(event.getDamager());
+        UUID shooterId = shooter != null ? shooter.getUniqueId() : event.getDamager().getUniqueId();
+        boolean penetrated = BulletDamageModel.penetrates(ammoClass, armorClass, shooterId,
+                victim.getUniqueId(), hitLocation);
 
         double damage = BulletDamageModel.damageForHit(rawDamage, hitLocation, penetrated, armorClass);
 
@@ -95,7 +103,7 @@ public class DatapackBulletHitBridge implements Listener {
         }
 
         pendingEvent = event;
-        pendingResult = new HitResult(hitLocation, penetrated, rawDamage, ammoClass);
+        pendingResult = new HitResult(hitLocation, penetrated, rawDamage, ammoClass, armor);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -106,6 +114,12 @@ public class DatapackBulletHitBridge implements Listener {
         pendingEvent = null;
         pendingResult = null;
         if (result == null) return;
+
+        // 止められた弾はダメージ0なので、止めた防具の耐久をここで減らす。
+        // 貫通した弾はバニラの防具耐久 (damageOnHurt) に任せる。
+        if (!result.penetrated() && result.armor() != null) {
+            wearArmor(victim, result.armor());
+        }
 
         // SCAVのFakePlayerが撃った場合は、撃ったSCAV本体を射手とする
         Entity shooter = DatapackGunnerManager.resolveShooter(event.getDamager());
@@ -119,6 +133,13 @@ public class DatapackBulletHitBridge implements Listener {
         Bukkit.getPluginManager().callEvent(new BulletHitEvent(
                 victim, livingShooter, event.getFinalDamage(), result.hitLocation(), result.penetrated(),
                 result.ammoClass(), result.rawDamage()));
+    }
+
+    private static void wearArmor(LivingEntity victim, BulletDamageModel.ArmorPiece armor) {
+        ItemStack worn = ArmorDurability.wear(armor.item(), ArmorDurability.BLOCKED_WEAR, victim instanceof Player);
+        if (worn != null && victim.getEquipment() != null) {
+            victim.getEquipment().setItem(armor.slot(), worn);
+        }
     }
 
     private static AmmoDefinition shooterAmmo(Entity damager) {

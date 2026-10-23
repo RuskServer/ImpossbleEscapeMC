@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
+import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.ArmorStats;
@@ -11,6 +12,8 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
+
+import java.util.UUID;
 
 /**
  * 銃弾の部位判定と防具の貫通判定。データパック銃 ({@link DatapackBulletHitBridge}) のダメージ計算で使う。
@@ -25,8 +28,6 @@ public final class BulletDamageModel {
 
     /** 目の高さからこの範囲は頭 */
     private static final double HEAD_HEIGHT = 0.25;
-    /** 防具に止められた時のダメージの倍率 */
-    private static final double NOT_PENETRATED_MULTIPLIER = 0.15;
     /** 防具を抜かれた時に、防具クラス 1 つにつき減らす割合 */
     private static final double PENETRATED_REDUCTION_PER_CLASS = 0.10;
     private static final int MAX_ARMOR_CLASS = 6;
@@ -67,26 +68,55 @@ public final class BulletDamageModel {
         return Math.abs(lateral) > victim.getWidth() * ARMS_LATERAL_RATIO;
     }
 
-    /** 着弾部位を防護する防具の防具クラス。重なった防具は高い方を使う。 */
-    public static int armorClass(LivingEntity victim, String hitLocation) {
-        ArmorStats.ProtectedZone zone = ArmorStats.ProtectedZone.fromHitLocation(hitLocation);
-        if (zone == null || victim.getEquipment() == null) return 0;
-        return Math.max(Math.max(armorClassFromCoveredSlot(victim, EquipmentSlot.HEAD, zone),
-                        armorClassFromCoveredSlot(victim, EquipmentSlot.CHEST, zone)),
-                Math.max(armorClassFromCoveredSlot(victim, EquipmentSlot.LEGS, zone),
-                        armorClassFromCoveredSlot(victim, EquipmentSlot.FEET, zone)));
+    /** 着弾部位を防護している防具のうち、有効クラスが一番高い物 */
+    public record ArmorPiece(EquipmentSlot slot, ItemStack item, int armorClass) {
     }
 
-    private static int armorClassFromCoveredSlot(LivingEntity entity, EquipmentSlot slot, ArmorStats.ProtectedZone zone) {
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+            EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
+    };
+
+    /** 着弾部位を防護する防具の有効クラス。重なった防具は高い方を使う。耐久が減った防具はクラスが下がる。 */
+    public static int armorClass(LivingEntity victim, String hitLocation) {
+        ArmorPiece piece = armorPiece(victim, hitLocation);
+        return piece != null ? piece.armorClass() : 0;
+    }
+
+    /** 着弾部位を防護する防具 (装着スロットと本体)。無ければ null。 */
+    public static ArmorPiece armorPiece(LivingEntity victim, String hitLocation) {
+        ArmorStats.ProtectedZone zone = ArmorStats.ProtectedZone.fromHitLocation(hitLocation);
+        if (zone == null || victim.getEquipment() == null) return null;
+        ArmorPiece best = null;
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ArmorPiece piece = armorPieceFromSlot(victim, slot, zone);
+            if (piece != null && (best == null || piece.armorClass() > best.armorClass())) best = piece;
+        }
+        return best;
+    }
+
+    private static ArmorPiece armorPieceFromSlot(LivingEntity entity, EquipmentSlot slot, ArmorStats.ProtectedZone zone) {
         ItemStack item = entity.getEquipment().getItem(slot);
-        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return 0;
+        if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return null;
         var pdc = item.getItemMeta().getPersistentDataContainer();
         int armorClass = pdc.getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
         String id = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
         ItemDefinition def = ItemRegistry.get(id);
         if (armorClass <= 0 || def == null || def.armorStats == null
-                || def.armorStats.coverage == null || !def.armorStats.coverage.contains(zone)) return 0;
-        return armorClass;
+                || def.armorStats.coverage == null || !def.armorStats.coverage.contains(zone)) return null;
+        int effective = effectiveArmorClass(armorClass, ArmorDurability.current(item, def), def.maxDurability);
+        return effective > 0 ? new ArmorPiece(slot, item, effective) : null;
+    }
+
+    /**
+     * 耐久値から有効な防具クラスを決める。満タンなら本来のクラス、減るほど下がり、0 なら防護なし。
+     * 半分で本来の 3/4 (クラス4なら3)、SCAV の防具 (30〜50%) は 1 クラスほど下がる。
+     */
+    static int effectiveArmorClass(int armorClass, int durability, int maxDurability) {
+        if (armorClass <= 0) return 0;
+        if (maxDurability <= 0) return armorClass;
+        if (durability <= 0) return 0;
+        double ratio = Math.max(0.0, Math.min(1.0, (double) durability / maxDurability));
+        return (int) Math.round(armorClass * (0.5 + 0.5 * ratio));
     }
 
     public static int armorClassFromSlot(LivingEntity entity, EquipmentSlot slot) {
@@ -113,14 +143,14 @@ public final class BulletDamageModel {
 
     /**
      * 銃・データパックの威力補正は使わず、部位と防具だけで補正する。
-     * 防具に止められた時は 0.15 倍。抜かれた時も防具が勢いを殺すので、防具クラス 1 つにつき
+     * 防具に止められた時はダメージなし (打撲なし)。抜かれた時も防具が勢いを殺すので、有効な防具クラス 1 つにつき
      * {@link #PENETRATED_REDUCTION_PER_CLASS} 減らす (クラス 3 なら 0.7 倍、最大のクラス 6 で 0.4 倍)
      */
     public static double damageForHit(double baseDamage, String hitLocation, boolean penetrated, int armorClass) {
         double damage = baseDamage;
         if (HEAD.equals(hitLocation) || FACE.equals(hitLocation)) damage *= 1.2;
         else if (LEGS.equals(hitLocation)) damage *= 0.6;
-        if (!penetrated) return damage * NOT_PENETRATED_MULTIPLIER;
+        if (!penetrated) return 0.0;
         int clamped = Math.max(0, Math.min(MAX_ARMOR_CLASS, armorClass));
         return damage * (1.0 - PENETRATED_REDUCTION_PER_CLASS * clamped);
     }
@@ -159,10 +189,13 @@ public final class BulletDamageModel {
         return dot <= -0.5 && roll >= 0 && roll < Math.min(1.0, chance);
     }
 
-    /** 弾薬クラスと防具クラスから、防具を貫通したかを抽選する */
-    public static boolean penetrates(int ammoClass, int armorClass) {
-        if (armorClass <= 0) return true;
-        double chance = (ammoClass > armorClass) ? 0.95 : (ammoClass == armorClass ? 0.70 : 0.15);
-        return Math.random() < chance;
+    /**
+     * 弾薬クラスと防具クラスから、防具を貫通したかを抽選する。
+     * 下位クラスの弾は {@link PenetrationRng} の PRD を使い、フルオートで撃ち込んでも
+     * 連続で抜けたり長く抜けなかったりしないようにする (平均は {@link PenetrationRng#LOW_CLASS_CHANCE})。
+     */
+    public static boolean penetrates(int ammoClass, int armorClass, UUID shooter, UUID victim, String hitLocation) {
+        boolean head = HEAD.equals(hitLocation) || FACE.equals(hitLocation);
+        return PenetrationRng.penetrates(ammoClass, armorClass, shooter, victim, head);
     }
 }

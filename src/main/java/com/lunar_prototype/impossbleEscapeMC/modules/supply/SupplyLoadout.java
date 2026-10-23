@@ -280,6 +280,6 @@ public final class SupplyLoadout {
         ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(PDCKeys.DURABILITY, PDCKeys.INTEGER, durability);
         item.setItemMeta(meta);
-        return item;
+        return ItemFactory.updateLore(item);
     }
 }
