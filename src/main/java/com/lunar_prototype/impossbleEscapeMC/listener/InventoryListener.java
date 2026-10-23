@@ -102,12 +102,12 @@ public class InventoryListener implements Listener {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 // 定期的なコスト更新
-                com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
-                com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge.refreshLobbyStatus(player);
+                com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, player.getInventory());
+                com.lunar_prototype.impossbleEscapeMC.modules.inventory.CapacityGauge.refreshLobbyStatus(player);
                 // バックパックGUIを開いている間は、その中身の占有マスも更新する
                 org.bukkit.inventory.Inventory top = player.getOpenInventory().getTopInventory();
                 if (top.getHolder() instanceof com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.BackpackInventoryHolder) {
-                    com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, top);
+                    com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, top);
                 }
             }
         }, 0L, 5L).getTaskId();
@@ -126,8 +126,8 @@ public class InventoryListener implements Listener {
         }
 
         // コスト制限用アイテムの操作禁止
-        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getCurrentItem()) ||
-            com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getCursor())) {
+        if (com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(event.getCurrentItem()) ||
+            com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(event.getCursor())) {
             event.setCancelled(true);
             return;
         }
@@ -139,7 +139,7 @@ public class InventoryListener implements Listener {
                 event.getWhoClicked().getInventory().setItem(event.getHotbarButton(), null);
                 event.setCancelled(true);
             }
-            if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(hotbarItem)) {
+            if (com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(hotbarItem)) {
                 event.setCancelled(true);
             }
         }
@@ -167,11 +167,11 @@ public class InventoryListener implements Listener {
     private void scheduleCostUpdate(Player player, InventoryView view) {
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
-            com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
-            com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge.refreshLobbyStatus(player);
+            com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, player.getInventory());
+            com.lunar_prototype.impossbleEscapeMC.modules.inventory.CapacityGauge.refreshLobbyStatus(player);
             CraftingGridButtons.get().refreshNow(player);
             if (view.getTopInventory() != null && !(view.getTopInventory().getHolder() instanceof Player)) {
-                com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, view.getTopInventory());
+                com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, view.getTopInventory());
             }
         });
     }
@@ -184,7 +184,7 @@ public class InventoryListener implements Listener {
             return;
         }
 
-        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getItem().getItemStack())) {
+        if (com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(event.getItem().getItemStack())) {
             event.setCancelled(true);
             return;
         }
@@ -200,7 +200,7 @@ public class InventoryListener implements Listener {
             event.getItemDrop().remove();
             return;
         }
-        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getItemDrop().getItemStack())) {
+        if (com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(event.getItemDrop().getItemStack())) {
             event.setCancelled(true);
             return;
         }
@@ -226,7 +226,7 @@ public class InventoryListener implements Listener {
         }
 
         // 閉じるときにコストを再計算して占有スロットを再配置
-        com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, player.getInventory());
+        com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, player.getInventory());
     }
 
     @EventHandler
@@ -245,7 +245,7 @@ public class InventoryListener implements Listener {
             event.setCancelled(true);
         }
 
-        if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(event.getOldCursor())) {
+        if (com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(event.getOldCursor())) {
             event.setCancelled(true);
             return;
         }

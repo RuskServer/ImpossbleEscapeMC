@@ -1,8 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility.ItemCost;
-import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 
 import java.util.ArrayList;
 import java.util.List;

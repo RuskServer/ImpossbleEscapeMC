@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndEvent;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndReason;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionSourceType;

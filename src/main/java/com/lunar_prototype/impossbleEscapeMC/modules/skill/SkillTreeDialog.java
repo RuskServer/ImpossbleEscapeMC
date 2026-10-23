@@ -2,8 +2,8 @@ package com.lunar_prototype.impossbleEscapeMC.modules.skill;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutFacility;

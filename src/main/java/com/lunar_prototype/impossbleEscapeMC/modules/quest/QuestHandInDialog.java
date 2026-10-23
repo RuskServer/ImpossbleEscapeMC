@@ -2,7 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.QuestObjective;

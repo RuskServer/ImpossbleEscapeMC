@@ -1,6 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Sound;

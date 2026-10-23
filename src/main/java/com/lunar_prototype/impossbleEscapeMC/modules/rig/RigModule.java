@@ -3,10 +3,10 @@ package com.lunar_prototype.impossbleEscapeMC.modules.rig;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.item.RigStats;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.stats.RigStats;
 import com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -355,6 +355,6 @@ public class RigModule implements IModule {
 
     private int getItemWeight(ItemStack item) {
         // データパックの銃・アタッチメントは表の値 (アイテムに重さを書いていないため)
-        return com.lunar_prototype.impossbleEscapeMC.item.ItemWeights.totalWeightOf(item);
+        return com.lunar_prototype.impossbleEscapeMC.item.inventory.ItemWeights.totalWeightOf(item);
     }
 }

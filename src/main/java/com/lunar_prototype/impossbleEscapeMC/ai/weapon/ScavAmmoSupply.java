@@ -1,10 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.ai.weapon;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
-import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import org.bukkit.entity.Mob;
 import org.bukkit.inventory.ItemStack;
 

@@ -1,11 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
-import com.lunar_prototype.impossbleEscapeMC.item.HelmetVisors;
-import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ArmorStats;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.stats.ArmorStats;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.EquipmentSlot;

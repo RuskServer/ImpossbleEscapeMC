@@ -1,8 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.item.TooltipStyle;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.tooltip.TooltipStyle;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;

@@ -150,7 +150,7 @@ public class CorpseManager {
             if (i == held) continue; // 手に持っている物は 4 に入れた
             ItemStack item = playerInv.getItem(i);
             if (com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)
-                    || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item)) {
+                    || com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(item)) {
                 continue;
             }
             virtualInv.setItem(9 + i, item);

@@ -1,6 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
-import com.lunar_prototype.impossbleEscapeMC.item.*;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.*;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
@@ -35,8 +37,8 @@ public final class QuestExpansionTest {
         visiting.remove(id); done.add(id);
     }
     public static void main(String[] args) throws Exception {
-        List<ItemDefinition> items = catalog("com.lunar_prototype.impossbleEscapeMC.item.ItemCatalog", "create");
-        List<AmmoDefinition> ammo = catalog("com.lunar_prototype.impossbleEscapeMC.item.AmmoCatalog", "create");
+        List<ItemDefinition> items = catalog("com.lunar_prototype.impossbleEscapeMC.item.definition.ItemCatalog", "create");
+        List<AmmoDefinition> ammo = catalog("com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoCatalog", "create");
         Map<String,ItemDefinition> itemMap = registry("ITEM_MAP");
         Map<String,AmmoDefinition> ammoMap = registry("AMMO_MAP");
         items.forEach(i -> itemMap.put(i.id, i)); ammo.forEach(i -> ammoMap.put(i.id, i));

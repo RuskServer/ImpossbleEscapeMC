@@ -13,7 +13,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.listener.DatapackGunshotWatcher;
 import com.lunar_prototype.impossbleEscapeMC.listener.PlayerListener;
 import com.lunar_prototype.impossbleEscapeMC.util.CrossbowTask;
@@ -165,8 +165,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 画面を開くときにカーソルのアイテムを持ち物へ戻す (Paper は自分のインベントリ画面を閉じずに差し替えるため戻らない)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.CursorItemListener(this), this);
         // 容量のゲージ (クラフトグリッドの左下) と、大きい物の説明の「サイズ N マス」
-        com.lunar_prototype.impossbleEscapeMC.item.CapacityGauge.init();
-        com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.init();
+        com.lunar_prototype.impossbleEscapeMC.modules.inventory.CapacityGauge.init();
+        com.lunar_prototype.impossbleEscapeMC.listener.ItemSizeTooltip.init();
         // フラッシュライトの点け消しと、向けられた時のまぶしさ
         com.lunar_prototype.impossbleEscapeMC.item.Flashlight.init(this);
         com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.init(this);
@@ -257,7 +257,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();
         com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.item.ItemSizeTooltip.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.listener.ItemSizeTooltip.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();

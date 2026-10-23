@@ -3,7 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
-import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
@@ -247,8 +247,8 @@ public class TraderModule implements IModule {
         if (offer == null || item == null) return 0;
         double price = offer.price;
         if (com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(item) != null) {
-            double condition = com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition.durability(item)
-                    / (double) com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition.MAX_DURABILITY;
+            double condition = com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackGunCondition.durability(item)
+                    / (double) com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackGunCondition.MAX_DURABILITY;
             price *= 0.2 + 0.8 * condition;
         }
         return price;

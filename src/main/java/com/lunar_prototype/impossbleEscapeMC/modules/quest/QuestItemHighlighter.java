@@ -113,11 +113,11 @@ public final class QuestItemHighlighter extends PacketListenerAbstract {
 
     /** プラグインの登録表 (読むだけで、どのスレッドからでもよい) にあるアイテム・弾・アタッチメントの種類 (QuestItems と同じ) */
     private static QuestItems.Definition registryDefinition(String id) {
-        var attachment = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAttachment(id);
+        var attachment = com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry.getAttachment(id);
         if (attachment != null) return new QuestItems.Definition(id, "ATTACHMENT", attachment.displayName);
-        var item = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(id);
+        var item = com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry.get(id);
         if (item != null) return new QuestItems.Definition(id, item.type, item.displayName);
-        var ammo = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAmmo(id);
+        var ammo = com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry.getAmmo(id);
         return ammo != null ? new QuestItems.Definition(id, "AMMO", ammo.displayName) : null;
     }
 

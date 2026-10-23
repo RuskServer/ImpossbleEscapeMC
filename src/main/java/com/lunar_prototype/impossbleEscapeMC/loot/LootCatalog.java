@@ -1,6 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -15,7 +15,7 @@ import java.util.Set;
  *   <li>クレート: 重みでルート表を1つ選ぶ。IDは /loot container set &lt;map&gt; &lt;crateId&gt; とマップのデータが参照するため変えない
  *       (以前の loot.yml のキーと同じ)</li>
  * </ul>
- * 品物のIDは {@link com.lunar_prototype.impossbleEscapeMC.item.GameItems} で探す (プラグインのアイテム・弾、データパックの銃・アタッチメント)。
+ * 品物のIDは {@link com.lunar_prototype.impossbleEscapeMC.item.factory.GameItems} で探す (プラグインのアイテム・弾、データパックの銃・アタッチメント)。
  * 銃の表示名を変えたい時だけ {@link #gun} で名前を付ける。
  * 弾は口径が多いので、決まった弾は個別に書き、残りは {@link #addAmmo} で貫通クラスごとにまとめて入れる
  */

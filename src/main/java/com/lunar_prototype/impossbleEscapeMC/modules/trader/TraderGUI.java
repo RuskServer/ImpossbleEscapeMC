@@ -1,6 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
-import com.lunar_prototype.impossbleEscapeMC.item.GameItems;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -295,7 +295,7 @@ public class TraderGUI implements Listener {
         if (itemId != null) return itemId;
         String gunId = com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(item);
         if (gunId != null) return gunId;
-        return com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attachmentIdOf(item);
+        return com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments.attachmentIdOf(item);
     }
 
     private double calculateTotalSellValue() {

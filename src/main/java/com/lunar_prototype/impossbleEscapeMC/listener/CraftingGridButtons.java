@@ -12,7 +12,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSe
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerWindowItems;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
-import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
+import com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager;
 import io.github.retrooper.packetevents.util.SpigotConversionUtil;
 import net.minecraft.world.inventory.InventoryMenu;
 import org.bukkit.Bukkit;

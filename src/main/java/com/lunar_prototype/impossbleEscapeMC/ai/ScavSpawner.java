@@ -4,10 +4,10 @@ import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackGunCondition;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import me.libraryaddict.disguise.DisguiseAPI;
 import me.libraryaddict.disguise.disguisetypes.Disguise;
 import net.kyori.adventure.text.Component;
@@ -361,7 +361,7 @@ public class ScavSpawner implements Listener {
         String itemId = meta.getPersistentDataContainer().get(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.ITEM_ID, com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.STRING);
         if (itemId == null) return;
 
-        com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.get(itemId);
+        com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition def = com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry.get(itemId);
         if (def == null || def.maxDurability <= 0) return;
 
         // 30% 〜 50% の範囲で抽選
@@ -372,7 +372,7 @@ public class ScavSpawner implements Listener {
         item.setItemMeta(meta);
 
         // 見た目を同期
-        com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.updateLore(item);
+        com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.updateLore(item);
     }
 
     private int rollArmorClass(String raidSessionId) {
@@ -631,7 +631,7 @@ public class ScavSpawner implements Listener {
         DatapackGunProfile profile = DatapackGunCatalog.get(gunId);
         if (gunner != null && profile != null) {
             int magazine = Math.max(0, Math.min(gunner.ammo(), profile.magazineSize()));
-            victim.getEquipment().setItemInMainHand(com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.withMagazine(gun, magazine, supply.ammoId()));
+            victim.getEquipment().setItemInMainHand(com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo.withMagazine(gun, magazine, supply.ammoId()));
         }
         return supply.toItems();
     }

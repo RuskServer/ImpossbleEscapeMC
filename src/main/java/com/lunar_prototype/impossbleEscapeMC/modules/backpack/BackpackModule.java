@@ -3,9 +3,9 @@ package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
-import com.lunar_prototype.impossbleEscapeMC.item.BackpackStats;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.stats.BackpackStats;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
 import net.kyori.adventure.text.Component;
@@ -99,7 +99,7 @@ public class BackpackModule implements IModule {
         Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
             if (player.isOnline()
                     && player.getOpenInventory().getTopInventory().getHolder() instanceof BackpackInventoryHolder) {
-                com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager.updateInventory(player, finalInv);
+                com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, finalInv);
             }
         });
         // ジッパーを開ける音 (本人にだけ聞こえる。リソースパックの IEM_shader/tools/backpack_sounds.py)
@@ -158,7 +158,7 @@ public class BackpackModule implements IModule {
             if (item == null || item.getType().isAir() || !item.hasItemMeta()) continue;
             if (isBackpackItem(item)) continue; // バックパックinバックパック禁止ポリシー
 
-            raw += com.lunar_prototype.impossbleEscapeMC.item.ItemWeights.totalWeightOf(item);
+            raw += com.lunar_prototype.impossbleEscapeMC.item.inventory.ItemWeights.totalWeightOf(item);
         }
 
         double reduction = getBackpackReduction(backpackItem);

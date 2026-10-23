@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -208,7 +208,7 @@ public class QuestModule implements IModule {
             }
             for (QuestObjective objective : def.getObjectives()) {
                 if (objective instanceof HandInObjective handIn && handIn.getItemId() == null) {
-                    boolean exists = com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAllItemIds().stream()
+                    boolean exists = com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry.getAllItemIds().stream()
                             .anyMatch(id -> {
                                 var item = QuestItems.resolve(id);
                                 return item != null && handIn.matches(id, item.type(), true);

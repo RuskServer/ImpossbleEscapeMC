@@ -2,11 +2,11 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
-import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo;
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackGunCondition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackGunCondition;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;

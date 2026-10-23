@@ -1,6 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
-import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 
 /** Deterministic common damage calculation checks; no running server. */
 public final class AmmoDamageTest {

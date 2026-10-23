@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
-import com.lunar_prototype.impossbleEscapeMC.item.*;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.AttachmentItems;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 
 /** Shared catalog lookup for quest descriptions, validation and hand-in. */

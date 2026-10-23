@@ -19,10 +19,10 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.Material;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemFactory;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.AmmoDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 
 import java.io.File;
@@ -565,7 +565,7 @@ private void spawnPlayers() {
             com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile profile =
                     com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.get(loadout);
             if (ammoDef != null && profile != null) {
-                weapon = com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.withMagazine(weapon, profile.magazineSize(), ammoDef.id);
+                weapon = com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo.withMagazine(weapon, profile.magazineSize(), ammoDef.id);
             }
             player.getInventory().setItem(0, weapon);
 
@@ -591,7 +591,7 @@ private void spawnPlayers() {
 
     /** ロードアウトの銃の弾: データパック銃の口径の基準弾、無ければ一番弱い弾 */
     private static AmmoDefinition ammoFor(String loadout) {
-        String caliber = com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.caliberOf(loadout);
+        String caliber = com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo.caliberOf(loadout);
         if (caliber == null) return null;
         AmmoDefinition reference = ItemRegistry.getReferenceAmmoForCaliber(caliber);
         return reference != null ? reference : ItemRegistry.getWeakestAmmoForCaliber(caliber);

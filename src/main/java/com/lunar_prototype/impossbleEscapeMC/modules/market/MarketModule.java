@@ -98,7 +98,7 @@ public class MarketModule implements IModule {
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String itemId = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        if (itemId != null && com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry.getAmmo(itemId) != null) {
+        if (itemId != null && com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry.getAmmo(itemId) != null) {
             return true;
         }
 

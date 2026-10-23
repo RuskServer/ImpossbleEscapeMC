@@ -77,7 +77,7 @@ public class DatapackGunshotWatcher {
             notifyScavsOfPlayerGunshot(player);
             if (!com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) {
                 // 当たった時に、撃った時に込めていた弾の種類を使う
-                com.lunar_prototype.impossbleEscapeMC.item.DatapackAmmo.recordShot(player);
+                com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo.recordShot(player);
                 handleDatapackShotLine(player);
                 com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playMuzzleFlash(
                         player, isAimingDatapackGun(player), isSuppressed(player.getInventory().getItemInMainHand()));
@@ -99,9 +99,9 @@ public class DatapackGunshotWatcher {
         String gunId = com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog.gunIdOf(gun);
         if (gunId == null) return false;
         if (INTEGRALLY_SUPPRESSED_GUNS.contains(gunId)) return true;
-        org.bukkit.inventory.ItemStack muzzle = com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attached(gun).get("muzzle");
+        org.bukkit.inventory.ItemStack muzzle = com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments.attached(gun).get("muzzle");
         String attachmentId = muzzle != null
-                ? com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments.attachmentIdOf(muzzle) : null;
+                ? com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments.attachmentIdOf(muzzle) : null;
         return attachmentId != null && attachmentId.contains("suppressor");
     }
 

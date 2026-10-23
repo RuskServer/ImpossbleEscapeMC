@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
-import com.lunar_prototype.impossbleEscapeMC.item.DatapackAttachments;
+import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -169,7 +169,7 @@ public class DatapackAttachmentGUI implements InventoryHolder {
 
     /** アタッチメントの名前 (データパックの翻訳キー。リソースパックに翻訳が無ければデータパックの英名) */
     static Component name(String attachmentId) {
-        var definition = com.lunar_prototype.impossbleEscapeMC.item.AttachmentItems.resolve(attachmentId);
+        var definition = com.lunar_prototype.impossbleEscapeMC.item.factory.AttachmentItems.resolve(attachmentId);
         return definition != null ? definition.name() : Component.text(attachmentId, NamedTextColor.WHITE);
     }
 

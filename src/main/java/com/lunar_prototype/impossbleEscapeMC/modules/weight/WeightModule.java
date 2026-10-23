@@ -223,7 +223,7 @@ public class WeightModule implements IModule, Listener {
 
     private int getItemWeight(ItemStack item) {
         // データパックの銃・アタッチメントは表の値 (アイテムに重さを書いていないため)
-        return com.lunar_prototype.impossbleEscapeMC.item.ItemWeights.totalWeightOf(item);
+        return com.lunar_prototype.impossbleEscapeMC.item.inventory.ItemWeights.totalWeightOf(item);
     }
 
     private void applyWeightEffects(Player player, PlayerData data) {

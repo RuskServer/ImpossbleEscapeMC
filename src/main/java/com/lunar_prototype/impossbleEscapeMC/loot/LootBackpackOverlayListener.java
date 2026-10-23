@@ -3,9 +3,9 @@ package com.lunar_prototype.impossbleEscapeMC.loot;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel;
 import com.lunar_prototype.impossbleEscapeMC.gui.OpenTitle;
-import com.lunar_prototype.impossbleEscapeMC.item.CostSlotManager;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.ItemRegistry;
+import com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager;
+import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndEvent;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndReason;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionStartEvent;
@@ -685,7 +685,7 @@ public class LootBackpackOverlayListener implements Listener {
 
     private boolean isForbiddenPlaceholder(ItemStack item) {
         return com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)
-                || com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item);
+                || com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(item);
     }
 
     private static List<Integer> createBackpackDisplaySlots() {

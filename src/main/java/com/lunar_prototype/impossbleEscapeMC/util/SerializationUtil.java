@@ -27,7 +27,7 @@ public class SerializationUtil {
             for (int i = 0; i < inventory.getSize(); i++) {
                 ItemStack item = inventory.getItem(i);
                 // コスト占有スロットやリグ制限スロットは保存しない
-                if (com.lunar_prototype.impossbleEscapeMC.item.ItemFactory.isCostSlotPlaceholder(item) ||
+                if (com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.isCostSlotPlaceholder(item) ||
                     com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.isLockedSlotPlaceholder(item)) {
                     dataOutput.writeObject(null);
                 } else {
