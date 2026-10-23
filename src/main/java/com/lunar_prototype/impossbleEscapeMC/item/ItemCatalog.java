@@ -130,10 +130,12 @@ final class ItemCatalog {
         items.add(trooper);
 
         // --- クラス2 (Low End / Standard) ---
-        ItemDefinition mf_untar = item("MF-UNTAR", "ARMOR", Material.GOLDEN_CHESTPLATE, "§f[MF-UNTAR] アーマー", 2, 0, 400, 7100, 5);
+        ItemDefinition mf_untar = item("MF-UNTAR", "ARMOR", Material.IRON_INGOT, "§f[MF-UNTAR] アーマー", 2, 25, 400, 7100, 5);
         // weight: 7.1kg
         // cost: 標準的な青色アーマー
-        mf_untar.armorStats = armor(2, 3, null, null);
+        // SP-V と同じく iron_ingot + 3D 装備モデルで描く
+        mf_untar.armorStats = armor(2, 0, "CHEST", null);
+        mf_untar.armorStats.model = "iem:mf_untar_3d";
         items.add(mf_untar);
 
         ItemDefinition untar = item("UNTAR", "ARMOR", Material.DIAMOND, "§f[UNTAR] ヘルメット", 2, 0, 350, 1800, 2);
