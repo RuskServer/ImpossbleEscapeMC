@@ -223,6 +223,8 @@ public class PlayerListener implements Listener {
                 1.0f);
 
         if (plugin.getRaidModule().isInRaid(player)) {
+            // レイド中のキルログ (バニラの死亡メッセージ) は出さない (誰が死んだ・誰に倒されたかを悟らせない)
+            event.deathMessage(null);
             // レイド中の死亡なら死体を生成
             plugin.getCorpseManager().spawnCorpse(player);
             // バニラのドロップを消去

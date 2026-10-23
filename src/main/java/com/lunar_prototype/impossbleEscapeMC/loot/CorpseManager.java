@@ -106,8 +106,8 @@ public class CorpseManager {
         
         mannequin.setPersistent(false);
         mannequin.setRemoveWhenFarAway(false);
-        mannequin.setCustomNameVisible(true);
-        mannequin.customName(Component.text(player.getName() + " の死体", NamedTextColor.GRAY));
+        // 誰の死体かは名前を出さずに分からなくする (漁る画面の題も「死体漁り」になる)
+        mannequin.setCustomNameVisible(false);
 
         // Set player's skin
         mannequin.setProfile(ResolvableProfile.resolvableProfile(player.getPlayerProfile()));
