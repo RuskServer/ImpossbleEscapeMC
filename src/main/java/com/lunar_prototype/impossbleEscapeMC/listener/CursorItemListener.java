@@ -7,9 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerAnimationEvent;
@@ -39,8 +37,10 @@ import java.util.UUID;
  *       バニラでもコンテナを開くときはカーソルのアイテムは持ち物へ戻すので、ここでも同じ状態にしてから画面を開く。
  *       {@link InventoryOpenEvent} は差し替え前 (自分のインベントリ画面のまま) に呼ばれるので、この時点では {@code player.getItemOnCursor()} が
  *       通常のカーソルのアイテムを指す</li>
- *   <li>画面を閉じた後・クリックが取り消された後: 次の tick に、持ち物とカーソルをクライアントへ送り直す ({@code updateInventory})。
- *       閉じた後は、画面が無いのにカーソルに残っている物を持ち物へ戻してから送る</li>
+ *   <li>画面を閉じた後: 次の tick に、画面が無いのにカーソルに残っている物を持ち物へ戻し、
+ *       持ち物とカーソルをクライアントへ送り直す ({@code updateInventory})。
+ *       取り消されたクリック・ドラッグは Paper が同期する。自分のインベントリ画面も {@code CRAFTING} 型なので、
+ *       取り消し操作の直後にこの処理を呼ぶと、画面上で持っているアイテムを誤って戻してしまう</li>
  *   <li>画面を開いていない時の操作 (視点を動かす・持つ欄を変える・クリックする・腕を振る): 画面が開いていればできない操作なので、
  *       この時にカーソルにアイテムがあれば、閉じ損ねて残った物として持ち物へ戻し、送り直す</li>
  * </ol>
@@ -69,16 +69,6 @@ public class CursorItemListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getPlayer() instanceof Player player) resyncNextTick(player);
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onClick(InventoryClickEvent event) {
-        if (event.isCancelled() && event.getWhoClicked() instanceof Player player) resyncNextTick(player);
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onDrag(InventoryDragEvent event) {
-        if (event.isCancelled() && event.getWhoClicked() instanceof Player player) resyncNextTick(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
