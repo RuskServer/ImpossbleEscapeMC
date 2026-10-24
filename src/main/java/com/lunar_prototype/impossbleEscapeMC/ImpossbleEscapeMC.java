@@ -41,6 +41,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     private com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener lootEggListener;
     private com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager corpseManager;
     private com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager raidMapManager;
+    private com.lunar_prototype.impossbleEscapeMC.modules.raid.OperationHintHud operationHintHud;
     private AiRaidLogger aiRaidLogger;
 
     private ServiceContainer serviceContainer;
@@ -157,6 +158,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
         // モジュールの有効化
         moduleBootstrap.enableModules();
+        operationHintHud = new com.lunar_prototype.impossbleEscapeMC.modules.raid.OperationHintHud(this);
 
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.InventoryListener(this), this);
@@ -234,6 +236,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (operationHintHud != null) operationHintHud.stop();
         // 開いている画面を閉じる。納品・売却・修理の欄に入れていたアイテムは、各画面の閉じる処理が持ち主に返す
         // (リスナーが外れる前に閉じないと、欄の中身が消える)
         for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {

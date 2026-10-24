@@ -36,6 +36,10 @@ public final class RaidHudTest {
         WIDTH.put('', 4);
         for (int i = 0; i < 10; i++) WIDTH.put((char) (0xE430 + i), 3);
         WIDTH.put('', 5);
+        WIDTH.put('', 79);
+        WIDTH.put('', 88);
+        WIDTH.put('', 118);
+        WIDTH.put('', 49);
     }
 
     private record Placed(char ch, int x, TextColor color) {
@@ -101,6 +105,14 @@ public final class RaidHudTest {
         placed.clear();
         layout(RaidHud.compose(0, List.of(), List.of(), 120), placed);
         check(placed.stream().anyMatch(p -> TextColor.color(255, 80, 65).equals(p.color())), "warning color under 2 min");
+        // 操作ヒントも同じ題名に載せ、コンパスの中央揃えを変えない
+        placed.clear();
+        check(layout(RaidHud.compose(0, List.of(), List.of(), 600, OperationHintHud.MAP), placed)
+                == RaidHud.STRIP, "hint changes strip width");
+        check(xOf(placed, '') == 98, "hint anchor: " + xOf(placed, ''));
+        placed.clear();
+        check(layout(RaidHud.lobbyHintTitle(), placed) == RaidHud.STRIP, "lobby hint width");
+        check(xOf(placed, '') == 98, "lobby hint anchor");
         // タスクの地点: 北を向き、真北 45m は琥珀色の菱形 (幅 9 の中央) と琥珀色の数字。真南は端の琥珀色の矢印
         placed.clear();
         layout(RaidHud.compose(180, List.of(), List.of(new double[]{0, -45}), 600), placed);

@@ -81,6 +81,8 @@ final class RaidHud {
 
     private static final Style HUD = Style.empty().font(FONT).color(TextColor.color(0xFFFFFF));
     private static final Style HUD_NO_SHADOW = HUD.shadowColor(ShadowColor.none());
+    /** 文字シェーダーが左上へ移すための専用色。絵の色はシェーダーで白へ戻す。 */
+    private static final Style HINT = HUD.color(TextColor.color(233, 234, 235)).shadowColor(ShadowColor.none());
 
     private final ImpossbleEscapeMC plugin;
     private final RaidMap map;
@@ -149,7 +151,8 @@ final class RaidHud {
             }
             if (data != null) collectQuestTargets(data, here, quests);
         }
-        return compose(here.getYaw(), targets, quests, timeLeft);
+        return compose(here.getYaw(), targets, quests, timeLeft,
+                OperationHintHud.raidHint(player, plugin));
     }
 
     /** 受けているクエストの、まだ着いていない到達の目標のうち、このワールドの物への水平の差 {dx, dz} */
@@ -178,6 +181,11 @@ final class RaidHud {
      * @param timeLeft 残り秒数
      */
     static Component compose(double yaw, List<double[]> targets, List<double[]> quests, int timeLeft) {
+        return compose(yaw, targets, quests, timeLeft, null);
+    }
+
+    static Component compose(double yaw, List<double[]> targets, List<double[]> quests, int timeLeft,
+                             OperationHintHud.Hint hint) {
         Line line = new Line();
         line.glyph(0, BG, STRIP, HUD_NO_SHADOW);
 
@@ -201,8 +209,20 @@ final class RaidHud {
         for (double[] target : targets) marker(line, heading, target, EXTRACT_MARKER);
 
         timer(line, Math.max(0, timeLeft));
+        if (hint != null) hint(line, hint);
         line.moveTo(STRIP);
         return line.build();
+    }
+
+    static Component lobbyHintTitle() {
+        Line line = new Line();
+        hint(line, OperationHintHud.LOBBY);
+        line.moveTo(STRIP);
+        return line.build();
+    }
+
+    private static void hint(Line line, OperationHintHud.Hint hint) {
+        line.glyph(CENTER + 8, hint.glyph(), hint.width(), HINT);
     }
 
     /** 地点の印と距離。帯の外 (後ろ側) は端に矢印 */
