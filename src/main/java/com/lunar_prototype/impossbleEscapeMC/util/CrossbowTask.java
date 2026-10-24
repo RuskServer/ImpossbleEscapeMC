@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.util;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -18,6 +19,8 @@ public class CrossbowTask extends BukkitRunnable {
 
             // クロスボウを持っているか確認
             if (item.getType() == Material.CROSSBOW) {
+                // Toi's Armory controls its own charged projectiles and gun animation.
+                if (DatapackGunCatalog.gunIdOf(item) != null) continue;
                 CrossbowMeta meta = (CrossbowMeta) item.getItemMeta();
 
                 if (meta != null) {

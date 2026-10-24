@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
@@ -390,18 +391,20 @@ public class PlayerListener implements Listener {
         }
 
         ItemStack item = event.getBow();
-        ItemMeta meta = item.getItemMeta();
-        if (meta instanceof CrossbowMeta crossbowMeta) {
-            // 装填済みにしてモデルを維持
-            crossbowMeta.addChargedProjectile(new ItemStack(Material.ARROW));
-            item.setItemMeta(crossbowMeta);
-        }
+        // Toi's Armory owns its gun components. Resending or recharging here can
+        // overwrite the animation frame that the datapack just set.
+        if (DatapackGunCatalog.gunIdOf(item) == null) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta instanceof CrossbowMeta crossbowMeta) {
+                // 装填済みにしてモデルを維持
+                crossbowMeta.addChargedProjectile(new ItemStack(Material.ARROW));
+                item.setItemMeta(crossbowMeta);
+            }
 
-        // 3. 実行者がプレイヤーの場合、腕の振りを止めたり、アイテムの状態を同期させる
-        if (event.getEntity() instanceof org.bukkit.entity.Player player) {
-            // 装填されたままにする（撃ったことにしてアイテムを消費させない）ための処理
-            // 必要に応じて、インベントリを更新してクライアントと同期を強制する
-            player.updateInventory();
+            // 3. 通常の弓・クロスボウは持ち物を同期する
+            if (event.getEntity() instanceof org.bukkit.entity.Player player) {
+                player.updateInventory();
+            }
         }
     }
 
