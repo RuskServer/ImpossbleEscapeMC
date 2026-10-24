@@ -52,6 +52,9 @@ public final class ItemCatalog {
         ItemDefinition tool_box = item("tool_box", "LOOT", Material.IRON_INGOT, "工具箱", 4, 5, 0, 4200, 1);
         items.add(tool_box);
 
+        ItemDefinition drill = item("drill", "LOOT", Material.IRON_INGOT, "電動ドリル", 3, 27, 0, 1500, 1);
+        items.add(drill);
+
         ItemDefinition wrench = item("wrench", "LOOT", Material.IRON_INGOT, "レンチ", 2, 4, 0, 520, 1);
         items.add(wrench);
 

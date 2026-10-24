@@ -50,6 +50,7 @@ final class LootCatalog {
         tables.add(table("rare_pool", 1, 4,
                 item("mini_battery", 35.0),
                 item("wrench", 35.0),
+                item("drill", 20.0),
                 item("copper_wire", 30.0, 1, 2),
                 item("water_filter", 35.0),
                 item("CAT", 25.0),
