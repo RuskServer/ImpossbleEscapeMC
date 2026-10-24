@@ -147,6 +147,7 @@ final class TraderCatalog {
                         item("eotech_xps2", 8500, 0, 1, null, null),
                         item("tool_box", 4500, 0, 1, null, null),
                         item("graphics_card", 85000, 0, 1, null, null),
+                        item("ram", 18000, 0, 1, null, null),
                         item("usb", 32000, 0, 1, null, null),
                         item("mechanical_golden_watch", 120000, 0, 1, null, null)
                 ));

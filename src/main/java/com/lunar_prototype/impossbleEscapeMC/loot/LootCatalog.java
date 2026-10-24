@@ -55,6 +55,7 @@ final class LootCatalog {
                 item("CAT", 25.0),
                 item("flashlight", 10.0),
                 item("usb", 5.0),
+                item("ram", 12.0),
                 item("unrg7k_ekho", 3.0),
                 item("eotech_xps2", 15.0),
                 item("ekp_8", 15.0),

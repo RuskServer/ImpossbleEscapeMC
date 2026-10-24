@@ -46,6 +46,9 @@ public final class ItemCatalog {
         ItemDefinition graphics_card = item("graphics_card", "LOOT", Material.IRON_INGOT, "グラフィックボード", 4, 11, 0, 1150, 1);
         items.add(graphics_card);
 
+        ItemDefinition ram = item("ram", "LOOT", Material.IRON_INGOT, "RAM", 3, 26, 0, 50, 1);
+        items.add(ram);
+
         ItemDefinition tool_box = item("tool_box", "LOOT", Material.IRON_INGOT, "工具箱", 4, 5, 0, 4200, 1);
         items.add(tool_box);
 
