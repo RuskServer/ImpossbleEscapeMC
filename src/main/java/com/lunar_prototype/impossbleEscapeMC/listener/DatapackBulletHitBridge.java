@@ -40,7 +40,7 @@ import java.util.UUID;
  *   <li>胴・腕・足: ダメージを与えている最中の弾 (BULLET と HIT_ENTITY タグの付いた marker) は、その tick の移動先に
  *       進行方向を向いて置かれている。その位置と向きから当たり判定の箱への入射点を逆算する</li>
  * </ul>
- * 基礎ダメージは装填弾の定義値 (散弾は1粒分)、足は×0.6、防具を貫通しなければ
+ * 基礎ダメージは装填弾の定義値 (散弾は弾Markerの粒数で割る)、足は×0.6、防具を貫通しなければ
  * ダメージなし (打撲なし) にし、バニラの防具による軽減は外す (プラグイン銃と同じく防具クラスで判断するため)。
  */
 public class DatapackBulletHitBridge implements Listener {
@@ -53,6 +53,8 @@ public class DatapackBulletHitBridge implements Listener {
     private static final String HIT_ENTITY_TAG = "HIT_ENTITY";
     private static final String MULTI_PROJECTILE_TAG = "toisarm.bullet.shots_divide_damage";
     private static final String FIRING_OBJECTIVE = "toisarm.timer.firing";
+    private static final String PROJECTILES_OBJECTIVE = "toisarm.bullet.shots";
+    private static final int DEFAULT_SHOTGUN_PROJECTILES = 12;
     /** 弾を探す範囲。弾は1tickにこれより長くは進まない */
     private static final double BULLET_SEARCH_RADIUS = 64.0;
     /** データパックの当たり判定は当たり判定の箱を0.1広げた範囲 */
@@ -81,7 +83,7 @@ public class DatapackBulletHitBridge implements Listener {
         BulletContact contact = bulletContact(victim);
         AmmoDefinition ammo = shooterAmmo(event.getDamager(), contact);
         int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
-        double rawDamage = BulletDamageModel.baseDamage(ammo);
+        double rawDamage = BulletDamageModel.baseDamage(ammo, projectilesPerShot(event.getDamager(), contact));
         String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null);
         // 処理中の弾Markerから入射方向を読む。
         Vector incoming = contact != null ? contact.direction() : null;
@@ -170,6 +172,24 @@ public class DatapackBulletHitBridge implements Listener {
         DatapackGunProfile profile = DatapackGunCatalog.get(DatapackGunCatalog.gunIdOf(gun));
         if (profile == null || profile.projectilesPerShot() <= 1) return null;
         return ItemRegistry.getAmmo(DatapackAmmo.loadedAmmoId(gun));
+    }
+
+    /** 発射時に弾Markerへ記録された粒数を使う。銃を持ち替えた後の着弾でも粒数は変わらない。 */
+    private static int projectilesPerShot(Entity damager, BulletContact contact) {
+        if (contact != null) {
+            var manager = Bukkit.getScoreboardManager();
+            var objective = manager != null ? manager.getMainScoreboard().getObjective(PROJECTILES_OBJECTIVE) : null;
+            if (objective != null) {
+                var score = objective.getScoreFor(contact.bullet());
+                if (score.isScoreSet() && score.getScore() > 0) return score.getScore();
+            }
+            if (contact.bullet().getScoreboardTags().contains(MULTI_PROJECTILE_TAG)) return DEFAULT_SHOTGUN_PROJECTILES;
+        }
+        Entity shooter = DatapackGunnerManager.resolveShooter(damager);
+        ItemStack gun = shooter instanceof LivingEntity living && living.getEquipment() != null
+                ? living.getEquipment().getItemInMainHand() : null;
+        DatapackGunProfile profile = DatapackGunCatalog.get(DatapackGunCatalog.gunIdOf(gun));
+        return profile != null ? Math.max(1, profile.projectilesPerShot()) : 1;
     }
 
     private static boolean isDatapackBullet(EntityDamageEvent event) {

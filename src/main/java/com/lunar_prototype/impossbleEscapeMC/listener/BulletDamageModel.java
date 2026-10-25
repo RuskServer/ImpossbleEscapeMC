@@ -136,9 +136,14 @@ public final class BulletDamageModel {
         return armorClassFromSlot(entity, EquipmentSlot.LEGS);
     }
 
-    /** 全銃共通の1発 (散弾は1粒) の威力。弾が不明な旧装備は固定5ダメージ。 */
+    /** 弾薬1個の理論威力。弾が不明な旧装備は固定5ダメージ。 */
     public static double baseDamage(AmmoDefinition ammo) {
         return ammo != null ? ammo.damage : 5.0;
+    }
+
+    /** 同時に出る弾の1粒あたりの基礎威力。 */
+    public static double baseDamage(AmmoDefinition ammo, int projectilesPerShot) {
+        return baseDamage(ammo) / Math.max(1, projectilesPerShot);
     }
 
     /**

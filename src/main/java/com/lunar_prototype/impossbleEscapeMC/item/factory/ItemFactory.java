@@ -296,7 +296,8 @@ public class ItemFactory {
         if (ammoDef != null) {
             lore.add("§7口径 §f" + ammoDef.caliber);
             lore.add("§7貫通 §fClass " + ammoDef.ammoClass);
-            lore.add("§7ダメージ §f" + ammoDef.damage);
+            lore.add("§7" + ("12x70mm".equalsIgnoreCase(ammoDef.caliber) ? "理論ダメージ" : "ダメージ")
+                    + " §f" + ammoDef.damage);
             for (String line : com.lunar_prototype.impossbleEscapeMC.util.LoreWrap.wrap(ammoDef.description)) lore.add("§8§o" + line);
             lore.add("");
         }
