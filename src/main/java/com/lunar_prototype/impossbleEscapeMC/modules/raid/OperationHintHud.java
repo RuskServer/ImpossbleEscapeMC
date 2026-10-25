@@ -25,10 +25,10 @@ import java.util.UUID;
 
 /** 通常のプレイ中、左上に出す操作ヒント。レイド中は RaidHud と同じボスバーに載せる。 */
 public final class OperationHintHud implements Listener {
-    static final Hint LOBBY = new Hint('', 159);
-    static final Hint MAP = new Hint('', 109);
-    static final Hint ZOOM = new Hint('', 137);
-    static final Hint SEARCH = new Hint('', 77);
+    static final Hint LOBBY = new Hint('', 113);
+    static final Hint MAP = new Hint('', 78);
+    static final Hint ZOOM = new Hint('', 91);
+    static final Hint SEARCH = new Hint('', 49);
 
     record Hint(char glyph, int width) {}
 
