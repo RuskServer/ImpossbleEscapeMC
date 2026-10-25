@@ -3,11 +3,14 @@ package com.lunar_prototype.impossbleEscapeMC.listener;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
@@ -30,14 +33,14 @@ import java.util.UUID;
 /**
  * Toi's Armoryデータパック銃の命中に、プラグイン銃と同じ部位判定・防具の貫通判定を入れ、{@link BulletHitEvent} として通知する。
  *
- * データパックには手を入れず、データパックの {@code damage} コマンドで起きるダメージイベントの中で判断する。
+ * データパックの {@code damage} コマンドで起きるダメージイベントの中で判断する。
  * <ul>
  *   <li>頭: データパックは当たり判定の上0.45ブロックへの命中に CRIT_HIT タグを付け、頭用のダメージで撃つ。
  *       タグは damage コマンドの実行中も付いたままなので、それで判断する (頭の倍率はデータパック側で入っている)</li>
  *   <li>胴・腕・足: ダメージを与えている最中の弾 (BULLET と HIT_ENTITY タグの付いた marker) は、その tick の移動先に
  *       進行方向を向いて置かれている。その位置と向きから当たり判定の箱への入射点を逆算する</li>
  * </ul>
- * 基礎ダメージはデータパックの値 (距離による減衰・頭の倍率込み) のまま、足は×0.6、防具を貫通しなければ
+ * 基礎ダメージは装填弾の定義値 (散弾は1粒分)、足は×0.6、防具を貫通しなければ
  * ダメージなし (打撲なし) にし、バニラの防具による軽減は外す (プラグイン銃と同じく防具クラスで判断するため)。
  */
 public class DatapackBulletHitBridge implements Listener {
@@ -48,6 +51,8 @@ public class DatapackBulletHitBridge implements Listener {
     /** ダメージを与えている最中の弾に付いているタグ */
     private static final String BULLET_TAG = "BULLET";
     private static final String HIT_ENTITY_TAG = "HIT_ENTITY";
+    private static final String MULTI_PROJECTILE_TAG = "toisarm.bullet.shots_divide_damage";
+    private static final String FIRING_OBJECTIVE = "toisarm.timer.firing";
     /** 弾を探す範囲。弾は1tickにこれより長くは進まない */
     private static final double BULLET_SEARCH_RADIUS = 64.0;
     /** データパックの当たり判定は当たり判定の箱を0.1広げた範囲 */
@@ -73,12 +78,12 @@ public class DatapackBulletHitBridge implements Listener {
 
         // 撃った弾の貫通クラスと定義威力。プレイヤーは撃った時に銃に込めていた弾、
         // SCAVは割り当てられた弾。分からない時 (弾を込めていない銃・弾の無い口径のSCAV) は貫通クラス1
-        AmmoDefinition ammo = shooterAmmo(event.getDamager());
+        BulletContact contact = bulletContact(victim);
+        AmmoDefinition ammo = shooterAmmo(event.getDamager(), contact);
         int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
         double rawDamage = BulletDamageModel.baseDamage(ammo);
-        BulletContact contact = bulletContact(victim);
         String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null);
-        // データパックは変更せず、処理中の弾Markerから入射方向を読む。
+        // 処理中の弾Markerから入射方向を読む。
         Vector incoming = contact != null ? contact.direction() : null;
         if (BulletDamageModel.visorRicochets(victim, hitLocation, incoming)) {
             event.setCancelled(true);
@@ -142,13 +147,29 @@ public class DatapackBulletHitBridge implements Listener {
         }
     }
 
-    private static AmmoDefinition shooterAmmo(Entity damager) {
+    private static AmmoDefinition shooterAmmo(Entity damager, BulletContact contact) {
         Entity shooter = DatapackGunnerManager.resolveShooter(damager);
         if (shooter == null) return null;
         ScavAmmoSupply supply = ScavAmmoSupply.of(shooter.getUniqueId());
         if (supply != null) return supply.ammo();
-        return shooter instanceof Player player && !DatapackGunnerManager.isGunner(player)
-                ? DatapackAmmo.lastShotAmmo(player.getUniqueId()) : null;
+        if (!(shooter instanceof Player player) || DatapackGunnerManager.isGunner(player)) return null;
+        AmmoDefinition immediate = immediateScatterAmmo(player, contact);
+        return immediate != null ? immediate : DatapackAmmo.lastShotAmmo(player.getUniqueId());
+    }
+
+    /** 同tickで当たる散弾は発射監視がまだ走っていないため、手にある銃の装填弾を使う。 */
+    private static AmmoDefinition immediateScatterAmmo(Player player, BulletContact contact) {
+        if (contact == null || !contact.bullet().getScoreboardTags().contains(MULTI_PROJECTILE_TAG)) return null;
+        var manager = Bukkit.getScoreboardManager();
+        var firing = manager != null ? manager.getMainScoreboard().getObjective(FIRING_OBJECTIVE) : null;
+        if (firing == null) return null;
+        var score = firing.getScore(player.getName());
+        if (!score.isScoreSet() || score.getScore() < 0) return null;
+
+        ItemStack gun = player.getInventory().getItemInMainHand();
+        DatapackGunProfile profile = DatapackGunCatalog.get(DatapackGunCatalog.gunIdOf(gun));
+        if (profile == null || profile.projectilesPerShot() <= 1) return null;
+        return ItemRegistry.getAmmo(DatapackAmmo.loadedAmmoId(gun));
     }
 
     private static boolean isDatapackBullet(EntityDamageEvent event) {
@@ -168,7 +189,7 @@ public class DatapackBulletHitBridge implements Listener {
         return BulletDamageModel.HEAD.equals(location) ? BulletDamageModel.BODY : location;
     }
 
-    private record BulletContact(Vector entry, Vector direction) {
+    private record BulletContact(Vector entry, Vector direction, Marker bullet) {
     }
 
     /** 処理中の弾の箱への入射点と進行方向。軌道が箱を通らない場合は部位だけを推定する。 */
@@ -197,7 +218,7 @@ public class DatapackBulletHitBridge implements Listener {
             RayTraceResult trace = box.rayTrace(origin, direction, BULLET_SEARCH_RADIUS * 4);
             if (trace != null && distance < bestDistance) {
                 bestDistance = distance;
-                bestContact = new BulletContact(trace.getHitPosition(), direction);
+                bestContact = new BulletContact(trace.getHitPosition(), direction, bullet);
             }
         }
         if (bestContact != null) return bestContact;
@@ -206,6 +227,6 @@ public class DatapackBulletHitBridge implements Listener {
         return new BulletContact(new Vector(
                 Math.max(box.getMinX(), Math.min(box.getMaxX(), position.getX())),
                 Math.max(box.getMinY(), Math.min(box.getMaxY(), position.getY())),
-                Math.max(box.getMinZ(), Math.min(box.getMaxZ(), position.getZ()))), null);
+                Math.max(box.getMinZ(), Math.min(box.getMaxZ(), position.getZ()))), null, nearest);
     }
 }
