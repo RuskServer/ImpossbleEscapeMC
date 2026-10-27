@@ -2,6 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.loot;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
+import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndEvent;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionEndReason;
 import com.lunar_prototype.impossbleEscapeMC.loot.event.LootSessionSourceType;
@@ -15,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
@@ -65,6 +67,7 @@ public class SearchGUI implements Listener {
         private final Object source; // Container or Entity
         private final Inventory liveInventory;
         private final Set<Integer> sessionSearchedSlots = new HashSet<>();
+        private final Set<Integer> searchingSlots = new HashSet<>();
         public SearchHolder(Object source, Inventory liveInventory) {
             this.source = source;
             this.liveInventory = liveInventory;
@@ -72,6 +75,7 @@ public class SearchGUI implements Listener {
         public Object getSource() { return source; }
         public Inventory getLiveInventory() { return liveInventory; }
         public Set<Integer> getSessionSearchedSlots() { return sessionSearchedSlots; }
+        public Set<Integer> getSearchingSlots() { return searchingSlots; }
         public void markSessionSearched(int slot) { sessionSearchedSlots.add(slot); }
         @Override public @NotNull Inventory getInventory() { return null; }
     }
@@ -382,12 +386,14 @@ public class SearchGUI implements Listener {
     private void startSearching(Player player, Inventory guiInv, SearchHolder holder, Object source, int slot) {
         Inventory realInv = holder.getLiveInventory();
         if (realInv == null) return;
+        if (!holder.getSearchingSlots().add(slot)) return;
 
         ItemStack current = realInv.getItem(slot);
         if (current == null || current.getType() == Material.AIR) {
             // 実体が空なら未確認表示を残さず即時確定する
             markAsSearched(holder, source, slot);
             updateInventory(guiInv, source);
+            holder.getSearchingSlots().remove(slot);
             return;
         }
 
@@ -399,6 +405,7 @@ public class SearchGUI implements Listener {
             @Override
             public void run() {
                 if (!player.getOpenInventory().getTopInventory().equals(guiInv)) {
+                    holder.getSearchingSlots().remove(slot);
                     this.cancel();
                     return;
                 }
@@ -412,13 +419,37 @@ public class SearchGUI implements Listener {
                     guiInv.setItem(slot, progressItem);
                     elapsed++;
                 } else {
+                    ItemStack revealed = realInv.getItem(slot);
                     markAsSearched(holder, source, slot);
                     updateInventory(guiInv, source);
-                    player.playSound(player.getLocation(), "ui.cartography_table.draw_map", 1.0f, 1.2f);
+                    if (revealed != null && !revealed.getType().isAir()) {
+                        int rarity = revealRarity(revealed);
+                        player.playSound(player, "iem:loot.reveal." + rarity, SoundCategory.MASTER,
+                                switch (rarity) {
+                                    case 3 -> 0.7f;
+                                    case 4 -> 0.9f;
+                                    case 5 -> 1.0f;
+                                    default -> 0.5f;
+                                }, 1.0f);
+                    }
+                    holder.getSearchingSlots().remove(slot);
                     this.cancel();
                 }
             }
         }.runTaskTimer(plugin, 0, 1);
+    }
+
+    private static int revealRarity(ItemStack item) {
+        if (!item.hasItemMeta()) return 1;
+        String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (id == null) return 1;
+        var def = ItemRegistry.get(id);
+        if (def != null) return Math.clamp(def.rarity, 1, 5);
+        var ammo = ItemRegistry.getAmmo(id);
+        if (ammo != null) return Math.clamp(ammo.rarity, 1, 5);
+        var attachment = ItemRegistry.getAttachment(id);
+        if (attachment != null) return Math.clamp(attachment.rarity, 1, 5);
+        return 1;
     }
 
     private Set<Integer> getSearchedSlots(PersistentDataContainer pdc) {
