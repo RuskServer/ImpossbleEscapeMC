@@ -127,6 +127,9 @@ final class SpawnDiagnostics implements Listener {
         say(p,"全体の推定最速"+(unknown>0&&fastest!=null&&fastest.seconds()>0?"（暫定）":"")+": "+(fastest==null?(count<2?"比較対象なし":"未確定"):
                 f(fastest.seconds())+"秒  #"+fastest.a()+" ↔ #"+fastest.b())
                 +"  |  未確定 "+unknown+"組",NamedTextColor.YELLOW);
+        var reasons=unknownReasons(count,r.pairs);
+        reasons.entrySet().stream().limit(6).forEach(reason->
+                say(p,"  未確定の理由："+reason.getKey()+" ×"+reason.getValue()+"組",NamedTextColor.GRAY));
         if(count==0) say(p,"スポーン地点はありません。",NamedTextColor.GRAY);
         int from=page==0?0:(page-1)*12, to=page==0?count:Math.min(count,page*12);
         for(int i=from;i<to;i++) {
@@ -140,13 +143,13 @@ final class SpawnDiagnostics implements Listener {
             }
             String rating=earliest==null?(count<2?"比較なし":"未確定"):
                     SpawnRouteSearch.rating(earliest.seconds(),r.settings.urgent,r.settings.targetMin,r.settings.targetMax);
-            if(site.unknown()>0 && (earliest==null||earliest.seconds()>=r.settings.targetMin)) rating="確認推奨";
+            if(site.unknown()>0 && earliest!=null && earliest.seconds()>=r.settings.targetMin) rating="確認推奨";
             Surroundings local=i<r.surroundings.size()?r.surroundings.get(i):null;
             RaidMap.SpawnEntry upper=local==null?null:SpawnSiteAssessment.upperReference(e,r.entries,local.exits,local.unknown,local.unsafe,r.settings.lowerLevelDrop);
             if(local!=null) {
                 if(local.unsafe&&!local.unknown)rating="足場要調整";
                 else if(upper!=null&&site.unknown()==0&&(earliest==null||earliest.seconds()>=r.settings.targetMin))rating="地下候補";
-                else if(upper==null&&local.exits<=2&&!local.unknown&&(earliest==null||earliest.seconds()>=r.settings.targetMin))rating="退避要確認";
+                else if(upper==null&&local.exits<=2&&!local.unknown&&earliest!=null&&earliest.seconds()>=r.settings.targetMin)rating="退避要確認";
             }
             NamedTextColor color=earliest==null?NamedTextColor.GRAY:
                     earliest.seconds()<r.settings.urgent?NamedTextColor.RED:
@@ -190,7 +193,9 @@ final class SpawnDiagnostics implements Listener {
         final List<Comparison> comparisons;
         final List<Comparison> routes=new ArrayList<>();
         final Set<Comparison> unknownInitialSight=new HashSet<>();
-        int directIndex,routeIndex; PairWork pair;
+        int directIndex,routeCompleted;
+        SpawnDiagnosticQueue<Comparison> routeQueue;
+        final Map<Comparison,PairWork> activeRoutes=new HashMap<>();
         final long started = System.nanoTime();
         final SpawnChunkLoader loader;
         long lastProgress;
@@ -210,7 +215,9 @@ final class SpawnDiagnostics implements Listener {
             if (viewers.keySet().stream().noneMatch(id->Bukkit.getPlayer(id)!=null)) {jobs.remove(map.getMapId(),this);cancel();return;}
             if (System.nanoTime()-started > settings.timeout*1_000_000_000) {
                 for(int index=directIndex;index<comparisons.size();index++) addResult(comparisons.get(index),null,"診断時間の上限（開始時射線未検査）");
-                for(int index=routeIndex;index<routes.size();index++) addResult(routes.get(index),null,"診断時間の上限（経路未確定）");
+                List<Comparison> unfinished=routeQueue==null?routes:routeQueue.remaining();
+                for(Comparison c:unfinished) addResult(c,null,activeRoutes.containsKey(c)
+                        ?"診断時間の上限（経路探索中）":"診断時間の上限（経路未着手）");
                 finish(); return;
             }
             int tick=Bukkit.getCurrentTick();
@@ -222,7 +229,7 @@ final class SpawnDiagnostics implements Listener {
             try {
                 if(loader.done()&&System.nanoTime()-lastProgress>5_000_000_000L) {
                     lastProgress=System.nanoTime();
-                    message("診断中：開始時射線 "+directIndex+"/"+comparisons.size()+"組、経路 "+routeIndex+"/"+routes.size()+"組");
+                    message("診断中：開始時射線 "+directIndex+"/"+comparisons.size()+"組、経路 "+routeCompleted+"/"+routes.size()+"組");
                 }
                 for(int op=0;op<settings.operations && System.nanoTime()<deadline;op++) {
                     if (!loader.done()) {
@@ -244,15 +251,21 @@ final class SpawnDiagnostics implements Listener {
                         }
                         continue;
                     }
-                    if(routeIndex>=routes.size()){finish();return;}
-                    Comparison c=routes.get(routeIndex);
+                    if(routeQueue==null)routeQueue=new SpawnDiagnosticQueue<>(routes,8);
+                    Comparison c=routeQueue.next();
+                    if(c==null){finish();return;}
+                    PairWork pair=activeRoutes.get(c);
                     if(pair==null) {
                         pair=new PairWork(point(entries.get(c.a())),point(entries.get(c.b())),world,settings,loader);
                         // 開始時の射線が未確定なら、迂回経路が見つかっても最速時間は確定しない。
                         pair.terrain.unknown=unknownInitialSight.contains(c);
+                        activeRoutes.put(c,pair);
                     }
                     pair.step();
-                    if(pair.done){addResult(c,pair.time,pair.note);pair=null;routeIndex++;}
+                    if(pair.done) {
+                        addResult(c,pair.time,pair.note);
+                        activeRoutes.remove(c);routeQueue.complete(c);routeCompleted++;
+                    }
                 }
             } catch (RuntimeException ex) {
                 jobs.remove(map.getMapId(),this);cancel();message("診断中にエラーが発生しました。サーバーログを確認してください。");
@@ -281,7 +294,9 @@ final class SpawnDiagnostics implements Listener {
         }
         void finish() {
             Report report=new Report(entries,world.getUID(),settings,List.copyOf(results),List.copyOf(surroundings),System.currentTimeMillis());
-            message("診断完了：チャンク "+loader.finished()+"/"+loader.total()+"、読込失敗・未生成 "+loader.failed()+"。保持を解除します。");
+            long total=(long)entries.size()*(entries.size()-1)/2;
+            long complete=results.stream().filter(p->p.seconds()!=null&&p.note().isEmpty()).count();
+            message("診断終了：接敵時間 "+complete+"/"+total+"組を確認、未確定 "+(total-complete)+"組。チャンク "+loader.finished()+"/"+loader.total()+"（失敗・未生成 "+loader.failed()+"）。保持を解除します。");
             cache.put(map.getMapId(),report);jobs.remove(map.getMapId(),this);cancel();
             for(var e:viewers.entrySet()){Player p=Bukkit.getPlayer(e.getKey());if(p!=null)print(p,map.getMapId(),report,e.getValue());}
         }

@@ -36,6 +36,12 @@ public final class SpawnContactSummaryTest {
         check(site(4,1,List.of()).unknown()==0,"single spawn has no missing opponent");
         var tie=site(4,3,List.of(new Pair(4,90,50,20.0,""),new Pair(4,15,50,20.0,"")));
         check(tie.opponent()==15,"stable target when times tie");
+        var reasons=unknownReasons(4,pairs);
+        check(reasons.get("経路探索の上限")==1,"explicit failure reason visible outside hover");
+        check(reasons.values().stream().mapToInt(Integer::intValue).sum()==4,"reason counts include three unprocessed pairs");
+        check(unknownReasons(2,List.of(new Pair(4,90,10,45.0,"探索範囲に読込失敗あり")))
+                .containsKey("探索範囲に読込失敗あり"),"provisional timing retains failure reason");
+        check(unknownReasons(2,List.of(new Pair(4,90,10,9.0,""))).isEmpty(),"confirmed pair has no unknown reason");
         System.out.println("SpawnContactSummaryTest OK");
     }
     private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}

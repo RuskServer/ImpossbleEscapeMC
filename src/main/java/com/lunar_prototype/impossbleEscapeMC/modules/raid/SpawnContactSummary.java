@@ -2,6 +2,8 @@ package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 /** 全地点の比較順と、未計算の相手も含む接敵時間の集計。 */
 final class SpawnContactSummary {
@@ -26,6 +28,18 @@ final class SpawnContactSummary {
             ring[1] = last;
         }
         return List.copyOf(result);
+    }
+
+    static Map<String,Integer> unknownReasons(int count,List<Pair> pairs) {
+        Map<String,Integer> reasons=new LinkedHashMap<>();
+        for(Pair pair:pairs) {
+            if(pair.seconds!=null&&pair.note.isEmpty())continue;
+            String reason=pair.note.isEmpty()?"理由未取得":pair.note;
+            reasons.merge(reason,1,Integer::sum);
+        }
+        int missing=Math.max(0,count*(count-1)/2-pairs.size());
+        if(missing>0)reasons.put("診断未実施（ワールド・範囲などを確認）",missing);
+        return reasons;
     }
 
     static Site site(int id, int count, List<Pair> pairs) {
