@@ -359,6 +359,10 @@ public class ScavController {
     private UUID lastLoggedTargetId = null;
     private boolean initializedTargetState = false;
     private final Location homeLocation;
+    /** 自分の視認・被弾・正式な援護で裏付けられていない、音だけの捜索。 */
+    private boolean soundOnlyContact;
+    private int lastDistantGunshotTick = -1000;
+    private int soundSearchBlockedUntil;
     /** 巡回先。RELAXED の時だけ使う */
     private Location patrolTarget = null;
     private int patrolTargetSinceTick = 0;
@@ -423,6 +427,7 @@ public class ScavController {
     public ScavBrain.BrainLevel getBrainLevel() { return brainLevel; }
     public void setLastKnownLocation(Location loc) {
         this.lastKnownLocation = loc;
+        soundOnlyContact = false;
         if (loc != null) belief.reset(loc, null); else belief.clear();
     }
     public void setAlerted(boolean alerted) { this.isAlerted = alerted; }
@@ -563,6 +568,7 @@ public class ScavController {
         }
 
         updateBelief(target, canSeeTarget);
+        enforceSoundBoundary();
         updateBehaviorState();
         // 自分で敵を捉えていない時は、呼ばれていれば味方の救援に向かう
         boolean assisting = target == null && lastKnownLocation == null && handleAssist();
@@ -676,6 +682,7 @@ public class ScavController {
         if (tactics.getPeekPhase() > 0) {
             tactics.handlePeekManeuver(canSeeTarget, System.currentTimeMillis() >= fireHoldUntil, this::applyAimToEntity,
                     weapon, baseSpread() + suppression * SUPPRESSION_SPREAD, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
+            enforceSoundBoundary();
             checkAndInteractWithDoors();
             int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, peekActions);
@@ -741,6 +748,7 @@ public class ScavController {
             if (!peek || !tactics.startPeek(lastKnownLocation, isSprinting, moveAction == 7)) handleSearching();
         }
 
+        enforceSoundBoundary();
         checkAndInteractWithDoors();
 
         // 射撃 (経路探索で回り込んでいる間は進む方向を向いているため撃たない)
@@ -1045,6 +1053,7 @@ public class ScavController {
 
     /** 見えている間、ターゲットの水平移動速度 (ブロック/tick) を観測しておく */
     private void recordSighting(LivingEntity target) {
+        soundOnlyContact = false;
         Location now = target.getLocation();
         int tick = Bukkit.getCurrentTick();
         if (!target.getUniqueId().equals(lastSeenTargetId)) {
@@ -1272,6 +1281,23 @@ public class ScavController {
         if (source.getWorld() != scav.getWorld()) return;
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
         double dist = scav.getLocation().distance(source);
+        ScavSoundPolicy policy = ScavSoundPolicy.from(plugin.getConfig());
+        if (sound.kind == SoundContact.Kind.GUNSHOT) {
+            ScavSoundPolicy.Reaction reaction = policy.gunshot(dist, source.distance(homeLocation), scav.getLocation().distance(homeLocation));
+            if (reaction == ScavSoundPolicy.Reaction.IGNORE) return;
+            if (reaction == ScavSoundPolicy.Reaction.ALERT) {
+                alertToDistantGunshot(source, raidSessionId);
+                return; // 推定位置・捜索先・捜索時間は作らない／延長しない
+            }
+        } else if (!policy.withinHome(source.distance(homeLocation)) || !policy.withinHome(scav.getLocation().distance(homeLocation))) {
+            return;
+        }
+        if (scav.getTarget() == null && lastKnownLocation == null && Bukkit.getCurrentTick() < soundSearchBlockedUntil) {
+            if (sound.kind == SoundContact.Kind.GUNSHOT) alertToDistantGunshot(source, raidSessionId);
+            return;
+        }
+        // 継続中の実戦の記憶を、音だけの捜索へ格下げしない。
+        if (scav.getTarget() == null && lastKnownLocation == null) soundOnlyContact = true;
 
         // 音から分かる位置はおおまか (遠いほど・壁越しほどずれる)。足音は壁越しだとこもって遠くまで届かない
         boolean muffled = !hasClearSoundPath(source);
@@ -1280,6 +1306,7 @@ public class ScavController {
                 ? Math.min(GUNSHOT_MAX_LOCATION_ERROR, dist * (muffled ? 0.15 : 0.08))
                 : Math.min(FOOTSTEP_MAX_LOCATION_ERROR, dist * (muffled ? 0.2 : 0.08));
         source.add((Math.random() - 0.5) * 2.0 * error, 0, (Math.random() - 0.5) * 2.0 * error);
+        if (soundOnlyContact && !policy.withinHome(source.distance(homeLocation))) source = sound.sourceLocation.clone();
 
         // 連射など、同じあたりから音が続いている: 居場所の推定だけ更新し、反応 (振り向き・声・調べ始め) はし直さない
         int nowTick = Bukkit.getCurrentTick();
@@ -1357,6 +1384,71 @@ public class ScavController {
             payload.put("walkedDistance", sound.walkedDistance);
             plugin.getAiRaidLogger().logEvent(raidSessionId, scav.getUniqueId(), "SOUND_INVESTIGATE_START", payload);
         }
+    }
+
+    /** 遠方の銃声は警戒・振り向きだけ。連射で警戒や音声を積み上げない。 */
+    private void alertToDistantGunshot(Location source, String raidSessionId) {
+        int now = Bukkit.getCurrentTick();
+        if (now - lastDistantGunshotTick < 20) return;
+        lastDistantGunshotTick = now;
+        addAlertness(0.1f, "DISTANT_GUNSHOT", raidSessionId);
+        isAlerted = true;
+        if (scav.getTarget() == null && lastKnownLocation == null) updatePreAim(source);
+    }
+
+    /** 音のみの推定・将来の経路が元の配置範囲を出ないか確認する。 */
+    private void enforceSoundBoundary() {
+        if (!soundOnlyContact) return;
+        ScavSoundPolicy policy = ScavSoundPolicy.from(plugin.getConfig());
+        Location goal = lastKnownLocation != null ? lastKnownLocation : lastHeardSoundLocation;
+        if (goal == null) { clearSoundInvestigation("CONTACT_EXPIRED"); return; }
+        boolean invalid = goal.getWorld() != homeLocation.getWorld() || scav.getWorld() != homeLocation.getWorld()
+                || !policy.canContinue(scav.getLocation().distance(homeLocation), goal.distance(homeLocation));
+        if (!invalid) {
+            var path = scav.getPathfinder().getCurrentPath();
+            if (path != null) {
+                var points = path.getPoints();
+                for (int i = Math.max(0, path.getNextPointIndex()); i < points.size(); i++) {
+                    Location point = points.get(i);
+                    if (point.getWorld() != homeLocation.getWorld() || !policy.withinHome(point.distance(homeLocation))) { invalid = true; break; }
+                }
+            }
+        }
+        Location direct = tactics.directMoveDestination();
+        if (!invalid && direct != null) invalid = direct.getWorld() != homeLocation.getWorld() || !policy.withinHome(direct.distance(homeLocation));
+        Location peek = tactics.peekMoveDestination();
+        if (!invalid && peek != null) invalid = peek.getWorld() != homeLocation.getWorld() || !policy.withinHome(peek.distance(homeLocation));
+        if (invalid) {
+            clearSoundInvestigation("HOME_BOUNDARY");
+            // 警戒状態でも、音につられて範囲外へ出た時は帰還できるようにする。
+            if (scav.getWorld() == homeLocation.getWorld() && !policy.withinHome(scav.getLocation().distance(homeLocation)))
+                scav.getPathfinder().moveTo(homeLocation, PATROL_SPEED);
+        }
+    }
+
+    private void clearSoundInvestigation(String reason) {
+        if (!soundOnlyContact) return;
+        soundOnlyContact = false;
+        if (reason.equals("HOME_BOUNDARY")) soundSearchBlockedUntil = Bukkit.getCurrentTick() + 40;
+        lastKnownLocation = null;
+        lastHeardSoundLocation = null;
+        investigateTicks = 0;
+        pursuitSteps = 0;
+        searchTicks = 0;
+        patrolTarget = null;
+        assignedSearchPoint = null;
+        squad.releaseSearch();
+        belief.clear();
+        positioning.clear();
+        withdrawal.clear();
+        tactics.resetSlicing();
+        tactics.stopMoving();
+        followingPath = false;
+        isSprinting = false;
+        tactics.cancelPeek();
+        tactics.setTacticalCoverLoc(null);
+        tactics.setCoverStayTicks(0);
+        logCoordination("SOUND_INVESTIGATION_STOP", Map.of("reason", reason));
     }
 
     /** 音源との間に壁が無いか (足音が直接届くか) */
@@ -1624,6 +1716,7 @@ public class ScavController {
 
     /** 交戦を始めた・続けている時に呼ぶ。救援に向かうのをやめ、周りの味方を呼ぶ */
     private void enterCombat() {
+        soundOnlyContact = false;
         lastCombatTick = Bukkit.getCurrentTick();
         LivingEntity target = scav.getTarget();
         squad.enterCombat(target != null ? target.getUniqueId() : null);
@@ -1666,6 +1759,8 @@ public class ScavController {
                     caller.helpPriority(scav.getLocation()), now - assistStartedTick, active)) return false;
         }
         if (!squad.joinHelpEncounter(caller.getSquad())) return false;
+        // 人数枠を消費した正式な救援は、音だけの捜索から切り替える。
+        if (soundOnlyContact) clearSoundInvestigation("HELP_ACCEPTED");
         if (!callerId.equals(assistCallerId)) {
             squad.releaseSearch();
             assignedSearchPoint = null;

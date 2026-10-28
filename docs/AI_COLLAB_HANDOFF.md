@@ -119,3 +119,5 @@ In `config.yml`:
 - 2026-10-28: Spawn diagnostics preload bounded existing chunks asynchronously and hold shared ChunkLease tickets through diagnosis, with cleanup on cancellation/disable. SCAV chunk retention uses the same reference-counted leases. Encounter estimates now use a full-stamina run/walk reference profile with runtime stamina constants, weight stages, food recovery and shared weight speed penalties.
 
 - 2026-10-28: Added dedicated SCAV withdrawal planning: evaluate reachability and sampled route exposure before selecting cover, keep the chosen path through close combat and temporary target loss, reject stalled destinations, and reengage only after reaching cover and satisfying existing readiness/health/suppression checks. Shared chunk retention behavior remains in place.
+
+- 2026-10-28: Added gunshot investigate/alert/ignore bands (32/64m defaults) and a 40m home leash for sound-only searches, including inferred positions and route/direct/peek destinations. Visual contact, damage and accepted help retain normal combat behavior. Out-of-bounds sound searches stop and cool down; distant shots never create or extend investigation targets.

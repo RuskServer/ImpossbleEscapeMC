@@ -269,6 +269,16 @@ public class ScavTactics {
     /** 評価済みの経路へ切り替える時、経路を止めずに横歩きの指示だけ解除する。 */
     public void cancelDirectMove() { endStrafe(); }
 
+    Location directMoveDestination() { return directTarget; }
+    Location peekMoveDestination() { return peekPhase == 1 ? peekLocation : peekPhase == 2 ? coverLocation : null; }
+    void cancelPeek() {
+        peekPhase = 0;
+        peekTicks = 0;
+        peekSettled = false;
+        coverLocation = null;
+        peekLocation = null;
+    }
+
     /** 経路探索と直接移動の両方を止める */
     public void stopMoving() {
         endStrafe();

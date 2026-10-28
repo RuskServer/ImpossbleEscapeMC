@@ -44,3 +44,9 @@ raid-spawn-diagnostics:
   max-duration-seconds: 120
   operations-per-tick: 48
   millis-per-tick: 2
+
+# 銃声による集合を抑制。視認・被弾・人数枠を使う正式な援護参加には適用しない。
+scav-hearing:
+  gunshot-investigate-radius: 32
+  gunshot-alert-radius: 64
+  sound-home-radius: 40
