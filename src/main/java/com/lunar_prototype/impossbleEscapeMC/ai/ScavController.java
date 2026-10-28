@@ -195,6 +195,7 @@ public class ScavController {
     private int suppressPauseUntilTick = 0;
     private int searchTicks = 0;
     private float suppression = 0.0f;
+    private final ScavDecisionStability movementStability = new ScavDecisionStability();
     private boolean isAlerted = false;
     private int cornerCheckTicks = 0;
     private boolean isHoldingAngle = false;
@@ -455,8 +456,11 @@ public class ScavController {
             safeRecordCooldownSteps = SAFE_RECORD_INTERVAL_STEPS;
         }
 
+        // 減衰の前に閾値越えを記録し、開始直後に解除されないようにする。
+        brain.updateSuppression(suppression);
         // タイマー更新
         if (suppression > 0) suppression = Math.max(0, suppression - 0.02f);
+        brain.updateSuppression(suppression);
         tactics.updateTimers();
 
         // 1. 分隊更新
@@ -620,7 +624,7 @@ public class ScavController {
         // 4. カバー検索
         if (target != null && tactics.getCoverSearchCooldown() <= 0) {
             // 撃ってくる相手が見えている時は、制圧されていても物陰へ走らずに撃ち返す (移動中は撃たないため)
-            if ((suppression > 0.6f && !canSeeTarget) || healthPercent < 0.4 || coverForReload) {
+            if ((brain.isSuppressed() && !canSeeTarget) || healthPercent < 0.4 || coverForReload) {
                 // 負傷・リロードによる撤退は追跡より優先し、専用の経路評価に任せる。
                 int withdrawTicks = SUPPRESSED_WITHDRAW_TICKS;
                 if (coverForReload) withdrawTicks = Math.max(withdrawTicks, Math.min(WITHDRAW_TICKS, weaponReadyInTicks + RELOAD_WITHDRAW_MARGIN_TICKS));
@@ -658,7 +662,7 @@ public class ScavController {
         float tacticalAdvice = 0.0f;
         boolean hasLos = target != null && scav.hasLineOfSight(target);
         if (!hasLos && lastKnownLocation != null) tacticalAdvice = 0.8f;
-        else if (suppression > 0.5f) tacticalAdvice = 0.5f;
+        else if (brain.isSuppressed()) tacticalAdvice = 0.5f;
 
         if (target != null) {
             float lowEffectRatio = getLowEffectiveRatio(target.getUniqueId());
@@ -678,20 +682,26 @@ public class ScavController {
             }
         }
 
+        // 判断は顔出し中も1ステップに1回。被弾・弾切れ・急な危険は動作の完了を待たない。
+        brain.updateConditions(healthPercent < 0.3, needsReload, brain.isSuppressed(), tacticalAdvice > 0.5f);
+        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
+
         // 6. Peek Maneuver
+        if (tactics.getPeekPhase() > 0 && (coverForReload || brain.hasUrgentMovementInterrupt())) {
+            tactics.cancelPeek();
+            tactics.stopMoving();
+        }
         if (tactics.getPeekPhase() > 0) {
+            movementStability.clearMovement();
             tactics.handlePeekManeuver(canSeeTarget, System.currentTimeMillis() >= fireHoldUntil, this::applyAimToEntity,
                     weapon, baseSpread() + suppression * SUPPRESSION_SPREAD, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             enforceSoundBoundary();
             checkAndInteractWithDoors();
-            int[] peekActions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
-            logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, peekActions);
+            logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
             return;
         }
 
         // 7. AI思考 & 移動
-        brain.updateConditions(healthPercent < 0.3, needsReload, suppression > 0.5f, tacticalAdvice > 0.5f);
-        int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
         if (actions.length < 2) {
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
             return;
@@ -703,7 +713,7 @@ public class ScavController {
         // 行動番号は ScavBrain の定義 (2: 後退, 3/4: 横移動, 6: ピーク, 7: ジャンプピーク) に合わせる
         if (neurons[1] > 0.7f) {
             // 怖い時は下がる。強い制圧下では横に動いて弾を避ける
-            moveAction = (suppression > 0.5f && Math.random() < 0.6) ? ((Math.random() > 0.5) ? 3 : 4) : 2;
+            moveAction = (brain.isSuppressed() && Math.random() < 0.6) ? ((Math.random() > 0.5) ? 3 : 4) : 2;
         }
         if (neurons[2] > 0.7f && !hasLos && lastKnownLocation != null) {
             if (neurons[0] > 0.6f && Math.random() > 0.6) moveAction = 6; // Peek
@@ -718,6 +728,13 @@ public class ScavController {
                 && (isEngaged(canSeeTarget) || withdrawal.active() || Bukkit.getCurrentTick() < withdrawUntilTick
                     || "WITHDRAW".equals(brain.getCurrentModeName()))
                 && handlePositioning(target, canSeeTarget);
+        // 専用の経路・遮蔽移動が優先。通常移動に戻る時に古い指示を持ち越さない。
+        if (positioned || fetchingAmmo || retreatingToCover || assisting || (target == null && lastKnownLocation == null)) {
+            movementStability.clearMovement();
+        } else {
+            moveAction = movementStability.movement(moveAction, Bukkit.getCurrentTick(), brain.wasMovementInterrupted());
+        }
+        actions = new int[] { moveAction, actions[1] };
         if (!positioned && !fetchingAmmo) followingPath = false;
         if (fetchingAmmo) {
             isHoldingAngle = false;
@@ -1517,6 +1534,7 @@ public class ScavController {
         // 出直して撃ち合っている時に撃たれたら、遮蔽へ戻る (撃ち合いを続けて撃たれ続けない)
         reengageUntilTick = 0;
         brain.requestDecision("DAMAGE_EVENT");
+        movementStability.clearMovement();
         positioning.recordHit(scav.getLocation());
         CombatHeatmapManager.record(scav.getLocation(), CombatHeatmapManager.TraceType.DANGER, 1.0f);
         playScavVoice(ScavVoice.HIT);

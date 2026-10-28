@@ -91,12 +91,11 @@ public class ScavTactics {
         int minTicks = (isCQC && isAuto && aggression > 0.5f) ? 5 : 20;
         int varTicks = (isCQC && isAuto && aggression > 0.5f) ? 10 : 30;
 
-        if (strafeTicks <= 0 || (isCQC && isAuto && strafeTicks > 15)) {
+        boolean newStrafeSegment = strafeTicks <= 0;
+        if (newStrafeSegment) {
             strafeDir = (Math.random() > 0.5) ? 1 : -1;
             strafeTicks = minTicks + (int) (Math.random() * varTicks);
             orbitScale = 0.6 + Math.random() * 0.8; // 区間ごとに回る半径・勢いを変える
-        } else if (Math.random() < 0.04) {
-            strafeDir = -strafeDir; // 区間の途中での不意の切り返し
         }
 
         // 横移動・距離維持中は、時々立ち止まって狙いを安定させる (止まる長さもばらつかせる)
@@ -107,7 +106,7 @@ public class ScavTactics {
                 stopMoving();
                 return;
             }
-        } else if (lateral && Math.random() < 0.05) {
+        } else if (newStrafeSegment && lateral && Math.random() < 0.05) {
             strafePauseTicks = 2 + (int) (Math.random() * 5);
             stopMoving();
             return;

@@ -32,6 +32,9 @@ public class ScavBrain {
     // decide() はAIの1ステップ (ScavController.STEP_TICKS tick) ごとに1回呼ばれる。カウンターはステップ数
     private int[] currentActions; // [Movement, Shooting]
     private int decisionTimer = 0;
+    private final ScavDecisionStability stability = new ScavDecisionStability();
+    private boolean movementInterrupted;
+    private boolean urgentMovementInterrupt;
 
     // --- Utility AI: Tactical Modes ---
     public enum TacticalMode {
@@ -69,8 +72,6 @@ public class ScavBrain {
     private static final int MODE_HISTORY_SIZE = 6;
     private final TacticalMode[] modeHistory = new TacticalMode[MODE_HISTORY_SIZE];
     private int modeHistoryIdx = 0;
-    /** 同じ動きがこの回数以上直近の履歴にあれば、別の動きに変えることがある */
-    private static final int REPEAT_ACTION_THRESHOLD = 6;
 
     // --- State Tracking for Interrupts ---
     private float lastSuppression = 0.0f;
@@ -80,6 +81,7 @@ public class ScavBrain {
     /** 次の判断を割り込みとしてやり直させる理由 (撃たれた時など、判断の外で起きたこと) */
     private String requestedInterrupt;
     private boolean lastOutOfAmmo = false;
+    private boolean lastSuppressed = false;
 
     // --- 個体の性格 ---
     /** 生成時の攻撃性・戦術性。感情は時間とともにこの値へ戻る (0へ戻すと、数秒でランクごとの性格差が消えるため) */
@@ -135,12 +137,14 @@ public class ScavBrain {
         this.squadRole = role != null ? role : ScavSquad.SquadRole.NONE;
     }
 
-    /** 今の判断で保とうとする交戦距離 (武器の好み × 個体差 × 判断ごとの揺らぎ) */
+    /** 今の判断で保とうとする交戦距離 (武器の好み × 固定の個体差) */
     public double getEngagementRange() {
         return engagementRange;
     }
 
     public int[] decide(LivingEntity target, Location lastKnownLocation, ScavWeapon weapon, float suppression, float tacticalAdvice, boolean isSprinting, float alertness) {
+        updateSuppression(suppression);
+        engagementRange = ScavDecisionStability.engagementRange(weapon != null ? weapon.preferredRange() : 15.0, rangeTrait);
         boolean canSeeNow = target != null;
 
         // --- 視認状態のデバウンス処理 ---
@@ -180,6 +184,8 @@ public class ScavBrain {
         String interruptReason = requestedInterrupt != null ? requestedInterrupt : getInterruptReason(canSee, suppression, healthPercent, weapon);
         requestedInterrupt = null;
         boolean interrupted = interruptReason != null;
+        movementInterrupted = interrupted;
+        urgentMovementInterrupt = interrupted && !"SIGHT_CHANGE".equals(interruptReason);
 
         // --- 3. Utility-Based Decision Logic ---
         if (decisionTimer <= 0 || interrupted || modeInertia <= 0) {
@@ -189,8 +195,6 @@ public class ScavBrain {
             float pressure = (suppression * 0.4f) + (float)((1.0 - healthPercent) * 0.6f);
             
             float ammo = weapon != null ? (float) weapon.ammoRatio() : 1.0f;
-
-            engagementRange = (weapon != null ? weapon.preferredRange() : 15.0) * rangeTrait * (0.85 + random.nextDouble() * 0.3);
 
             float targetHealth = (target != null) ? (float)(target.getHealth() / target.getAttribute(Attribute.MAX_HEALTH).getValue()) : 1.0f;
             float advantage = (1.0f - targetHealth) * 0.4f + (ammo * 0.6f);
@@ -263,10 +267,6 @@ public class ScavBrain {
 
             // D. モードを具体的なアクションに変換
             int moveAction = determineMoveActionByMode(currentMode, suppression, canSee, tacticalAdvice, dist);
-            // 同じ動きを繰り返していたら、半々で別の動きに変える (狙いを付けるHOLDと距離維持は除く)
-            if (moveAction != 8 && moveAction != 1 && getActionCount(moveAction) >= REPEAT_ACTION_THRESHOLD && random.nextBoolean()) {
-                moveAction = varyAction(moveAction);
-            }
             int shootAction = determineShootAction(canSee, suppression, isSprinting);
             
             // --- AI Analysis Logging ---
@@ -290,6 +290,7 @@ public class ScavBrain {
             modeInertia--;
         }
 
+        this.lastSuppressed = isSuppressed();
         this.lastCanSee = canSee;
         this.lastSuppression = suppression;
         this.lastHealthPercent = healthPercent;
@@ -305,7 +306,7 @@ public class ScavBrain {
         switch (mode) {
             case WITHDRAW:
                 // 強い制圧下では、背中を見せて逃げるだけでなく、蛇行(Strafe)して弾を避ける
-                if (suppression > 0.5f && r < 0.6f) return random.nextBoolean() ? 3 : 4;
+                if (isSuppressed() && r < 0.6f) return random.nextBoolean() ? 3 : 4;
                 return 2; // Retreat
 
             case PUSH:
@@ -377,18 +378,6 @@ public class ScavBrain {
         return count;
     }
 
-    /** 繰り返している動きを、同じ意図の別の動きに置き換える */
-    private int varyAction(int action) {
-        return switch (action) {
-            case 0, 2 -> random.nextBoolean() ? 3 : 4; // 直進・後退 → 横に動きながら
-            case 3, 4 -> 1;                            // 横移動 → 距離を保つ動き (横移動の左右は ScavTactics が切り替える)
-            case 5 -> 0;                               // ジャンプ → 前進
-            case 6 -> 7;                               // ピーク ⇔ ジャンプピーク
-            case 7 -> 6;
-            default -> action;
-        };
-    }
-
     private void recordHistory(int moveAction) {
         moveHistory[historyIdx] = moveAction;
         historyIdx = (historyIdx + 1) % HISTORY_SIZE;
@@ -422,21 +411,21 @@ public class ScavBrain {
     }
 
     private String getInterruptReason(boolean canSee, float suppression, double healthPercent, ScavWeapon weapon) {
-        // A. Sudden sight change (Debounced state changed)
-        if (canSee != lastCanSee) return "SIGHT_CHANGE";
-
         // B. Heavy damage or sudden suppression spike
         if (healthPercent < lastHealthPercent - 0.1) return "DAMAGE"; 
         if (suppression > lastSuppression + 0.3f) return "SUPPRESSION_SPIKE";
+        if (isSuppressed() && !lastSuppressed) return "SUPPRESSION_ENTERED";
 
         // C. Panic state (Fear spikes): 恐怖が閾値を超えた瞬間だけ (超えている間ずっと割り込むと毎ステップ判断し直してしまう)
         if (fear > 0.8f && lastFear <= 0.8f && lastSuppression < 0.5f) return "PANIC";
 
-        // D. Out of ammo while trying to shoot: 弾が切れた瞬間だけ (リロード中ずっと割り込まない)
-        if (currentActions[1] == 0 && weapon != null && weapon.ammo() <= 0 && !lastOutOfAmmo) {
+        // D. Out of ammo: 弾が切れた瞬間だけ (リロード中ずっと割り込まない)
+        if (weapon != null && weapon.ammo() <= 0 && !lastOutOfAmmo) {
             return "OUT_OF_AMMO";
         }
 
+        // 視認変化と同時の緊急事態を、通常の視認割り込みで隠さない。
+        if (canSee != lastCanSee) return "SIGHT_CHANGE";
         return null;
     }
 
@@ -535,6 +524,14 @@ public class ScavBrain {
     public float getFrustration() {
         return fear;
     }
+
+    public void updateSuppression(float value) { stability.updateSuppression(value); }
+
+    public boolean isSuppressed() { return stability.suppressed(); }
+
+    public boolean wasMovementInterrupted() { return movementInterrupted; }
+
+    public boolean hasUrgentMovementInterrupt() { return urgentMovementInterrupt; }
 
     public int[] getLastActions() {
         return currentActions != null ? currentActions : new int[] { 0, 1 };
