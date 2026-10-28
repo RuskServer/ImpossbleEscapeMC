@@ -6,14 +6,19 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.event.Listener;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.server.PluginDisableEvent;
+import com.lunar_prototype.impossbleEscapeMC.modules.stamina.StaminaTravelModel;
+import com.lunar_prototype.impossbleEscapeMC.modules.stamina.StaminaModule;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 
 import java.util.*;
 import static com.lunar_prototype.impossbleEscapeMC.modules.raid.SpawnRouteSearch.Point;
 
-/** 管理コマンド用。チャンクをロードせず、地形・射線検査をメインスレッドの複数tickへ分ける。 */
-final class SpawnDiagnostics {
+/** 管理コマンド用。範囲を非同期読込した後、地形・射線検査を複数tickへ分ける。 */
+final class SpawnDiagnostics implements Listener {
     private final ImpossbleEscapeMC plugin;
     private final RaidModule manager;
     private final Map<String, Job> jobs = new HashMap<>();
@@ -21,13 +26,24 @@ final class SpawnDiagnostics {
     private int budgetTick = -1;
     private long usedNanos;
     private record Settings(double speed, double urgent, double targetMin, double targetMax,
-                            int nodes, int pairs, int checks, int operations, double millis, double maxPath, double timeout) {}
+                            int nodes, int pairs, int checks, int operations, double millis, double maxPath, double timeout,
+                            int weight, int food, double reserve, double walkSpeed, int margin, int chunks, int parallel) {
+        StaminaTravelModel travel() {return StaminaModule.diagnosticTravel(weight,food,reserve,speed,walkSpeed);}
+    }
     private record Pair(int a, int b, double distance, Double seconds, String note) {}
     private record Surroundings(int cover, int exits, boolean unknown, boolean unsafe) {}
     private record Report(List<RaidMap.SpawnEntry> entries, UUID world, Settings settings,
                           List<Pair> pairs, List<Surroundings> surroundings, long created) {}
 
-    SpawnDiagnostics(RaidModule manager) { this.manager=manager; this.plugin=ImpossbleEscapeMC.getInstance(); }
+    SpawnDiagnostics(RaidModule manager) {
+        this.manager=manager; this.plugin=ImpossbleEscapeMC.getInstance();
+        Bukkit.getPluginManager().registerEvents(this,plugin);
+    }
+    @EventHandler public void onDisable(PluginDisableEvent event) {
+        if(event.getPlugin()!=plugin)return;
+        for(Job job:List.copyOf(jobs.values()))job.cancel();
+        jobs.clear();cache.clear();
+    }
     private double option(String key,double fallback,double lo,double hi) {
         double n=plugin.getConfig().getDouble("raid-spawn-diagnostics."+key,fallback);
         return Double.isFinite(n)?Math.max(lo,Math.min(hi,n)):fallback;
@@ -41,7 +57,11 @@ final class SpawnDiagnostics {
                 (int)option("max-pairs",256,1,1024),
                 (int)option("max-contact-checks",4096,100,20000),
                 (int)option("operations-per-tick",48,1,256),option("millis-per-tick",2,0.25,5),
-                option("max-path-blocks",1024,32,4096), option("max-duration-seconds",120,5,600));
+                option("max-path-blocks",1024,32,4096), option("max-duration-seconds",120,5,600),
+                (int)option("reference-weight-grams",20000,0,100000), (int)option("food-level",20,0,20),
+                option("stamina-reserve",5,1,50),option("walk-speed-blocks-per-second",4.3,0.1,20),
+                (int)option("chunk-margin-blocks",32,0,256),(int)option("max-chunks",2048,1,8192),
+                (int)option("parallel-chunk-loads",2,1,8));
     }
     void invalidate(RaidMap map) {
         cache.remove(map.getMapId());
@@ -69,17 +89,30 @@ final class SpawnDiagnostics {
             running.viewers.put(player.getUniqueId(),page);
             say(player,"診断中です。完了すると一覧を表示します。",NamedTextColor.YELLOW); return;
         }
+        if (!jobs.containsKey(map.getMapId()) && jobs.size()>=2) {
+            say(player,"診断は同時2マップまでです。完了後に再実行してください。",NamedTextColor.YELLOW);return;
+        }
         invalidate(map);
-        Job job=new Job(map,world,entries,settings);
+        Job job;
+        try {job=new Job(map,world,entries,settings);}
+        catch(IllegalArgumentException ex) {
+            say(player,ex.getMessage(),NamedTextColor.RED);
+            print(player,map.getMapId(),new Report(entries,null,settings,List.of(),List.of(),System.currentTimeMillis()),page);return;
+        }
         job.viewers.put(player.getUniqueId(),page); jobs.put(map.getMapId(),job);
-        say(player,"地形・射線を診断中（チャンクの追加読込なし）。結果は経路近似です。",NamedTextColor.YELLOW);
+        say(player,"診断範囲のチャンクを非同期読込中。既存地形のみ読み込み、診断終了後に保持を解除します。",NamedTextColor.YELLOW);
         job.runTaskTimer(plugin,1,1);
     }
     private static void say(Player p,String text,NamedTextColor color) { p.sendMessage(Component.text(text,color)); }
     private static String f(double n) { return String.format(Locale.ROOT,"%.1f",n); }
     private void print(Player p,String map,Report r,int page) {
         say(p,"スポーン "+map+" — "+r.entries.size()+"地点 / "+page+"ページ",NamedTextColor.GOLD);
-        say(p,"目標 "+f(r.settings.targetMin)+"〜"+f(r.settings.targetMax)+"秒、走行 "+f(r.settings.speed)+"m/s。両者接近・経路近似。",NamedTextColor.GRAY);
+        say(p,"目標 "+f(r.settings.targetMin)+"〜"+f(r.settings.targetMax)+"秒。両者接近・スタミナ込みの経路近似。",NamedTextColor.GRAY);
+        var travel=r.settings.travel();
+        say(p,"基準 "+f(r.settings.weight/1000.0)+"kg、満腹度"+r.settings.food+"、満タン開始・スキルなし。走行 "+
+                f(travel.sprintSpeed())+" / 歩行 "+f(travel.walkSpeed())+"m/s"+(travel.canSprint()?"（予備"+f(r.settings.reserve)+"で歩行回復）":"（重量によりダッシュ不可）"),NamedTextColor.GRAY);
+        say(p,"スタミナ消費 "+f(travel.drainPerSecond())+"/秒、歩行回復 "+f(travel.recoveryPerSecond())+
+                "/秒、回復待ち "+f(travel.recoveryDelay())+"秒。枯渇前に歩き、満回復して再走行。",NamedTextColor.DARK_GRAY);
         say(p,"地形キャッシュ："+Math.max(0,(System.currentTimeMillis()-r.created)/1000)+"秒前 / 再計算: /raid spawn analyze "+map,NamedTextColor.GRAY);
         for (int i=(page-1)*6;i<Math.min(page*6,r.entries.size());i++) {
             RaidMap.SpawnEntry e=r.entries.get(i);
@@ -113,14 +146,14 @@ final class SpawnDiagnostics {
             if (i<r.surroundings.size()) {
                 Surroundings s=r.surroundings.get(i);
                 say(p,"  遮蔽(8m) "+s.cover+"/8方向、退避(4m) "+s.exits+"/8方向"+
-                        (s.unsafe?" / 足場または頭上空間に問題":"")+(s.unknown?" / 周辺未読込あり":""),NamedTextColor.GRAY);
+                        (s.unsafe?" / 足場または頭上空間に問題":"")+(s.unknown?" / 周辺読込失敗／範囲外あり":""),NamedTextColor.GRAY);
             }
             for (Pair pair:r.pairs) if ((pair.a==e.id() || pair.b==e.id()) && !pair.note.isEmpty()) {
                 say(p,"  相手 #"+(pair.a==e.id()?pair.b:pair.a)+"："+pair.note,NamedTextColor.DARK_GRAY);
             }
         }
         if (r.entries.size()>page*6) say(p,"次: /raid spawn list "+map+" "+(page+1),NamedTextColor.GRAY);
-        say(p,"推定は2m格子の一経路。ジャンプ・扉操作・別ルート・スタミナは未評価。40秒超も安全保証ではありません。",NamedTextColor.DARK_GRAY);
+        say(p,"推定は2m格子の一経路。ジャンプ・扉操作・別ルート・任意の走行配分は未評価。40秒超も安全保証ではありません。",NamedTextColor.DARK_GRAY);
     }
     private static Point point(RaidMap.SpawnEntry e) { return new Point(e.x(),e.y(),e.z()); }
 
@@ -131,8 +164,14 @@ final class SpawnDiagnostics {
         int surroundingIndex, direction,cover,exits; boolean localUnknown;
         int a=0,b=1,pairCount; PairWork pair;
         final long started = System.nanoTime();
+        final SpawnChunkLoader loader;
+        long lastProgress;
         Job(RaidMap map,World world,List<RaidMap.SpawnEntry> entries,Settings settings) {
             this.map=map;this.world=world;this.entries=entries;this.settings=settings;
+            loader=new SpawnChunkLoader(world,plugin,entries,settings.margin,settings.chunks,settings.parallel);
+        }
+        @Override public synchronized void cancel() {
+            try {super.cancel();} finally {loader.close();}
         }
         void message(String text) { for (UUID id:viewers.keySet()) {Player p=Bukkit.getPlayer(id);if(p!=null)say(p,text,NamedTextColor.YELLOW);} }
         @Override public void run() {
@@ -154,13 +193,20 @@ final class SpawnDiagnostics {
             long deadline=begin+available;
             try {
                 for(int op=0;op<settings.operations && System.nanoTime()<deadline;op++) {
+                    if (!loader.done()) {
+                        loader.step();
+                        if(System.nanoTime()-lastProgress>5_000_000_000L) {
+                            lastProgress=System.nanoTime();message("チャンク読込 "+loader.finished()+"/"+loader.total()+"（失敗・未生成 "+loader.failed()+"）");
+                        }
+                        continue;
+                    }
                     if (surroundingIndex<entries.size()) { surroundingsStep(); continue; }
                     if (a>=entries.size()-1) { finish();return; }
                     if (pair==null) {
                         if (++pairCount>settings.pairs) {
                             results.add(new Pair(entries.get(a).id(),entries.get(b).id(),point(entries.get(a)).distance(point(entries.get(b))),null,"組み合わせ数の上限")); next(); continue;
                         }
-                        pair=new PairWork(point(entries.get(a)),point(entries.get(b)),world,settings);
+                        pair=new PairWork(point(entries.get(a)),point(entries.get(b)),world,settings,loader);
                     }
                     pair.step();
                     if (pair.done) {
@@ -176,7 +222,7 @@ final class SpawnDiagnostics {
         }
         void next() {pair=null;if(++b>=entries.size()){a++;b=a+1;}}
         void surroundingsStep() {
-            Terrain terrain=new Terrain(world); Point p=point(entries.get(surroundingIndex));
+            Terrain terrain=new Terrain(world,loader); Point p=point(entries.get(surroundingIndex));
             double angle=direction*Math.PI/4;
             Point far=new Point(p.x()+Math.cos(angle)*8,p.y(),p.z()+Math.sin(angle)*8);
             Boolean visible=terrain.visible(p,far);
@@ -191,16 +237,18 @@ final class SpawnDiagnostics {
         }
         void finish() {
             Report report=new Report(entries,world.getUID(),settings,List.copyOf(results),List.copyOf(surroundings),System.currentTimeMillis());
+            message("診断完了：チャンク "+loader.finished()+"/"+loader.total()+"、読込失敗・未生成 "+loader.failed()+"。保持を解除します。");
             cache.put(map.getMapId(),report);jobs.remove(map.getMapId(),this);cancel();
             for(var e:viewers.entrySet()){Player p=Bukkit.getPlayer(e.getKey());if(p!=null)print(p,map.getMapId(),report,e.getValue());}
         }
     }
 
     private static final class Terrain implements SpawnRouteSearch.Terrain {
-        final World world; boolean unknown;
-        Terrain(World world) {this.world=world;}
+        final World world; final SpawnChunkLoader loader; boolean unknown;
+        Terrain(World world,SpawnChunkLoader loader) {this.world=world;this.loader=loader;}
+        boolean chunkAvailable(int x,int z) {return loader.available(x,z) && world.isChunkLoaded(x,z);}
         boolean loaded(double x,double z) {
-            boolean loaded=world.isChunkLoaded(((int)Math.floor(x))>>4,((int)Math.floor(z))>>4);
+            boolean loaded=chunkAvailable(((int)Math.floor(x))>>4,((int)Math.floor(z))>>4);
             if(!loaded) unknown=true;return loaded;
         }
         boolean area(Point p) {
@@ -245,7 +293,7 @@ final class SpawnDiagnostics {
             double stepX=sx==0?Double.POSITIVE_INFINITY:16/Math.abs(dx);
             double stepZ=sz==0?Double.POSITIVE_INFINITY:16/Math.abs(dz);
             while(true) {
-                if(!world.isChunkLoaded(cx,cz)){unknown=true;return null;}
+                if(!chunkAvailable(cx,cz)){unknown=true;return null;}
                 if(cx==endX && cz==endZ)break;
                 if(tx<tz){cx+=sx;tx+=stepX;}
                 else if(tz<tx){cz+=sz;tz+=stepZ;}
@@ -266,12 +314,12 @@ final class SpawnDiagnostics {
     }
 
     private static final class PairWork {
-        final Point start,goal; final Settings settings; final Terrain terrain;
+        final Point start,goal; final Settings settings; final Terrain terrain; final StaminaTravelModel travel;
         SpawnRouteSearch route; List<Point> path; double[] distance;
         record Contact(int i,int j,double time) {}
         final PriorityQueue<Contact> contacts=new PriorityQueue<>(Comparator.comparingDouble(Contact::time));
         boolean initialized,done; Double time;String note="";int checks;
-        PairWork(Point start,Point goal,World world,Settings settings) {this.start=start;this.goal=goal;this.settings=settings;terrain=new Terrain(world);}
+        PairWork(Point start,Point goal,World world,Settings settings,SpawnChunkLoader loader) {this.start=start;this.goal=goal;this.settings=settings;terrain=new Terrain(world,loader);travel=settings.travel();}
         void step() {
             if(!initialized) {
                 initialized=true;
@@ -282,7 +330,7 @@ final class SpawnDiagnostics {
             }
             if(path==null) {
                 route.step();if(!route.done())return;
-                if(route.path()==null){note=route.failure()+(terrain.unknown?" / 未読込あり":"");done=true;return;}
+                if(route.path()==null){note=route.failure()+(terrain.unknown?" / 読込失敗／範囲外あり":"");done=true;return;}
                 // 経路上の候補を約4m間隔にする。距離は元経路の長さを保持する。
                 List<Point> full=route.path();List<Point> sampled=new ArrayList<>();List<Double> lengths=new ArrayList<>();double sum=0;
                 for(int i=0;i<full.size();i++) {
@@ -295,9 +343,9 @@ final class SpawnDiagnostics {
             if(contacts.isEmpty() || checks++>=settings.checks){note="射線候補探索の上限";done=true;return;}
             Contact c=contacts.remove();
             Boolean visible=terrain.visible(path.get(c.i),path.get(c.j));
-            if(Boolean.TRUE.equals(visible)){time=c.time;note=terrain.unknown?"探索範囲に未読込／射線範囲外あり":"";done=true;return;}
+            if(Boolean.TRUE.equals(visible)){time=c.time;note=terrain.unknown?"探索範囲に読込失敗／範囲外あり":"";done=true;return;}
             if(c.j>c.i)contacts.add(contact(c.i,c.j-1));
         }
-        Contact contact(int i,int j){return new Contact(i,j,SpawnRouteSearch.contactTime(distance[i],distance[distance.length-1]-distance[j],settings.speed));}
+        Contact contact(int i,int j){return new Contact(i,j,Math.max(travel.seconds(distance[i]),travel.seconds(distance[distance.length-1]-distance[j])));}
     }
 }

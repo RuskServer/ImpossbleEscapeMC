@@ -1794,17 +1794,20 @@ public class ScavController {
         weaponKey = null;
     }
 
+    private com.lunar_prototype.impossbleEscapeMC.util.ChunkLease chunkLease;
+
     private void updateChunkTicket() {
         Chunk newChunk = scav.getLocation().getChunk();
         if (currentChunk == null || !currentChunk.equals(newChunk)) {
-            if (currentChunk != null) currentChunk.removePluginChunkTicket(plugin);
+            if (chunkLease != null) chunkLease.close();
             currentChunk = newChunk;
-            currentChunk.addPluginChunkTicket(plugin);
+            chunkLease = com.lunar_prototype.impossbleEscapeMC.util.ChunkLease.acquire(currentChunk, plugin);
         }
     }
 
     private void releaseChunkTicket() {
-        if (currentChunk != null) { currentChunk.removePluginChunkTicket(plugin); currentChunk = null; }
+        if (chunkLease != null) { chunkLease.close(); chunkLease = null; }
+        currentChunk = null;
     }
 
     private void checkAndInteractWithDoors() {

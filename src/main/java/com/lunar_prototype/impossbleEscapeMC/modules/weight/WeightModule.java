@@ -246,6 +246,16 @@ public class WeightModule implements IModule, Listener {
         }
     }
 
+    /** スキルなしの基準速度。配置診断と実際の重量補正で式を共有する。 */
+    public static double baseSpeedMultiplier(int weightGrams) {
+        return 1 + speedPenalty(weightGrams, 40000);
+    }
+
+    private static double speedPenalty(int weight, int start) {
+        if (weight <= start) return 0;
+        return -Math.min(1.0, (double) (weight - start) / Math.max(1, 60000 - start)) * .75;
+    }
+
     private void updateSpeedModifier(Player player, int weight) {
         AttributeInstance moveSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (moveSpeed == null) return;
@@ -253,15 +263,8 @@ public class WeightModule implements IModule, Listener {
         // 既存の重量補正を削除
         moveSpeed.removeModifier(SPEED_MODIFIER_KEY);
 
-        double penalty = 0.0;
-        final int SPEED_DEBUFF_START_WEIGHT = 40000 + (int) SkillModule.value(player, SkillStat.SLOW_START_G); // 40kg (スキルで上がる)
-        final int SPEED_DEBUFF_MAX_WEIGHT = 60000; // 60kg
-        final double MAX_SPEED_PENALTY = 0.75; // -75% speed reduction
-
-        if (weight > SPEED_DEBUFF_START_WEIGHT) {
-            double ratio = Math.min(1.0, (double) (weight - SPEED_DEBUFF_START_WEIGHT) / (SPEED_DEBUFF_MAX_WEIGHT - SPEED_DEBUFF_START_WEIGHT));
-            penalty = -ratio * MAX_SPEED_PENALTY;
-        }
+        int start = 40000 + (int) SkillModule.value(player, SkillStat.SLOW_START_G);
+        double penalty = speedPenalty(weight, start);
 
         if (penalty != 0.0) {
             moveSpeed.addModifier(new AttributeModifier(SPEED_MODIFIER_KEY, penalty, AttributeModifier.Operation.ADD_SCALAR));

@@ -22,13 +22,21 @@ ai_log:
   max_raid_logs: 50
   async_write: true
 
-# 管理用スポーン診断。速度は軽装での基準値。重量・スタミナ・スキルは推定に含めない。
+# 管理用スポーン診断。満タン開始・指定重量の基準ペース（スキルなし）。
 raid-spawn-diagnostics:
   speed-blocks-per-second: 5.6
+  walk-speed-blocks-per-second: 4.3
+  reference-weight-grams: 20000
+  food-level: 20
+  stamina-reserve: 5
+  # 既存チャンクのみ非同期読込。総数超過なら診断を開始しない。
+  chunk-margin-blocks: 32
+  max-chunks: 2048
+  parallel-chunk-loads: 2
   urgent-seconds: 15
   target-min-seconds: 30
   target-max-seconds: 40
-  # 調べ切れない時は安全判定にしない。チャンクは強制ロードしない。
+  # 調べ切れない時は安全判定にしない。未生成チャンクは生成しない。
   max-nodes-per-pair: 6000
   max-pairs: 256
   max-contact-checks: 4096

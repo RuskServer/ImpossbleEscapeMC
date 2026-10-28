@@ -42,6 +42,18 @@ public class StaminaModule implements IModule, Listener {
     private static final long BASE_RECOVERY_DELAY_MS = 1000;
     private static final long EXHAUSTION_PENALTY_MS = 2000;
 
+    /** 診断用の固定条件。スキル・興奮剤なし。ゲーム本体と同じ定数・重量段階を使う。 */
+    public static StaminaTravelModel diagnosticTravel(int weightGrams, int food, double reserve,
+                                                      double sprintSpeed, double walkSpeed) {
+        WeightStage stage = WeightStage.getFromWeight(weightGrams);
+        double speedMultiplier = com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightModule.baseSpeedMultiplier(weightGrams);
+        return new StaminaTravelModel(MAX_STAMINA,
+                SPRINT_COST_PER_TICK * 20 * stage.getStaminaCostMultiplier(weightGrams),
+                RECOVERY_PER_TICK * 20 * (.3 + .7 * Math.clamp(food, 0, 20) / 20.0),
+                (BASE_RECOVERY_DELAY_MS + stage.getStaminaRecoveryDelayPenalty(weightGrams)) / 1000.0,
+                reserve, sprintSpeed * speedMultiplier, walkSpeed * speedMultiplier, weightGrams < 35000);
+    }
+
     @Override
     public void onEnable(ServiceContainer container) {
         this.plugin = ImpossbleEscapeMC.getInstance();
