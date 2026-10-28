@@ -68,6 +68,9 @@ public class SearchGUI implements Listener {
         private final Inventory liveInventory;
         private final Set<Integer> sessionSearchedSlots = new HashSet<>();
         private final Set<Integer> searchingSlots = new HashSet<>();
+        private final Map<Integer, Integer> searchFrames = new HashMap<>();
+        private final Map<Integer, int[]> waves = new HashMap<>();
+        private com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.Bag bag;
         public SearchHolder(Object source, Inventory liveInventory) {
             this.source = source;
             this.liveInventory = liveInventory;
@@ -232,7 +235,9 @@ public class SearchGUI implements Listener {
                 continue;
             }
 
-            if (searchedSlots.contains(i)) {
+            if (holder != null && holder.searchingSlots.contains(i)) {
+                guiInv.setItem(i, searchIcon(holder.searchFrames.getOrDefault(i, 0)));
+            } else if (searchedSlots.contains(i)) {
                 guiInv.setItem(i, realItem.clone());
             } else {
                 guiInv.setItem(i, createUnknownIcon());
@@ -241,11 +246,48 @@ public class SearchGUI implements Listener {
     }
 
     private ItemStack createUnknownIcon() {
-        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
+        meta.setItemModel(new NamespacedKey("iem", "search/unknown"));
         meta.displayName(Component.text("??? (未確認)", NamedTextColor.GRAY));
         item.setItemMeta(meta);
         return item;
+    }
+
+    private ItemStack searchIcon(int frame) {
+        ItemStack item = new ItemStack(Material.PAPER);
+        ItemMeta meta = item.getItemMeta();
+        meta.setItemModel(new NamespacedKey("iem", "search/spin_" + (frame % 8)));
+        meta.displayName(Component.text("サーチ中...", NamedTextColor.GRAY));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /** バックパック表示の切替と衝撃波で、同じタイトルを組み立てる。 */
+    public static void refreshTitle(Player player, com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.Bag bag) {
+        Inventory top = player.getOpenInventory().getTopInventory();
+        if (!(top.getHolder() instanceof SearchHolder holder)) return;
+        holder.bag = bag;
+        var line = new com.lunar_prototype.impossbleEscapeMC.gui.DialogLine(
+                net.kyori.adventure.key.Key.key("iem:gui"), '\uE040', '\uE050');
+        line.text("Searching...", net.kyori.adventure.text.format.TextColor.color(0x404040));
+        com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.append(line, top.getSize() / 9, bag);
+        for (var entry : holder.waves.entrySet()) {
+            int slot = entry.getKey();
+            int rarity = entry.getValue()[0], frame = entry.getValue()[1];
+            int rgb = switch (rarity) {
+                case 2 -> 0x55FF55;
+                case 3 -> 0x5555FF;
+                case 4 -> 0xB954FF;
+                case 5 -> 0xFFAA00;
+                default -> 0xFFFFFF;
+            };
+            line.moveTo((slot % 9) * 18 - 24).glyph(net.kyori.adventure.key.Key.key("iem:search"),
+                    (char) (0xE000 + (slot / 9) * 6 + frame), 64,
+                    net.kyori.adventure.text.format.TextColor.color(rgb), null, null);
+        }
+        com.lunar_prototype.impossbleEscapeMC.gui.OpenTitle.set(player,
+                line.build().shadowColor(net.kyori.adventure.text.format.ShadowColor.none()));
     }
 
     @EventHandler
@@ -401,29 +443,42 @@ public class SearchGUI implements Listener {
         final int searchTicks = Math.max(1, SEARCH_TICKS + (int) SkillModule.value(player, SkillStat.SEARCH_TICKS));
         new BukkitRunnable() {
             int elapsed = 0;
+            int flashFrame = -1;
 
             @Override
             public void run() {
                 if (!player.getOpenInventory().getTopInventory().equals(guiInv)) {
                     holder.getSearchingSlots().remove(slot);
+                    holder.searchFrames.remove(slot);
+                    holder.waves.remove(slot);
                     this.cancel();
                     return;
                 }
 
-                if (elapsed < searchTicks) {
-                    int percent = elapsed * 100 / searchTicks;
-                    ItemStack progressItem = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
-                    ItemMeta meta = progressItem.getItemMeta();
-                    meta.displayName(Component.text("サーチ中... " + percent + "%", NamedTextColor.GREEN));
-                    progressItem.setAmount(Math.max(1, percent / 5));
-                    guiInv.setItem(slot, progressItem);
+                if (flashFrame >= 0) {
+                    if (++flashFrame >= 6) {
+                        holder.waves.remove(slot);
+                        refreshTitle(player, holder.bag);
+                        cancel();
+                    } else {
+                        holder.waves.get(slot)[1] = flashFrame;
+                        refreshTitle(player, holder.bag);
+                    }
+                } else if (elapsed < searchTicks) {
+                    holder.searchFrames.put(slot, elapsed % 8);
+                    guiInv.setItem(slot, searchIcon(elapsed));
                     elapsed++;
                 } else {
                     ItemStack revealed = realInv.getItem(slot);
+                    holder.getSearchingSlots().remove(slot);
+                    holder.searchFrames.remove(slot);
                     markAsSearched(holder, source, slot);
                     updateInventory(guiInv, source);
                     if (revealed != null && !revealed.getType().isAir()) {
                         int rarity = revealRarity(revealed);
+                        holder.waves.put(slot, new int[]{rarity, 0});
+                        flashFrame = 0;
+                        refreshTitle(player, holder.bag);
                         player.playSound(player, "iem:loot.reveal." + rarity, SoundCategory.MASTER,
                                 switch (rarity) {
                                     case 3 -> 0.7f;
@@ -433,7 +488,7 @@ public class SearchGUI implements Listener {
                                 }, 1.0f);
                     }
                     holder.getSearchingSlots().remove(slot);
-                    this.cancel();
+                    if (flashFrame < 0) this.cancel();
                 }
             }
         }.runTaskTimer(plugin, 0, 1);

@@ -111,3 +111,5 @@ In `config.yml`:
 - 2026-10-27: SearchGUI now plays a private reveal sound based on the discovered item's rarity, and ignores repeated clicks on a slot while its search is running.
 - 2026-10-28: Added plugin-side bullet audio observation for Toi's Armory Marker movement, ground impacts, and entity hits. The datapack remains unchanged; CC0 sounds live in New_IEM_Resorcepack.
 - 2026-10-28: Raid result EXP animation now plays CC0-derived result sounds when each EXP row appears and when the displayed level rises; the old vanilla completion chime is replaced.
+
+- 2026-10-28: SearchGUI uses shared textured unknown/search icons, preserves concurrent search animations during inventory refresh, and draws rarity-colored reveal waves in the title without replacing revealed items. Backpack title changes preserve the wave overlay.

@@ -430,7 +430,11 @@ public class LootBackpackOverlayListener implements Listener {
         String key = bag == null ? "player" : bag.toString();
         if (key.equals(session.titleKey)) return;
         session.titleKey = key;
-        OpenTitle.set(player, session.title.apply(bag));
+        if (player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder) {
+            SearchGUI.refreshTitle(player, bag);
+        } else {
+            OpenTitle.set(player, session.title.apply(bag));
+        }
     }
 
     /** バックパックの表示に出す袋 (オフハンドのバックパックの名前、中身のコストの合計、容量) */
