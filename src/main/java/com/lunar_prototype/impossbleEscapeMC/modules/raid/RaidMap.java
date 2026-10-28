@@ -11,6 +11,39 @@ public class RaidMap {
     private final String mapId;
     private String worldName;
     private final List<double[]> spawnPoints = new ArrayList<>();
+    // 座標の配列は旧JSONと共通。IDは削除しても詰め直さず、再利用しない。
+    private List<Integer> spawnIds = new ArrayList<>();
+    private int nextSpawnId = 1;
+
+    public record SpawnEntry(int id, double x, double y, double z, float yaw, float pitch) {}
+
+    public boolean initializeSpawnIds() {
+        boolean changed = false;
+        nextSpawnId = Math.max(1, nextSpawnId);
+        if (spawnIds == null) { spawnIds = new ArrayList<>(); changed = true; }
+        for (int id : spawnIds) nextSpawnId = Math.max(nextSpawnId, id + 1);
+        while (spawnIds.size() < spawnPoints.size()) { spawnIds.add(nextSpawnId++); changed = true; }
+        return changed;
+    }
+
+    public List<SpawnEntry> spawnEntries() {
+        initializeSpawnIds();
+        List<SpawnEntry> entries = new ArrayList<>();
+        for (int i = 0; i < spawnPoints.size(); i++) {
+            double[] c = spawnPoints.get(i);
+            entries.add(new SpawnEntry(spawnIds.get(i), c[0], c[1], c[2], (float)c[3], (float)c[4]));
+        }
+        return List.copyOf(entries);
+    }
+
+    public boolean removeSpawnPoint(int id) {
+        initializeSpawnIds();
+        int index = spawnIds.indexOf(id);
+        if (index < 0) return false;
+        spawnIds.remove(index);
+        spawnPoints.remove(index);
+        return true;
+    }
     private final List<ExtractionPoint> extractionPoints = new ArrayList<>();
     private final List<ScavSpawnPoint> scavSpawnPoints = new ArrayList<>();
     private List<LootContainer> lootContainers = new ArrayList<>(); // Changed to non-final for safety
@@ -56,11 +89,14 @@ public class RaidMap {
 
     public void addSpawnPoint(Location loc) {
         ensureWorld(loc);
+        initializeSpawnIds();
         spawnPoints.add(locationToCoords(loc));
+        spawnIds.add(nextSpawnId++);
     }
 
     public void clearSpawnPoints() {
         spawnPoints.clear();
+        if (spawnIds != null) spawnIds.clear();
     }
 
     public List<Location> getSpawnPoints() {

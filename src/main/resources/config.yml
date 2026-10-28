@@ -21,3 +21,18 @@ ai_log:
   capture_raycast: false
   max_raid_logs: 50
   async_write: true
+
+# 管理用スポーン診断。速度は軽装での基準値。重量・スタミナ・スキルは推定に含めない。
+raid-spawn-diagnostics:
+  speed-blocks-per-second: 5.6
+  urgent-seconds: 15
+  target-min-seconds: 30
+  target-max-seconds: 40
+  # 調べ切れない時は安全判定にしない。チャンクは強制ロードしない。
+  max-nodes-per-pair: 6000
+  max-pairs: 256
+  max-contact-checks: 4096
+  max-path-blocks: 1024
+  max-duration-seconds: 120
+  operations-per-tick: 48
+  millis-per-tick: 2

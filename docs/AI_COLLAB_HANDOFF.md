@@ -113,3 +113,5 @@ In `config.yml`:
 - 2026-10-28: Raid result EXP animation now plays CC0-derived result sounds when each EXP row appears and when the displayed level rises; the old vanilla completion chime is replaced.
 
 - 2026-10-28: SearchGUI uses shared textured unknown/search icons, preserves concurrent search animations during inventory refresh, and draws rarity-colored reveal waves in the title without replacing revealed items. Backpack title changes preserve the wave overlay.
+
+- 2026-10-28: Added persistent player-spawn IDs, list/remove/analyze commands, and bounded tick-distributed terrain/LOS diagnostics targeting 30–40 seconds. Old spawn coordinate arrays remain compatible; ID migration is saved on load. Route timing is explicitly an approximation and incomplete pairs never receive a safe rating.

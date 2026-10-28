@@ -18,9 +18,11 @@ import java.util.stream.Collectors;
 @Command(name = "raid", description = "レイドシステム管理・出撃コマンド", permission = "op")
 public class RaidCommand implements BasicCommand {
     private final RaidModule manager;
+    private final SpawnDiagnostics spawnDiagnostics;
 
     public RaidCommand(RaidModule manager) {
         this.manager = manager;
+        this.spawnDiagnostics = new SpawnDiagnostics(manager);
     }
 
     @Override
@@ -104,29 +106,38 @@ public class RaidCommand implements BasicCommand {
     }
 
     private void handleSpawn(Player player, String[] args) {
-        if (args.length < 3) {
-            player.sendMessage(Component.text("使用法: /raid spawn <add/clear> <mapID>", NamedTextColor.RED));
-            return;
-        }
-        
-        String action = args[1].toLowerCase();
+        String usage = "/raid spawn <add|remove|list|analyze|clear> <mapID> [地点ID / ページ]";
+        if (args.length < 3) { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
+        String action = args[1].toLowerCase(java.util.Locale.ROOT);
         RaidMap map = manager.getMap(args[2]);
-        if (map == null) {
-            player.sendMessage(Component.text("Map not found.", NamedTextColor.RED));
-            return;
+        if (map == null) { player.sendMessage(Component.text("Map not found.", NamedTextColor.RED)); return; }
+        if (action.equals("list") || action.equals("analyze")) {
+            int page = 1;
+            try { if (args.length >= 4) page = Integer.parseInt(args[3]); }
+            catch (NumberFormatException ex) { player.sendMessage(Component.text("ページは1以上の整数です。", NamedTextColor.RED)); return; }
+            spawnDiagnostics.request(player, map, page, action.equals("analyze")); return;
         }
-
         if (action.equals("add")) {
+            if (map.getWorldName() != null && !map.isWorld(player.getWorld())) {
+                player.sendMessage(Component.text("マップと異なるワールドには追加できません。", NamedTextColor.RED)); return;
+            }
             map.addSpawnPoint(player.getLocation());
-            manager.saveMap(map);
-            player.sendMessage(Component.text("Spawn point added to " + args[2], NamedTextColor.GREEN));
+            int id = map.spawnEntries().getLast().id();
+            player.sendMessage(Component.text("スポーン #" + id + " を追加しました。", NamedTextColor.GREEN));
+        } else if (action.equals("remove")) {
+            if (args.length != 4) { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
+            int id;
+            try { id = Integer.parseInt(args[3]); }
+            catch (NumberFormatException ex) { player.sendMessage(Component.text("地点IDは整数です。", NamedTextColor.RED)); return; }
+            if (!map.removeSpawnPoint(id)) { player.sendMessage(Component.text("地点 #" + id + " はありません。listで確認してください。", NamedTextColor.RED)); return; }
+            player.sendMessage(Component.text("スポーン #" + id + " を削除しました。他の地点IDは変わりません。", NamedTextColor.GREEN));
         } else if (action.equals("clear")) {
             map.clearSpawnPoints();
-            manager.saveMap(map);
-            player.sendMessage(Component.text("Map '" + args[2] + "' の全スポーン地点を削除しました。", NamedTextColor.GREEN));
-        } else {
-            player.sendMessage(Component.text("使用法: /raid spawn <add/clear> <mapID>", NamedTextColor.RED));
-        }
+            player.sendMessage(Component.text("全スポーン地点を削除しました。", NamedTextColor.YELLOW));
+        } else { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
+        spawnDiagnostics.invalidate(map);
+        manager.saveMap(map);
+        spawnDiagnostics.request(player, map, 1, true);
     }
 
     private void handleExtract(Player player, String[] args) {
@@ -197,7 +208,7 @@ public class RaidCommand implements BasicCommand {
             player.sendMessage(Component.text("--- Admin Commands ---", NamedTextColor.RED));
             player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid start - レイドを強制開始 (デバッグ用)", NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid spawn add <mapID>", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid spawn <add|remove|list|analyze|clear> <mapID> [地点ID / ページ]", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.WHITE));
         }
@@ -223,7 +234,9 @@ public class RaidCommand implements BasicCommand {
                     .collect(Collectors.toList());
             if (sender.isOp()) {
                 if (sub.equals("map")) return Arrays.asList("create", "delete");
-                if (sub.equals("spawn") || sub.equals("extract")) return Arrays.asList("add");
+                if (sub.equals("spawn")) return Arrays.asList("add", "remove", "list", "analyze", "clear").stream()
+                        .filter(v -> v.startsWith(args[1].toLowerCase(java.util.Locale.ROOT))).toList();
+                if (sub.equals("extract")) return Arrays.asList("add");
                 if (sub.equals("scavspawn")) return Arrays.asList("add", "clear");
                 if (sub.equals("start")) return manager.getMapIds().stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
@@ -237,6 +250,15 @@ public class RaidCommand implements BasicCommand {
                     .collect(Collectors.toList());
         }
 
+        if (args.length == 4 && sender.isOp() && args[0].equalsIgnoreCase("spawn")) {
+            RaidMap map = manager.getMap(args[2]);
+            if (map == null) return List.of();
+            if (args[1].equalsIgnoreCase("remove")) return map.spawnEntries().stream()
+                    .map(e -> String.valueOf(e.id())).filter(v -> v.startsWith(args[3])).toList();
+            if (args[1].equalsIgnoreCase("list") || args[1].equalsIgnoreCase("analyze")) return java.util.stream.IntStream
+                    .rangeClosed(1, Math.max(1, (map.spawnEntries().size()+5)/6)).mapToObj(String::valueOf)
+                    .filter(v -> v.startsWith(args[3])).toList();
+        }
         if (args.length == 4) {
             if (args[0].equalsIgnoreCase("scavspawn") && args[1].equalsIgnoreCase("add")) {
                 return Arrays.asList("true", "false");
