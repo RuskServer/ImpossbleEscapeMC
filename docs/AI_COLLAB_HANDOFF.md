@@ -117,3 +117,5 @@ In `config.yml`:
 - 2026-10-28: Added persistent player-spawn IDs, list/remove/analyze commands, and bounded tick-distributed terrain/LOS diagnostics targeting 30–40 seconds. Old spawn coordinate arrays remain compatible; ID migration is saved on load. Route timing is explicitly an approximation and incomplete pairs never receive a safe rating.
 
 - 2026-10-28: Spawn diagnostics preload bounded existing chunks asynchronously and hold shared ChunkLease tickets through diagnosis, with cleanup on cancellation/disable. SCAV chunk retention uses the same reference-counted leases. Encounter estimates now use a full-stamina run/walk reference profile with runtime stamina constants, weight stages, food recovery and shared weight speed penalties.
+
+- 2026-10-28: Added dedicated SCAV withdrawal planning: evaluate reachability and sampled route exposure before selecting cover, keep the chosen path through close combat and temporary target loss, reject stalled destinations, and reengage only after reaching cover and satisfying existing readiness/health/suppression checks. Shared chunk retention behavior remains in place.

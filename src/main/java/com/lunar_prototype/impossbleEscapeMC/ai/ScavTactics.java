@@ -266,6 +266,9 @@ public class ScavTactics {
         handle.setZza(0.0F);
     }
 
+    /** 評価済みの経路へ切り替える時、経路を止めずに横歩きの指示だけ解除する。 */
+    public void cancelDirectMove() { endStrafe(); }
+
     /** 経路探索と直接移動の両方を止める */
     public void stopMoving() {
         endStrafe();
