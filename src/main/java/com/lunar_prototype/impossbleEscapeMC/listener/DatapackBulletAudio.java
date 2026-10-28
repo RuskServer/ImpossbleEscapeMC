@@ -138,6 +138,8 @@ public final class DatapackBulletAudio implements Listener {
     }
 
     private void playNearMiss(World world, Vector start, Vector end, int ownerId) {
+        // 射手不明の弾を距離だけで推定すると、自分の弾まで聞こえることがある。
+        if (ownerId == Integer.MIN_VALUE) return;
         BoundingBox area = BoundingBox.of(start, end).expand(WHIZZ_RADIUS);
         Vector movement = end.clone().subtract(start);
         double length = movement.length();
@@ -145,8 +147,7 @@ public final class DatapackBulletAudio implements Listener {
         int now = Bukkit.getCurrentTick();
         for (Entity entity : world.getNearbyEntities(area)) {
             if (!(entity instanceof Player player) || player.getGameMode() == GameMode.SPECTATOR || player.isDead()) continue;
-            if (isOwner(player, ownerId)) continue;
-            if (ownerId == Integer.MIN_VALUE && player.getEyeLocation().toVector().distanceSquared(start) < 9.0) continue;
+            if (!canHearWhizz(player, ownerId)) continue;
             Integer last = lastWhizzTick.get(player.getUniqueId());
             if (last != null && now - last < WHIZZ_COOLDOWN_TICKS) continue;
 
@@ -195,12 +196,16 @@ public final class DatapackBulletAudio implements Listener {
         return score.isScoreSet() ? score.getScore() : known;
     }
 
-    private static boolean isOwner(Player player, int ownerId) {
-        if (ownerId == Integer.MIN_VALUE) return false;
+    private static boolean canHearWhizz(Player player, int ownerId) {
         var manager = Bukkit.getScoreboardManager();
         Objective objective = manager != null ? manager.getMainScoreboard().getObjective(PLAYER_ID_OBJECTIVE) : null;
         if (objective == null) return false;
-        var score = objective.getScore(player.getName());
-        return score.isScoreSet() && score.getScore() == ownerId;
+        var score = objective.getScoreFor(player);
+        return canHearWhizz(ownerId, score.isScoreSet() ? score.getScore() : Integer.MIN_VALUE);
+    }
+
+    // 両者のIDが確定していて、別人の弾である場合だけ鳴らす。
+    static boolean canHearWhizz(int ownerId, int listenerId) {
+        return ownerId != Integer.MIN_VALUE && listenerId != Integer.MIN_VALUE && ownerId != listenerId;
     }
 }

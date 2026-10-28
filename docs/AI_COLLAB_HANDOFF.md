@@ -125,3 +125,5 @@ In `config.yml`:
 - 2026-10-28: Spawn diagnostics distinguish zero-exit lower-level sites as underground/vertical-passage candidates, reporting the upper spawn and height difference. Early-contact, incomplete-route and unsafe-footing warnings retain priority.
 
 - 2026-10-28: Stabilized SCAV decisions without input smoothing: fixed per-weapon/individual engagement range, shared 0.60/0.35 suppression hysteresis, and a 15-tick hold for final ordinary movement proposals. Removed repetition-only action substitution and mid-segment random strafe reversals. Existing interrupts and dedicated route/cover movement retain priority; urgent interrupts can cancel peeks. See SCAV_DECISION_STABILITY.md.
+
+- 2026-10-29: Bullet whizz audio now requires confirmed, distinct shooter/listener datapack IDs. Removed the distance-only fallback for unknown owners so a player cannot hear their own unidentified bullet; impact audio is unchanged.

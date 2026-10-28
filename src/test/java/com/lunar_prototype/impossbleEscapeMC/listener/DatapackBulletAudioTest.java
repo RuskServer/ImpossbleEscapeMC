@@ -10,7 +10,16 @@ public final class DatapackBulletAudioTest {
         assertAt(new Vector(20, 0, 0), DatapackBulletAudio.closestPoint(start, end, new Vector(20, 2, 0)));
         assertAt(start, DatapackBulletAudio.closestPoint(start, end, new Vector(-3, 1, 0)));
         assertAt(end, DatapackBulletAudio.closestPoint(start, end, new Vector(43, 1, 0)));
+        check(!DatapackBulletAudio.canHearWhizz(12, 12), "shooter never hears own bullet");
+        check(DatapackBulletAudio.canHearWhizz(12, 34), "another player's bullet remains audible");
+        check(!DatapackBulletAudio.canHearWhizz(Integer.MIN_VALUE, 12), "unknown owner must not fall back to distance");
+        check(!DatapackBulletAudio.canHearWhizz(12, Integer.MIN_VALUE), "unknown listener must not hear a possible own bullet");
+        check(!DatapackBulletAudio.canHearWhizz(Integer.MIN_VALUE, Integer.MIN_VALUE), "missing scoreboard IDs stay silent");
         System.out.println("DatapackBulletAudioTest OK");
+    }
+
+    private static void check(boolean condition, String message) {
+        if (!condition) throw new AssertionError(message);
     }
 
     private static void assertAt(Vector expected, Vector actual) {
