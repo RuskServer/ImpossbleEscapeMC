@@ -176,6 +176,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.modules.starter.StarterKit.init(this);
         // データパック銃の命中もプラグイン銃と同じBulletHitEventとして通知する (負傷・アドレナリン・SCAVの命中記録)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletHitBridge(), this);
+        // 弾Markerの移動と消滅から、近接通過音と地形への着弾音を鳴らす
+        new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletAudio(this);
         // データパックの作業用エンティティがレイドのワールドに残って銃が壊れるのを防ぐ
         com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.init(this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
