@@ -36,6 +36,8 @@ raid-spawn-diagnostics:
   urgent-seconds: 15
   target-min-seconds: 30
   target-max-seconds: 40
+  # 退避0方向で、この高低差以上の上層スポーンがあれば地下・立体通路候補とする。
+  underground-height-difference: 3
   # 調べ切れない時は安全判定にしない。未生成チャンクは生成しない。
   max-nodes-per-pair: 6000
   max-pairs: 256

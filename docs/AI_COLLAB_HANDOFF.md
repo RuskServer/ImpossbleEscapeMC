@@ -121,3 +121,5 @@ In `config.yml`:
 - 2026-10-28: Added dedicated SCAV withdrawal planning: evaluate reachability and sampled route exposure before selecting cover, keep the chosen path through close combat and temporary target loss, reject stalled destinations, and reengage only after reaching cover and satisfying existing readiness/health/suppression checks. Shared chunk retention behavior remains in place.
 
 - 2026-10-28: Added gunshot investigate/alert/ignore bands (32/64m defaults) and a 40m home leash for sound-only searches, including inferred positions and route/direct/peek destinations. Visual contact, damage and accepted help retain normal combat behavior. Out-of-bounds sound searches stop and cool down; distant shots never create or extend investigation targets.
+
+- 2026-10-28: Spawn diagnostics distinguish zero-exit lower-level sites as underground/vertical-passage candidates, reporting the upper spawn and height difference. Early-contact, incomplete-route and unsafe-footing warnings retain priority.

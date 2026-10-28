@@ -27,7 +27,7 @@ final class SpawnDiagnostics implements Listener {
     private long usedNanos;
     private record Settings(double speed, double urgent, double targetMin, double targetMax,
                             int nodes, int pairs, int checks, int operations, double millis, double maxPath, double timeout,
-                            int weight, int food, double reserve, double walkSpeed, int margin, int chunks, int parallel) {
+                            int weight, int food, double reserve, double walkSpeed, int margin, int chunks, int parallel, double lowerLevelDrop) {
         StaminaTravelModel travel() {return StaminaModule.diagnosticTravel(weight,food,reserve,speed,walkSpeed);}
     }
     private record Pair(int a, int b, double distance, Double seconds, String note) {}
@@ -61,7 +61,7 @@ final class SpawnDiagnostics implements Listener {
                 (int)option("reference-weight-grams",20000,0,100000), (int)option("food-level",20,0,20),
                 option("stamina-reserve",5,1,50),option("walk-speed-blocks-per-second",4.3,0.1,20),
                 (int)option("chunk-margin-blocks",32,0,256),(int)option("max-chunks",2048,1,8192),
-                (int)option("parallel-chunk-loads",2,1,8));
+                (int)option("parallel-chunk-loads",2,1,8),option("underground-height-difference",3,1,32));
     }
     void invalidate(RaidMap map) {
         cache.remove(map.getMapId());
@@ -136,10 +136,15 @@ final class SpawnDiagnostics implements Listener {
                     SpawnRouteSearch.rating(earliest.seconds,r.settings.urgent,r.settings.targetMin,r.settings.targetMax);
             if (unknown>0 && (earliest==null || earliest.seconds>=r.settings.targetMin)) rating="確認推奨（未確定な組み合わせあり）";
             String contact=earliest==null?"未確定":"約"+f(earliest.seconds)+"秒 / 相手 #"+(earliest.a==e.id()?earliest.b:earliest.a);
+            RaidMap.SpawnEntry upper=null;
             if (i<r.surroundings.size()) {
                 Surroundings local=r.surroundings.get(i);
+                upper=SpawnSiteAssessment.upperReference(e,r.entries,local.exits,local.unknown,local.unsafe,r.settings.lowerLevelDrop);
                 if (local.unsafe && !local.unknown) rating="要調整（足場または頭上空間に問題）";
-                else if (local.exits<=2 && !local.unknown && (earliest==null || earliest.seconds>=r.settings.targetMin)) rating="確認推奨（退避方向が少ない）";
+                else if (upper!=null && unknown==0 && (earliest==null || earliest.seconds>=r.settings.targetMin))
+                    rating="地下・立体通路候補（出口経路を確認）";
+                else if (upper==null && local.exits<=2 && !local.unknown && (earliest==null || earliest.seconds>=r.settings.targetMin))
+                    rating="確認推奨（退避方向が少ない）";
             }
             say(p,"  "+rating+"：最短射線接触 "+contact+"、開始時射線の検出 "+direct+"組、未確定 "+unknown+"組",
                     earliest!=null && earliest.seconds<r.settings.urgent?NamedTextColor.RED:NamedTextColor.YELLOW);
@@ -147,6 +152,9 @@ final class SpawnDiagnostics implements Listener {
                 Surroundings s=r.surroundings.get(i);
                 say(p,"  遮蔽(8m) "+s.cover+"/8方向、退避(4m) "+s.exits+"/8方向"+
                         (s.unsafe?" / 足場または頭上空間に問題":"")+(s.unknown?" / 周辺読込失敗／範囲外あり":""),NamedTextColor.GRAY);
+            }
+            if (upper!=null) {
+                say(p,"  区分：地下・立体通路候補（#"+upper.id()+"より"+f(upper.y()-e.y())+"m低い）。退避0は水平検査の結果。階段・曲がった出口を確認。",NamedTextColor.AQUA);
             }
             for (Pair pair:r.pairs) if ((pair.a==e.id() || pair.b==e.id()) && !pair.note.isEmpty()) {
                 say(p,"  相手 #"+(pair.a==e.id()?pair.b:pair.a)+"："+pair.note,NamedTextColor.DARK_GRAY);
