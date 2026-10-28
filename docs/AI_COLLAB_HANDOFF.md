@@ -127,3 +127,5 @@ In `config.yml`:
 - 2026-10-28: Stabilized SCAV decisions without input smoothing: fixed per-weapon/individual engagement range, shared 0.60/0.35 suppression hysteresis, and a 15-tick hold for final ordinary movement proposals. Removed repetition-only action substitution and mid-segment random strafe reversals. Existing interrupts and dedicated route/cover movement retain priority; urgent interrupts can cancel peeks. See SCAV_DECISION_STABILITY.md.
 
 - 2026-10-29: Bullet whizz audio now requires confirmed, distinct shooter/listener datapack IDs. Removed the distance-only fallback for unknown owners so a player cannot hear their own unidentified bullet; impact audio is unchanged.
+
+- 2026-10-29: Spawn list defaults to compact rows for all sites with per-site fastest estimated contact time/opponent, color-coded ratings and hover details; explicit pages show 12 rows. All spawn pairs are considered without the former pair cap, initial LOS is checked first, route order rotates sites, and missing or incomplete pairs remain explicitly unknown. Existing tick/time/chunk budgets and underground warnings remain in place.

@@ -2,6 +2,8 @@ package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import static com.lunar_prototype.impossbleEscapeMC.modules.raid.SpawnContactSummary.*;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
@@ -26,11 +28,10 @@ final class SpawnDiagnostics implements Listener {
     private int budgetTick = -1;
     private long usedNanos;
     private record Settings(double speed, double urgent, double targetMin, double targetMax,
-                            int nodes, int pairs, int checks, int operations, double millis, double maxPath, double timeout,
+                            int nodes, int checks, int operations, double millis, double maxPath, double timeout,
                             int weight, int food, double reserve, double walkSpeed, int margin, int chunks, int parallel, double lowerLevelDrop) {
         StaminaTravelModel travel() {return StaminaModule.diagnosticTravel(weight,food,reserve,speed,walkSpeed);}
     }
-    private record Pair(int a, int b, double distance, Double seconds, String note) {}
     private record Surroundings(int cover, int exits, boolean unknown, boolean unsafe) {}
     private record Report(List<RaidMap.SpawnEntry> entries, UUID world, Settings settings,
                           List<Pair> pairs, List<Surroundings> surroundings, long created) {}
@@ -54,7 +55,6 @@ final class SpawnDiagnostics implements Listener {
         return new Settings(option("speed-blocks-per-second",5.6,1,20),urgent,min,
                 option("target-max-seconds",40,min,240),
                 (int)option("max-nodes-per-pair",6000,100,20000),
-                (int)option("max-pairs",256,1,1024),
                 (int)option("max-contact-checks",4096,100,20000),
                 (int)option("operations-per-tick",48,1,256),option("millis-per-tick",2,0.25,5),
                 option("max-path-blocks",1024,32,4096), option("max-duration-seconds",120,5,600),
@@ -70,7 +70,7 @@ final class SpawnDiagnostics implements Listener {
     }
     void request(Player player,RaidMap map,int page,boolean fresh) {
         List<RaidMap.SpawnEntry> entries=map.spawnEntries();
-        if (page<1 || page>Math.max(1,(entries.size()+5)/6)) {
+        if (page<0 || page>Math.max(1,(entries.size()+11)/12)) {
             say(player,"ページ番号が範囲外です。",NamedTextColor.RED); return;
         }
         World world=map.getWorldName()==null?null:Bukkit.getWorld(map.getWorldName());
@@ -106,62 +106,79 @@ final class SpawnDiagnostics implements Listener {
     private static void say(Player p,String text,NamedTextColor color) { p.sendMessage(Component.text(text,color)); }
     private static String f(double n) { return String.format(Locale.ROOT,"%.1f",n); }
     private void print(Player p,String map,Report r,int page) {
-        say(p,"スポーン "+map+" — "+r.entries.size()+"地点 / "+page+"ページ",NamedTextColor.GOLD);
-        say(p,"目標 "+f(r.settings.targetMin)+"〜"+f(r.settings.targetMax)+"秒。両者接近・スタミナ込みの経路近似。",NamedTextColor.GRAY);
+        int count=r.entries.size(), pages=Math.max(1,(count+11)/12);
+        p.sendMessage(Component.text("スポーン配置  ",NamedTextColor.GOLD)
+                .append(Component.text(map+"  |  "+count+"地点  |  "+(page==0?"全地点":page+" / "+pages),NamedTextColor.WHITE))
+                .append(Component.text("  [再計算]",NamedTextColor.AQUA)
+                        .clickEvent(ClickEvent.runCommand("/raid spawn analyze "+map))
+                        .hoverEvent(Component.text("地形・遮蔽物の変更後に再計算"))));
         var travel=r.settings.travel();
-        say(p,"基準 "+f(r.settings.weight/1000.0)+"kg、満腹度"+r.settings.food+"、満タン開始・スキルなし。走行 "+
-                f(travel.sprintSpeed())+" / 歩行 "+f(travel.walkSpeed())+"m/s"+(travel.canSprint()?"（予備"+f(r.settings.reserve)+"で歩行回復）":"（重量によりダッシュ不可）"),NamedTextColor.GRAY);
-        say(p,"スタミナ消費 "+f(travel.drainPerSecond())+"/秒、歩行回復 "+f(travel.recoveryPerSecond())+
-                "/秒、回復待ち "+f(travel.recoveryDelay())+"秒。枯渇前に歩き、満回復して再走行。",NamedTextColor.DARK_GRAY);
-        say(p,"地形キャッシュ："+Math.max(0,(System.currentTimeMillis()-r.created)/1000)+"秒前 / 再計算: /raid spawn analyze "+map,NamedTextColor.GRAY);
-        for (int i=(page-1)*6;i<Math.min(page*6,r.entries.size());i++) {
+        Component conditions=Component.text("目標 "+f(r.settings.targetMin)+"〜"+f(r.settings.targetMax)+"秒  |  両者接近・スタミナ込み  ⓘ",NamedTextColor.GRAY)
+                .hoverEvent(Component.text("基準 "+f(r.settings.weight/1000.0)+"kg / 満腹度 "+r.settings.food+" / 満タン開始・スキルなし\n"
+                        +"走行 "+f(travel.sprintSpeed())+" / 歩行 "+f(travel.walkSpeed())+"m/s\n"
+                        +"消費 "+f(travel.drainPerSecond())+"/秒 / 回復 "+f(travel.recoveryPerSecond())+"/秒 / 待ち "+f(travel.recoveryDelay())+"秒\n"
+                        +"予備 "+f(r.settings.reserve)+"で歩行、満回復して再走行。重量によりダッシュ不可の場合あり。\n"
+                        +"診断結果："+Math.max(0,(System.currentTimeMillis()-r.created)/1000)+"秒前"));
+        p.sendMessage(conditions);
+        Pair fastest=r.pairs.stream().filter(pair->pair.seconds()!=null)
+                .min(Comparator.comparingDouble(pair->pair.seconds())).orElse(null);
+        long complete=r.pairs.stream().filter(pair->pair.seconds()!=null&&pair.note().isEmpty()).count();
+        long unknown=Math.max(0,(long)count*(count-1)/2-complete);
+        say(p,"全体の推定最速"+(unknown>0&&fastest!=null&&fastest.seconds()>0?"（暫定）":"")+": "+(fastest==null?(count<2?"比較対象なし":"未確定"):
+                f(fastest.seconds())+"秒  #"+fastest.a()+" ↔ #"+fastest.b())
+                +"  |  未確定 "+unknown+"組",NamedTextColor.YELLOW);
+        if(count==0) say(p,"スポーン地点はありません。",NamedTextColor.GRAY);
+        int from=page==0?0:(page-1)*12, to=page==0?count:Math.min(count,page*12);
+        for(int i=from;i<to;i++) {
             RaidMap.SpawnEntry e=r.entries.get(i);
+            Site site=site(e.id(),count,r.pairs);
+            Pair earliest=site.earliest();
             double nearest=Double.POSITIVE_INFINITY; int nearestId=-1,near=0;
-            for (var other:r.entries) if (other.id()!=e.id()) {
+            for(var other:r.entries) if(other.id()!=e.id()) {
                 double d=point(e).distance(point(other));
-                if (d<nearest) {nearest=d;nearestId=other.id();} if (d<=100) near++;
+                if(d<nearest){nearest=d;nearestId=other.id();} if(d<=100)near++;
             }
-            Pair earliest=null; int direct=0,unknown=0;
-            for (Pair pair:r.pairs) if (pair.a==e.id() || pair.b==e.id()) {
-                if (pair.seconds==null || !pair.note.isEmpty()) unknown++;
-                if (pair.seconds!=null) {
-                    if (pair.seconds==0) direct++;
-                    if (earliest==null || pair.seconds<earliest.seconds) earliest=pair;
-                }
+            String rating=earliest==null?(count<2?"比較なし":"未確定"):
+                    SpawnRouteSearch.rating(earliest.seconds(),r.settings.urgent,r.settings.targetMin,r.settings.targetMax);
+            if(site.unknown()>0 && (earliest==null||earliest.seconds()>=r.settings.targetMin)) rating="確認推奨";
+            Surroundings local=i<r.surroundings.size()?r.surroundings.get(i):null;
+            RaidMap.SpawnEntry upper=local==null?null:SpawnSiteAssessment.upperReference(e,r.entries,local.exits,local.unknown,local.unsafe,r.settings.lowerLevelDrop);
+            if(local!=null) {
+                if(local.unsafe&&!local.unknown)rating="足場要調整";
+                else if(upper!=null&&site.unknown()==0&&(earliest==null||earliest.seconds()>=r.settings.targetMin))rating="地下候補";
+                else if(upper==null&&local.exits<=2&&!local.unknown&&(earliest==null||earliest.seconds()>=r.settings.targetMin))rating="退避要確認";
             }
-            if (r.pairs.isEmpty() && r.entries.size()>1) unknown=r.entries.size()-1;
-            say(p,"#"+e.id()+" ("+f(e.x())+", "+f(e.y())+", "+f(e.z())+")",NamedTextColor.WHITE);
-            say(p,"  最寄り "+(nearestId<0?"なし":"#"+nearestId+" / "+f(nearest)+"m")+"、100m内 "+near+"地点",NamedTextColor.GRAY);
-            String rating=earliest==null?(r.entries.size()<2?"比較対象なし":"判定不能"):
-                    SpawnRouteSearch.rating(earliest.seconds,r.settings.urgent,r.settings.targetMin,r.settings.targetMax);
-            if (unknown>0 && (earliest==null || earliest.seconds>=r.settings.targetMin)) rating="確認推奨（未確定な組み合わせあり）";
-            String contact=earliest==null?"未確定":"約"+f(earliest.seconds)+"秒 / 相手 #"+(earliest.a==e.id()?earliest.b:earliest.a);
-            RaidMap.SpawnEntry upper=null;
-            if (i<r.surroundings.size()) {
-                Surroundings local=r.surroundings.get(i);
-                upper=SpawnSiteAssessment.upperReference(e,r.entries,local.exits,local.unknown,local.unsafe,r.settings.lowerLevelDrop);
-                if (local.unsafe && !local.unknown) rating="要調整（足場または頭上空間に問題）";
-                else if (upper!=null && unknown==0 && (earliest==null || earliest.seconds>=r.settings.targetMin))
-                    rating="地下・立体通路候補（出口経路を確認）";
-                else if (upper==null && local.exits<=2 && !local.unknown && (earliest==null || earliest.seconds>=r.settings.targetMin))
-                    rating="確認推奨（退避方向が少ない）";
-            }
-            say(p,"  "+rating+"：最短射線接触 "+contact+"、開始時射線の検出 "+direct+"組、未確定 "+unknown+"組",
-                    earliest!=null && earliest.seconds<r.settings.urgent?NamedTextColor.RED:NamedTextColor.YELLOW);
-            if (i<r.surroundings.size()) {
-                Surroundings s=r.surroundings.get(i);
-                say(p,"  遮蔽(8m) "+s.cover+"/8方向、退避(4m) "+s.exits+"/8方向"+
-                        (s.unsafe?" / 足場または頭上空間に問題":"")+(s.unknown?" / 周辺読込失敗／範囲外あり":""),NamedTextColor.GRAY);
-            }
-            if (upper!=null) {
-                say(p,"  区分：地下・立体通路候補（#"+upper.id()+"より"+f(upper.y()-e.y())+"m低い）。退避0は水平検査の結果。階段・曲がった出口を確認。",NamedTextColor.AQUA);
-            }
-            for (Pair pair:r.pairs) if ((pair.a==e.id() || pair.b==e.id()) && !pair.note.isEmpty()) {
-                say(p,"  相手 #"+(pair.a==e.id()?pair.b:pair.a)+"："+pair.note,NamedTextColor.DARK_GRAY);
-            }
+            NamedTextColor color=earliest==null?NamedTextColor.GRAY:
+                    earliest.seconds()<r.settings.urgent?NamedTextColor.RED:
+                    earliest.seconds()<r.settings.targetMin?NamedTextColor.YELLOW:
+                    earliest.seconds()<=r.settings.targetMax?NamedTextColor.GREEN:NamedTextColor.AQUA;
+            if(site.unknown()>0 && (earliest==null||earliest.seconds()>=r.settings.targetMin))color=NamedTextColor.YELLOW;
+            if(local!=null&&local.unsafe&&!local.unknown)color=NamedTextColor.RED;
+            String time=earliest==null?(count<2?"—":"未確定"):f(earliest.seconds())+"秒 → #"+site.opponent();
+            Component detail=Component.text("#"+e.id()+"  ("+f(e.x())+", "+f(e.y())+", "+f(e.z())+")",NamedTextColor.WHITE)
+                    .append(Component.text("\n推定最速接敵: "+time+"\n判定: "+rating, color))
+                    .append(Component.text("\n最寄り: "+(nearestId<0?"なし":"#"+nearestId+" / "+f(nearest)+"m")+" / 100m内 "+near+"地点"
+                            +"\n開始時射線: "+site.direct()+"組 / 未確定: "+site.unknown()+"組",NamedTextColor.GRAY));
+            if(local!=null)detail=detail.append(Component.text("\n遮蔽(8m): "+local.cover+"/8 / 退避(4m): "+local.exits+"/8"
+                    +(local.unsafe?"\n足場または頭上空間に問題":"")+(local.unknown?"\n周辺読込失敗／範囲外あり":""),NamedTextColor.GRAY));
+            if(upper!=null)detail=detail.append(Component.text("\n地下・立体通路候補: #"+upper.id()+"より"+f(upper.y()-e.y())+"m低い。\n退避0は水平検査の結果。階段・曲がった出口を確認。",NamedTextColor.AQUA));
+            List<Pair> notes=r.pairs.stream().filter(pair->(pair.a()==e.id()||pair.b()==e.id())&&!pair.note().isEmpty()).toList();
+            for(Pair pair:notes.stream().limit(8).toList()) detail=detail.append(Component.text("\n相手 #"+(pair.a()==e.id()?pair.b():pair.a())+": "+pair.note(),NamedTextColor.DARK_GRAY));
+            if(notes.size()>8)detail=detail.append(Component.text("\nほか "+(notes.size()-8)+"組も未確定",NamedTextColor.DARK_GRAY));
+            if(site.unknown()>0)detail=detail.append(Component.text("\n未確定の相手を含むため、表示時間より早い接敵の可能性あり。",NamedTextColor.YELLOW));
+            p.sendMessage(Component.text(String.format(Locale.ROOT,"#%-3d  ",e.id()),NamedTextColor.WHITE)
+                    .append(Component.text(time,color))
+                    .append(Component.text("  ["+rating.replace("（経路近似）","")+"]",color))
+                    .append(site.unknown()>0?Component.text("  未確定"+site.unknown(),NamedTextColor.DARK_GRAY):Component.empty())
+                    .hoverEvent(detail));
         }
-        if (r.entries.size()>page*6) say(p,"次: /raid spawn list "+map+" "+(page+1),NamedTextColor.GRAY);
-        say(p,"推定は2m格子の一経路。ジャンプ・扉操作・別ルート・任意の走行配分は未評価。40秒超も安全保証ではありません。",NamedTextColor.DARK_GRAY);
+        if(page>0) {
+            Component navigation=Component.text("[全地点]",NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map));
+            if(page>1)navigation=navigation.append(Component.text("  [前へ]",NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map+" "+(page-1))));
+            if(page<pages)navigation=navigation.append(Component.text("  [次へ]",NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map+" "+(page+1))));
+            p.sendMessage(navigation);
+        }
+        say(p,"各行にホバーで詳細。推定最速は一経路上の近似（射線が通るまで）。未確定・40秒超も安全保証なし。",NamedTextColor.DARK_GRAY);
     }
     private static Point point(RaidMap.SpawnEntry e) { return new Point(e.x(),e.y(),e.z()); }
 
@@ -170,12 +187,16 @@ final class SpawnDiagnostics implements Listener {
         final Map<UUID,Integer> viewers=new LinkedHashMap<>();
         final List<Pair> results=new ArrayList<>(); final List<Surroundings> surroundings=new ArrayList<>();
         int surroundingIndex, direction,cover,exits; boolean localUnknown;
-        int a=0,b=1,pairCount; PairWork pair;
+        final List<Comparison> comparisons;
+        final List<Comparison> routes=new ArrayList<>();
+        final Set<Comparison> unknownInitialSight=new HashSet<>();
+        int directIndex,routeIndex; PairWork pair;
         final long started = System.nanoTime();
         final SpawnChunkLoader loader;
         long lastProgress;
         Job(RaidMap map,World world,List<RaidMap.SpawnEntry> entries,Settings settings) {
             this.map=map;this.world=world;this.entries=entries;this.settings=settings;
+            comparisons=comparisons(entries.size());
             loader=new SpawnChunkLoader(world,plugin,entries,settings.margin,settings.chunks,settings.parallel);
         }
         @Override public synchronized void cancel() {
@@ -188,9 +209,8 @@ final class SpawnDiagnostics implements Listener {
             }
             if (viewers.keySet().stream().noneMatch(id->Bukkit.getPlayer(id)!=null)) {jobs.remove(map.getMapId(),this);cancel();return;}
             if (System.nanoTime()-started > settings.timeout*1_000_000_000) {
-                while (a<entries.size()-1) {
-                    results.add(new Pair(entries.get(a).id(),entries.get(b).id(),point(entries.get(a)).distance(point(entries.get(b))),null,"診断時間の上限")); next();
-                }
+                for(int index=directIndex;index<comparisons.size();index++) addResult(comparisons.get(index),null,"診断時間の上限（開始時射線未検査）");
+                for(int index=routeIndex;index<routes.size();index++) addResult(routes.get(index),null,"診断時間の上限（経路未確定）");
                 finish(); return;
             }
             int tick=Bukkit.getCurrentTick();
@@ -200,6 +220,10 @@ final class SpawnDiagnostics implements Listener {
             if (available<=0) return;
             long deadline=begin+available;
             try {
+                if(loader.done()&&System.nanoTime()-lastProgress>5_000_000_000L) {
+                    lastProgress=System.nanoTime();
+                    message("診断中：開始時射線 "+directIndex+"/"+comparisons.size()+"組、経路 "+routeIndex+"/"+routes.size()+"組");
+                }
                 for(int op=0;op<settings.operations && System.nanoTime()<deadline;op++) {
                     if (!loader.done()) {
                         loader.step();
@@ -209,17 +233,26 @@ final class SpawnDiagnostics implements Listener {
                         continue;
                     }
                     if (surroundingIndex<entries.size()) { surroundingsStep(); continue; }
-                    if (a>=entries.size()-1) { finish();return; }
-                    if (pair==null) {
-                        if (++pairCount>settings.pairs) {
-                            results.add(new Pair(entries.get(a).id(),entries.get(b).id(),point(entries.get(a)).distance(point(entries.get(b))),null,"組み合わせ数の上限")); next(); continue;
+                    // 全地点ペアの開始時射線を先に確認。遠いIDの危険も経路探索の待ち列で埋もれない。
+                    if(directIndex<comparisons.size()) {
+                        Comparison c=comparisons.get(directIndex++);
+                        Boolean visible=new Terrain(world,loader).visible(point(entries.get(c.a())),point(entries.get(c.b())));
+                        if(Boolean.TRUE.equals(visible))addResult(c,0.0,"");
+                        else {
+                            routes.add(c);
+                            if(visible==null)unknownInitialSight.add(c);
                         }
-                        pair=new PairWork(point(entries.get(a)),point(entries.get(b)),world,settings,loader);
+                        continue;
+                    }
+                    if(routeIndex>=routes.size()){finish();return;}
+                    Comparison c=routes.get(routeIndex);
+                    if(pair==null) {
+                        pair=new PairWork(point(entries.get(c.a())),point(entries.get(c.b())),world,settings,loader);
+                        // 開始時の射線が未確定なら、迂回経路が見つかっても最速時間は確定しない。
+                        pair.terrain.unknown=unknownInitialSight.contains(c);
                     }
                     pair.step();
-                    if (pair.done) {
-                        results.add(new Pair(entries.get(a).id(),entries.get(b).id(),pair.start.distance(pair.goal),pair.time,pair.note)); next();
-                    }
+                    if(pair.done){addResult(c,pair.time,pair.note);pair=null;routeIndex++;}
                 }
             } catch (RuntimeException ex) {
                 jobs.remove(map.getMapId(),this);cancel();message("診断中にエラーが発生しました。サーバーログを確認してください。");
@@ -228,7 +261,10 @@ final class SpawnDiagnostics implements Listener {
                 usedNanos+=System.nanoTime()-begin;
             }
         }
-        void next() {pair=null;if(++b>=entries.size()){a++;b=a+1;}}
+        void addResult(Comparison c,Double time,String note) {
+            RaidMap.SpawnEntry a=entries.get(c.a()),b=entries.get(c.b());
+            results.add(new Pair(a.id(),b.id(),point(a).distance(point(b)),time,note));
+        }
         void surroundingsStep() {
             Terrain terrain=new Terrain(world,loader); Point p=point(entries.get(surroundingIndex));
             double angle=direction*Math.PI/4;
@@ -331,8 +367,6 @@ final class SpawnDiagnostics implements Listener {
         void step() {
             if(!initialized) {
                 initialized=true;
-                Boolean direct=terrain.visible(start,goal);
-                if(Boolean.TRUE.equals(direct)){time=0.0;done=true;return;}
                 if(!terrain.standable(start)||!terrain.standable(goal)){note="足場不正またはチャンク未読込";done=true;return;}
                 route=new SpawnRouteSearch(start,goal,terrain,settings.nodes,settings.maxPath);return;
             }

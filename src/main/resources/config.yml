@@ -40,7 +40,7 @@ raid-spawn-diagnostics:
   underground-height-difference: 3
   # 調べ切れない時は安全判定にしない。未生成チャンクは生成しない。
   max-nodes-per-pair: 6000
-  max-pairs: 256
+  # 全地点ペアを対象にする。負荷はtick予算・制限時間で制限する。
   max-contact-checks: 4096
   max-path-blocks: 1024
   max-duration-seconds: 120

@@ -112,8 +112,8 @@ public class RaidCommand implements BasicCommand {
         RaidMap map = manager.getMap(args[2]);
         if (map == null) { player.sendMessage(Component.text("Map not found.", NamedTextColor.RED)); return; }
         if (action.equals("list") || action.equals("analyze")) {
-            int page = 1;
-            try { if (args.length >= 4) page = Integer.parseInt(args[3]); }
+            int page = 0;
+            try { if (args.length >= 4) { page = Integer.parseInt(args[3]); if (page < 1) throw new NumberFormatException(); } }
             catch (NumberFormatException ex) { player.sendMessage(Component.text("ページは1以上の整数です。", NamedTextColor.RED)); return; }
             spawnDiagnostics.request(player, map, page, action.equals("analyze")); return;
         }
@@ -137,7 +137,7 @@ public class RaidCommand implements BasicCommand {
         } else { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
         spawnDiagnostics.invalidate(map);
         manager.saveMap(map);
-        spawnDiagnostics.request(player, map, 1, true);
+        spawnDiagnostics.request(player, map, 0, true);
     }
 
     private void handleExtract(Player player, String[] args) {
