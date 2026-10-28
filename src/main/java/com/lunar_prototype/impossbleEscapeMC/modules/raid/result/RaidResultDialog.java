@@ -29,6 +29,7 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -94,6 +95,8 @@ public final class RaidResultDialog implements Listener {
     private static final String PREFIX = "result/";
     /** 経験値の演出の長さと、送り直す間隔 (tick) */
     private static final int ANIM_TICKS = 30, ANIM_STEP = 2;
+    private static final String EXP_GAIN_SOUND = "iem:result.exp_gain";
+    private static final String LEVEL_UP_SOUND = "iem:result.level_up";
     private static final int NOTICE_TICKS = 80;
 
     enum Page { EXP, HANDIN, CONFIRM, KILLS }
@@ -102,6 +105,7 @@ public final class RaidResultDialog implements Listener {
         final RaidReport report;
         Page page = Page.EXP;
         int animTick;
+        int shownLevel;
         BukkitTask anim;
         /** キルログの絞り込み (null はすべて) */
         RaidReport.Kind killFilter;
@@ -110,6 +114,7 @@ public final class RaidResultDialog implements Listener {
 
         Session(RaidReport report) {
             this.report = report;
+            this.shownLevel = report.levelBefore();
         }
     }
 
@@ -180,6 +185,7 @@ public final class RaidResultDialog implements Listener {
         }
         long need = levels != null ? levels.getRequiredExperience(level) : Math.max(1, exp);
         boolean leveled = level > r.levelBefore();
+        session.shownLevel = level;
 
         List<DialogBody> body = new ArrayList<>();
         body.add(header(r, null, null));
@@ -205,15 +211,27 @@ public final class RaidResultDialog implements Listener {
                     stopAnim(session);
                     return;
                 }
+                int oldRows = visibleExpRows(session.animTick, r.exp().size());
+                int oldLevel = session.shownLevel;
                 session.animTick += ANIM_STEP;
                 if (session.animTick >= ANIM_TICKS) {
                     session.animTick = ANIM_TICKS;
                     stopAnim(session);
-                    p.playSound(p, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.6f, 1.2f);
                 }
                 showExp(p, session);
+                if (session.shownLevel > oldLevel) {
+                    p.stopSound(EXP_GAIN_SOUND, SoundCategory.MASTER);
+                    p.playSound(p, LEVEL_UP_SOUND, SoundCategory.MASTER, 1.0f, 1.0f);
+                } else if (visibleExpRows(session.animTick, r.exp().size()) > oldRows) {
+                    p.stopSound(EXP_GAIN_SOUND, SoundCategory.MASTER);
+                    p.playSound(p, EXP_GAIN_SOUND, SoundCategory.MASTER, 0.8f, 1.0f);
+                }
             }, ANIM_STEP, ANIM_STEP);
         }
+    }
+
+    private static int visibleExpRows(int tick, int count) {
+        return Math.min(count, (tick * count + ANIM_TICKS - 1) / ANIM_TICKS);
     }
 
     private static void stopAnim(Session session) {

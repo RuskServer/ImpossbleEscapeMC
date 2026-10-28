@@ -110,3 +110,4 @@ In `config.yml`:
 - 2026-10-20: Added `CursorItemListener`: when a container is opened, the item held on the cursor is returned to the player's inventory. Paper's `Player#openInventory` swaps the screen without closing the player's own inventory screen, so vanilla's "cursor item goes back to the inventory on close" step never ran and the item stayed on the cursor.
 - 2026-10-27: SearchGUI now plays a private reveal sound based on the discovered item's rarity, and ignores repeated clicks on a slot while its search is running.
 - 2026-10-28: Added plugin-side bullet audio observation for Toi's Armory Marker movement, ground impacts, and entity hits. The datapack remains unchanged; CC0 sounds live in New_IEM_Resorcepack.
+- 2026-10-28: Raid result EXP animation now plays CC0-derived result sounds when each EXP row appears and when the displayed level rises; the old vanilla completion chime is replaced.
