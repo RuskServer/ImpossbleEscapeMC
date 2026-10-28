@@ -78,6 +78,8 @@ public final class TacticalPositioning {
     private Spot current;
     private int nextEvaluationTick;
     private final List<Hit> recentHits = new ArrayList<>();
+    private record Rejected(Location stand,int until) {}
+    private final List<Rejected> rejected = new ArrayList<>();
 
     public TacticalPositioning(Mob scav) {
         this.scav = scav;
@@ -92,6 +94,13 @@ public final class TacticalPositioning {
         nextEvaluationTick = 0;
     }
 
+    /** 射線・移動が使えなかった地点は、選び直しで即座に戻らないようにする。 */
+    public void rejectCurrent(int now) {
+        if(current!=null)rejected.add(new Rejected(current.stand().clone(),now+100));
+        current=null;
+        nextEvaluationTick=0;
+    }
+
     /** 撃たれた。しばらくその周りを避け、すぐに選び直す */
     public void recordHit(Location location) {
         int now = Bukkit.getCurrentTick();
@@ -101,6 +110,7 @@ public final class TacticalPositioning {
     }
 
     public void clear() {
+        rejected.clear();
         current = null;
         nextEvaluationTick = 0;
     }
@@ -115,11 +125,14 @@ public final class TacticalPositioning {
      */
     public Spot update(Location threat, String mode, double range, List<ScavController> allies) {
         int now = Bukkit.getCurrentTick();
+        rejected.removeIf(r->now>=r.until());
+        // 候補がない時も再探索間隔を守る。回復中の全周検査を毎判断で繰り返さない。
+        if(current==null&&now<nextEvaluationTick)return null;
         boolean threatMoved = current != null && (current.threat().getWorld() != threat.getWorld()
                 || current.threat().distanceSquared(threat) > THREAT_MOVED * THREAT_MOVED);
         if (current == null || threatMoved || now >= nextEvaluationTick) {
             Spot chosen = choose(threat, mode, range, allies);
-            if (chosen != null) current = chosen;
+            if (chosen != null || MODE_ENGAGE.equals(mode)) current = chosen;
             nextEvaluationTick = now + REEVALUATE_TICKS;
         }
         return current;
@@ -191,6 +204,7 @@ public final class TacticalPositioning {
                               String mode, double range, List<ScavController> allies) {
         double threatDistance = horizontal(stand, threat);
         if (threatDistance < MIN_RANGE) return;
+        if(rejected.stream().anyMatch(r->r.stand().getWorld()==stand.getWorld()&&r.stand().distanceSquared(stand)<4.0))return;
         SpotType type;
         Location peek = null;
         if (clear(world, stand.clone().add(0, EYE_HEIGHT, 0), threat)) {
@@ -199,6 +213,8 @@ public final class TacticalPositioning {
             peek = findPeek(world, stand, threat);
             type = peek != null ? SpotType.COVER_PEEK : SpotType.HIDE;
         }
+        // 出直す時に隠れるだけの場所を選ぶと、またその場で止まってしまう。
+        if(MODE_ENGAGE.equals(mode)&&type==SpotType.HIDE)return;
         candidates.add(new Candidate(stand, peek, type, score(stand, peek, type, threat, threatDistance, mode, range, allies)));
     }
 
@@ -288,6 +304,7 @@ public final class TacticalPositioning {
             Location candidate = stand.clone().add(side.clone().multiply(offset));
             Location peek = standable(world, candidate.getBlockX(), stand.getBlockY(), candidate.getBlockZ());
             if (peek != null && Math.abs(peek.getY() - stand.getY()) < 0.5
+                    && walkableStraight(stand,peek)
                     && clear(world, peek.clone().add(0, EYE_HEIGHT, 0), threat)) {
                 return peek;
             }

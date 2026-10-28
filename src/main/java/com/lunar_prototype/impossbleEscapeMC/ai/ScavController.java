@@ -81,6 +81,9 @@ public class ScavController {
     private final ScavWithdrawal withdrawal;
     /** 撃てる位置に着いたのに相手が見えないステップ数 (続いたら立ち位置を選び直す) */
     private int positionNoSightSteps = 0;
+    private final ScavSightRecovery sightRecovery = new ScavSightRecovery();
+    private boolean recoveringSight;
+    private int sightSearchRetryTick;
     private static final int POSITION_NO_SIGHT_STEPS = 7;
     /** 負傷の時 (とリロードの上限) に、立ち位置を「下がる」で選ぶ時間 (tick) */
     private static final int WITHDRAW_TICKS = 100;
@@ -682,12 +685,33 @@ public class ScavController {
             }
         }
 
+        int sightTick=Bukkit.getCurrentTick();
+        Location sightPosition=scav.getLocation();
+        boolean protectedWait=needsReload || healthPercent<REENGAGE_MIN_HEALTH || brain.isSuppressed()
+                || suppression>REENGAGE_MAX_SUPPRESSION || sightTick-lastDamagedTick<REENGAGE_NO_DAMAGE_TICKS
+                || sightTick<withdrawUntilTick || (withdrawal.active()&&!withdrawal.arrived())
+                || (inCoverSinceTick>=0&&sightTick<reengageAfterTick)
+                || (tactics.getTacticalCoverLoc()!=null&&tactics.getCoverStayTicks()>0)
+                || assisting || unarmed || ammoSupplierId!=null;
+        boolean priorRecovery=recoveringSight;
+        recoveringSight=sightRecovery.update(sightTick,lastKnownLocation!=null&&!soundOnlyContact,
+                canSeeTarget,protectedWait,sightPosition.getX(),sightPosition.getY(),sightPosition.getZ());
+        if(recoveringSight&&!priorRecovery) {
+            positioning.rejectCurrent(sightTick);
+            // 到着済みの遮蔽からだけ出直す。進行中の退避は protectedWait で保護する。
+            if(withdrawal.arrived())withdrawal.clear();
+            arrivedSpot=null;positionNoSightSteps=0;
+            tactics.cancelPeek();tactics.resetSlicing();tactics.stopMoving();
+            movementStability.clearMovement();
+            sightSearchRetryTick=0;
+        }
+
         // 判断は顔出し中も1ステップに1回。被弾・弾切れ・急な危険は動作の完了を待たない。
         brain.updateConditions(healthPercent < 0.3, needsReload, brain.isSuppressed(), tacticalAdvice > 0.5f);
         int[] actions = brain.decide(canSeeTarget ? target : null, lastKnownLocation, weapon, suppression, tacticalAdvice, isSprinting, alertness);
 
         // 6. Peek Maneuver
-        if (tactics.getPeekPhase() > 0 && (coverForReload || brain.hasUrgentMovementInterrupt())) {
+        if (tactics.getPeekPhase() > 0 && (recoveringSight || coverForReload || brain.hasUrgentMovementInterrupt())) {
             tactics.cancelPeek();
             tactics.stopMoving();
         }
@@ -725,7 +749,7 @@ public class ScavController {
         boolean retreatingToCover = tactics.getTacticalCoverLoc() != null && tactics.getCoverStayTicks() > 0;
         boolean fetchingAmmo = fetchAmmoFromAlly(weapon) || handleUnarmed(target);
         boolean positioned = !fetchingAmmo && !assisting && pursuitSteps == 0 && !retreatingToCover
-                && (isEngaged(canSeeTarget) || withdrawal.active() || Bukkit.getCurrentTick() < withdrawUntilTick
+                && (recoveringSight || isEngaged(canSeeTarget) || withdrawal.active() || Bukkit.getCurrentTick() < withdrawUntilTick
                     || "WITHDRAW".equals(brain.getCurrentModeName()))
                 && handlePositioning(target, canSeeTarget);
         // 専用の経路・遮蔽移動が優先。通常移動に戻る時に古い指示を持ち越さない。
@@ -740,6 +764,11 @@ public class ScavController {
             isHoldingAngle = false;
         } else if (positioned) {
             isHoldingAngle = false;
+        } else if (recoveringSight && lastKnownLocation!=null) {
+            isHoldingAngle=false;
+            // 近くに撃てる場所がなければ、最後に分かった位置へ通常の経路で捜索する。
+            // NMS経路を毎ステップ作り直さず、既存の捜索による指示の上書きもここで戻す。
+            handleSightRecoverySearch();
         } else if (moveAction == 8 && !assisting) {
             isHoldingAngle = true;
             preAimAtThreat();
@@ -1123,15 +1152,35 @@ public class ScavController {
         tactics.resetSlicing();
     }
 
+    private void handleSightRecoverySearch() {
+        if(lastKnownLocation==null||lastKnownLocation.getWorld()!=scav.getWorld())return;
+        int now=Bukkit.getCurrentTick();
+        if(now>=sightSearchRetryTick) {
+            sightSearchRetryTick=now+20;
+            var path=scav.getPathfinder().findPath(lastKnownLocation);
+            if(path!=null&&!path.getPoints().isEmpty()) {
+                tactics.cancelDirectMove();
+                scav.getPathfinder().moveTo(path,PURSUIT_SPEED);
+            }
+        }
+        followingPath=scav.getPathfinder().hasPath();
+        if(!followingPath) {
+            tactics.handleSearching(lastKnownLocation,searchTicks,false,loc->preAimAtThreat());
+            followingPath=scav.getPathfinder().hasPath();
+        }
+        preAimAtThreat();
+    }
+
     private void handleSearching() {
         // 見失い処理と移動処理の両方から呼ばれるため、1tickに1回だけ進める
         int tick = Bukkit.getCurrentTick();
         if (tick == lastSearchTick) return;
         lastSearchTick = tick;
-        if (withdrawal.active() && lastKnownLocation != null) {
-            // 逃げている途中や遮蔽で待つ間に、捜索移動で撤退経路を上書きしない。記憶の寿命は進める。
+        if ((withdrawal.active() || recoveringSight) && lastKnownLocation != null) {
+            // 退避・射線回復の移動を通常の捜索で上書きしない。記憶の寿命は進める。
             if (++searchTicks > 600) {
                 lastKnownLocation = null;
+                recoveringSight=false;
                 withdrawal.clear();
                 positioning.clear();
                 tactics.stopMoving();
@@ -1574,7 +1623,7 @@ public class ScavController {
         followingPath = false;
         int now = Bukkit.getCurrentTick();
         String mode = now < withdrawUntilTick ? "WITHDRAW"
-                : now < reengageUntilTick ? TacticalPositioning.MODE_ENGAGE : brain.getCurrentModeName();
+                : recoveringSight || now < reengageUntilTick ? TacticalPositioning.MODE_ENGAGE : brain.getCurrentModeName();
         if (withdrawal.active() || "WITHDRAW".equals(mode)) return handleWithdrawal(threat, canSeeTarget, now);
         TacticalPositioning.Spot spot = positioning.update(threat, mode, brain.getEngagementRange(), squad.getNearbyAllies());
         if (spot == null) return false;
@@ -1582,7 +1631,8 @@ public class ScavController {
         Location here = scav.getLocation();
         double distance = Math.hypot(here.getX() - spot.stand().getX(), here.getZ() - spot.stand().getZ());
         boolean sameSpot = arrivedSpot != null && arrivedSpot.stand().equals(spot.stand());
-        boolean arrived = sameSpot ? distance <= SPOT_LEAVE : distance <= SPOT_ARRIVE;
+        boolean arrived = Math.abs(here.getY()-spot.stand().getY())<0.6
+                && (sameSpot ? distance <= SPOT_LEAVE : distance <= SPOT_ARRIVE);
         arrivedSpot = arrived ? spot : null;
         if (!arrived) {
             // 相手が見えていてまっすぐ行けるなら相手を向いたまま横歩きで、それ以外は経路探索で回り込む
@@ -1591,14 +1641,26 @@ public class ScavController {
             boolean closeFight = canSeeTarget && target != null && weaponReadyInTicks <= PEEK_READY_TICKS
                     && here.distanceSquared(target.getLocation()) <= CLOSE_FIGHT_DISTANCE * CLOSE_FIGHT_DISTANCE;
             if (canSeeTarget && distance <= DIRECT_MOVE_MAX && TacticalPositioning.walkableStraight(here, spot.stand())) {
-                tactics.moveDirectTo(spot.stand(), 1.2);
+                if(!tactics.moveDirectTo(spot.stand(), 1.2)) {
+                    positioning.rejectCurrent(now);
+                    arrivedSpot=null;
+                    return false;
+                }
             } else if (closeFight) {
                 // 近くで見えている相手に背中を向けて回り込むと撃ち返せないので、立ち位置へ向かうのをやめてその場で撃ち合う
                 scav.getPathfinder().stopPathfinding();
                 tactics.stopMoving();
             } else {
                 // 見えていない間の移動は小走りにする (撃たれない場所を移るのに時間をかけると、待っているだけに見える)
-                scav.getPathfinder().moveTo(spot.stand(), canSeeTarget ? 1.3 : RELOCATE_SPEED);
+                tactics.cancelDirectMove();
+                var active=scav.getPathfinder().getCurrentPath();
+                boolean samePath=active!=null&&active.getNextPoint()!=null&&active.getFinalPoint()!=null
+                        && active.getFinalPoint().distanceSquared(spot.stand())<=2.25;
+                if(!samePath&&!scav.getPathfinder().moveTo(spot.stand(), canSeeTarget ? 1.3 : RELOCATE_SPEED)) {
+                    positioning.rejectCurrent(now);
+                    arrivedSpot=null;
+                    return false;
+                }
                 followingPath = true;
             }
             positionNoSightSteps = 0;
@@ -1619,7 +1681,9 @@ public class ScavController {
                     preAimAtThreat();
                     if (++positionNoSightSteps >= POSITION_NO_SIGHT_STEPS) {
                         positionNoSightSteps = 0;
-                        positioning.invalidate();
+                        positioning.rejectCurrent(now);
+                        arrivedSpot=null;
+                        return false;
                     }
                 }
             }
@@ -1628,7 +1692,12 @@ public class ScavController {
                 if (!canSeeTarget) {
                     preAimAtThreat();
                     // 撃てない間 (リロード・ボルト操作など) は顔を出さずに待つ
-                    if (weaponReadyInTicks <= PEEK_READY_TICKS) tactics.startPeekTo(spot.peek());
+                    if (weaponReadyInTicks <= PEEK_READY_TICKS && !tactics.isPeekResting()
+                            && !tactics.startPeekTo(spot.peek())) {
+                        positioning.rejectCurrent(now);
+                        arrivedSpot=null;
+                        return false;
+                    }
                 }
             }
             case HIDE -> {

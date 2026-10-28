@@ -435,6 +435,8 @@ public class ScavTactics {
      *
      * @return 始めた場合true。前回の顔出しから間が空いていなければfalse
      */
+    boolean isPeekResting() { return peekRestTicks > 0; }
+
     public boolean startPeekTo(Location peek) {
         if (peekRestTicks > 0) return false;
         // 立ち位置から少しずれて立っていると、顔出し位置との間に遮蔽の角が入ることがある
