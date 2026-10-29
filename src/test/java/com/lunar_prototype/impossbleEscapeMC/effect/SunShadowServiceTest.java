@@ -22,7 +22,7 @@ public final class SunShadowServiceTest {
         return (word >> ((g % 7) * 4)) & 15;
     }
 
-    private static int level(SunShadowService.Grids grids, int x, int y, int z) {
+    static int level(SunShadowService.Grids grids, int x, int y, int z) {
         return code(grids.light(), x, y, z) & 7;
     }
 
@@ -40,7 +40,7 @@ public final class SunShadowServiceTest {
     }
 
     /** 格子の原点 (0, 0, 0)。y <= 0 が地面、x = 30 に高さ 10 の壁 (z は全部、壁のブロックの光の通り方は wall)。空の光はどこも skyLight */
-    private static SunShadowService.Snapshot wall(int wall, int skyLight) {
+    static SunShadowService.Snapshot wall(int wall, int skyLight) {
         byte[] transmit = new byte[TNX * TNY * TNZ];
         for (int y = 0; y < TNY; y++) {
             for (int z = 0; z < TNZ; z++) {

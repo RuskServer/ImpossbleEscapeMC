@@ -98,7 +98,9 @@ public final class SunShadowService {
     /** 一部だけ光を通すブロックを通った後、これより暗ければ影 (先をたどらない) */
     private static final double MIN_TRANSMIT = 0.02;
     /** 光の量の釣り合い (バニラの明るさ 1 = 昼の屋外): 基本、空の光、太陽の直接光、跳ね返り */
-    static final double AMBIENT = 0.04, SKY = 0.55, SUN = 0.55, BOUNCE = 1.0;
+    static final double AMBIENT = 0.04, SKY = 0.55, SUN = 0.85, BOUNCE = 1.0;
+    /** 晴れた開けた屋外では、空のフィルより直達光を強くする。窓際より奥と夜は従来の空の係数を使う。 */
+    static final double OUTDOOR_SKY = 0.38;
     /** 雨の間の太陽の直接光の強さ */
     private static final double RAIN_SUN = 0.25;
     /** 太陽の角度がこれだけ動いたら作り直す (度) */
@@ -470,12 +472,12 @@ public final class SunShadowService {
             if (m.isBlock() && !m.isAir()) {
                 try {
                     Color c = m.createBlockData().getMapColor();
-                    a = (0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue()) / 255.0;
+                    a = mapReflectance(c.getRed(), c.getGreen(), c.getBlue());
                 } catch (RuntimeException ignored) {
                     // 状態を作れない種類は真ん中の明るさ
                 }
             }
-            albedo[m.ordinal()] = (byte) Math.round(Math.clamp(a, 0.08, 0.9) * 255);
+            albedo[m.ordinal()] = (byte) Math.round(Math.clamp(a, 0.02, 0.85) * 255);
             String name = m.name();
             boolean isCool = name.startsWith("SOUL_") && (name.endsWith("LANTERN") || name.endsWith("TORCH") || name.endsWith("FIRE") || name.endsWith("CAMPFIRE"))
                     || m == Material.SEA_LANTERN || m == Material.END_ROD || m == Material.BEACON || m == Material.CONDUIT
@@ -484,6 +486,24 @@ public final class SunShadowService {
         }
         materialTables = new byte[][]{albedo, cool};
         return materialTables;
+    }
+
+    private static double mapChannelLinear(int value) {
+        double encoded = Math.clamp(value / 255.0, 0.0, 1.0);
+        return encoded <= 0.04045 ? encoded / 12.92 : Math.pow((encoded + 0.055) / 1.055, 2.4);
+    }
+
+    /** 地図色は表示用のRGB。反射光の計算には線形光量としての反射率へ戻す。 */
+    static double mapReflectance(int red, int green, int blue) {
+        return Math.clamp(0.2126 * mapChannelLinear(red) + 0.7152 * mapChannelLinear(green)
+                + 0.0722 * mapChannelLinear(blue), 0.02, 0.85);
+    }
+
+    /** 室内の低い空光と夜を維持し、晴れた屋外の一様なフィルだけを減らす。 */
+    static double skyFill(int skyLevel, double sunStrength) {
+        double exposed = Math.clamp((skyLevel - 12.0) / 3.0, 0.0, 1.0);
+        exposed = exposed * exposed * (3.0 - 2.0 * exposed);
+        return SKY + (OUTDOOR_SKY - SKY) * exposed * Math.clamp(sunStrength, 0.0, 1.0);
     }
 
     private static final int[][] FACES = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
@@ -770,7 +790,7 @@ public final class SunShadowService {
                     int b = (x + BOUNCE_REACH) + bw * ((z + BOUNCE_REACH) + bd * (y + BOUNCE_REACH));
                     double bounce = bounceAt(bounceCell, x, y, z);
                     double sky = SKY_CURVE[s.sky(px, py, pz)] * light.daylight();
-                    double skyPart = AMBIENT + SKY * sky + bounce;
+                    double skyPart = AMBIENT + skyFill(s.sky(px, py, pz), light.sunStrength()) * sky + bounce;
                     double sunPart = sunLight[b], blockPart = blockLight[b];
                     double want = skyPart + sunPart + blockPart;
                     double have = Math.min(1.0, AMBIENT + sky + LIGHT_CURVE[s.block(px, py, pz)]);
