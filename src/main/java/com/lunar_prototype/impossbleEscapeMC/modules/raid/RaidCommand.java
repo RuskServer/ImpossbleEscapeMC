@@ -63,6 +63,18 @@ public class RaidCommand implements BasicCommand {
             case "spawn":
                 if (player.isOp()) handleSpawn(player, args);
                 break;
+            case "danger":
+                if(player.isOp())handleDanger(player,args);
+                break;
+            case "radio":
+                if(player.isOp()) {
+                    RaidInstance raid=manager.getRaidOf(player);
+                    if(args.length!=3||!args[1].equalsIgnoreCase("preview")||!List.of("zone","item").contains(args[2]))
+                        player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.YELLOW));
+                    else if(raid==null)player.sendMessage(Component.text("レイド参加中に実行してください。",NamedTextColor.YELLOW));
+                    else raid.radio().preview(player,args[2]);
+                }
+                break;
             case "extract":
                 if (player.isOp()) handleExtract(player, args);
                 break;
@@ -140,8 +152,47 @@ public class RaidCommand implements BasicCommand {
         spawnDiagnostics.request(player, map, 0, true);
     }
 
+    private void handleDanger(Player player,String[] args) {
+        String usage="/raid danger <add|list|remove> <mapID> [区域ID] [表示名]";
+        if(args.length<3){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+        RaidMap map=manager.getMap(args[2]);
+        if(map==null){player.sendMessage(Component.text("マップがありません。",NamedTextColor.RED));return;}
+        switch(args[1].toLowerCase(java.util.Locale.ROOT)) {
+            case "list" -> {
+                player.sendMessage(Component.text("高脅威区域: "+map.getMapId()+" / "+map.highThreatZones().size()+"件",NamedTextColor.GOLD));
+                for(var zone:map.highThreatZones())player.sendMessage(Component.text(zone.id()+" — "+zone.name()+"  ("
+                        +(int)zone.minX()+", "+(int)zone.minY()+", "+(int)zone.minZ()+") ～ ("
+                        +(int)(zone.maxX()-1)+", "+(int)(zone.maxY()-1)+", "+(int)(zone.maxZ()-1)+")",NamedTextColor.WHITE));
+            }
+            case "remove" -> {
+                if(args.length!=4){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+                if(!map.removeHighThreatZone(args[3])){player.sendMessage(Component.text("その区域IDはありません。",NamedTextColor.RED));return;}
+                manager.saveMap(map);
+                player.sendMessage(Component.text("区域 "+args[3]+" を削除しました。",NamedTextColor.GREEN));
+            }
+            case "add" -> {
+                if(args.length<4){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+                if(!map.isWorld(player.getWorld())){player.sendMessage(Component.text("対象マップのワールドで選択してください。",NamedTextColor.RED));return;}
+                if(!org.bukkit.Bukkit.getPluginManager().isPluginEnabled("WorldEdit")
+                        &&!org.bukkit.Bukkit.getPluginManager().isPluginEnabled("FastAsyncWorldEdit")) {
+                    player.sendMessage(Component.text("WorldEdit または FAWE が必要です。",NamedTextColor.RED));return;
+                }
+                String name=args.length>4?String.join(" ",Arrays.copyOfRange(args,4,args.length)):args[3];
+                try {
+                    var zone=RaidWorldEditSelection.zone(player,map.getMapId(),args[3],name);
+                    if(!map.addHighThreatZone(zone)){player.sendMessage(Component.text("同じ区域IDがあります。listで確認してください。",NamedTextColor.RED));return;}
+                    manager.saveMap(map);
+                    player.sendMessage(Component.text("選択範囲を高脅威区域「"+name+"」として保存しました。",NamedTextColor.GREEN));
+                } catch(IllegalArgumentException ex) {player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+            }
+            default -> player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));
+        }
+    }
+
     private void handleExtract(Player player, String[] args) {
         if (args.length < 4 || !args[1].equalsIgnoreCase("add")) {
+            player.sendMessage(Component.text("/raid danger <add|list|remove> <mapID> [区域ID] [表示名] (WorldEdit選択)",NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.RED));
             return;
         }
@@ -209,6 +260,8 @@ public class RaidCommand implements BasicCommand {
             player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid start - レイドを強制開始 (デバッグ用)", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid spawn <add|remove|list|analyze|clear> <mapID> [地点ID / ページ]", NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid danger <add|list|remove> <mapID> [区域ID] [表示名] (WorldEdit選択)",NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.WHITE));
         }
@@ -220,7 +273,7 @@ public class RaidCommand implements BasicCommand {
         if (args.length == 1) {
             List<String> subs = new ArrayList<>(Arrays.asList("open", "join", "leave"));
             if (sender.isOp()) {
-                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn", "start"));
+                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn", "start", "danger", "radio"));
             }
             return subs.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
@@ -233,6 +286,8 @@ public class RaidCommand implements BasicCommand {
                     .filter(s -> s.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
             if (sender.isOp()) {
+                if(sub.equals("danger"))return List.of("add","list","remove").stream().filter(v->v.startsWith(args[1])).toList();
+                if(sub.equals("radio"))return List.of("preview");
                 if (sub.equals("map")) return Arrays.asList("create", "delete");
                 if (sub.equals("spawn")) return Arrays.asList("add", "remove", "list", "analyze", "clear").stream()
                         .filter(v -> v.startsWith(args[1].toLowerCase(java.util.Locale.ROOT))).toList();
@@ -244,6 +299,11 @@ public class RaidCommand implements BasicCommand {
             }
         }
 
+        if(args.length==3&&args[0].equalsIgnoreCase("radio"))return List.of("zone","item").stream().filter(v->v.startsWith(args[2])).toList();
+        if(args.length==4&&args[0].equalsIgnoreCase("danger")&&args[1].equalsIgnoreCase("remove")) {
+            RaidMap map=manager.getMap(args[2]);
+            return map==null?List.of():map.highThreatZones().stream().map(RaidRadioZone::id).filter(id->id.startsWith(args[3])).toList();
+        }
         if (args.length == 3) {
             return manager.getMapIds().stream()
                     .filter(s -> s.startsWith(args[2].toLowerCase()))

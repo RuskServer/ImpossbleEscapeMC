@@ -72,12 +72,16 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | `/itemreload` | Reload custom items, configurations, and trader files. | `op` |
 | `/scavspawn [x y z]` | Manually spawn a SCAV. Use `heatmap` to toggle spawn map. | `op` |
 | `/raid <join\|leave\|start\|extract\|scavspawn>` | Complete raid queueing and map interactions. | `op` |
+| `/raid danger <add\|list\|remove> <mapID> [zoneID] [name]` | Manage high-threat cuboids selected with WorldEdit/FAWE. | `op` |
+| `/raid radio preview <zone\|item>` | Preview radio while participating in a raid. | `op` |
 | `/party <create\|invite\|accept\|leave\|kick\|info\|chat>` | Squad management and secure communication. | *None (All Players)* |
 | `/loot <container\|egg\|groundegg\|remover\|refill>` | Place, remove and refill loot crates and ground loot spots. | `op` |
 | `/trader <open\|reload> [traderId]` | Shop from local traders or reload traders layout. | `op` / `impossbleescapemc.trader.reload` |
 | `/mg <create\|setspawn\|split\|start\|stop\|loadout>` | Manage active minigame lobby parameters. | `op` |
 
 ---
+
+`raid-radio.enabled` in `config.yml` enables threat-entry and quest-item discovery radio (default: `true`). See [RAID_RADIO.md](docs/RAID_RADIO.md) for selection, cooldowns and resource-pack requirements.
 
 ## 🏗️ System Architecture
 

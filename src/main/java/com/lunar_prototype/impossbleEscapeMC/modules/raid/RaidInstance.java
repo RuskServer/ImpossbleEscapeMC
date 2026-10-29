@@ -40,6 +40,7 @@ public class RaidInstance {
     private final List<VirtualScav> virtualScavs = new ArrayList<>();
     private final Map<UUID, RaidResult> raidResults = new HashMap<>();
     private final RaidEndSequence endSequence;
+    private final RaidRadio radio;
 
     private final long startTime;
     private final String raidSessionId;
@@ -126,8 +127,9 @@ public class RaidInstance {
         this.map = map;
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
-        this.endSequence = new RaidEndSequence(plugin, map);
-        this.hud = new RaidHud(plugin, map, activeExtractions);
+        this.radio = new RaidRadio(plugin,map);
+        this.endSequence = new RaidEndSequence(plugin, map,radio);
+        this.hud = new RaidHud(plugin, map, activeExtractions,radio);
         // 時間帯・天候 (周期の始めに当てはめているが、その時ワールドが無かった場合のために、もう一度)
         if (plugin.getRaidModule() != null) plugin.getRaidModule().applyConditions(map.getMapId());
 
@@ -347,6 +349,8 @@ public class RaidInstance {
             }
         }
     }
+
+    RaidRadio radio(){return radio;}
 
     private void updateHudTime() {
         hud.setTimeLeft(plugin.getRaidModule().getMapTimeLeft(map.getMapId()));

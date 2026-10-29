@@ -52,3 +52,7 @@ scav-hearing:
   gunshot-investigate-radius: 32
   gunshot-alert-radius: 64
   sound-home-radius: 40
+
+# クライアントの日本語無線。危険区域は /raid danger add でWorldEdit選択からマップに保存する。
+raid-radio:
+  enabled: true

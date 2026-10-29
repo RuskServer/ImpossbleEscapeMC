@@ -63,6 +63,7 @@ public class RaidModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         loadMaps();
+        Bukkit.getPluginManager().registerEvents(new RaidRadioListener(this),plugin);
         container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new RaidCommand(this));
         // 出撃時の PDA の演出の間の操作の停止
         Bukkit.getPluginManager().registerEvents(new PdaIntro(), plugin);

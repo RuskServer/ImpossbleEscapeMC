@@ -14,6 +14,19 @@ public class RaidMap {
     // 座標の配列は旧JSONと共通。IDは削除しても詰め直さず、再利用しない。
     private List<Integer> spawnIds = new ArrayList<>();
     private int nextSpawnId = 1;
+    private List<RaidRadioZone> highThreatZones = new ArrayList<>();
+
+    List<RaidRadioZone> highThreatZones() {
+        if(highThreatZones==null)highThreatZones=new ArrayList<>();
+        return List.copyOf(highThreatZones);
+    }
+    boolean addHighThreatZone(RaidRadioZone zone) {
+        if(highThreatZones().stream().anyMatch(z->z.id().equals(zone.id())))return false;
+        highThreatZones.add(zone);return true;
+    }
+    boolean removeHighThreatZone(String id) {
+        highThreatZones();return highThreatZones.removeIf(z->z.id().equals(id));
+    }
 
     public record SpawnEntry(int id, double x, double y, double z, float yaw, float pitch) {}
 

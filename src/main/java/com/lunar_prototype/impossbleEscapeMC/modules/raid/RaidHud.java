@@ -86,12 +86,18 @@ final class RaidHud {
 
     private final ImpossbleEscapeMC plugin;
     private final RaidMap map;
+    private final RaidRadio radio;
     private final List<RaidMap.ExtractionPoint> extractions;
     private final Map<UUID, BossBar> bars = new HashMap<>();
     private BukkitTask task;
     private int timeLeft;
 
     RaidHud(ImpossbleEscapeMC plugin, RaidMap map, List<RaidMap.ExtractionPoint> extractions) {
+        this(plugin,map,extractions,null);
+    }
+
+    RaidHud(ImpossbleEscapeMC plugin, RaidMap map, List<RaidMap.ExtractionPoint> extractions,RaidRadio radio) {
+        this.radio=radio;
         this.plugin = plugin;
         this.map = map;
         this.extractions = extractions;
@@ -106,6 +112,7 @@ final class RaidHud {
     }
 
     void hide(Player player) {
+        if(radio!=null)radio.remove(player);
         BossBar bar = bars.remove(player.getUniqueId());
         if (bar != null) player.hideBossBar(bar);
     }
@@ -114,9 +121,10 @@ final class RaidHud {
     void stop() {
         for (Map.Entry<UUID, BossBar> entry : bars.entrySet()) {
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (player != null) player.hideBossBar(entry.getValue());
+            if (player != null) {player.hideBossBar(entry.getValue());if(radio!=null)radio.remove(player); }
         }
         bars.clear();
+        if(radio!=null)radio.clear();
         if (task != null) task.cancel();
         task = null;
     }
@@ -133,6 +141,7 @@ final class RaidHud {
     }
 
     private void update(Player player, BossBar bar) {
+        if(radio!=null)radio.tick(player);
         Component title = title(player);
         if (!title.equals(bar.name())) bar.name(title);
     }
@@ -152,7 +161,7 @@ final class RaidHud {
             if (data != null) collectQuestTargets(data, here, quests);
         }
         return compose(here.getYaw(), targets, quests, timeLeft,
-                OperationHintHud.raidHint(player, plugin));
+                OperationHintHud.raidHint(player, plugin),radio==null?-1:radio.frame(player));
     }
 
     /** 受けているクエストの、まだ着いていない到達の目標のうち、このワールドの物への水平の差 {dx, dz} */
@@ -186,6 +195,11 @@ final class RaidHud {
 
     static Component compose(double yaw, List<double[]> targets, List<double[]> quests, int timeLeft,
                              OperationHintHud.Hint hint) {
+        return compose(yaw,targets,quests,timeLeft,hint,-1);
+    }
+
+    static Component compose(double yaw,List<double[]> targets,List<double[]> quests,int timeLeft,
+                             OperationHintHud.Hint hint,int alertFrame) {
         Line line = new Line();
         line.glyph(0, BG, STRIP, HUD_NO_SHADOW);
 
@@ -210,6 +224,8 @@ final class RaidHud {
 
         timer(line, Math.max(0, timeLeft));
         if (hint != null) hint(line, hint);
+        if(alertFrame>=0&&alertFrame<12)line.glyph(CENTER-110,(char)(0xE000+alertFrame),220,
+                Style.empty().font(Key.key("iem","radio_alert")).color(TextColor.color(0xFFFFFF)).shadowColor(ShadowColor.none()));
         line.moveTo(STRIP);
         return line.build();
     }

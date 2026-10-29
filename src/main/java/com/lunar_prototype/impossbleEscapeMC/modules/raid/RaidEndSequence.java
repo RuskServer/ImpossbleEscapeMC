@@ -41,7 +41,7 @@ public final class RaidEndSequence {
     private static final String SOUND_EAR_RINGING = "iem:raid_end.ear_ringing";
     private static final String SOUND_ELECTRIC_SHORT = "iem:raid_end.electric_short";
     private static final String SOUND_AMBIENCE = "iem:raid_end.ambience";
-    // セリフ: クライアントは英語の無線、国連軍はロシア語 (拡声器の放送と、傍受した無線)。チャットに日本語の字幕を出す
+    // セリフ: クライアントは日本語の無線、国連軍はロシア語 (拡声器の放送と、傍受した無線)。チャットに日本語の字幕を出す
     private static final String VOICE_CLIENT_WARNING = "iem:raid_end.voice.client_warning";
     private static final String VOICE_CLIENT_EMP_CUT = "iem:raid_end.voice.client_emp_cut";
     private static final String VOICE_UN_BROADCAST = "iem:raid_end.voice.un_broadcast";
@@ -79,10 +79,11 @@ public final class RaidEndSequence {
     private static final int ELECTRIC_SHORT_DELAY_TICKS = 12;
     private static final int EMP_VOICE_DELAY_TICKS = 8;
     private static final int AMBIENCE_DELAY_TICKS = 50;
-    /** クライアントの無線が EMP で途切れる位置 (voice_client_emp_cut の約4.0秒) に、雑音の字幕を合わせる */
-    private static final int STATIC_MESSAGE_DELAY_TICKS = EMP_VOICE_DELAY_TICKS + 80;
+    /** クライアントの無線が EMP で途切れる位置 (voice_client_emp_cut の日本語音声（約4.15秒で通信断）) に、雑音の字幕を合わせる */
+    private static final int STATIC_MESSAGE_DELAY_TICKS = EMP_VOICE_DELAY_TICKS + 83;
 
     private final ImpossbleEscapeMC plugin;
+    private final RaidRadio radio;
     private final RaidMap map;
     private final int warningSeconds;
     private final int precursorSeconds;
@@ -102,6 +103,11 @@ public final class RaidEndSequence {
     private int broadcastUntilTick;
 
     public RaidEndSequence(ImpossbleEscapeMC plugin, RaidMap map) {
+        this(plugin,map,null);
+    }
+
+    RaidEndSequence(ImpossbleEscapeMC plugin, RaidMap map,RaidRadio radio) {
+        this.radio=radio;
         this.plugin = plugin;
         this.map = map;
         this.warningSeconds = plugin.getConfig().getInt("raid-end-sequence.warning-seconds", 180);
@@ -181,8 +187,8 @@ public final class RaidEndSequence {
 
     private void sendWarning(Player player) {
         player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
-                .append(Component.text("監視網の妨害はあと" + formatDuration(warningSeconds)
-                        + "で切れる。回収したものを持って撤収しろ。", NamedTextColor.WHITE)));
+                .append(Component.text("いいか、監視網の妨害がもうすぐ切れる。回収したものを持って撤収しろ。", NamedTextColor.WHITE)));
+        if(radio!=null)radio.urgent(player,200);
         player.playSound(player, VOICE_CLIENT_WARNING, SoundCategory.MASTER, 1.0f, 1.0f);
         audible.add(player.getUniqueId());
     }
@@ -233,9 +239,10 @@ public final class RaidEndSequence {
                 p -> p.playSound(p, SOUND_EMP_BLAST, SoundCategory.MASTER, 0.7f, 0.9f));
 
         later(player, EMP_VOICE_DELAY_TICKS, p -> {
+            if(radio!=null)radio.urgent(p,140);
             p.playSound(p, VOICE_CLIENT_EMP_CUT, SoundCategory.MASTER, 1.0f, 1.0f);
             p.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
-                    .append(Component.text("上空で閃光――EMPだ、急いで脱出し――", NamedTextColor.WHITE)));
+                    .append(Component.text("上空で閃光。EMPだ、急いで脱出し――", NamedTextColor.WHITE)));
         });
         later(player, ELECTRIC_SHORT_DELAY_TICKS,
                 p -> p.playSound(p, SOUND_ELECTRIC_SHORT, SoundCategory.MASTER, 0.8f, 1.0f));

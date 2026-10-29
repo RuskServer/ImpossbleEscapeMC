@@ -388,6 +388,9 @@ public class SearchGUI implements Listener {
             }
 
             updateInventory(top, source);
+            ItemStack acquired=sourceItem.clone();
+            acquired.setAmount(movedAmount);
+            Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.LootItemRevealEvent(player,acquired));
         } else {
             startSearching(player, top, holder, source, slot);
         }
@@ -475,6 +478,7 @@ public class SearchGUI implements Listener {
                     markAsSearched(holder, source, slot);
                     updateInventory(guiInv, source);
                     if (revealed != null && !revealed.getType().isAir()) {
+                        Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.LootItemRevealEvent(player,revealed));
                         int rarity = revealRarity(revealed);
                         holder.waves.put(slot, new int[]{rarity, 0});
                         flashFrame = 0;
