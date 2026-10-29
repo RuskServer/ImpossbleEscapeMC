@@ -151,14 +151,13 @@ public final class LockerLootModule implements IModule, Listener {
             });
             cabinet.sources[slot]=new Source(cabinet,slot,handles[slot]);
         }
-        for(boolean door:new boolean[]{false,true}) {
-            var item=new org.bukkit.inventory.ItemStack(Material.PAPER);var meta=item.getItemMeta();
-            meta.setItemModel(new NamespacedKey("iem","locker/"+(door?"door":"shell")));item.setItemMeta(meta);
-            ItemDisplay display=world.spawn(anchor,ItemDisplay.class,e->{
-                e.setItemStack(item);e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);e.setPersistent(true);e.setInvulnerable(true);
+        for(var part:LockerModel.PARTS) {
+            BlockDisplay display=world.spawn(anchor,BlockDisplay.class,e->{
+                e.setBlock((part.slab()?Material.SMOOTH_STONE_SLAB:Material.LIGHT_GRAY_CONCRETE).createBlockData());
+                e.setPersistent(true);e.setInvulnerable(true);
                 e.setDisplayWidth(4);e.setDisplayHeight(5);e.setShadowRadius(0);
                 e.getPersistentDataContainer().set(ownerKey,PersistentDataType.STRING,spec.id);
-                e.setTransformationMatrix(LockerModel.transform(door,spec.facing,false));
+                e.setTransformationMatrix(LockerModel.transform(part,spec.facing,false));
             });
             cabinet.parts.add(display);
         }
@@ -166,13 +165,13 @@ public final class LockerLootModule implements IModule, Listener {
     }
     private final class Cabinet {
         final RaidMap map;final RaidMap.LootLocker spec;final Location anchor;
-        final Source[] sources=new Source[1];final List<ItemDisplay> parts=new ArrayList<>();
+        final Source[] sources=new Source[1];final List<BlockDisplay> parts=new ArrayList<>();
         Cabinet(RaidMap map,RaidMap.LootLocker spec,Location anchor){this.map=map;this.spec=spec;this.anchor=anchor;}
         void animate(boolean open,int duration) {
-            for(int i=1;i<parts.size();i++) {
-                ItemDisplay display=parts.get(i);if(!display.isValid())continue;
+            for(int i=0;i<parts.size();i++)if(LockerModel.PARTS.get(i).door()) {
+                BlockDisplay display=parts.get(i);if(!display.isValid())continue;
                 display.setInterpolationDelay(0);display.setInterpolationDuration(duration);
-                display.setTransformationMatrix(LockerModel.transform(true,spec.facing,open));
+                display.setTransformationMatrix(LockerModel.transform(LockerModel.PARTS.get(i),spec.facing,open));
             }
         }
     }

@@ -184,3 +184,7 @@ In `config.yml`:
 ### 2026-10-30: 接地遮蔽の補助調整
 - パックのindirectで反射光の経路判定と遮蔽を分離。4標本を接地側へ寄せ、減光上限を28%へ。プラグイン実装・光送信形式は変更なし。
 - 実際のフラグメントのGPU試験を `tools/check_indirect.py` に追加。画面外の物陰を補えない点、標本位置変更が反射にも影響する点は `LIGHTING_NATURALNESS.md` を参照。
+
+### 2026-10-30: ロッカーをドロワーと同じ表示方式へ変更
+- LockerModel/LockerLootModuleを14個のBlockDisplay方式へ変更。元コマンドの変換行列を保持し、床中央・前面-Z・共通蝶番を使用する。旧ItemDisplayモデルを参照しない。
+- 所有キー、操作Interaction、PDCの中身・世代、25%抽選は維持。読込時に旧表示だけ再生成する。描画数2→14の負荷は実機確認が必要。LockerModelTest/LockerLootRollTest通過。詳細LOCKER_LOOT.md。

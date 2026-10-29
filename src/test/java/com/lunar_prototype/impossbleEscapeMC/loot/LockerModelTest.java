@@ -6,18 +6,31 @@ import org.joml.Vector3f;
 
 public final class LockerModelTest {
     public static void main(String[] args) {
+        check(LockerModel.PARTS.size()==14,"original display parts retained");
+        check(LockerModel.PARTS.stream().filter(LockerModel.Part::door).count()==8,"all eight door parts animate");
         for(int facing=0;facing<4;facing++) {
-            var closed=LockerModel.transform(true,facing,false);
-            var open=LockerModel.transform(true,facing,true);
-            check(closed.transformPosition(new Vector3f()).distance(open.transformPosition(new Vector3f()))<.0001,"hinge stays fixed");
-            var handle=open.transformPosition(new Vector3f(.875f,0,0));
-            var hinge=open.transformPosition(new Vector3f());
-            var direction=handle.sub(hinge);
-            near(direction.length(),.875f,"door does not stretch");near(direction.y,0,"door stays level");
-            float[][] expected={{0,-1},{-1,0},{0,1},{1,0}};
-            near(direction.x,expected[facing][0]*.875f,"handle swings out in rotated X direction");
-            near(direction.z,expected[facing][1]*.875f,"handle swings out in rotated Z direction");
-            check(LockerModel.transform(false,facing,false).equals(LockerModel.transform(false,facing,true)),"shell never moves");
+            var rotate=new org.joml.Matrix4f().rotateY((float)(facing*Math.PI/2));
+            var hinge=rotate.transformPosition(new Vector3f(-.4375f,0,-.5f));
+            for(var part:LockerModel.PARTS) {
+                var closed=LockerModel.transform(part,facing,false);
+                var open=LockerModel.transform(part,facing,true);
+                if(!part.door())check(closed.equals(open),"shelf and shell never move");
+                for(int x=0;x<=1;x++)for(int y=0;y<=1;y++)for(int z=0;z<=1;z++) {
+                    Vector3f local=new Vector3f(x,y*(part.slab()?.5f:1f),z);
+                    var c=closed.transformPosition(new Vector3f(local));
+                    var o=open.transformPosition(new Vector3f(local));
+                    near(c.y,o.y,"opening preserves height");
+                    near(new Vector3f(c).sub(hinge).length(),new Vector3f(o).sub(hinge).length(),"parts rotate without stretching");
+                    check(c.y>=-.0001f&&c.y<=2.2501f,"original floor and top height");
+                }
+            }
+            // 元コマンドの下側の扉パネル。右端は外（-Z）へ動く。
+            var panel=LockerModel.PARTS.get(11);
+            var c=LockerModel.transform(panel,facing,false).transformPosition(new Vector3f());
+            var o=LockerModel.transform(panel,facing,true).transformPosition(new Vector3f());
+            var inverse=new org.joml.Matrix4f(rotate).invert();inverse.transformPosition(c);inverse.transformPosition(o);
+            near(c.x,.4375f,"closed panel right edge");near(c.z,-.5f,"closed panel front");
+            near(o.x,-.4375f,"open panel aligned to hinge");near(o.z,-1.375f,"door swings outside cabinet");
         }
         Gson gson=new Gson();
         var old=gson.fromJson("{\"mapId\":\"old\",\"worldName\":\"world\"}",RaidMap.class);
