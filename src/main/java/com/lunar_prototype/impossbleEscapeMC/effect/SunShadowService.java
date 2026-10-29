@@ -152,7 +152,8 @@ public final class SunShadowService {
     private static final Map<UUID, State> states = new ConcurrentHashMap<>();
     /** /shaderdebug sun で決めた付け外し (無ければレイド中だけ自動) */
     private static final Map<UUID, Boolean> overrides = new ConcurrentHashMap<>();
-    private static final java.util.Set<UUID> compressionTests = ConcurrentHashMap.newKeySet();
+    /** 通常は圧縮64格子。診断コマンドの指定がある本人だけ上書きする。 */
+    private static final Map<UUID, Boolean> compressionOverrides = new ConcurrentHashMap<>();
     private static BukkitTask task;
     /** 種類ごとの光の通り方 (0 = さえぎる、255 = 通す。間は通る割合) */
     private static byte[] transmitTable;
@@ -183,23 +184,26 @@ public final class SunShadowService {
         overrides.remove(player.getUniqueId());
     }
 
-    /** 新しいパックを入れた管理者だけが有効にする、セッション限定の比較用設定。 */
-    public static void setCompressionTest(Player player, boolean enabled) {
-        if (enabled) compressionTests.add(player.getUniqueId());
-        else compressionTests.remove(player.getUniqueId());
+    /** 診断用の圧縮切替。退出すると通常の圧縮ONへ戻る。 */
+    public static void setCompressionEnabled(Player player, boolean enabled) {
+        compressionOverrides.put(player.getUniqueId(), enabled);
         State state = states.get(player.getUniqueId());
         if (state != null) state.computedAt = 0;
     }
 
+    static boolean usesCompression(UUID playerId) {
+        return compressionOverrides.getOrDefault(playerId, true);
+    }
+
     public static String compressionStatus(Player player) {
         State state = states.get(player.getUniqueId());
-        return "圧縮テスト " + (compressionTests.contains(player.getUniqueId()) ? "ON" : "OFF")
+        return "光データ圧縮 " + (usesCompression(player.getUniqueId()) ? "ON" : "OFF")
                 + " | " + (state == null ? "光の送信停止中" : state.compressionStatus);
     }
 
     /** 退出した時 */
     public static void forget(UUID playerId) {
-        compressionTests.remove(playerId);
+        compressionOverrides.remove(playerId);
         overrides.remove(playerId);
     }
 
@@ -249,7 +253,7 @@ public final class SunShadowService {
 
         double angle = sunAngle(world.getTime());
         double[] sun = sunDirection(angle);
-        boolean compress = compressionTests.contains(state.playerId);
+        boolean compress = usesCompression(state.playerId);
         int width = compress ? W : LEGACY_WIDTH;
         // 格子は STEP ブロックごとにずらす (プレイヤーが真ん中あたりに来るように。上下は足元が下から 6〜10 ブロック)
         int ox = Math.floorDiv(at.getBlockX(), STEP) * STEP - (width - STEP) / 2;
@@ -1241,7 +1245,7 @@ public final class SunShadowService {
         if (grids == null || far == null) far = new int[0];
         if (grids == null || outer == null) outer = new int[0];
         GridPayload payload = grids == null ? null : selectPayload(grids,
-                prepared != null && compressionTests.contains(state.playerId) ? prepared.words() : null,
+                prepared != null && usesCompression(state.playerId) ? prepared.words() : null,
                 far.length + outer.length);
         int[] light = payload != null ? payload.light() : new int[0];
         int[] kinds = payload != null ? payload.grids().kinds() : new int[0];

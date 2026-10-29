@@ -77,7 +77,7 @@ public class ShaderDebugCommand implements BasicCommand {
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
             if (args.length > 1 && args[1].equalsIgnoreCase("compression")) {
                 if (args.length == 3 && (args[2].equalsIgnoreCase("on") || args[2].equalsIgnoreCase("off"))) {
-                    SunShadowService.setCompressionTest(player, args[2].equalsIgnoreCase("on"));
+                    SunShadowService.setCompressionEnabled(player, args[2].equalsIgnoreCase("on"));
                 } else if (args.length != 2 && !(args.length == 3 && args[2].equalsIgnoreCase("status"))) {
                     player.sendMessage(Component.text("/shaderdebug sun compression on|off|status", NamedTextColor.RED));
                     return;
