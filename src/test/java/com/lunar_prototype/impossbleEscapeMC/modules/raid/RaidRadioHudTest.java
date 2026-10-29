@@ -22,16 +22,16 @@ public final class RaidRadioHudTest {
                 String text=((TextComponent)part).content();
                 for(char c:text.toCharArray()) {
                     if(ALERT.equals(part.font())) {
-                        check(cursor==-20,"alert centered on the compass center");
-                        check(c==0xE000+frame,"correct animation glyph");
-                        cursor+=221;alerts++;
+                        check(cursor==(alerts==0?-20:90),"alert halves meet at compass center");
+                        check(c==(alerts==0?0xE000:0xE020)+frame,"correct animation glyph");
+                        cursor+=111;alerts++;
                     } else if(HUD.equals(part.font())&&c>=0xE500&&c<=0xE508)cursor+=1<<(c-0xE500);
                     else if(HUD.equals(part.font())&&c>=0xE510&&c<=0xE518)cursor-=1<<(c-0xE510);
                     else if(HUD.equals(part.font()))cursor+=WIDTH.get(c)+1;
                     else cursor+=c==':'?2:6;
                 }
             }
-            check(alerts==1&&cursor==RaidHud.STRIP,"overlay does not change the bossbar title's centering width");
+            check(alerts==2&&cursor==RaidHud.STRIP,"overlay does not change the bossbar title's centering width");
         }
         check(RaidHud.compose(0,List.of(),List.of(),10,null,-1).equals(RaidHud.compose(0,List.of(),List.of(),10)),"expired alert leaves no glyph");
         System.out.println("RaidRadioHudTest OK");

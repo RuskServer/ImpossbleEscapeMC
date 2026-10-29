@@ -171,3 +171,8 @@ In `config.yml`:
 ### 2026-10-30: SCAV死体右クリックの補助経路
 - ScavRagdollModuleに部位回転箱へのサーバー視線判定を追加。Interactionイベントが届かない場合も空/地面右クリックから到達可能にする。原因は未確定で、実機確認待ち。
 - 射程属性、ブロック遮蔽、イベント経由の保護判定、同一GUI重複防止を適用。SearchGUIの移動・保存には変更なし。RagdollPickingTestと診断ログを追加。詳細はSCAV_RAGDOLL.md。
+
+### 2026-10-30: 高脅威区域通知によるHUD横ずれ
+- 通知bitmapの1文字440×160pxは26.3の256×256px文字アトラスに収まらない。左右220×160pxへ分割し、RaidHudは表示110pxずつを隙間なしで描く。各文字のadvance111を相殺し、通知中も題名全体のadvance181を保つ。
+- パックtools/radio_alert.py・radio_alert.json・全12フレームの左右画像とプラグインRaidHudを同時更新する。左U+E000〜E00B、右U+E020〜E02B。旧プラグインと新パックを混ぜない。
+- RaidRadioHudTestは全フレームの配置・総幅を確認。パックcheck_radio_alert.pyは実PNGのサイズ、alphaから求めたadvanceとフォント設定を検証。実機確認待ち。

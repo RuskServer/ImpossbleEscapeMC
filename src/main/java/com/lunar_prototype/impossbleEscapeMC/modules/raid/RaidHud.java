@@ -224,8 +224,12 @@ final class RaidHud {
 
         timer(line, Math.max(0, timeLeft));
         if (hint != null) hint(line, hint);
-        if(alertFrame>=0&&alertFrame<12)line.glyph(CENTER-110,(char)(0xE000+alertFrame),220,
-                Style.empty().font(Key.key("iem","radio_alert")).color(TextColor.color(0xFFFFFF)).shadowColor(ShadowColor.none()));
+        if(alertFrame>=0&&alertFrame<12) {
+            Style alert=Style.empty().font(Key.key("iem","radio_alert")).color(TextColor.color(0xFFFFFF)).shadowColor(ShadowColor.none());
+            // 440pxの画像は256pxの文字アトラスに収まらないため、左右220pxずつ（表示110px）で描く。
+            line.glyph(CENTER-110,(char)(0xE000+alertFrame),110,alert);
+            line.glyph(CENTER,(char)(0xE020+alertFrame),110,alert);
+        }
         line.moveTo(STRIP);
         return line.build();
     }
