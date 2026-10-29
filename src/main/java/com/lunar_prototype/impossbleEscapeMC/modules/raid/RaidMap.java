@@ -181,6 +181,23 @@ public class RaidMap {
         return groundLoot;
     }
 
+    private List<LootDrawer> lootDrawers = new ArrayList<>();
+
+    /** 古いマップJSONでは未定義。既存コンテナとは別の登録を持つ。 */
+    public List<LootDrawer> getLootDrawers() {
+        if (lootDrawers == null) lootDrawers = new ArrayList<>();
+        return lootDrawers;
+    }
+
+    public static final class LootDrawer {
+        public final String id, crateId;
+        public final int x, y, z, facing;
+        public long generation;
+        public LootDrawer(String id,String crateId,int x,int y,int z,int facing) {
+            this.id=id;this.crateId=crateId;this.x=x;this.y=y;this.z=z;this.facing=facing;
+        }
+    }
+
     public List<LootContainer> getLootContainers() {
         if (lootContainers == null) {
             lootContainers = new ArrayList<>();

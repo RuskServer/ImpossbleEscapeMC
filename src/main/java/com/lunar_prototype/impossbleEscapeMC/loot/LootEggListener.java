@@ -38,6 +38,8 @@ public class LootEggListener implements Listener {
     private final NamespacedKey GROUND_EGG_MAP_KEY;
     private final NamespacedKey GROUND_EGG_CRATE_KEY;
     private final NamespacedKey REMOVER_KEY;
+    private final NamespacedKey DRAWER_EGG_MAP_KEY;
+    private final NamespacedKey DRAWER_EGG_CRATE_KEY;
 
     public LootEggListener(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
@@ -46,7 +48,23 @@ public class LootEggListener implements Listener {
         this.GROUND_EGG_MAP_KEY = new NamespacedKey(plugin, "ground_loot_egg_map");
         this.GROUND_EGG_CRATE_KEY = new NamespacedKey(plugin, "ground_loot_egg_crate");
         this.REMOVER_KEY = new NamespacedKey(plugin, "loot_remover");
+        this.DRAWER_EGG_MAP_KEY = new NamespacedKey(plugin, "drawer_loot_egg_map");
+        this.DRAWER_EGG_CRATE_KEY = new NamespacedKey(plugin, "drawer_loot_egg_crate");
         org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, this::showGroundLootMarkers, MARKER_TICKS, MARKER_TICKS);
+    }
+
+    /** 開閉する2段引き出しの設置エッグ。中身・向き・登録の検証は直接設置と共有する。 */
+    public ItemStack createDrawerEgg(String mapId,String crateId) {
+        ItemStack egg=new ItemStack(Material.POLAR_BEAR_SPAWN_EGG);
+        ItemMeta meta=egg.getItemMeta();
+        meta.displayName(Component.text("Drawer Loot Placer: "+crateId,NamedTextColor.GOLD));
+        meta.lore(java.util.List.of(
+                Component.text("Map: ",NamedTextColor.GRAY).append(Component.text(mapId,NamedTextColor.YELLOW)),
+                Component.text("Crate: ",NamedTextColor.GRAY).append(Component.text(crateId,NamedTextColor.YELLOW)),
+                Component.text("右クリックで2段引き出しを設置・登録",NamedTextColor.AQUA)));
+        meta.getPersistentDataContainer().set(DRAWER_EGG_MAP_KEY,PDCKeys.STRING,mapId);
+        meta.getPersistentDataContainer().set(DRAWER_EGG_CRATE_KEY,PDCKeys.STRING,crateId);
+        egg.setItemMeta(meta);return egg;
     }
 
     /** 地面ルートの設置エッグ */
@@ -101,6 +119,22 @@ public class LootEggListener implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
+        ItemStack held=event.getItem();
+        if(isDrawerEgg(held)) {
+            // 空中・オフハンドでもバニラのスポーン処理を止め、設置だけメインハンドで扱う。
+            event.setCancelled(true);
+            if(event.getAction()!=Action.RIGHT_CLICK_BLOCK||event.getClickedBlock()==null
+                    ||event.getHand()!=org.bukkit.inventory.EquipmentSlot.HAND)return;
+            Player player=event.getPlayer();
+            if(!player.isOp()){player.sendMessage(Component.text("引き出しの設置はOP専用です。",NamedTextColor.RED));return;}
+            var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
+            if(drawers==null)return;
+            var tags=held.getItemMeta().getPersistentDataContainer();
+            try {drawers.place(player,tags.get(DRAWER_EGG_MAP_KEY,PDCKeys.STRING),tags.get(DRAWER_EGG_CRATE_KEY,PDCKeys.STRING),
+                    event.getClickedBlock().getRelative(event.getBlockFace()));}
+            catch(IllegalArgumentException ex){player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+            return;
+        }
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         ItemStack item = event.getItem();
         if (item == null || event.getClickedBlock() == null || !item.hasItemMeta()) return;
@@ -166,6 +200,23 @@ public class LootEggListener implements Listener {
         }
     }
 
+    private boolean isDrawerEgg(ItemStack item) {
+        return item!=null&&item.hasItemMeta()&&item.getItemMeta().getPersistentDataContainer().has(DRAWER_EGG_MAP_KEY,PDCKeys.STRING);
+    }
+
+    /** 設置エッグで動物を右クリックしても、子供などをバニラ生成しない。 */
+    @EventHandler
+    public void onDrawerEggEntity(org.bukkit.event.player.PlayerInteractEntityEvent event) {
+        ItemStack item=event.getHand()==org.bukkit.inventory.EquipmentSlot.HAND
+                ?event.getPlayer().getInventory().getItemInMainHand():event.getPlayer().getInventory().getItemInOffHand();
+        if(isDrawerEgg(item))event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onDrawerEggEntityAt(org.bukkit.event.player.PlayerInteractAtEntityEvent event) {
+        onDrawerEggEntity(event);
+    }
+
     private void placeGroundLoot(Player player, Block target, String mapId, String crateId) {
         if (target.getType().isSolid()) {
             player.sendMessage(Component.text("置く所がふさがっています (床の上の空いたブロックを選んでください)。", NamedTextColor.RED));
@@ -195,6 +246,10 @@ public class LootEggListener implements Listener {
 
     /** ルートコンテナを消すか、地面ルートの地点を外す */
     private void remove(Player player, Block clicked, Block front) {
+        var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
+        if(drawers!=null&&drawers.removeAt(clicked)) {
+            player.sendMessage(Component.text("引き出しを削除しました。",NamedTextColor.GREEN));return;
+        }
         java.util.List<String> containers = plugin.getLootManager().removeLootContainer(clicked);
         if (!containers.isEmpty()) {
             player.sendMessage(Component.text("ルートコンテナの登録を外し、ブロックを消しました (" + String.join(", ", containers) + ")", NamedTextColor.GREEN));

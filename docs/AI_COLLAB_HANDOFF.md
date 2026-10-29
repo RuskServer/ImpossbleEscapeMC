@@ -141,3 +141,7 @@ In `config.yml`:
 - 2026-10-29: Preserved the approved A withdrawal-warning performance as a fixed source asset in the resource-pack tools, replacing full TTS regeneration with checksum-guarded quiet-interval edits. Speech samples and gain remain unchanged; only two quiet spans and 5 ms joins are edited. Other radio lines and EMP timing are unchanged.
 
 - 2026-10-29: Adopted radio preview two using the original low male synthetic reference (VoiceDesign seed 211), speaker-identity-only cloning and non-streaming generation. Kept the exact auditioned warning/discovery takes, generated matching EMP/zone lines, and saved all four processed performances with checksum guards in the resource-pack tools. Subtitles match the adopted wording; EMP static now starts 83 ticks after voice start. See RAID_RADIO.md.
+
+- 2026-10-29: Added two-drawer loot furniture from the supplied BlockDisplay geometry, with independent shared inventories, viewer-driven opening/closing and map/PDC persistence. SearchGUI adds a SearchableLootSource extension without changing transfer/protection branches for existing sources. Raid refill uses deferred generations for unloaded drawers; commands support placement, listing, removal and targeted refill. See DRAWER_LOOT.md.
+
+- 2026-10-29: Added /loot draweregg with persisted map/crate tags, tab completion and OP-only main-hand placement through the same drawer placement method. Placement eggs are reusable; off-hand, air and entity interactions suppress vanilla spawning.

@@ -172,6 +172,7 @@ public class SearchGUI implements Listener {
     }
 
     private Inventory getInventoryFromSource(Object source) {
+        if (source instanceof SearchableLootSource custom) return custom.inventory();
         if (source instanceof Container) {
             Container live = getLiveContainer(source);
             return live != null ? live.getInventory() : null;
@@ -206,6 +207,7 @@ public class SearchGUI implements Listener {
     }
 
     private PersistentDataContainer getPDCFromSource(Object source) {
+        if (source instanceof SearchableLootSource custom) return custom.data();
         if (source instanceof Container) {
             Container live = getLiveContainer(source);
             return live != null ? live.getPersistentDataContainer() : null;
@@ -377,6 +379,8 @@ public class SearchGUI implements Listener {
                 if (live != null) {
                     live.update(true, false);
                 }
+            } else if (source instanceof SearchableLootSource custom) {
+                custom.persist();
             } else if (source instanceof Mannequin m) {
                 try {
                     byte[] bytes = com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil.serializeInventoryToBytes(srcInv);
@@ -546,7 +550,7 @@ public class SearchGUI implements Listener {
     }
 
     private LootSessionSourceType detectSourceType(Object source) {
-        if (source instanceof Container) {
+        if (source instanceof Container || source instanceof SearchableLootSource) {
             return LootSessionSourceType.CRATE;
         }
         if (source instanceof Mannequin) {

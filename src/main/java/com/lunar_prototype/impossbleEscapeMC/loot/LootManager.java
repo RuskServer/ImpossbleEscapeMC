@@ -63,6 +63,8 @@ public class LootManager {
     }
 
     public void refillContainers(RaidMap map) {
+        var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
+        if (drawers != null) drawers.refill(map);
         String worldName = map.getWorldName();
         if (worldName == null) return;
 
@@ -138,6 +140,13 @@ public class LootManager {
             inv.setItem(i, items.get(i));
         }
         plugin.getLogger().info("Refilled container " + crateId + " with " + items.size() + " items.");
+    }
+
+    /** 家具の中身も通常コンテナと同じ重み・抽選を使う。 */
+    public List<ItemStack> rollContents(org.bukkit.World world,String crateId) {
+        LootCrate crate=lootCrates.get(crateId);
+        LootTable table=crate!=null?selectWeightedTable(crate):lootTables.get(crateId);
+        return table==null?List.of():LootRoller.roll(world,table);
     }
 
     /** 地面ルートの地点に置く確率 */
