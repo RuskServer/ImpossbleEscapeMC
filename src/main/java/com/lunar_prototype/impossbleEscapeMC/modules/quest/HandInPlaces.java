@@ -65,6 +65,19 @@ public final class HandInPlaces {
      * stash ならスタッシュのページも
      */
     public static List<Entry> scan(Player player, PlayerData data, boolean equipped, boolean stash) {
+        return scan(player,data,equipped,stash,player.getInventory().getStorageContents(),null);
+    }
+
+    /** 個数の表示用。漁りオーバーレイの表示欄を所持品として二重に数えない。消費元には使わない。 */
+    public static List<Entry> scanForCount(Player player, PlayerData data) {
+        var overlay = ImpossbleEscapeMC.getInstance().getServiceContainer().get(
+                com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class);
+        var view = overlay == null ? null : overlay.materialView(player);
+        return view == null ? scan(player,data,false,true) : scan(player,data,false,true,view.storage(),view.backpack());
+    }
+
+    private static List<Entry> scan(Player player, PlayerData data, boolean equipped, boolean stash,
+                                    ItemStack[] storage, Inventory offhandContents) {
         BackpackModule backpacks = backpackModule();
         List<Entry> out = new ArrayList<>();
         List<Entry> bagged = new ArrayList<>();
@@ -76,7 +89,6 @@ public final class HandInPlaces {
                 }
             }
         }
-        ItemStack[] storage = player.getInventory().getStorageContents();
         for (int slot = 0; slot < storage.length; slot++) {
             ItemStack item = storage[slot];
             if (empty(item)) continue;
@@ -92,7 +104,7 @@ public final class HandInPlaces {
         out.addAll(bagged);
         ItemStack offhand = player.getInventory().getItemInOffHand();
         if (isBag(backpacks, offhand)) {
-            Inventory bag = backpacks.loadBackpackInventory(player, offhand);
+            Inventory bag = offhandContents != null ? offhandContents : backpacks.loadBackpackInventory(player, offhand);
             if (bag != null) for (int inner = 0; inner < bag.getSize(); inner++) {
                 add(out, player, backpacks, new Source(Kind.OFFHAND_BAG, 0, -1, inner), plain(offhand) + " (オフハンド)", bag.getItem(inner));
             }

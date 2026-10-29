@@ -39,7 +39,8 @@ public final class MaterialDelivery {
     public static Map<String, Integer> count(Player player, PlayerData data, java.util.Collection<String> ids) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (String id : ids) counts.put(id,0);
-        for (var entry : HandInPlaces.scan(player,data,false,true)) {
+        if (counts.isEmpty()) return counts;
+        for (var entry : HandInPlaces.scanForCount(player,data)) {
             String id = id(entry.item());
             if (id != null && counts.containsKey(id)) counts.merge(id,entry.item().getAmount(),Integer::sum);
         }

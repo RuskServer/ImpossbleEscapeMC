@@ -233,6 +233,24 @@ public class LootBackpackOverlayListener implements Listener {
         return sessions.containsKey(player.getUniqueId());
     }
 
+    /** 素材数の表示専用。本物の持ち物と、保存前の装備バッグを重複なく読む。 */
+    public record MaterialView(ItemStack[] storage, Inventory backpack) {}
+
+    public MaterialView materialView(Player player) {
+        OverlaySession session = sessions.get(player.getUniqueId());
+        if (session == null) return null;
+        if (session.mode == ViewMode.BACKPACK) syncBackpackFromDisplay(player,session);
+        return new MaterialView(materialStorage(player.getInventory().getStorageContents(),session.playerRowsShadow,
+                session.savedToggleSlotItem,session.mode == ViewMode.BACKPACK),session.backpackInventory);
+    }
+
+    static ItemStack[] materialStorage(ItemStack[] visible, ItemStack[] shadow, ItemStack toggle, boolean backpackMode) {
+        ItemStack[] storage = com.lunar_prototype.impossbleEscapeMC.modules.inventory.PlayerStorageSnapshot.cloneItems(visible);
+        if (backpackMode) for (int i = 0; i < OVERLAY_SIZE; i++) storage[OVERLAY_START+i]=cloneOrNull(shadow[i]);
+        storage[TOGGLE_SLOT]=cloneOrNull(toggle);
+        return storage;
+    }
+
     /** バックパックの表示中か (持ち物の欄がバックパックの中身の表示になっている) */
     public boolean isBackpackView(Player player) {
         OverlaySession session = sessions.get(player.getUniqueId());
@@ -666,7 +684,7 @@ public class LootBackpackOverlayListener implements Listener {
         return slots;
     }
 
-    private ItemStack cloneOrNull(ItemStack item) {
+    private static ItemStack cloneOrNull(ItemStack item) {
         return item == null ? null : item.clone();
     }
 
