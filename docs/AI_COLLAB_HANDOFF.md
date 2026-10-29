@@ -176,3 +176,11 @@ In `config.yml`:
 - 通知bitmapの1文字440×160pxは26.3の256×256px文字アトラスに収まらない。左右220×160pxへ分割し、RaidHudは表示110pxずつを隙間なしで描く。各文字のadvance111を相殺し、通知中も題名全体のadvance181を保つ。
 - パックtools/radio_alert.py・radio_alert.json・全12フレームの左右画像とプラグインRaidHudを同時更新する。左U+E000〜E00B、右U+E020〜E02B。旧プラグインと新パックを混ぜない。
 - RaidRadioHudTestは全フレームの配置・総幅を確認。パックcheck_radio_alert.pyは実PNGのサイズ、alphaから求めたadvanceとフォント設定を検証。実機確認待ち。
+
+### 2026-10-29: 日なた・日陰の表面色の分離試作
+- パックの `iem_lighting_response.glsl` / `light.fsh` で昼の色の分離を強める。旧shaftsの無深度ぼかしは戻さず、既存の表面照明経路を使う。
+- 光量、フレア、プラグイン実装、送信形式は変更なし。GPUで色・輝度・夜の復帰を検証。実機の見栄えは未確認。詳細は `LIGHTING_NATURALNESS.md`。
+
+### 2026-10-30: 接地遮蔽の補助調整
+- パックのindirectで反射光の経路判定と遮蔽を分離。4標本を接地側へ寄せ、減光上限を28%へ。プラグイン実装・光送信形式は変更なし。
+- 実際のフラグメントのGPU試験を `tools/check_indirect.py` に追加。画面外の物陰を補えない点、標本位置変更が反射にも影響する点は `LIGHTING_NATURALNESS.md` を参照。
