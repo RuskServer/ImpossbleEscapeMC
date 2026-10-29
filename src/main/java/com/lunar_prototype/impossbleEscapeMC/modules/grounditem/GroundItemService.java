@@ -287,7 +287,7 @@ public final class GroundItemService implements Listener {
             return;
         }
         ItemStack stack = item.getItemStack();
-        int left = player.getInventory().addItem(stack.clone()).values().stream().mapToInt(ItemStack::getAmount).sum();
+        int left = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.addItem(player, stack.clone()).values().stream().mapToInt(ItemStack::getAmount).sum();
         if (left >= stack.getAmount()) {
             player.sendActionBar(Component.text("持ち物に空きがありません", NamedTextColor.RED));
             return;

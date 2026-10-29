@@ -258,55 +258,20 @@ public class LootBackpackOverlayListener implements Listener {
     /** バックパックの表示中に入りきらなかった物を、本物の持ち物であるホットバー (1〜8) に入れる。入りきらなかった分を返す */
     public ItemStack addToHotbar(Player player, ItemStack item) {
         if (item == null) return null;
-        PlayerInventory inv = player.getInventory();
-        ItemStack rest = item.clone();
-        for (int slot = 0; slot < TOGGLE_SLOT && rest.getAmount() > 0; slot++) {
-            ItemStack current = inv.getItem(slot);
-            if (current == null || !current.isSimilar(rest)) continue;
-            int move = Math.min(current.getMaxStackSize() - current.getAmount(), rest.getAmount());
-            if (move <= 0) continue;
-            current.setAmount(current.getAmount() + move);
-            inv.setItem(slot, current);
-            rest.setAmount(rest.getAmount() - move);
-        }
-        for (int slot = 0; slot < TOGGLE_SLOT && rest.getAmount() > 0; slot++) {
-            ItemStack current = inv.getItem(slot);
-            if (current != null && !current.getType().isAir()) continue;
-            ItemStack stack = rest.clone();
-            stack.setAmount(Math.min(rest.getAmount(), rest.getMaxStackSize()));
-            inv.setItem(slot, stack);
-            rest.setAmount(rest.getAmount() - stack.getAmount());
-        }
-        return rest.getAmount() > 0 ? rest : null;
+        OverlaySession session = sessions.get(player.getUniqueId());
+        if (session == null) return item;
+        List<Integer> allowed = CostSlotManager.acquisitionSlots(player);
+        int hiddenCost = 0;
+        for (int slot : allowed) if (slot >= OVERLAY_START && slot < OVERLAY_START + OVERLAY_SIZE)
+            hiddenCost += CostSlotManager.stackCost(session.playerRowsShadow[slot - OVERLAY_START]);
+        List<Integer> hotbar = allowed.stream().filter(slot -> slot < TOGGLE_SLOT).toList();
+        return CostSlotManager.insert(player.getInventory(), hotbar, allowed.size() - hiddenCost, item);
     }
 
     /** コストを守って入れる (同じ物のスタックに足す → 空きスロットに新しいスタック)。入りきらなかった分を返す */
     private static ItemStack insertWithCost(Inventory inv, ItemStack item) {
-        ItemStack rest = item.clone();
-        for (int slot = 0; slot < inv.getSize() && rest.getAmount() > 0; slot++) {
-            ItemStack current = inv.getItem(slot);
-            if (current == null || !current.isSimilar(rest)) continue;
-            int move = Math.min(current.getMaxStackSize() - current.getAmount(), rest.getAmount());
-            if (move <= 0) continue;
-            current.setAmount(current.getAmount() + move);
-            inv.setItem(slot, current);
-            rest.setAmount(rest.getAmount() - move);
-        }
-        while (rest.getAmount() > 0) {
-            int used = 0;
-            int empty = -1;
-            for (int slot = 0; slot < inv.getSize(); slot++) {
-                ItemStack current = inv.getItem(slot);
-                used += CostSlotManager.stackCost(current);
-                if (empty < 0 && (current == null || current.getType().isAir())) empty = slot;
-            }
-            if (empty < 0 || used + CostSlotManager.stackCost(rest) > inv.getSize()) break;
-            ItemStack stack = rest.clone();
-            stack.setAmount(Math.min(rest.getAmount(), rest.getMaxStackSize()));
-            inv.setItem(empty, stack);
-            rest.setAmount(rest.getAmount() - stack.getAmount());
-        }
-        return rest.getAmount() > 0 ? rest : null;
+        List<Integer> slots = java.util.stream.IntStream.range(0, inv.getSize()).boxed().toList();
+        return CostSlotManager.insert(inv, slots, inv.getSize(), item);
     }
 
     private void endSession(Player player, LootSessionEndReason reason) {

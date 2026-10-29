@@ -425,6 +425,7 @@ public final class HideoutDialog implements Listener {
             notice(session, Component.text("所持金が足りません", NamedTextColor.RED));
             return;
         }
+        var materialSnapshot = com.lunar_prototype.impossbleEscapeMC.modules.inventory.PlayerStorageSnapshot.capture(player,data);
         // 素材はお金の後に取る。取れなければお金を返す
         try {
             if (!module.takeMaterials(player, data, facility.itemCosts(next))) {
@@ -442,17 +443,8 @@ public final class HideoutDialog implements Listener {
             module.upgrade(player, data, facility);
         } catch (IOException e) {
             if (cost > 0 && economy != null) economy.deposit(player.getUniqueId(), cost);
-            List<org.bukkit.inventory.ItemStack> refund = new ArrayList<>();
-            for (HideoutFacility.ItemCost itemCost : facility.itemCosts(next)) {
-                org.bukkit.inventory.ItemStack item = ItemFactory.create(itemCost.itemId());
-                if (item == null) {
-                    module.getPlugin().getLogger().warning("隠れ家強化素材を返却できません: " + itemCost.itemId());
-                    continue;
-                }
-                item.setAmount(itemCost.amount());
-                refund.add(item);
-            }
-            module.deliver(player, data, refund);
+            materialSnapshot.restore(player,data);
+            module.getPlugin().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class).saveAsync(player.getUniqueId());
             module.getPlugin().getLogger().log(Level.WARNING, "隠れ家の設備を建てられませんでした", e);
             notice(session, Component.text("建築に失敗したため費用を返却しました", NamedTextColor.RED));
             return;

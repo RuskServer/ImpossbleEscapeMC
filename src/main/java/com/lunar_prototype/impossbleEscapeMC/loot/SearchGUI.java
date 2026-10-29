@@ -359,7 +359,7 @@ public class SearchGUI implements Listener {
                             net.kyori.adventure.text.format.NamedTextColor.RED));
                 }
             } else {
-                leftover = player.getInventory().addItem(rest);
+                leftover = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.addItem(player, rest);
             }
             int leftoverAmount = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
             int movedAmount = sourceItem.getAmount() - leftoverAmount;

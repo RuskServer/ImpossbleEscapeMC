@@ -165,6 +165,34 @@ public class BackpackModule implements IModule {
         return (int) Math.round(raw * (1.0 - reduction));
     }
 
+    /** 開いているバッグは保存前の実体を使い、納品後の再保存で中身が復活しないようにする。 */
+    public Inventory getOpenBackpackInventory(Player player, ItemStack item) {
+        if (!isBackpackItem(item) || !item.hasItemMeta()) return null;
+        String uid = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.BACKPACK_UID, PDCKeys.STRING);
+        Inventory top = player.getOpenInventory().getTopInventory();
+        if (uid != null && top.getHolder() instanceof BackpackInventoryHolder holder
+                && player.getUniqueId().equals(holder.owner()) && uid.equals(holder.backpackUid())) return top;
+        return null;
+    }
+
+    public Inventory loadBackpackInventory(Player player, ItemStack item) {
+        Inventory open = getOpenBackpackInventory(player, item);
+        if (open != null) return open;
+        if (!isBackpackItem(item)) return null;
+        // 納品で書き戻す時は、設定容量より外の保存済みアイテムも切り捨てない。
+        var pdc = item.getItemMeta().getPersistentDataContainer();
+        try {
+            byte[] bytes = pdc.has(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY) ? pdc.get(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY) : null;
+            if (bytes != null) return SerializationUtil.deserializeInventoryFromBytes(bytes, Component.text("Backpack"));
+            String old = pdc.has(PDCKeys.BACKPACK_DATA, PDCKeys.STRING) ? pdc.get(PDCKeys.BACKPACK_DATA, PDCKeys.STRING) : null;
+            if (old != null && !old.isEmpty()) return SerializationUtil.deserializeInventory(old, Component.text("Backpack"));
+            return Bukkit.createInventory(null, getBackpackSize(item));
+        } catch (Exception e) {
+            ImpossbleEscapeMC.getInstance().getLogger().warning("納品元のバッグを読めませんでした: " + e.getMessage());
+            return null;
+        }
+    }
+
     public Inventory loadBackpackInventory(ItemStack backpackItem) {
         if (!isBackpackItem(backpackItem)) {
             return Bukkit.createInventory(null, 9, Component.text("Backpack"));

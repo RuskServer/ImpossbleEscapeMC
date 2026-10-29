@@ -176,45 +176,9 @@ public class RigModule implements IModule {
             return player.getInventory().addItem(stack).values().stream().mapToInt(ItemStack::getAmount).sum();
         }
 
-        PlayerInventory inventory = player.getInventory();
-        int remaining = stack.getAmount();
-        int maxStack = Math.min(stack.getMaxStackSize(), inventory.getMaxStackSize());
-
-        for (int slot : getAllowedStorageSlots(player)) {
-            ItemStack existing = inventory.getItem(slot);
-            if (isLockedSlotPlaceholder(existing)) {
-                inventory.setItem(slot, null);
-                existing = null;
-            }
-            if (existing == null || existing.getType().isAir()) continue;
-            if (!existing.isSimilar(stack)) continue;
-
-            int space = maxStack - existing.getAmount();
-            if (space <= 0) continue;
-
-            int moved = Math.min(space, remaining);
-            existing.setAmount(existing.getAmount() + moved);
-            inventory.setItem(slot, existing);
-            remaining -= moved;
-            if (remaining <= 0) return 0;
-        }
-
-        for (int slot : getAllowedStorageSlots(player)) {
-            ItemStack existing = inventory.getItem(slot);
-            if (isLockedSlotPlaceholder(existing)) {
-                inventory.setItem(slot, null);
-                existing = null;
-            }
-            if (existing != null && !existing.getType().isAir()) continue;
-
-            ItemStack placed = stack.clone();
-            placed.setAmount(Math.min(maxStack, remaining));
-            inventory.setItem(slot, placed);
-            remaining -= placed.getAmount();
-            if (remaining <= 0) return 0;
-        }
-
-        return remaining;
+        // TODO(ai-collab): 通常拾得・シフト移動も、直接受け取りと同じコスト判定を通す。
+        return com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.addItem(player, stack)
+                .values().stream().mapToInt(ItemStack::getAmount).sum();
     }
 
     public void enforceLockedSlots(Player player) {
@@ -228,14 +192,14 @@ public class RigModule implements IModule {
             if (item == null || item.getType().isAir()) continue;
             if (isLockedSlotPlaceholder(item) || ItemFactory.isCostSlotPlaceholder(item)) continue;
 
-            // 塞がった段の物は、まず使えるスロットの空きへ移し、入りきらない分だけ足元に落とす
+            // 塞がった段の物は使えるスロットへ移し、入りきらない分は元の欄に残す
             inventory.setItem(slot, null);
             int remaining = addItemToAllowedInventory(player, item.clone());
             if (remaining <= 0) continue;
             ItemStack rest = item.clone();
             rest.setAmount(remaining);
-            Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), rest);
-            dropped.setOwner(player.getUniqueId());
+            // 予期せず閉じた欄の物も、入らない分は元の欄に残す。
+            inventory.setItem(slot, rest);
         }
     }
 

@@ -305,7 +305,7 @@ public class TraderModule implements IModule {
             ItemStack item = sample.clone();
             item.setAmount(Math.min(remainingToGive, maxStack));
             int amount = item.getAmount();
-            var left = player.getInventory().addItem(item);
+            var left = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.addItem(player, item);
             int notGiven = left.values().stream().mapToInt(ItemStack::getAmount).sum();
             remainingToGive -= amount - notGiven;
             if (notGiven > 0) break;
@@ -333,8 +333,8 @@ public class TraderModule implements IModule {
     }
 
     /**
-     * 交換の取引を quantity 回する。渡す品物 (と代金があれば代金) を確かめてから取り、もらう物は持ち物 → スタッシュ → 足元の順に渡す
-     * (取った品物を返さずに済むように、入りきらない分もスタッシュで受け取る)
+     * 交換の取引を quantity 回する。渡す品物 (と代金があれば代金) を確かめてから取り、もらう物は持ち物 → スタッシュへ渡す
+     * (全体が入りきらなければ元の素材・代金を戻して交換を中止する)
      */
     private Purchase barter(Player player, PlayerData data, TraderDefinition trader, TraderItem ti, int quantity,
                             boolean limitAdjusted, List<Component> messages) {
@@ -358,6 +358,7 @@ public class TraderModule implements IModule {
             messages.add(Component.text("所持金が足りません。", NamedTextColor.RED));
             return new Purchase(0, messages, "所持金が足りません");
         }
+        var materialSnapshot = com.lunar_prototype.impossbleEscapeMC.modules.inventory.PlayerStorageSnapshot.capture(player,data);
         try {
             if (!hideout.takeMaterials(player, data, barterCosts(ti, trades))) {
                 if (total > 0) economyModule.deposit(player.getUniqueId(), total);
@@ -378,10 +379,17 @@ public class TraderModule implements IModule {
             item.setAmount(Math.min(left, maxStack));
             items.add(item);
         }
+        if (!hideout.deliver(player, data, items)) {
+            materialSnapshot.restore(player,data);
+            if (total > 0) economyModule.deposit(player.getUniqueId(),total);
+            dataModule.saveAsync(player.getUniqueId());
+            messages.add(Component.text("受け取り先に空きがないため、交換せず素材と代金を戻しました。", NamedTextColor.RED));
+            return new Purchase(0,messages,"持ち物・スタッシュに空きがありません");
+        }
         if (ti.dailyLimit > 0) {
             for (int i = 0; i < trades; i++) data.incrementPurchase(limitKey(trader, ti));
         }
-        hideout.deliver(player, data, items);
+        dataModule.saveAsync(player.getUniqueId());
 
         if (limitAdjusted || trades < quantity) {
             messages.add(Component.text((limitAdjusted ? "購入制限" : "品物の数") + "により、" + trades + " 回だけ交換しました。", NamedTextColor.YELLOW));

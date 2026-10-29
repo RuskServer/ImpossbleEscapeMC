@@ -29,14 +29,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * レイド中は、持ち物の大きさ (コスト) の合計が使えるスロットの数を超える操作を、入る前に止める。
+ * 持ち物の大きさ (コスト) の合計が使えるスロットの数を超える操作を、入る前に止める。
  * 占有スロット (バリア) は空きスロットにしか置けないため、止めないと大きな物でインベントリを埋めて制限を素通りできてしまう。
  * <p>
- * ロビーのプレイヤーインベントリではコスト超過を許可し、出撃開始時に容量内かを確認する。
+ * ロビーでも新たな持ち込みでコストが増える操作を止める。既存の超過状態から整理する操作は許す。
  * バックパック内部の容量と、リグ交換で実物がロックされる操作はロビーでも制限する。
  * リグの装備欄を外す・小さいリグに替える操作も、レイド中に持ち物が入りきらなくなるなら止める (落とさずに済むように)。
  * 止めた時は音を鳴らし、容量のゲージ ({@link CapacityGauge}) を赤く光らせる。
- * 止められない経路であふれた分は {@link CostSlotManager} が片付ける。
+ * 直接受け取る経路は {@link CostSlotManager#addItem} で判定し、既存の超過分を自動で捨てない。
  */
 public class CostCapacityListener implements Listener {
 
@@ -78,8 +78,7 @@ public class CostCapacityListener implements Listener {
             touched.addAll(slots.keySet());
             touched.addAll(added.keySet());
             for (Inventory inventory : touched) {
-                // ロビーのプレイヤーインベントリは装備準備中の超過を許可する。バックパック内部の容量は維持。
-                if (inventory.getHolder() instanceof Player && !isRaidCapacityEnforced(player)) continue;
+                // 新しく増える分はロビーでも止める。既存の超過状態から減らす操作は許可する。
                 int capacity = CostSlotManager.capacity(player, inventory);
                 if (capacity == 0) continue;
                 int before = CostSlotManager.usedCost(player, inventory);
@@ -140,6 +139,14 @@ public class CostCapacityListener implements Listener {
                         ? view.getTopInventory() : view.getBottomInventory();
                 changes.set(clicked, event.getSlot(), null);
                 changes.add(destination, current);
+            }
+            // 外のコンテナからカーソルへ取って画面を閉じる経路も、先に容量を確かめる。
+            case PICKUP_ALL, PICKUP_HALF, PICKUP_ONE, PICKUP_SOME -> {
+                if (clicked.equals(player.getInventory()) || isEmpty(current)) return;
+                ItemStack moving = current.clone();
+                if (event.getAction() == org.bukkit.event.inventory.InventoryAction.PICKUP_ONE) moving.setAmount(1);
+                if (event.getAction() == org.bukkit.event.inventory.InventoryAction.PICKUP_HALF) moving.setAmount((current.getAmount()+1)/2);
+                changes.add(player.getInventory(),moving);
             }
             default -> {
                 return;

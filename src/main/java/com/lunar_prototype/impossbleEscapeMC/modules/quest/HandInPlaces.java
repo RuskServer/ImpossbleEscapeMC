@@ -80,20 +80,21 @@ public final class HandInPlaces {
         for (int slot = 0; slot < storage.length; slot++) {
             ItemStack item = storage[slot];
             if (empty(item)) continue;
-            add(out, backpacks, new Source(Kind.INVENTORY, 0, slot, -1), "持ち物", item);
+            add(out, player, backpacks, new Source(Kind.INVENTORY, 0, slot, -1), "持ち物", item);
             if (isBag(backpacks, item)) {
-                Inventory bag = backpacks.loadBackpackInventory(item);
+                Inventory bag = backpacks.loadBackpackInventory(player, item);
+                if (bag == null) continue;
                 for (int inner = 0; inner < bag.getSize(); inner++) {
-                    add(bagged, backpacks, new Source(Kind.INVENTORY, 0, slot, inner), "持ち物の " + plain(item), bag.getItem(inner));
+                    add(bagged, player, backpacks, new Source(Kind.INVENTORY, 0, slot, inner), "持ち物の " + plain(item), bag.getItem(inner));
                 }
             }
         }
         out.addAll(bagged);
         ItemStack offhand = player.getInventory().getItemInOffHand();
         if (isBag(backpacks, offhand)) {
-            Inventory bag = backpacks.loadBackpackInventory(offhand);
-            for (int inner = 0; inner < bag.getSize(); inner++) {
-                add(out, backpacks, new Source(Kind.OFFHAND_BAG, 0, -1, inner), plain(offhand) + " (オフハンド)", bag.getItem(inner));
+            Inventory bag = backpacks.loadBackpackInventory(player, offhand);
+            if (bag != null) for (int inner = 0; inner < bag.getSize(); inner++) {
+                add(out, player, backpacks, new Source(Kind.OFFHAND_BAG, 0, -1, inner), plain(offhand) + " (オフハンド)", bag.getItem(inner));
             }
         }
         if (!stash) return out;
@@ -103,11 +104,12 @@ public final class HandInPlaces {
             for (int slot = 0; slot < items.length; slot++) {
                 ItemStack item = items[slot];
                 if (empty(item)) continue;
-                add(out, backpacks, new Source(Kind.STASH, page.getKey(), slot, -1), "スタッシュ " + page.getKey(), item);
+                add(out, player, backpacks, new Source(Kind.STASH, page.getKey(), slot, -1), "スタッシュ " + page.getKey(), item);
                 if (isBag(backpacks, item)) {
-                    Inventory bag = backpacks.loadBackpackInventory(item);
+                    Inventory bag = backpacks.loadBackpackInventory(player, item);
+                    if (bag == null) continue;
                     for (int inner = 0; inner < bag.getSize(); inner++) {
-                        add(bagged, backpacks, new Source(Kind.STASH, page.getKey(), slot, inner),
+                        add(bagged, player, backpacks, new Source(Kind.STASH, page.getKey(), slot, inner),
                                 "スタッシュ " + page.getKey() + " の " + plain(item), bag.getItem(inner));
                     }
                 }
@@ -117,10 +119,13 @@ public final class HandInPlaces {
         return out;
     }
 
-    private static void add(List<Entry> out, BackpackModule backpacks, Source source, String place, ItemStack item) {
+    private static void add(List<Entry> out, Player player, BackpackModule backpacks, Source source, String place, ItemStack item) {
         if (empty(item)) return;
         // 中に物が入っているバックパックそのものは使わない (中身ごと消えてしまう)。中の物はそれぞれ候補になる
-        if (isBag(backpacks, item) && !backpacks.loadBackpackInventory(item).isEmpty()) return;
+        if (isBag(backpacks, item)) {
+            Inventory bag = backpacks.loadBackpackInventory(player, item);
+            if (bag == null || !bag.isEmpty()) return;
+        }
         out.add(new Entry(source, place, item.clone()));
     }
 
@@ -134,7 +139,7 @@ public final class HandInPlaces {
 
     static Map<Integer, Inventory> stashPages(PlayerData data) {
         Map<Integer, Inventory> pages = new LinkedHashMap<>();
-        for (Map.Entry<Integer, String> page : data.getStashPages().entrySet()) {
+        for (Map.Entry<Integer, String> page : data.getStashPages().entrySet().stream().sorted(Map.Entry.comparingByKey()).toList()) {
             if (page.getValue() == null) continue;
             try {
                 pages.put(page.getKey(), SerializationUtil.deserializeInventory(page.getValue(), Component.empty()));
@@ -154,17 +159,36 @@ public final class HandInPlaces {
         private final Set<Integer> changedPages = new HashSet<>();
         /** バッグ (持っている場所の Source、inner = -1) → 中身 */
         private final Map<Source, Inventory> bags = new LinkedHashMap<>();
+        private final boolean transactional;
+        private final Map<Integer, ItemStack> playerChanges = new LinkedHashMap<>();
+        private final Set<Source> changedBags = new HashSet<>();
 
-        public Store(Player player, PlayerData data) {
+        public Store(Player player, PlayerData data) { this(player, data, false); }
+
+        public Store(Player player, PlayerData data, boolean transactional) {
+            this(player,data,backpackModule(),stashPages(data),transactional);
+        }
+
+        Store(Player player, PlayerData data, BackpackModule backpacks, Map<Integer, Inventory> stash, boolean transactional) {
+            this.transactional = transactional;
             this.player = player;
             this.data = data;
-            this.backpacks = backpackModule();
-            this.stash = stashPages(data);
+            this.backpacks = backpacks;
+            this.stash = stash;
+        }
+
+        private ItemStack playerItem(int slot) {
+            if (!transactional) return player.getInventory().getItem(slot);
+            if (!playerChanges.containsKey(slot)) {
+                ItemStack item = player.getInventory().getItem(slot);
+                playerChanges.put(slot, item == null ? null : item.clone());
+            }
+            return playerChanges.get(slot);
         }
 
         private ItemStack bagItem(Source bag) {
-            if (bag.kind() == Kind.OFFHAND_BAG) return player.getInventory().getItemInOffHand();
-            if (bag.kind() == Kind.INVENTORY) return player.getInventory().getItem(bag.slot());
+            if (bag.kind() == Kind.OFFHAND_BAG) return playerItem(40);
+            if (bag.kind() == Kind.INVENTORY) return playerItem(bag.slot());
             Inventory page = stash.get(bag.page());
             return page != null ? page.getItem(bag.slot()) : null;
         }
@@ -173,7 +197,15 @@ public final class HandInPlaces {
             Source bag = new Source(source.kind(), source.page(), source.slot(), -1);
             return bags.computeIfAbsent(bag, b -> {
                 ItemStack item = bagItem(b);
-                return isBag(backpacks, item) ? backpacks.loadBackpackInventory(item) : null;
+                if (!isBag(backpacks, item)) return null;
+                Inventory loaded = backpacks.loadBackpackInventory(player, item);
+                if (loaded == null) return null;
+                if (!transactional) return loaded;
+                Inventory copy = org.bukkit.Bukkit.createInventory(null, loaded.getSize());
+                ItemStack[] contents = loaded.getContents();
+                for (int i = 0; i < contents.length; i++) contents[i] = contents[i] == null ? null : contents[i].clone();
+                copy.setContents(contents);
+                return copy;
             });
         }
 
@@ -182,7 +214,7 @@ public final class HandInPlaces {
                 Inventory bag = bag(source);
                 return bag != null ? bag.getItem(source.inner()) : null;
             }
-            if (source.kind() == Kind.INVENTORY) return player.getInventory().getItem(source.slot());
+            if (source.kind() == Kind.INVENTORY) return playerItem(source.slot());
             Inventory page = stash.get(source.page());
             return page != null ? page.getItem(source.slot()) : null;
         }
@@ -190,14 +222,44 @@ public final class HandInPlaces {
         public void set(Source source, ItemStack item) {
             if (source.inBag()) {
                 Inventory bag = bag(source);
-                if (bag != null) bag.setItem(source.inner(), item);
+                if (bag != null) {
+                    bag.setItem(source.inner(), item);
+                    changedBags.add(new Source(source.kind(), source.page(), source.slot(), -1));
+                }
             } else if (source.kind() == Kind.INVENTORY) {
-                player.getInventory().setItem(source.slot(), item);
+                if (transactional) playerChanges.put(source.slot(), item);
+                else player.getInventory().setItem(source.slot(), item);
             } else {
                 Inventory page = stash.get(source.page());
                 if (page != null) page.setItem(source.slot(), item);
             }
             if (source.kind() == Kind.STASH) changedPages.add(source.page());
+        }
+
+        /** 隠れ家・交換素材向け。全ての直列化に成功してから持ち物とページを反映する。 */
+        public void commit() throws java.io.IOException {
+            if (!transactional) throw new IllegalStateException("transactional store required");
+            Map<Inventory, ItemStack[]> openUpdates = new LinkedHashMap<>();
+            for (Source source : changedBags) {
+                Inventory bag = bags.get(source);
+                ItemStack root = bagItem(source);
+                if (bag == null || root == null) throw new java.io.IOException("納品元のバッグが見つかりません");
+                var meta = root.getItemMeta();
+                if (meta == null) throw new java.io.IOException("納品元のバッグを保存できません");
+                byte[] bytes = SerializationUtil.serializeInventoryToBytes(bag);
+                meta.getPersistentDataContainer().set(com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.BACKPACK_DATA,
+                        com.lunar_prototype.impossbleEscapeMC.util.PDCKeys.BYTE_ARRAY, bytes);
+                root.setItemMeta(meta);
+                if (source.kind() == Kind.STASH) stash.get(source.page()).setItem(source.slot(), root);
+                Inventory open = backpacks.getOpenBackpackInventory(player, root);
+                if (open != null) openUpdates.put(open, bag.getContents());
+            }
+            Map<Integer, String> encoded = new LinkedHashMap<>();
+            for (int page : changedPages) encoded.put(page, SerializationUtil.serializeInventory(stash.get(page)));
+            // ここまではコピーだけを編集しており、保存不能でも本物からは何も減らない。
+            playerChanges.forEach((slot, item) -> player.getInventory().setItem(slot, item));
+            encoded.forEach(data::setStashPage);
+            openUpdates.forEach(Inventory::setContents);
         }
 
         /** 変えたバッグの中身をバッグに書き、バッグとスタッシュのページを戻す */

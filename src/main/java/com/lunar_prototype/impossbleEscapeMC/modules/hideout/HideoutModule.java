@@ -9,8 +9,6 @@ import com.sk89q.worldedit.math.BlockVector3;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout;
-import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -25,7 +23,6 @@ import org.bukkit.entity.Player;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,15 +264,9 @@ public class HideoutModule implements IModule {
 
     // ---- 強化の素材 (スタッシュと持ち物から。支給品は使えない) ----
 
-    /** 素材として数えるアイテムの ID (支給品・プラグインのアイテムでない物は null) */
-    private static String materialId(ItemStack item) {
-        if (item == null || item.getType().isAir() || !item.hasItemMeta() || SupplyLoadout.isSupplied(item)) return null;
-        return item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-    }
-
     /** スタッシュの各ページ (ページの番号と中身)。読めないページは飛ばす */
     private Map<Integer, Inventory> stashPages(PlayerData data) {
-        Map<Integer, Inventory> pages = new HashMap<>();
+        Map<Integer, Inventory> pages = new java.util.TreeMap<>();
         for (Map.Entry<Integer, String> page : data.getStashPages().entrySet()) {
             if (page.getValue() == null) continue;
             try {
@@ -287,90 +278,52 @@ public class HideoutModule implements IModule {
         return pages;
     }
 
-    /** 持ち物とスタッシュにある、その素材の数 */
+    /** クエスト納品と同じ場所（持ち物・バッグ・スタッシュ）の素材を数える。 */
     public Map<String, Integer> countMaterials(Player player, PlayerData data, List<HideoutFacility.ItemCost> costs) {
-        Map<String, Integer> counts = new HashMap<>();
-        for (HideoutFacility.ItemCost cost : costs) counts.put(cost.itemId(), 0);
-        if (counts.isEmpty()) return counts;
-        // 空の欄は null (List.of は null を受けないので Arrays.asList)
-        List<ItemStack> all = new ArrayList<>(Arrays.asList(player.getInventory().getStorageContents()));
-        for (Inventory page : stashPages(data).values()) all.addAll(Arrays.asList(page.getContents()));
-        for (ItemStack item : all) {
-            String id = materialId(item);
-            if (id != null && counts.containsKey(id)) counts.merge(id, item.getAmount(), Integer::sum);
-        }
-        return counts;
+        return com.lunar_prototype.impossbleEscapeMC.modules.inventory.MaterialDelivery.count(player, data,
+                costs.stream().map(HideoutFacility.ItemCost::itemId).toList());
     }
 
-    /**
-     * 物を渡す: 持ち物に入れ、入らない分はスタッシュのページ (前から) に入れる。それでも入らない分は足元に落とす
-     * (作る設備の完成品・取り消した製作の素材)
-     */
-    public void deliver(Player player, PlayerData data, List<ItemStack> items) {
+    /** 持ち物とスタッシュへ一括で渡す。全部入らなければ何も動かさずfalse、地面には落とさない。 */
+    public boolean deliver(Player player, PlayerData data, List<ItemStack> items) {
+        Inventory planned = Bukkit.createInventory(null, 36);
+        planned.setMaxStackSize(player.getInventory().getMaxStackSize());
+        planned.setContents(com.lunar_prototype.impossbleEscapeMC.modules.inventory.PlayerStorageSnapshot.cloneItems(player.getInventory().getStorageContents()));
+        List<Integer> slots = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.acquisitionSlots(player);
         List<ItemStack> left = new ArrayList<>();
         for (ItemStack item : items) {
-            if (item != null && !item.getType().isAir()) left.addAll(player.getInventory().addItem(item).values());
+            ItemStack rest = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.insert(planned,slots,slots.size(),item);
+            if (rest != null) left.add(rest);
         }
-        if (!left.isEmpty()) {
-            for (Map.Entry<Integer, Inventory> page : stashPages(data).entrySet()) {
-                int before = left.stream().mapToInt(ItemStack::getAmount).sum();
-                List<ItemStack> next = new ArrayList<>();
-                for (ItemStack item : left) next.addAll(page.getValue().addItem(item).values());
-                if (next.stream().mapToInt(ItemStack::getAmount).sum() < before) {
-                    try {
-                        data.setStashPage(page.getKey(), SerializationUtil.serializeInventory(page.getValue()));
-                    } catch (IOException e) {
-                        plugin.getLogger().log(Level.WARNING, "スタッシュのページを書けませんでした: " + page.getKey(), e);
-                        next = left;   // 書けなかったページには入れなかった扱い
-                    }
-                }
-                left = next;
+        Map<Integer,String> encoded = new java.util.LinkedHashMap<>();
+        try {
+            for (var page : stashPages(data).entrySet()) {
                 if (left.isEmpty()) break;
+                List<ItemStack> next = new ArrayList<>();
+                int before = left.stream().mapToInt(ItemStack::getAmount).sum();
+                for (ItemStack item : left) next.addAll(page.getValue().addItem(item.clone()).values());
+                if (next.stream().mapToInt(ItemStack::getAmount).sum() < before)
+                    encoded.put(page.getKey(),SerializationUtil.serializeInventory(page.getValue()));
+                left = next;
             }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING,"受け取り先を保存できませんでした",e);
+            return false;
         }
-        for (ItemStack item : left) player.getWorld().dropItemNaturally(player.getLocation(), item);
-        dataModule.saveAsync(player.getUniqueId());
-    }
-
-    /** 素材を持ち物 → スタッシュの順に取る。足りなければ何も取らずに false */
-    public boolean takeMaterials(Player player, PlayerData data, List<HideoutFacility.ItemCost> costs) throws IOException {
-        Map<String, Integer> have = countMaterials(player, data, costs);
-        for (HideoutFacility.ItemCost cost : costs) {
-            if (have.getOrDefault(cost.itemId(), 0) < cost.amount()) return false;
-        }
-        Map<String, Integer> left = new HashMap<>();
-        for (HideoutFacility.ItemCost cost : costs) left.merge(cost.itemId(), cost.amount(), Integer::sum);
-        take(player.getInventory(), left);
-        if (left.values().stream().anyMatch(n -> n > 0)) {
-            for (Map.Entry<Integer, Inventory> page : stashPages(data).entrySet()) {
-                if (take(page.getValue(), left)) data.setStashPage(page.getKey(), SerializationUtil.serializeInventory(page.getValue()));
-                if (left.values().stream().noneMatch(n -> n > 0)) break;
-            }
-        }
+        if (!left.isEmpty()) return false;
+        for (int slot : slots) player.getInventory().setItem(slot,planned.getItem(slot));
+        encoded.forEach(data::setStashPage);
         dataModule.saveAsync(player.getUniqueId());
         return true;
     }
 
-    /** inventory から left の数だけ取る (left を減らす)。持ち物は収納の欄だけ (数える時と同じ)。何か取ったら true */
-    private static boolean take(Inventory inventory, Map<String, Integer> left) {
-        boolean changed = false;
-        ItemStack[] contents = inventory instanceof org.bukkit.inventory.PlayerInventory player
-                ? player.getStorageContents() : inventory.getContents();
-        for (int slot = 0; slot < contents.length; slot++) {
-            String id = materialId(contents[slot]);
-            int need = id != null ? left.getOrDefault(id, 0) : 0;
-            if (need <= 0) continue;
-            int taken = Math.min(need, contents[slot].getAmount());
-            left.put(id, need - taken);
-            if (taken == contents[slot].getAmount()) {
-                inventory.setItem(slot, null);
-            } else {
-                contents[slot].setAmount(contents[slot].getAmount() - taken);
-                inventory.setItem(slot, contents[slot]);
-            }
-            changed = true;
-        }
-        return changed;
+    /** 素材を共通の納品元から取る。不足・保存失敗時には何も減らさない。 */
+    public boolean takeMaterials(Player player, PlayerData data, List<HideoutFacility.ItemCost> costs) throws IOException {
+        Map<String,Integer> required = new java.util.LinkedHashMap<>();
+        for (HideoutFacility.ItemCost cost : costs) required.merge(cost.itemId(), cost.amount(), Math::addExact);
+        boolean consumed = com.lunar_prototype.impossbleEscapeMC.modules.inventory.MaterialDelivery.consume(player,data,required);
+        if (consumed) dataModule.saveAsync(player.getUniqueId());
+        return consumed;
     }
 
     /** 自分の隠れ家のブロックなら、それを置いた設備 (ベースのブロック・ほかの場所なら null) */

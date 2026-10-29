@@ -178,7 +178,7 @@ public class MarketMainGUI implements Listener {
             // 取り消し
             try {
                 ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());
-                if (player.getInventory().addItem(item).isEmpty()) {
+                if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.tryAddAll(player,item)) {
                     marketModule.removeListing(listing.getId());
                     player.sendMessage(Component.text("出品を取り消しました。", NamedTextColor.GREEN));
                     player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
@@ -196,7 +196,7 @@ public class MarketMainGUI implements Listener {
             if (economy.withdraw(player.getUniqueId(), listing.getPrice())) {
                 try {
                     ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());
-                    if (player.getInventory().addItem(item).isEmpty()) {
+                    if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.tryAddAll(player,item)) {
                         marketModule.removeListing(listing.getId());
                         economy.deposit(listing.getSellerUuid(), listing.getPrice());
                         

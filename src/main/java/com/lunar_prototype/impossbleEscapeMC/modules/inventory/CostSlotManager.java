@@ -7,8 +7,6 @@ import com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -26,15 +24,15 @@ import java.util.Map;
  * (どの物の分か分かるように、占有スロットの名前にも書く)、ホットバーの物の分は右下から置く。
  * <p>
  * 占有スロットは空きスロットにしか置けないので、制限を超える操作は入る前に止める ({@code CostCapacityListener})。
- * 止められない経路 (プラグインが直接渡す・リグを外して使えるスロットが減る等) であふれた時は、ここで片付ける。
+ * 直接渡す経路も addItem で事前判定する。既に超過している持ち物は自動で捨てない。
  */
 public class CostSlotManager {
 
-    /** プレイヤーのインベントリのうち、ホットバーのスロット (あふれた時は最後に落とす) */
+    /** プレイヤーのインベントリのうち、ホットバーのスロット */
     private static final int HOTBAR_SIZE = 9;
 
     /**
-     * インベントリ内の合計コストを計算し、占有スロットを配置・更新します (あふれていれば先に片付ける)。
+     * インベントリ内の合計コストを計算し、占有スロットを配置・更新します。超過アイテムは自動で捨てません。
      */
     public static void updateInventory(Player player, Inventory inventory) {
         if (inventory == null) return;
@@ -52,9 +50,7 @@ public class CostSlotManager {
         List<Integer> storageSlots = getEnabledStorageSlots(player, inventory);
         if (storageSlots.isEmpty()) return;
 
-        // 2. あふれていれば、先に解消する (ロビーでは知らせるだけ)
-        int over = usedCost(inventory, storageSlots) - storageSlots.size();
-        if (over > 0) resolveOverflow(player, inventory, storageSlots, over);
+        // TODO(ai-collab): 受け取り前に容量を判定する。既存の超過アイテムを削除・排出しない。
 
         // 3. 占有スロットを置く場所と、どの物の分か
         boolean playerInventory = inventory.getHolder() instanceof Player;
@@ -240,39 +236,68 @@ public class CostSlotManager {
         return used;
     }
 
-    /**
-     * あふれた分を片付ける。レイド中は、メイン→ホットバーの順に右下のアイテムから足元に落とし、何を落としたかを伝える。
-     * ロビーではプレイヤー欄の占有表示を消して装備準備を許可し、容量ゲージと出撃時の検査で超過を知らせる。
-     */
-    private static void resolveOverflow(Player player, Inventory inventory, List<Integer> storageSlots, int over) {
-        if (!isInRaid(player)) return;
+    /** 漁りや購入など直接渡す経路用。入らない分は呼び出し元へ返し、元の場所に残す。 */
+    public static Map<Integer, ItemStack> addItem(Player player, ItemStack... items) {
+        if (player.getGameMode() == org.bukkit.GameMode.CREATIVE || player.getGameMode() == org.bukkit.GameMode.SPECTATOR)
+            return player.getInventory().addItem(items);
+        List<Integer> slots = acquisitionSlots(player);
+        Map<Integer, ItemStack> left = new HashMap<>();
+        for (int i = 0; i < items.length; i++) {
+            ItemStack rest = insert(player.getInventory(), slots, slots.size(), items[i]);
+            if (rest != null) left.put(i, rest);
+        }
+        if (!left.isEmpty()) CapacityGauge.flash(player);
+        return left;
+    }
 
-        boolean playerInventory = inventory.equals(player.getInventory());
-        List<Integer> order = new ArrayList<>();
-        for (int i = storageSlots.size() - 1; i >= 0; i--) {
-            int slot = storageSlots.get(i);
-            if (!playerInventory || slot >= HOTBAR_SIZE) order.add(slot);
+    /** 一括受け取りが必要な取引用。全て入ると分かった時だけ反映する。 */
+    public static boolean tryAddAll(Player player, ItemStack item) {
+        Inventory planned = org.bukkit.Bukkit.createInventory(null,36);
+        planned.setMaxStackSize(player.getInventory().getMaxStackSize());
+        planned.setContents(PlayerStorageSnapshot.cloneItems(player.getInventory().getStorageContents()));
+        List<Integer> slots = acquisitionSlots(player);
+        if (insert(planned,slots,slots.size(),item) != null) {
+            CapacityGauge.flash(player);
+            return false;
         }
-        for (int i = storageSlots.size() - 1; i >= 0; i--) {
-            int slot = storageSlots.get(i);
-            if (playerInventory && slot < HOTBAR_SIZE) order.add(slot);
-        }
+        for (int slot : slots) player.getInventory().setItem(slot,planned.getItem(slot));
+        return true;
+    }
 
-        List<String> dropped = new ArrayList<>();
-        for (int slot : order) {
-            if (over <= 0) break;
-            ItemStack item = inventory.getItem(slot);
-            int cost = stackCost(item);
-            if (cost == 0) continue;
-            inventory.setItem(slot, null);
-            player.getWorld().dropItemNaturally(player.getLocation(), item);
-            dropped.add(PlainTextComponentSerializer.plainText().serialize(item.effectiveName()));
-            over -= cost;
+    /** 画面のオーバーレイに影響されない、本物の持ち物の受け取り先。地図欄は除く。 */
+    public static List<Integer> acquisitionSlots(Player player) {
+        List<Integer> slots = new ArrayList<>();
+        for (int i = 0; i < HOTBAR_SIZE; i++) if (i != RaidMapManager.MAP_SLOT) slots.add(i);
+        RigModule rig = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        int end = rig == null ? 35 : rig.getUnlockedMainInventoryEndSlot(player);
+        for (int i = 9; i <= end; i++) slots.add(i);
+        return slots;
+    }
+
+    /** 指定スロットだけを使い、capacity を超えない個数を入れる。引数のスタックは変更しない。 */
+    public static ItemStack insert(Inventory inventory, List<Integer> slots, int capacity, ItemStack item) {
+        if (item == null || item.getType().isAir()) return null;
+        int[] rooms = new int[slots.size()];
+        boolean[] empty = new boolean[slots.size()];
+        int used = 0, max = Math.min(item.getMaxStackSize(), inventory.getMaxStackSize());
+        for (int i = 0; i < slots.size(); i++) {
+            ItemStack current = inventory.getItem(slots.get(i));
+            used += stackCost(current);
+            empty[i] = current == null || current.getType().isAir() || ItemFactory.isCostSlotPlaceholder(current)
+                    || RigModule.isLockedSlotPlaceholder(current);
+            if (!empty[i] && current.isSimilar(item)) rooms[i] = Math.max(0, Math.min(max, current.getMaxStackSize()) - current.getAmount());
         }
-        if (!dropped.isEmpty()) {
-            player.sendMessage(Component.text("[容量オーバー] 入りきらない " + String.join("、", dropped) + " を足元に落としました",
-                    NamedTextColor.RED));
+        int[] moves = CostInsertion.plan(capacity, used, stackCost(item), item.getAmount(), max, rooms, empty);
+        int remaining = item.getAmount();
+        for (int i = 0; i < moves.length; i++) {
+            if (moves[i] == 0) continue;
+            ItemStack placed = empty[i] ? item.clone() : inventory.getItem(slots.get(i)).clone();
+            placed.setAmount(empty[i] ? moves[i] : placed.getAmount() + moves[i]);
+            inventory.setItem(slots.get(i), placed);
+            remaining -= moves[i];
         }
+        if (remaining == 0) return null;
+        ItemStack rest = item.clone();rest.setAmount(remaining);return rest;
     }
 
     /**

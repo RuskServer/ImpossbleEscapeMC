@@ -349,17 +349,25 @@ public final class CraftDialog implements Listener {
         if (recipe == null) return;
         if (take) {
             if (state != CraftQueues.State.DONE) return;
+            if (!hideoutModule().deliver(player, data, products(player, recipe.productId(), recipe.count()))) {
+                notice(session, "持ち物・スタッシュに空きがありません。完成品はキューに残っています");
+                return;
+            }
             queue.remove(index);
-            hideoutModule().deliver(player, data, products(player, recipe.productId(), recipe.count()));
             notice(session, "受け取りました: " + itemName(recipe.productId()) + (recipe.count() > 1 ? " ×" + recipe.count() : ""));
         } else {
-            if (CraftQueues.cancel(queue, index, now) == null) return;
+            if (state == CraftQueues.State.DONE) return;
             List<ItemStack> refund = new ArrayList<>();
             for (HideoutFacility.ItemCost m : recipe.materials()) refund.addAll(products(player, m.itemId(), m.amount()));
-            hideoutModule().deliver(player, data, refund);
+            if (!hideoutModule().deliver(player, data, refund)) {
+                notice(session, "素材の返却先に空きがないため取り消せません");
+                return;
+            }
+            CraftQueues.cancel(queue, index, now);
             notice(session, "取り消しました (素材を返しました)");
         }
         data.setDirty(true);
+        dataModule().saveAsync(player.getUniqueId());
     }
 
     @EventHandler
