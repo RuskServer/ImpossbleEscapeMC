@@ -145,3 +145,5 @@ In `config.yml`:
 - 2026-10-29: Added two-drawer loot furniture from the supplied BlockDisplay geometry, with independent shared inventories, viewer-driven opening/closing and map/PDC persistence. SearchGUI adds a SearchableLootSource extension without changing transfer/protection branches for existing sources. Raid refill uses deferred generations for unloaded drawers; commands support placement, listing, removal and targeted refill. See DRAWER_LOOT.md.
 
 - 2026-10-29: Added /loot draweregg with persisted map/crate tags, tab completion and OP-only main-hand placement through the same drawer placement method. Placement eggs are reusable; off-hand, air and entity interactions suppress vanilla spawning.
+
+- 2026-10-29: Expanded scav_ai_specification.md against current implementation, documenting timing units, perception, Utility/movement priority, withdrawal/reengagement, sight recovery, weapon readiness, coordination, configuration and diagnostic limits. Corrected SCAV_HELP_ENCOUNTERS.md to match the implemented cumulative two-responder and three-member encounter limits. Documentation only; AI behavior unchanged.
