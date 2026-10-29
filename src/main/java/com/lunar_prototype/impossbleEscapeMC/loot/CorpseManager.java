@@ -98,6 +98,7 @@ public class CorpseManager {
         }
 
         finishSpawning(mannequin, virtualInv, loc);
+        Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.CorpseCreatedEvent(victim,mannequin,virtualInv));
     }
 
     public void spawnPlayerCorpse(Player player, LivingEntity killer) {
@@ -228,6 +229,7 @@ public class CorpseManager {
         mannequin.getEquipment().setBoots(inventory.getItem(3));
         mannequin.getEquipment().setItemInMainHand(inventory.getItem(4));
         mannequin.getEquipment().setItemInOffHand(inventory.getItem(5));
+        Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.CorpseAppearanceEvent(mannequin,inventory));
     }
 
     public void cleanup() {

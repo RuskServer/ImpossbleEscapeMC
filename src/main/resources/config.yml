@@ -56,3 +56,11 @@ scav-hearing:
 # クライアントの日本語無線。危険区域は /raid danger add でWorldEdit選択からマップに保存する。
 raid-radio:
   enabled: true
+
+# SCAV死体の短時間ラグドール。新しいリソースパックの部位モデルが必要。
+scav-ragdoll:
+  enabled: true
+  max-active: 6
+  max-corpses: 64
+  max-animation-ticks: 48
+  millis-per-tick: 3
