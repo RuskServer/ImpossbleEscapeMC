@@ -141,6 +141,7 @@ public final class SunShadowService {
         double angle = Double.NaN;
         long computedAt;
         boolean computing;
+        String compressionStatus = "次の光データ更新待ち";
 
         State(UUID playerId) {
             this.playerId = playerId;
@@ -150,6 +151,7 @@ public final class SunShadowService {
     private static final Map<UUID, State> states = new ConcurrentHashMap<>();
     /** /shaderdebug sun で決めた付け外し (無ければレイド中だけ自動) */
     private static final Map<UUID, Boolean> overrides = new ConcurrentHashMap<>();
+    private static final java.util.Set<UUID> compressionTests = ConcurrentHashMap.newKeySet();
     private static BukkitTask task;
     /** 種類ごとの光の通り方 (0 = さえぎる、255 = 通す。間は通る割合) */
     private static byte[] transmitTable;
@@ -180,8 +182,23 @@ public final class SunShadowService {
         overrides.remove(player.getUniqueId());
     }
 
+    /** 新しいパックを入れた管理者だけが有効にする、セッション限定の比較用設定。 */
+    public static void setCompressionTest(Player player, boolean enabled) {
+        if (enabled) compressionTests.add(player.getUniqueId());
+        else compressionTests.remove(player.getUniqueId());
+        State state = states.get(player.getUniqueId());
+        if (state != null) state.computedAt = 0;
+    }
+
+    public static String compressionStatus(Player player) {
+        State state = states.get(player.getUniqueId());
+        return "圧縮テスト " + (compressionTests.contains(player.getUniqueId()) ? "ON" : "OFF")
+                + " | " + (state == null ? "光の送信停止中" : state.compressionStatus);
+    }
+
     /** 退出した時 */
     public static void forget(UUID playerId) {
+        compressionTests.remove(playerId);
         overrides.remove(playerId);
     }
 
@@ -272,9 +289,17 @@ public final class SunShadowService {
         Snapshot.Area area = Snapshot.area(world, ox, oy, oz, day ? sun : new double[]{0, 1, 0});
         Map<Long, ChunkSnapshot> chunks = Snapshot.chunks(world, area);
         state.computing = true;
+        boolean compress = compressionTests.contains(state.playerId);
         Bukkit.getScheduler().runTaskAsynchronously(ImpossbleEscapeMC.getInstance(), () -> {
             Snapshot snapshot = Snapshot.of(chunks, area, ox, oy, oz);
             Grids grids = computeLight(snapshot, ox, oy, oz, light);
+            PackedLight packed = null;
+            if (compress) {
+                long started = System.nanoTime();
+                int[] words = LightGridCompression.encode(grids.light(), W, H, D);
+                packed = new PackedLight(words, System.nanoTime() - started);
+            }
+            PackedLight prepared = packed;
             int[] far = day && farHeights != null ? farColumns(farHeights, fy, sun) : new int[0];
             int[] outerFar = day && outerHeights != null ? outerColumns(outerHeights, fy, sun) : new int[0];
             Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
@@ -287,7 +312,7 @@ public final class SunShadowService {
                 state.gx = gx;
                 state.gz = gz;
                 state.outerHeights = outerHeights;
-                setData(state, grids, far, outerFar);
+                setData(state, grids, far, outerFar, prepared);
             });
         });
     }
@@ -1166,7 +1191,13 @@ public final class SunShadowService {
 
     /** 格子の値をデータの文字にしてテキストディスプレイに書く (grids が null なら「光なし」: ヘッダーの印のマスを 0 にして、覚えている値を消させる)。
      * far・outer は遠くの太陽の影とその外側 (夜は空) */
+    private record PackedLight(int[] words, long nanos) {}
+
     private static void setData(State state, Grids grids, int[] far, int[] outer) {
+        setData(state, grids, far, outer, null);
+    }
+
+    private static void setData(State state, Grids grids, int[] far, int[] outer, PackedLight prepared) {
         Player player = Bukkit.getPlayer(state.playerId);
         boolean channel = player != null && viaChannel(player);
         if (!channel && state.display == null) return;
@@ -1174,8 +1205,27 @@ public final class SunShadowService {
         int[] kinds = grids != null ? grids.kinds() : new int[0];
         if (grids == null || far == null) far = new int[0];
         if (grids == null || outer == null) outer = new int[0];
+        // TODO(ai-collab): 光量と範囲を変えず、管理者が指定した本人だけ新形式を比較する。
+        int legacyLength = light.length;
+        boolean compressed = false;
+        long encodeNanos = 0;
+        if (grids != null && prepared != null && compressionTests.contains(state.playerId)) {
+            int[] candidate = prepared.words();
+            encodeNanos = prepared.nanos();
+            if (candidate.length < light.length && PAYLOAD + candidate.length + kinds.length + far.length + outer.length <= DATA_CAPACITY) {
+                light = candidate;
+                compressed = true;
+            }
+        }
+        if (grids != null) state.compressionStatus = (compressed ? "圧縮送信" : "従来形式")
+                + " | 近距離 " + legacyLength * 2 + " → " + light.length * 2 + " bytes"
+                + " | 全体 " + (PAYLOAD + light.length + kinds.length + far.length + outer.length) * 2
+                + "/" + DATA_CAPACITY * 2 + " bytes | encode "
+                + String.format(java.util.Locale.ROOT, "%.3f", encodeNanos / 1_000_000.0) + " ms";
         int cells = Math.min(DATA_CAPACITY, PAYLOAD + light.length + kinds.length + far.length + outer.length);
         int[] data = new int[cells];
+        data[0] = compressed ? LightGridCompression.FORMAT : 0;
+        data[1] = compressed ? light.length : 0;
         data[HEADER] = grids != null ? MAGIC : 0;
         data[HEADER + 1] = state.ox & 1023;
         data[HEADER + 2] = state.oy & 1023;

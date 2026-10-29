@@ -75,6 +75,17 @@ public class ShaderDebugCommand implements BasicCommand {
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
+            if (args.length > 1 && args[1].equalsIgnoreCase("compression")) {
+                if (args.length == 3 && (args[2].equalsIgnoreCase("on") || args[2].equalsIgnoreCase("off"))) {
+                    SunShadowService.setCompressionTest(player, args[2].equalsIgnoreCase("on"));
+                } else if (args.length != 2 && !(args.length == 3 && args[2].equalsIgnoreCase("status"))) {
+                    player.sendMessage(Component.text("/shaderdebug sun compression on|off|status", NamedTextColor.RED));
+                    return;
+                }
+                player.sendMessage(Component.text(SunShadowService.compressionStatus(player), NamedTextColor.AQUA));
+                player.sendMessage(Component.text("新しいパックが必要です。光が停止中なら /shaderdebug sun。更新後に status で容量を確認できます", NamedTextColor.GRAY));
+                return;
+            }
             if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {
                 SunShadowService.clearOverride(player);
                 player.sendMessage(Component.text("サーバーの太陽の影をレイド中だけ自動で送るのに戻しました", NamedTextColor.AQUA));
