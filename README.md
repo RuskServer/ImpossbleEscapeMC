@@ -75,8 +75,10 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | `/raid danger <add\|list\|remove> <mapID> [zoneID] [name]` | Manage high-threat cuboids selected with WorldEdit/FAWE. | `op` |
 | `/raid radio preview <zone\|item>` | Preview radio while participating in a raid. | `op` |
 | `/party <create\|invite\|accept\|leave\|kick\|info\|chat>` | Squad management and secure communication. | *None (All Players)* |
-| `/loot <container\|drawer\|egg\|draweregg\|groundegg\|remover\|refill>` | Place, remove and refill loot crates and ground loot spots. | `op` |
+| `/loot <container\|drawer\|locker\|egg\|draweregg\|lockeregg\|groundegg\|remover\|refill>` | Place, remove and refill loot crates and ground loot spots. | `op` |
 | `/loot draweregg <mapId> <crateId>` | Get a reusable egg to place animated loot drawers by right-clicking a block face. | `op` |
+| `/loot lockeregg <mapId>` | Get a reusable egg for animated lockers with a 25% loot chance. | `op` |
+| `/loot locker <place\|remove\|list>` | Place lockers with random standard/medical/ammo loot; see [LOCKER_LOOT.md](docs/LOCKER_LOOT.md). | `op` |
 | `/loot drawer <place\|remove\|list>` | Place animated two-drawer loot furniture; see [DRAWER_LOOT.md](docs/DRAWER_LOOT.md). | `op` |
 | `/trader <open\|reload> [traderId]` | Shop from local traders or reload traders layout. | `op` / `impossbleescapemc.trader.reload` |
 | `/mg <create\|setspawn\|split\|start\|stop\|loadout>` | Manage active minigame lobby parameters. | `op` |

@@ -65,6 +65,8 @@ public class LootManager {
     public void refillContainers(RaidMap map) {
         var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
         if (drawers != null) drawers.refill(map);
+        var lockers=plugin.getServiceContainer().get(LockerLootModule.class);
+        if (lockers != null) lockers.refill(map);
         String worldName = map.getWorldName();
         if (worldName == null) return;
 

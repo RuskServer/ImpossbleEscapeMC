@@ -35,7 +35,7 @@ public class LootCommand implements BasicCommand {
         if (!player.isOp()) return;
 
         if (args.length < 1) {
-            player.sendMessage(Component.text("/loot <container|drawer|egg|draweregg|groundegg|remover|refill>",NamedTextColor.RED));
+            player.sendMessage(Component.text("/loot <container|drawer|locker|egg|draweregg|lockeregg|groundegg|remover|refill>",NamedTextColor.RED));
             return;
         }
 
@@ -43,6 +43,8 @@ public class LootCommand implements BasicCommand {
         switch (sub) {
             case "container" -> handleContainer(player, args);
             case "drawer" -> handleDrawer(player, args);
+            case "locker" -> handleLocker(player,args);
+            case "lockeregg" -> handleLockerEgg(player,args);
             case "egg" -> handleEgg(player, args);
             case "draweregg" -> handleDrawerEgg(player,args);
             case "groundegg" -> handleGroundEgg(player, args);
@@ -53,7 +55,9 @@ public class LootCommand implements BasicCommand {
             case "refill" -> {
                 if (args.length > 1 && args[1].equalsIgnoreCase("this")) {
                     Block b = player.getTargetBlockExact(5);
-                    if (b != null && plugin.getServiceContainer().get(DrawerLootModule.class).refillAt(b)) {
+                    if (b != null && plugin.getServiceContainer().get(LockerLootModule.class).refillAt(b)) {
+                        player.sendMessage(Component.text("ロッカーを再抽選・補充しました。",NamedTextColor.GREEN));
+                    } else if (b != null && plugin.getServiceContainer().get(DrawerLootModule.class).refillAt(b)) {
                         player.sendMessage(Component.text("引き出しの上下を再補充しました。",NamedTextColor.GREEN));
                     } else if (b != null && b.getState() instanceof Container container) {
                         String crateId = container.getPersistentDataContainer().get(PDCKeys.LOOT_TABLE_ID, PDCKeys.STRING);
@@ -75,6 +79,35 @@ public class LootCommand implements BasicCommand {
         }
 
         return;
+    }
+
+    private void handleLocker(Player player,String[] args) {
+        var lockers=plugin.getServiceContainer().get(LockerLootModule.class);if(lockers==null)return;
+        if(args.length==2&&args[1].equalsIgnoreCase("remove")) {
+            boolean removed=lockers.removeAt(player.getTargetBlockExact(5));
+            player.sendMessage(Component.text(removed?"ロッカーを削除しました。":"ロッカーをターゲットしてください。",removed?NamedTextColor.GREEN:NamedTextColor.RED));return;
+        }
+        if(args.length==3&&args[1].equalsIgnoreCase("list")) {
+            RaidMap map=plugin.getRaidModule().getMap(args[2]);
+            if(map==null){player.sendMessage(Component.text("そのマップはありません。",NamedTextColor.RED));return;}
+            player.sendMessage(Component.text("ロッカー: "+map.getMapId()+" / "+map.getLootLockers().size()+"台",NamedTextColor.GOLD));
+            for(var locker:map.getLootLockers())player.sendMessage(Component.text(locker.x+" "+locker.y+" "+locker.z,NamedTextColor.WHITE));return;
+        }
+        if(args.length==3&&args[1].equalsIgnoreCase("place")) {
+            Block floor=player.getTargetBlockExact(5);
+            try {lockers.place(player,args[2],floor==null?null:floor.getRelative(org.bukkit.block.BlockFace.UP));}
+            catch(IllegalArgumentException ex){player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}return;
+        }
+        player.sendMessage(Component.text("/loot locker place <mapId> | remove | list <mapId>",NamedTextColor.YELLOW));
+    }
+    private void handleLockerEgg(Player player,String[] args) {
+        if(args.length!=2){player.sendMessage(Component.text("/loot lockeregg <mapId>",NamedTextColor.YELLOW));return;}
+        if(plugin.getRaidModule().getMap(args[1])==null){player.sendMessage(Component.text("そのマップはありません。",NamedTextColor.RED));return;}
+        var lockers=plugin.getServiceContainer().get(LockerLootModule.class);if(lockers==null)return;
+        if(!player.getInventory().addItem(lockers.createEgg(args[1])).isEmpty()) {
+            player.sendMessage(Component.text("インベントリに空きがありません。",NamedTextColor.RED));return;
+        }
+        player.sendMessage(Component.text("ロッカー設置用エッグを付与しました ("+args[1]+")",NamedTextColor.GREEN));
     }
 
     private void handleDrawer(Player player,String[] args) {
@@ -187,8 +220,13 @@ public class LootCommand implements BasicCommand {
     @Override
     public @NotNull List<String> suggest(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
-        if (args.length == 1) return Arrays.asList("container", "drawer", "egg", "draweregg", "groundegg", "remover", "refill");
+        if (args.length == 1) return Arrays.asList("container", "drawer", "locker", "egg", "draweregg", "lockeregg", "groundegg", "remover", "refill");
 
+        if(args[0].equalsIgnoreCase("locker")) {
+            if(args.length==2)return List.of("place","remove","list");
+            if(args.length==3&&(args[1].equalsIgnoreCase("place")||args[1].equalsIgnoreCase("list")))return plugin.getRaidModule().getMapIds();
+        }
+        if(args[0].equalsIgnoreCase("lockeregg")&&args.length==2)return plugin.getRaidModule().getMapIds();
         if (args[0].equalsIgnoreCase("drawer")) {
             if(args.length==2)return List.of("place","remove","list");
             if(args.length==3&&(args[1].equalsIgnoreCase("place")||args[1].equalsIgnoreCase("list")))return plugin.getRaidModule().getMapIds();

@@ -139,6 +139,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule());
         moduleBootstrap.registerModule(raidModule); // すでにインスタンス化されているのでそのまま登録
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.loot.DrawerLootModule(this));
+        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.loot.LockerLootModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.loot.ragdoll.ScavRagdollModule(this));
         moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule(this));
         

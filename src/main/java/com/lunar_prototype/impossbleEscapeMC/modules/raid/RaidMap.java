@@ -198,6 +198,21 @@ public class RaidMap {
         }
     }
 
+    private List<LootLocker> lootLockers=new ArrayList<>();
+
+    public List<LootLocker> getLootLockers() {
+        if(lootLockers==null)lootLockers=new ArrayList<>();
+        return lootLockers;
+    }
+    public static final class LootLocker {
+        public final String id;
+        public final int x,y,z,facing;
+        public long generation;
+        public LootLocker(String id,int x,int y,int z,int facing) {
+            this.id=id;this.x=x;this.y=y;this.z=z;this.facing=facing;
+        }
+    }
+
     public List<LootContainer> getLootContainers() {
         if (lootContainers == null) {
             lootContainers = new ArrayList<>();

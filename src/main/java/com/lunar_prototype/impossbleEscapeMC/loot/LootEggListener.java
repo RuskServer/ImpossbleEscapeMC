@@ -246,6 +246,12 @@ public class LootEggListener implements Listener {
 
     /** ルートコンテナを消すか、地面ルートの地点を外す */
     private void remove(Player player, Block clicked, Block front) {
+        var lockers=plugin.getServiceContainer().get(LockerLootModule.class);
+        if(lockers!=null&&lockers.isLocker(clicked)) {
+            if(!player.isOp()){player.sendMessage(Component.text("ロッカーの削除はOP専用です。",NamedTextColor.RED));return;}
+            lockers.removeAt(clicked);
+            player.sendMessage(Component.text("ロッカーを削除しました。",NamedTextColor.GREEN));return;
+        }
         var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
         if(drawers!=null&&drawers.removeAt(clicked)) {
             player.sendMessage(Component.text("引き出しを削除しました。",NamedTextColor.GREEN));return;
