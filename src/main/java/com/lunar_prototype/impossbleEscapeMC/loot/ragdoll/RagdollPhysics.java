@@ -81,6 +81,8 @@ public final class RagdollPhysics {
                 }
                 if(pass>=7)collideMeshes(terrain);
             }
+            // 後から処理した腕が肩を動かすため、最後に全体を再確認して接触を収束させる。
+            for(int pass=0;pass<4;pass++)collideMeshes(terrain);
             for(int i=0;i<point.length;i++) {
                 double d=point[i].distance(previous[i]);travel=Math.max(travel,d);
                 velocity[i].set(point[i]).sub(previous[i]).mul(4*.985);
@@ -126,13 +128,13 @@ public final class RagdollPhysics {
     public static Vector3d halfSize(Part part) {
         return switch(part){case HEAD->new Vector3d(.25,.25,.25);case TORSO->new Vector3d(.25,.375,.125);default->new Vector3d(.125,.375,.125);};
     }
-    /** 最後の接触反復では表示箱の角も確認し、回転した頭や胴の角が床へ沈むのを抑える。 */
+    /** 点・角に触れない面の交差も、回転した部位箱全体で押し戻す。 */
     private void collideMeshes(Terrain terrain) {
         for(Part part:Part.values()) {
-            Pose pose=pose(part);Vector3d half=halfSize(part),shift=new Vector3d();
-            for(int x:new int[]{-1,1})for(int y:new int[]{-1,1})for(int z:new int[]{-1,1}) {
-                Vector3d corner=pose.rotation.transform(new Vector3d(x*half.x,y*half.y,z*half.z)).add(pose.center).add(shift);
-                Vector3d original=new Vector3d(corner);collide(corner,.006,terrain);shift.add(corner.sub(original));
+            Pose pose=pose(part);Vector3d half=halfSize(part).add(.01,.01,.01),shift=new Vector3d();
+            for(Box box:terrain.boxes(pose.center.x,pose.center.y,pose.center.z)) {
+                Vector3d correction=RagdollCollision.correction(new Pose(new Vector3d(pose.center).add(shift),pose.rotation),half,box);
+                if(correction.lengthSquared()>0){shift.add(correction);contacts++;}
             }
             switch(part) {
                 case TORSO->{for(int i=0;i<6;i++)point[i].add(shift);}
