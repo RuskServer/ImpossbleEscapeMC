@@ -33,6 +33,7 @@ public final class ScavRagdollModule implements IModule,Listener {
     private int maxActive,maxCorpses,animationTicks;
     private long budgetNanos;
     private boolean debug;
+    private PlayerInteractEntityEvent forwardedClick;
     public ScavRagdollModule(ImpossbleEscapeMC plugin){this.plugin=plugin;}
     @Override public void onEnable(ServiceContainer services) {
         if(!plugin.getConfig().getBoolean("scav-ragdoll.enabled",true))return;
@@ -189,17 +190,56 @@ public final class ScavRagdollModule implements IModule,Listener {
     private ItemStack model(String key) {
         ItemStack stack=new ItemStack(Material.PAPER);var meta=stack.getItemMeta();meta.setItemModel(new NamespacedKey("iem","corpse/"+key));stack.setItemMeta(meta);return stack;
     }
-    @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true)
+    // 空・地面への操作はADVENTURE等で既に拒否され得る。元の拒否は解除せず、死体への操作を別途判定する。
+    @EventHandler(priority=EventPriority.HIGH)
+    public void interactBody(PlayerInteractEvent event) {
+        if(event.getHand()!=EquipmentSlot.HAND||!event.getAction().isRightClick())return;
+        Player player=event.getPlayer();
+        if(player.getGameMode()==GameMode.SPECTATOR)return;
+        var attribute=player.getAttribute(org.bukkit.attribute.Attribute.ENTITY_INTERACTION_RANGE);
+        double range=attribute==null?3.0:attribute.getValue();
+        Location eye=player.getEyeLocation();var direction=eye.getDirection();
+        Vector3d start=new Vector3d(eye.getX(),eye.getY(),eye.getZ());
+        Vector3d ray=new Vector3d(direction.getX(),direction.getY(),direction.getZ());
+        Actor best=null;double nearest=range;
+        for(Actor actor:actors.values()) {
+            if(actor.world!=player.getWorld()||!actor.corpse.isValid()||!actor.handle.isValid())continue;
+            for(var part:RagdollPhysics.Part.values()) {
+                double distance=RagdollPicking.distance(actor.physics.pose(part),RagdollPhysics.halfSize(part),start,ray,nearest);
+                if(distance<nearest){nearest=distance;best=actor;}
+            }
+        }
+        if(best==null)return;
+        var wall=player.getWorld().rayTraceBlocks(eye,direction,Math.max(nearest,.001),FluidCollisionMode.NEVER,true);
+        if(wall!=null&&wall.getHitPosition().distance(eye.toVector())<nearest)return;
+        // 保護側も通常の操作エンティティで判定する。cancelを解除して直接GUIを開かない。
+        var hit=eye.toVector().add(direction.clone().multiply(nearest)).subtract(best.handle.getLocation().toVector());
+        trace("Body ray click: forwarding to interaction event");
+        var forwarded=new PlayerInteractAtEntityEvent(player,best.handle,hit,EquipmentSlot.HAND);
+        PlayerInteractEntityEvent previous=forwardedClick;
+        forwardedClick=forwarded;
+        try {Bukkit.getPluginManager().callEvent(forwarded);}
+        finally {forwardedClick=previous;}
+        // HIGHESTまで含めた保護判定が終わってから開く。
+        open(forwarded);
+        if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==best.corpse)
+            event.setCancelled(true);
+    }
+    @EventHandler(priority=EventPriority.HIGH)
     public void interact(PlayerInteractEntityEvent event){open(event);}
-    @EventHandler(priority=EventPriority.HIGH,ignoreCancelled=true)
+    @EventHandler(priority=EventPriority.HIGH)
     public void interactAt(PlayerInteractAtEntityEvent event){open(event);}
     private void open(PlayerInteractEntityEvent event) {
+        if(event==forwardedClick)return;
         String key=event.getRightClicked().getPersistentDataContainer().get(corpseKey,org.bukkit.persistence.PersistentDataType.STRING);if(key==null)return;
+        if(event.isCancelled()){trace("Loot click blocked: interaction event already cancelled");return;}
         event.setCancelled(true);if(event.getHand()!=EquipmentSlot.HAND)return;
         Actor actor;try {actor=actors.get(UUID.fromString(key));}catch(IllegalArgumentException ex){return;}
-        if(actor==null||!actor.corpse.isValid()||event.getPlayer().getLocation().distanceSquared(actor.handle.getLocation())>36)return;
+        if(actor==null||!actor.corpse.isValid()||event.getPlayer().getLocation().distanceSquared(actor.handle.getLocation())>36){trace("Loot click rejected: missing corpse or out of range");return;}
         if(event.getPlayer().getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse)return;
         plugin.getSearchGUI().open(event.getPlayer(),actor.corpse);
+        boolean opened=event.getPlayer().getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse;
+        trace(opened?"Corpse loot opened":"Corpse loot did not open: check inventory data/open-event cancellation");
     }
     private void remove(Actor actor,boolean removeCorpse) {
         actors.remove(actor.corpse.getUniqueId());active.remove(actor.corpse.getUniqueId());

@@ -167,3 +167,7 @@ In `config.yml`:
 - 2026-10-29: Addressed flat lit/shadowed surfaces with continuous sunlight incidence, bounded hemispherical sky response and incidence-weighted face relief. Retained direct sun in sky-kind cells with confirmed sun visibility and preserved point-light-only shading. Exposure remains 1.0; no additional screen-space samples or passes. Added GPU angular/ambient checks.
 
 - 2026-10-29: Rebalanced direct sun versus exposed outdoor sky fill while retaining the indoor/night sky coefficient and diffuse fill in weak sun. Linearized map-color reflectance before bounce estimation instead of treating encoded RGB as energy, with bounded reflectance and packed-grid contrast tests. Matched the resource-pack direct-share/far-light constants without adding rays or changing the light protocol. See LIGHTING_NATURALNESS.md.
+
+### 2026-10-30: SCAV死体右クリックの補助経路
+- ScavRagdollModuleに部位回転箱へのサーバー視線判定を追加。Interactionイベントが届かない場合も空/地面右クリックから到達可能にする。原因は未確定で、実機確認待ち。
+- 射程属性、ブロック遮蔽、イベント経由の保護判定、同一GUI重複防止を適用。SearchGUIの移動・保存には変更なし。RagdollPickingTestと診断ログを追加。詳細はSCAV_RAGDOLL.md。
