@@ -96,7 +96,7 @@ public class ShaderDebugCommand implements BasicCommand {
             boolean on = SunShadowService.toggle(player);
             player.sendMessage(Component.text(on
                     ? "サーバーの光を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
-                    + " ブロックの太陽・光源ブロック・跳ね返り。/shaderdebug sun auto でレイド中だけに戻す)"
+                    + " ブロックまで、圧縮OFF時は48x16x48。/shaderdebug sun auto でレイド中だけに戻す)"
                     : "サーバーの光を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)", NamedTextColor.AQUA));
             return;
         }

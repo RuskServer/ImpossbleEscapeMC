@@ -20,7 +20,7 @@ public final class LightGridCompressionTest {
     }
     public static void main(String[] args) throws Exception {
         Random rng = new Random(8351);
-        for (int w : new int[]{4, 48, 80}) for (int n : new int[]{1, 2, 4, 16}) {
+        for (int w : new int[]{4, 48, 64, 80}) for (int n : new int[]{1, 2, 4, 16}) {
             int h = 16, d = w, count = w * h * d;
             int[] values = new int[count], light = new int[2 * ((count + 6) / 7)];
             for (int i = 0; i < count; i++) {
@@ -47,6 +47,6 @@ public final class LightGridCompressionTest {
             for (int word : words) out.putShort((short) word);
             java.nio.file.Files.write(java.nio.file.Path.of(args[0] + ".palette"), out.array());
         }
-        System.out.println("PASS: Java palette codec, 12 full-grid round trips, 14bit bounds, invalid dimensions");
+        System.out.println("PASS: Java palette codec, 16 full-grid round trips, 14bit bounds, invalid dimensions");
     }
 }

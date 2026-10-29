@@ -75,7 +75,8 @@ public final class SunShadowService {
      */
     static final int HEADER = 3, PAYLOAD = 23;
     /** 格子の大きさ (ブロック) */
-    public static final int W = 48, H = 16, D = 48;
+    public static final int W = 64, H = 16, D = 64;
+    static final int LEGACY_WIDTH = 48;
     /** 光の種類の格子の 1 マスの大きさ (ブロック) と、マスの数 */
     static final int COLOR_SCALE = 2, CW = W / COLOR_SCALE, CH = H / COLOR_SCALE, CD = D / COLOR_SCALE;
     /** 格子をずらす間隔 (ブロック) */
@@ -248,10 +249,12 @@ public final class SunShadowService {
 
         double angle = sunAngle(world.getTime());
         double[] sun = sunDirection(angle);
+        boolean compress = compressionTests.contains(state.playerId);
+        int width = compress ? W : LEGACY_WIDTH;
         // 格子は STEP ブロックごとにずらす (プレイヤーが真ん中あたりに来るように。上下は足元が下から 6〜10 ブロック)
-        int ox = Math.floorDiv(at.getBlockX(), STEP) * STEP - (W - STEP) / 2;
+        int ox = Math.floorDiv(at.getBlockX(), STEP) * STEP - (width - STEP) / 2;
         int oy = Math.floorDiv(at.getBlockY(), STEP) * STEP - 6;
-        int oz = Math.floorDiv(at.getBlockZ(), STEP) * STEP - (D - STEP) / 2;
+        int oz = Math.floorDiv(at.getBlockZ(), STEP) * STEP - (width - STEP) / 2;
         boolean moved = ox != state.ox || oy != state.oy || oz != state.oz;
         boolean turned = Double.isNaN(state.angle) || Math.abs(angle - state.angle) > ANGLE_STEP;
         boolean stale = System.currentTimeMillis() - state.computedAt > REFRESH_MILLIS;
@@ -263,17 +266,10 @@ public final class SunShadowService {
         state.angle = angle;
         state.computedAt = System.currentTimeMillis();
         boolean day = sun[1] >= MIN_SUN_Y;
-        // 遠くの太陽の影: 原点は FAR_STEP ブロックごと。列の高さ (高さマップ) は原点が動いたか古くなった時だけ取り直す
-        int fx = Math.floorDiv(at.getBlockX(), FAR_STEP) * FAR_STEP - FAR_SPAN / 2 + FAR_STEP / 2;
-        int fz = Math.floorDiv(at.getBlockZ(), FAR_STEP) * FAR_STEP - FAR_SPAN / 2 + FAR_STEP / 2;
+        // TODO(ai-collab): 近距離を広げるため中距離の高さマップの取得・計算・送信を止める。
+        int fx = 0, fz = 0;
         int fy = oy + H / 2 - FAR_HEIGHT / 2;
-        boolean farMoved = fx != state.fx || fz != state.fz;
-        int[] heights = farMoved ? null : state.heights;
-        if (day && (heights == null || System.currentTimeMillis() - state.heightsAt > FAR_REFRESH)) {
-            heights = heights(world, fx, fz);
-            state.heightsAt = System.currentTimeMillis();
-        }
-        int[] farHeights = heights;
+        int[] farHeights = null;
         // 外側の遠くの太陽の影: 原点は OUTER_STEP ブロックごと
         int gx = Math.floorDiv(at.getBlockX(), OUTER_STEP) * OUTER_STEP - OUTER_SPAN / 2 + OUTER_STEP / 2;
         int gz = Math.floorDiv(at.getBlockZ(), OUTER_STEP) * OUTER_STEP - OUTER_SPAN / 2 + OUTER_STEP / 2;
@@ -289,18 +285,17 @@ public final class SunShadowService {
         Snapshot.Area area = Snapshot.area(world, ox, oy, oz, day ? sun : new double[]{0, 1, 0});
         Map<Long, ChunkSnapshot> chunks = Snapshot.chunks(world, area);
         state.computing = true;
-        boolean compress = compressionTests.contains(state.playerId);
         Bukkit.getScheduler().runTaskAsynchronously(ImpossbleEscapeMC.getInstance(), () -> {
             Snapshot snapshot = Snapshot.of(chunks, area, ox, oy, oz);
-            Grids grids = computeLight(snapshot, ox, oy, oz, light);
+            Grids grids = computeLight(snapshot, ox, oy, oz, light, width);
             PackedLight packed = null;
             if (compress) {
                 long started = System.nanoTime();
-                int[] words = LightGridCompression.encode(grids.light(), W, H, D);
+                int[] words = LightGridCompression.encode(grids.light(), width, H, width);
                 packed = new PackedLight(words, System.nanoTime() - started);
             }
             PackedLight prepared = packed;
-            int[] far = day && farHeights != null ? farColumns(farHeights, fy, sun) : new int[0];
+            int[] far = new int[0];
             int[] outerFar = day && outerHeights != null ? outerColumns(outerHeights, fy, sun) : new int[0];
             Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
                 state.computing = false;
@@ -685,7 +680,7 @@ public final class SunShadowService {
     }
 
     /** 送る 2 つの格子 (詰めた値) */
-    record Grids(int[] light, int[] kinds) {
+    record Grids(int[] light, int[] kinds, int width) {
     }
 
     /** 太陽の直接光の強さ (太陽の高さ: 地平線の近くで 0、高いと 1) */
@@ -714,6 +709,12 @@ public final class SunShadowService {
      * 4. 2 ブロックごとに光の種類 (空・跳ね返り、太陽、暖かい光源、冷たい光源。ブロックごとに目立つ光 (KIND_SHARE 以上) の種類の、多い方)
      */
     static Grids computeLight(Snapshot s, int ox, int oy, int oz, Light light) {
+        return computeLight(s, ox, oy, oz, light, W);
+    }
+
+    static Grids computeLight(Snapshot s, int ox, int oy, int oz, Light light, int width) {
+        if (width != W && width != LEGACY_WIDTH) throw new IllegalArgumentException("unsupported grid width");
+        int W = width, D = width, CW = width / COLOR_SCALE, CD = CW;
         // 1. 直接光 (格子 + 余白 BOUNCE_REACH の箱)
         int bx0 = ox - BOUNCE_REACH, by0 = oy - BOUNCE_REACH, bz0 = oz - BOUNCE_REACH;
         int bw = W + 2 * BOUNCE_REACH, bh = H + 2 * BOUNCE_REACH, bd = D + 2 * BOUNCE_REACH;
@@ -813,7 +814,7 @@ public final class SunShadowService {
                         continue;
                     }
                     int b = (x + BOUNCE_REACH) + bw * ((z + BOUNCE_REACH) + bd * (y + BOUNCE_REACH));
-                    double bounce = bounceAt(bounceCell, x, y, z);
+                    double bounce = bounceAt(bounceCell, x, y, z, CW, CD);
                     double sky = SKY_CURVE[s.sky(px, py, pz)] * light.daylight();
                     double skyPart = AMBIENT + skyFill(s.sky(px, py, pz), light.sunStrength()) * sky + bounce;
                     double sunPart = sunLight[b], blockPart = blockLight[b];
@@ -877,11 +878,11 @@ public final class SunShadowService {
                 }
             }
         }
-        return new Grids(values, kinds);
+        return new Grids(values, kinds, width);
     }
 
     /** ブロック (格子の座標 x, y, z) の跳ね返り: 2 ブロックごとのマスの値を、マスの真ん中からの位置で混ぜる (空気の無いマスは除く) */
-    private static double bounceAt(float[] cells, int x, int y, int z) {
+    private static double bounceAt(float[] cells, int x, int y, int z, int CW, int CD) {
         double gx = (x + 0.5) / COLOR_SCALE - 0.5, gy = (y + 0.5) / COLOR_SCALE - 0.5, gz = (z + 0.5) / COLOR_SCALE - 0.5;
         int x0 = (int) Math.floor(gx), y0 = (int) Math.floor(gy), z0 = (int) Math.floor(gz);
         double fx = gx - x0, fy = gy - y0, fz = gz - z0;
@@ -1191,6 +1192,42 @@ public final class SunShadowService {
 
     /** 格子の値をデータの文字にしてテキストディスプレイに書く (grids が null なら「光なし」: ヘッダーの印のマスを 0 にして、覚えている値を消させる)。
      * far・outer は遠くの太陽の影とその外側 (夜は空) */
+    record GridPayload(Grids grids, int[] light, boolean compressed, int shift) {}
+
+    static GridPayload selectPayload(Grids source, int[] candidate, int trailingWords) {
+        if (candidate != null && candidate.length < source.light().length
+                && PAYLOAD + candidate.length + source.kinds().length + trailingWords <= DATA_CAPACITY)
+            return new GridPayload(source, candidate, true, 0);
+        Grids fallback = source.width() > LEGACY_WIDTH ? cropGrid(source, LEGACY_WIDTH) : source;
+        if (PAYLOAD + fallback.light().length + fallback.kinds().length + trailingWords > DATA_CAPACITY)
+            throw new IllegalArgumentException("legacy grid cannot fit");
+        return new GridPayload(fallback, fallback.light(), false, (source.width() - fallback.width()) / 2);
+    }
+
+    /** 容量が足りない時は中心を維持して48格子へ戻す。光種別も同じ範囲を切り出す。 */
+    static Grids cropGrid(Grids source, int width) {
+        int from = source.width(), shift = (from - width) / 2;
+        if (width <= 0 || width > from || (from - width) % 4 != 0) throw new IllegalArgumentException("unaligned crop");
+        int[] light = new int[2 * ((width * H * width + 6) / 7)];
+        int cw = width / COLOR_SCALE, sw = from / COLOR_SCALE;
+        int[] kinds = new int[(cw * CH * cw + 6) / 7];
+        for (int y = 0; y < H; y++) for (int z = 0; z < width; z++) for (int x = 0; x < width; x++) {
+            int i = x + shift + from * (z + shift + from * y);
+            int v = ((source.light()[2*(i/7)] | source.light()[2*(i/7)+1] << 14) >>> (i%7*4)) & 15;
+            int dest = x + width * (z + width * y), bit = dest%7*4;
+            light[2*(dest/7)] |= (v << bit) & 16383;
+            if (bit >= 14) light[2*(dest/7)+1] |= v << (bit-14);
+            else if (bit+4 > 14) light[2*(dest/7)+1] |= v >>> (14-bit);
+        }
+        for (int y = 0; y < CH; y++) for (int z = 0; z < cw; z++) for (int x = 0; x < cw; x++) {
+            int i = x + shift/2 + sw * (z + shift/2 + sw*y);
+            int v = (source.kinds()[i/7] >>> (i%7*2)) & 3;
+            int dest = x + cw*(z+cw*y);
+            kinds[dest/7] |= v << (dest%7*2);
+        }
+        return new Grids(light, kinds, width);
+    }
+
     private record PackedLight(int[] words, long nanos) {}
 
     private static void setData(State state, Grids grids, int[] far, int[] outer) {
@@ -1201,41 +1238,37 @@ public final class SunShadowService {
         Player player = Bukkit.getPlayer(state.playerId);
         boolean channel = player != null && viaChannel(player);
         if (!channel && state.display == null) return;
-        int[] light = grids != null ? grids.light() : new int[0];
-        int[] kinds = grids != null ? grids.kinds() : new int[0];
         if (grids == null || far == null) far = new int[0];
         if (grids == null || outer == null) outer = new int[0];
-        // TODO(ai-collab): 光量と範囲を変えず、管理者が指定した本人だけ新形式を比較する。
-        int legacyLength = light.length;
-        boolean compressed = false;
-        long encodeNanos = 0;
-        if (grids != null && prepared != null && compressionTests.contains(state.playerId)) {
-            int[] candidate = prepared.words();
-            encodeNanos = prepared.nanos();
-            if (candidate.length < light.length && PAYLOAD + candidate.length + kinds.length + far.length + outer.length <= DATA_CAPACITY) {
-                light = candidate;
-                compressed = true;
-            }
-        }
-        if (grids != null) state.compressionStatus = (compressed ? "圧縮送信" : "従来形式")
-                + " | 近距離 " + legacyLength * 2 + " → " + light.length * 2 + " bytes"
-                + " | 全体 " + (PAYLOAD + light.length + kinds.length + far.length + outer.length) * 2
-                + "/" + DATA_CAPACITY * 2 + " bytes | encode "
-                + String.format(java.util.Locale.ROOT, "%.3f", encodeNanos / 1_000_000.0) + " ms";
-        int cells = Math.min(DATA_CAPACITY, PAYLOAD + light.length + kinds.length + far.length + outer.length);
+        GridPayload payload = grids == null ? null : selectPayload(grids,
+                prepared != null && compressionTests.contains(state.playerId) ? prepared.words() : null,
+                far.length + outer.length);
+        int[] light = payload != null ? payload.light() : new int[0];
+        int[] kinds = payload != null ? payload.grids().kinds() : new int[0];
+        int width = payload != null ? payload.grids().width() : 0;
+        int shift = payload != null ? payload.shift() : 0;
+        boolean compressed = payload != null && payload.compressed();
+        int cells = PAYLOAD + light.length + kinds.length + far.length + outer.length;
+        if (cells > DATA_CAPACITY) throw new IllegalStateException("light payload exceeds capacity");
+        if (grids != null) state.compressionStatus = (compressed ? "圧縮送信" : grids.width() > width ? "容量フォールバック" : "従来形式")
+                + " | 範囲 " + width + "x" + H + "x" + width
+                + " | 近距離 " + grids.light().length * 2 + " → " + light.length * 2 + " bytes"
+                + (prepared != null ? " (圧縮候補 " + prepared.words().length * 2 + ")" : "")
+                + " | 全体 " + cells * 2 + "/" + DATA_CAPACITY * 2 + " bytes | encode "
+                + String.format(java.util.Locale.ROOT, "%.3f", prepared != null ? prepared.nanos() / 1_000_000.0 : 0.0) + " ms";
         int[] data = new int[cells];
         data[0] = compressed ? LightGridCompression.FORMAT : 0;
         data[1] = compressed ? light.length : 0;
         data[HEADER] = grids != null ? MAGIC : 0;
-        data[HEADER + 1] = state.ox & 1023;
+        data[HEADER + 1] = (state.ox + shift) & 1023;
         data[HEADER + 2] = state.oy & 1023;
-        data[HEADER + 3] = state.oz & 1023;
-        data[HEADER + 4] = grids != null ? W : 0;
+        data[HEADER + 3] = (state.oz + shift) & 1023;
+        data[HEADER + 4] = width;
         data[HEADER + 5] = H;
-        data[HEADER + 6] = D;
-        data[HEADER + 7] = grids != null ? CW : 0;
+        data[HEADER + 6] = width;
+        data[HEADER + 7] = width / COLOR_SCALE;
         data[HEADER + 8] = CH;
-        data[HEADER + 9] = CD;
+        data[HEADER + 9] = width / COLOR_SCALE;
         data[HEADER + 10] = state.fx & 1023;
         data[HEADER + 11] = state.fy & 1023;
         data[HEADER + 12] = state.fz & 1023;
@@ -1248,7 +1281,7 @@ public final class SunShadowService {
         data[HEADER + 19] = OUTER_COLUMNS;
         int at = PAYLOAD;
         for (int[] part : new int[][]{light, kinds, far, outer}) {
-            int n = Math.min(part.length, cells - at);
+            int n = part.length;
             System.arraycopy(part, 0, data, at, n);
             at += n;
         }

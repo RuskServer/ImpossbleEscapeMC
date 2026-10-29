@@ -76,9 +76,12 @@ public final class SunShadowServiceTest {
         SunShadowService.Grids out = SunShadowService.computeLight(wall(0, 15), 0, 0, 0, day);
         check(out.light().length == 2 * ((W * H * D + 6) / 7), "light count " + out.light().length);
         for (int v : out.light()) check(v >= 0 && v < 1 << 14, "light value fits 14 bits " + v);
-        // 全部 (ヘッダー・光の格子・光の種類・遠くの太陽の影とその外側) がデータの画素に入る
-        int cells = SunShadowService.PAYLOAD + out.light().length + out.kinds().length
-                + SunShadowService.FAR_COLUMNS * SunShadowService.FAR_COLUMNS + SunShadowService.OUTER_COLUMNS * SunShadowService.OUTER_COLUMNS;
+        // 中距離は送らず、圧縮後の近距離・種類・遠景が完全に収まることを確認する。
+        int[] compressed = LightGridCompression.encode(out.light(), W, H, D);
+        int outer = SunShadowService.OUTER_COLUMNS * SunShadowService.OUTER_COLUMNS;
+        var payload = SunShadowService.selectPayload(out, compressed, outer);
+        int cells = SunShadowService.PAYLOAD + payload.light().length + payload.grids().kinds().length + outer;
+        check(payload.compressed() && payload.grids().width() == 64, "wall fixture retains expanded grid");
         check(cells <= SunShadowService.DATA_CAPACITY, "data fits " + cells + " / " + SunShadowService.DATA_CAPACITY);
         check(out.kinds().length == (SunShadowService.CW * SunShadowService.CH * SunShadowService.CD + 6) / 7, "kind count");
         check(sunlit(out, 35, 1, 10) && level(out, 35, 1, 10) >= SunShadowService.LEVEL_ONE, "east of the wall: sunlit " + level(out, 35, 1, 10));
