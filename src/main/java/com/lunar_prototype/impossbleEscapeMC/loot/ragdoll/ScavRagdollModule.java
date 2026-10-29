@@ -32,10 +32,12 @@ public final class ScavRagdollModule implements IModule,Listener {
     private BukkitTask task;
     private int maxActive,maxCorpses,animationTicks;
     private long budgetNanos;
+    private boolean debug;
     public ScavRagdollModule(ImpossbleEscapeMC plugin){this.plugin=plugin;}
     @Override public void onEnable(ServiceContainer services) {
         if(!plugin.getConfig().getBoolean("scav-ragdoll.enabled",true))return;
         corpseKey=new NamespacedKey(plugin,"ragdoll_corpse");
+        debug=plugin.getConfig().getBoolean("scav-ragdoll.debug",false);
         maxActive=Math.clamp(plugin.getConfig().getInt("scav-ragdoll.max-active",6),1,16);
         maxCorpses=Math.clamp(plugin.getConfig().getInt("scav-ragdoll.max-corpses",64),1,256);
         animationTicks=Math.clamp(plugin.getConfig().getInt("scav-ragdoll.max-animation-ticks",48),20,80);
@@ -43,6 +45,7 @@ public final class ScavRagdollModule implements IModule,Listener {
         budgetNanos=(long)((Double.isFinite(millis)?Math.clamp(millis,.5,10):3)*1_000_000);
         Bukkit.getPluginManager().registerEvents(this,plugin);
         task=Bukkit.getScheduler().runTaskTimer(plugin,this::tick,1,1);
+        plugin.getLogger().info("SCAV ragdoll enabled (active="+maxActive+", corpses="+maxCorpses+")");
     }
     @Override public void onDisable() {
         if(task!=null)task.cancel();task=null;
@@ -68,9 +71,10 @@ public final class ScavRagdollModule implements IModule,Listener {
     }
     @EventHandler public void created(CorpseCreatedEvent event) {
         UUID id=event.getVictim().getUniqueId();Integer died=deaths.remove(id);
-        if(died==null||Bukkit.getCurrentTick()-died>2)return;
+        if(died==null||Bukkit.getCurrentTick()-died>2){trace("Skipped: SCAV death marker missing or stale");return;}
         Impact impact=impacts.remove(id);
-        if(actors.size()>=maxCorpses||active.size()>=maxActive||!supported(event.getInventory()))return;
+        if(actors.size()>=maxCorpses||active.size()>=maxActive){trace("Skipped: active/corpse limit");return;}
+        if(!supported(event.getInventory())){trace("Skipped: unsupported equipment in corpse slots 1-3");return;}
         Actor actor=null;
         try {
             actor=new Actor(event,impact);actors.put(event.getCorpse().getUniqueId(),actor);
@@ -80,15 +84,17 @@ public final class ScavRagdollModule implements IModule,Listener {
             for(Player p:Bukkit.getOnlinePlayers()){p.hideEntity(plugin,actor.corpse);p.hideEntity(plugin,event.getVictim());}
             event.getVictim().setVisibleByDefault(false);
             active.addLast(actor.corpse.getUniqueId());
+            trace("Created display corpse");
         } catch(RuntimeException ex) {
             if(actor!=null)fallback(actor);
             plugin.getLogger().log(java.util.logging.Level.WARNING,"SCAV死体の表示を通常の死体へ戻しました",ex);
         }
     }
+    private void trace(String message){if(debug)plugin.getLogger().info("[SCAV ragdoll] "+message);}
     private static String itemId(ItemStack item) {
         return item!=null&&item.hasItemMeta()?item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID,PDCKeys.STRING):null;
     }
-    private static boolean present(ItemStack item){return item!=null&&!item.getType().isAir();}
+    private static boolean present(ItemStack item){return item!=null&&!item.isEmpty();}
     private static boolean supported(Inventory inventory) {
         // 未対応の防具を黙って消さない。通常SCAVの装備をまず対応範囲とする。
         if(present(inventory.getItem(2))||present(inventory.getItem(3)))return false;

@@ -93,8 +93,9 @@ public class CorpseManager {
 
         }
         
-        for (ItemStack item : extraLoot) {
-            virtualInv.addItem(item);
+        // 空き防具欄に予備弾が入ると、表示同期とラグドールの装備判定が弾を防具として扱ってしまう。
+        for (ItemStack overflow : CorpseLootLayout.addExtra(virtualInv, extraLoot)) {
+            loc.getWorld().dropItemNaturally(loc, overflow);
         }
 
         finishSpawning(mannequin, virtualInv, loc);

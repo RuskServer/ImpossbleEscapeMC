@@ -85,7 +85,7 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 
 `raid-radio.enabled` in `config.yml` enables threat-entry and quest-item discovery radio (default: `true`). See [RAID_RADIO.md](docs/RAID_RADIO.md) for selection, cooldowns and resource-pack requirements.
 
-`scav-ragdoll.enabled` enables animated SCAV corpses (default: `true`). Update the resource pack together; see [SCAV_RAGDOLL.md](docs/SCAV_RAGDOLL.md) for supported equipment, limits and verification.
+`scav-ragdoll.enabled` enables animated SCAV corpses (default: `true`); `scav-ragdoll.debug` logs creation and skip reasons (default: `false`). Update the resource pack together; see [SCAV_RAGDOLL.md](docs/SCAV_RAGDOLL.md) for supported equipment, limits and verification.
 
 ## 🏗️ System Architecture
 

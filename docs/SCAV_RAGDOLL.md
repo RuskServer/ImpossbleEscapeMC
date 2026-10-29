@@ -10,6 +10,7 @@ SCAVの死亡直後に、部位別のItemDisplayを短時間だけ物理更新�
 - 元の死体と死亡エンティティをプレイヤーから隠し、胴に追従するInteractionを操作判定にする。
 - Interactionの右クリックは既存の `SearchGUI.open(player, mannequin)` へ渡す。同じ死体の実インベントリを共有し、既存の検索・FIR・部分取得・バックパック・GUI保護を通す。
 - 取得後の `CorpseAppearanceEvent` で装備表示を更新する。各装備のスロットが空になれば表示も消す。
+- SCAV死体の0〜5番は装備専用として空きも維持する。予備弾・追加ルート品は `CorpseLootLayout` で6番以降だけへ詰め、容量超過分は地面に落とす。空き防具欄へ弾を入れると未対応防具と誤判定するため、汎用 `Inventory.addItem()` で全欄を埋めない。
 
 固定スキンはパックの `minecraft:entity/player/wide/scav` を参照する。通常生成SCAVのSlick・Trooperは既存の防具テクスチャから作る部位モデル、MF-UNTARは既存の3Dアイテムモデルを使う。ヘルメットと手持ちは実際のItemStackを表示するため、CustomModelDataなども引き継ぐ。
 
@@ -30,6 +31,7 @@ SCAVの死亡直後に、部位別のItemDisplayを短時間だけ物理更新�
 ```yaml
 scav-ragdoll:
   enabled: true
+  debug: false
   max-active: 6
   max-corpses: 64
   max-animation-ticks: 48
@@ -49,7 +51,11 @@ scav-ragdoll:
 
 ItemDisplayの変換補間は [Paper公式資料](https://docs.papermc.io/paper/dev/display-entities/) を参照。モデルの任意角回転は対象クライアントで使える形式で、[1.21.6公式更新内容](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-6) にも回転角制限の緩和が記載されている。
 
+起動時に `SCAV ragdoll enabled` を記録する。`scav-ragdoll.debug: true` で起動すると、死亡マーカー不足・人数上限・未対応装備による見送りと表示生成をサーバーログへ出す。表示されない場合はこの入口判定と、更新したjarが実際に読み込まれているかを確認する。変更は新しく生成する死体が対象で、既存死体を後から変換しない。
+
 ## 検証と実機確認
+
+`CorpseLootLayoutTest` は、予備弾が装備欄へ入りラグドール対象から外れる旧挙動を再現し、修正後の対象判定、装備欄の維持、スタックの分割・結合、入力の保持、容量超過を含む弾数保存を検証する。
 
 `RagdollPhysicsTest` は複数の向きと乱数種で、落下・関節長・床より上の体と表示箱の角・静止、壁・半ブロック、力の方向、遠い座標・負の高さを確認する。部位モデルの参照・UV・JSON構造も確認する。Java計算から生成した軌跡のGIFは作業用プレビューであり、Minecraft内のキャプチャではない。
 

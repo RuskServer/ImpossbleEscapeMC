@@ -60,6 +60,7 @@ raid-radio:
 # SCAV死体の短時間ラグドール。新しいリソースパックの部位モデルが必要。
 scav-ragdoll:
   enabled: true
+  debug: false
   max-active: 6
   max-corpses: 64
   max-animation-ticks: 48
