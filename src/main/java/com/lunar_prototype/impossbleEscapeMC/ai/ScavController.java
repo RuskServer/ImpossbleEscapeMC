@@ -1565,7 +1565,9 @@ public class ScavController {
             if (now - ally.lastVoiceTick < ALLY_VOICE_GAP_TICKS) return; // 誰かが2秒以内に喋り出していたらキャンセル
         }
 
-        scav.getWorld().playSound(scav.getLocation(), voice.sound(), 1.0f, 1.0f);
+        // TODO(ai-collab): 発声頻度・援護判断はそのまま、再生位置と聞く人ごとの遮蔽だけを変える。
+        int take = java.util.concurrent.ThreadLocalRandom.current().nextInt(ScavVoice.TAKES.size());
+        ScavVoiceAudio.play(scav,voice,take);
         lastVoiceTick = now;
         voiceAvailableTick = now + VOICE_LINE_COOLDOWN_TICKS + (int)(Math.random() * 40); // 5〜7秒のクールダウン
     }
