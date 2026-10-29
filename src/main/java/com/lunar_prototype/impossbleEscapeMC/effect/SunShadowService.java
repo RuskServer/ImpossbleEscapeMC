@@ -746,7 +746,7 @@ public final class SunShadowService {
                         if (s.transmit(px, py, pz) == 0) continue;
                         double sum = 0;
                         for (double[] dir : BOUNCE_DIRS[(px + py + pz) & 1]) {
-                            sum += bounceRay(s, px, py, pz, dir, bx0, by0, bz0, bw, bh, bd, sunLight, blockLight);
+                            sum += bounceRay(s, px, py, pz, dir, bx0, by0, bz0, bw, bh, bd, sunLight, blockLight, light.sun());
                         }
                         bounceCell[c] = (float) (sum * BOUNCE / BOUNCE_RAYS);
                         break;
@@ -969,8 +969,8 @@ public final class SunShadowService {
     }
 
     /** 跳ね返り: 空気のブロック (px, py, pz) から dir の向きへたどり、当たった面の手前の空気の直接光 x 面の色の明るさ (当たらなければ 0) */
-    private static double bounceRay(Snapshot s, int px, int py, int pz, double[] d, int bx0, int by0, int bz0, int bw, int bh, int bd,
-                                    float[] sunLight, float[] blockLight) {
+    static double bounceRay(Snapshot s, int px, int py, int pz, double[] d, int bx0, int by0, int bz0, int bw, int bh, int bd,
+                                    float[] sunLight, float[] blockLight, double[] sun) {
         int x = px, y = py, z = pz;
         int sx = d[0] > 0 ? 1 : -1, sy = d[1] > 0 ? 1 : -1, sz = d[2] > 0 ? 1 : -1;
         double tdx = d[0] != 0 ? Math.abs(1 / d[0]) : Double.MAX_VALUE;
@@ -978,30 +978,42 @@ public final class SunShadowService {
         double tdz = d[2] != 0 ? Math.abs(1 / d[2]) : Double.MAX_VALUE;
         double tx = 0.5 * tdx, ty = 0.5 * tdy, tz = 0.5 * tdz;
         int lastX = x, lastY = y, lastZ = z;
+        double through = 1.0;
         while (true) {
             double t;
+            int axis;
             if (tx < ty && tx < tz) {
+                axis = 0;
                 t = tx;
                 x += sx;
                 tx += tdx;
             } else if (ty < tz) {
+                axis = 1;
                 t = ty;
                 y += sy;
                 ty += tdy;
             } else {
+                axis = 2;
                 t = tz;
                 z += sz;
                 tz += tdz;
             }
             if (t > BOUNCE_REACH) return 0;
-            if (s.transmit(x, y, z) == 0) {
+            int transmit = s.transmit(x, y, z);
+            if (transmit == 0) {
                 int ix = lastX - bx0, iy = lastY - by0, iz = lastZ - bz0;
                 if (ix < 0 || iy < 0 || iz < 0 || ix >= bw || iy >= bh || iz >= bd) return 0;
                 int i = ix + bw * (iz + bd * iy);
                 int li = s.lightIndex(x, y, z);
                 double albedo = li < 0 ? 0.5 : (s.albedo()[li] & 0xFF) / 255.0;
-                return (sunLight[i] + blockLight[i]) * albedo;
+                // 当たった面の外向き法線は、最後に進んだ軸の逆向き。
+                // 面に背を向ける日光を反射させず、斜めの入射はcosで弱める。
+                int normal = axis == 0 ? -sx : axis == 1 ? -sy : -sz;
+                double cosine = sun == null ? 0 : Math.max(0, sun[axis] * normal);
+                return (sunLight[i] * cosine + blockLight[i]) * albedo * through;
             }
+            through *= transmit / 255.0;
+            if (through < MIN_TRANSMIT) return 0;
             lastX = x;
             lastY = y;
             lastZ = z;
