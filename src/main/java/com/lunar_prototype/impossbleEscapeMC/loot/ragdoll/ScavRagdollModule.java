@@ -175,8 +175,9 @@ public final class ScavRagdollModule implements IModule,Listener {
             }
             for(int slot=4;slot<=5;slot++)if(present(inventory.getItem(slot))) {
                 boolean right=slot==4;
+                // 手持ち表示の座標系を腕へ合わせる。Y半回転がないと銃口・銃床が逆になる。
                 gear.add(new Visual(this,right?RagdollPhysics.Part.RIGHT_ARM:RagdollPhysics.Part.LEFT_ARM,inventory.getItem(slot),right?ItemDisplay.ItemDisplayTransform.THIRDPERSON_RIGHTHAND:ItemDisplay.ItemDisplayTransform.THIRDPERSON_LEFTHAND,
-                        new Vector3f(0,-.32f,-.08f),new Quaternionf().rotateX((float)-Math.PI/2),.625f));
+                        new Vector3f(0,-.32f,-.08f),new Quaternionf().rotateX((float)-Math.PI/2).rotateY((float)Math.PI),.625f));
             }
         }
         void render(boolean interpolate) {

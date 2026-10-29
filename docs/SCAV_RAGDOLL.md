@@ -47,7 +47,9 @@ scav-ragdoll:
 
 ## リソースパック
 
-`New_IEM_Resorcepack/tools/scav_ragdoll.py` が13組のアイテム定義・部位モデル、計26JSONを生成する。既存のスキン・防具テクスチャ・MF-UNTARモデルを参照し、新しい画像や既存シェーダーの変更は追加しない。プラグインとこのモデルを含むパックを合わせて更新する。生成元はパックの `IEM_SCAV_RAGDOLL_CREDITS.txt` に記載する。
+`New_IEM_Resorcepack/tools/scav_ragdoll.py` が13組のアイテム定義・部位モデル、計26JSONと `assets/minecraft/atlases/items.json` の登録を生成する。既存のスキン・防具テクスチャ・MF-UNTARモデルを参照し、新しい画像や既存シェーダーの変更は追加しない。プラグインとこのモデルを含むパックを合わせて更新する。生成元はパックの `IEM_SCAV_RAGDOLL_CREDITS.txt` に記載する。
+
+エンティティ用画像はアイテムの自動収集対象外なので、itemsアトラスに `iem:corpse/scav` と `iem:corpse/armor/{iron,diamond}` の別名で登録する。部位モデルはこのsprite名を参照する。画像の存在だけでなく、モデル→itemsアトラス→既存PNGの解決を確認する。[1.21.11公式更新内容](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-11) にアイテム用アトラスの分離が記載されている。手持ち装備は腕の回転へX -90度、続いてローカルY 180度の補正を合成する。銃データパックや銃モデル自体は変更しない。
 
 ItemDisplayの変換補間は [Paper公式資料](https://docs.papermc.io/paper/dev/display-entities/) を参照。モデルの任意角回転は対象クライアントで使える形式で、[1.21.6公式更新内容](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-6) にも回転角制限の緩和が記載されている。
 
