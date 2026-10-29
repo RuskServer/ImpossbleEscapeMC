@@ -152,6 +152,7 @@ public final class ScreenEffectService implements Listener {
         private int index;
         private int remaining;
         private boolean started;
+        private int lastHeartbeatTick = Integer.MIN_VALUE;
 
         private Playback(List<Step> steps) {
             this(steps, false);
@@ -172,6 +173,8 @@ public final class ScreenEffectService implements Listener {
 
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Playback> playing = new HashMap<>();
+    /** 自然にアドレナリン演出が終わった後だけ鳴らす心拍の余韻。 */
+    private final Map<UUID, AdrenalineHeartbeatRecovery> heartbeatRecovery = new HashMap<>();
     /** 数値の画素の確認用エフェクトを重ねているプレイヤー */
     private final Set<UUID> controlDebug = new HashSet<>();
     /** メニューの後ろをぼかさないプレイヤー (隠れ家の画面を開いている間) */
@@ -403,6 +406,7 @@ public final class ScreenEffectService implements Listener {
     }
 
     private void start(Player player, List<Step> steps, boolean showWhileWaiting) {
+        heartbeatRecovery.remove(player.getUniqueId());
         Playback playback = new Playback(steps, showWhileWaiting);
         playing.put(player.getUniqueId(), playback);
         if (canAdvance(player.getUniqueId())) {
@@ -435,6 +439,7 @@ public final class ScreenEffectService implements Listener {
         }
         tickHits(now);
         tickMuzzleFlashes(now);
+        tickHeartbeatRecovery();
         tickCriticalHeartbeat();
 
         for (Map.Entry<UUID, Playback> entry : new ArrayList<>(playing.entrySet())) {
@@ -452,12 +457,19 @@ public final class ScreenEffectService implements Listener {
 
             if (playback.current().heartbeat() && player.getWorld().getGameTime() % HEARTBEAT_TICKS == 0) {
                 player.playSound(player, Sound.ENTITY_WARDEN_HEARTBEAT, SoundCategory.PLAYERS, 1.0f, 1.0f);
+                playback.lastHeartbeatTick = now;
             }
             if (--playback.remaining > 0) continue;
 
+            boolean adrenalineEnd = ADRENALINE_FADE.equals(playback.current().effect());
             playback.index++;
             if (playback.index >= playback.steps.size()) {
                 playing.remove(entry.getKey());
+                if (adrenalineEnd) {
+                    int delay = playback.lastHeartbeatTick == Integer.MIN_VALUE ? HEARTBEAT_TICKS
+                            : Math.max(1,HEARTBEAT_TICKS-(now-playback.lastHeartbeatTick));
+                    heartbeatRecovery.put(entry.getKey(),new AdrenalineHeartbeatRecovery(delay));
+                }
             } else {
                 playback.remaining = playback.current().ticks();
                 onStepStart(player, playback.current());
@@ -606,6 +618,23 @@ public final class ScreenEffectService implements Listener {
         return Bukkit.getCurrentTick() - tick < HIT_TICKS ? HIT : HIT_FADE;
     }
 
+    /** 終了音は心拍の間隔と音量で表現する。瀕死・死亡・別演出に重ねない。 */
+    private void tickHeartbeatRecovery() {
+        var it = heartbeatRecovery.entrySet().iterator();
+        while (it.hasNext()) {
+            var entry = it.next();
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player == null || player.isDead() || player.getGameMode() == GameMode.SPECTATOR
+                    || player.getGameMode() == GameMode.CREATIVE || !canAdvance(entry.getKey())
+                    || BLEEDING_CRITICAL.equals(wound.get(entry.getKey())) || playing.containsKey(entry.getKey())) {
+                it.remove();continue;
+            }
+            AdrenalineHeartbeatRecovery.Beat beat = entry.getValue().tick();
+            if (beat != null) player.playSound(player,Sound.ENTITY_WARDEN_HEARTBEAT,SoundCategory.PLAYERS,beat.volume(),beat.pitch());
+            if (entry.getValue().finished()) it.remove();
+        }
+    }
+
     /** 瀕死の間は、画面の脈動に合わせて遅い心音を鳴らす (アドレナリンの心音が鳴っている間は鳴らさない) */
     private void tickCriticalHeartbeat() {
         for (Map.Entry<UUID, Key> entry : wound.entrySet()) {
@@ -676,6 +705,7 @@ public final class ScreenEffectService implements Listener {
         controlDebug.remove(playerId);
         menuClear.remove(playerId);
         playing.remove(playerId);
+        heartbeatRecovery.remove(playerId);
         sky.remove(playerId);
         flareLight.remove(playerId);
         visor.remove(playerId);
@@ -701,6 +731,7 @@ public final class ScreenEffectService implements Listener {
         Player player = event.getEntity();
         UUID playerId = player.getUniqueId();
         awaitingRespawn.add(playerId);
+        heartbeatRecovery.remove(playerId);
         sky.remove(playerId);
         flareLight.remove(playerId);
         visor.remove(playerId);
@@ -728,6 +759,7 @@ public final class ScreenEffectService implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChangedWorld(PlayerChangedWorldEvent event) {
+        heartbeatRecovery.remove(event.getPlayer().getUniqueId());
         awaitingLoad.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
     }
 

@@ -28,6 +28,8 @@ import java.util.UUID;
 public class StatusEffectManager implements Listener {
     private final ImpossbleEscapeMC plugin;
     private final PlayerDataModule dataModule;
+    /** 自動アドレナリンで設定した満了時刻。通常の鎮痛剤の終了音とは区別する。 */
+    private final java.util.Map<UUID,Long> adrenalineExpiries = new java.util.HashMap<>();
 
     public StatusEffectManager(ImpossbleEscapeMC plugin, PlayerDataModule dataModule) {
         this.plugin = plugin;
@@ -80,9 +82,13 @@ public class StatusEffectManager implements Listener {
 
     private void handlePainkillerExpiry(Player player, PlayerData data) {
         if (data.getPainkillerUntil() > 0 && !data.isPainkillerActive()) {
+            long expiredAt = data.getPainkillerUntil();
+            Long automatic = adrenalineExpiries.remove(player.getUniqueId());
             data.setPainkillerUntil(0);
             player.sendMessage(Component.text("鎮痛効果が切れました。", NamedTextColor.YELLOW));
-            player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.5f, 1.5f);
+            // アドレナリンは画面演出の自然終了から心音を減速させる。通常の薬の音は維持。
+            if (automatic == null || automatic.longValue() != expiredAt)
+                player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.5f, 1.5f);
         }
     }
 
@@ -91,6 +97,7 @@ public class StatusEffectManager implements Listener {
      */
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
+        adrenalineExpiries.remove(event.getEntity().getUniqueId());
         PlayerData data = dataModule.getPlayerData(event.getEntity().getUniqueId());
         if (data != null) {
             data.setLegFracture(false);
@@ -119,6 +126,7 @@ public class StatusEffectManager implements Listener {
         long duration = 5000 + (long) SkillModule.value(victim, SkillStat.ADRENALINE_DURATION_MS);
         if (now - data.getLastPainkillerTrigger() > cooldown) {
             data.setPainkillerUntil(now + duration);
+            adrenalineExpiries.put(victim.getUniqueId(),now+duration);
             data.setLastPainkillerTrigger(now);
             victim.sendMessage(Component.text("アドレナリン放出！ (" + duration / 1000 + "秒間の鎮痛効果)", NamedTextColor.AQUA));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.0f, 0.5f);
@@ -128,6 +136,11 @@ public class StatusEffectManager implements Listener {
         // 2. 負傷判定
         applyInjuryChance(victim, data, event.getHitLocation(), event.isPenetrated());
         StatusEffectIcons.sync(victim, data);
+    }
+
+    @EventHandler
+    public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        adrenalineExpiries.remove(event.getPlayer().getUniqueId());
     }
 
     private void applyInjuryChance(Player victim, PlayerData data, String hitLocation, boolean penetrated) {
