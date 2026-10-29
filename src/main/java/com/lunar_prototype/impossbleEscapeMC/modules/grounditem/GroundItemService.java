@@ -116,14 +116,14 @@ public final class GroundItemService implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSpawn(ItemSpawnEvent event) {
-        watched.put(event.getEntity().getUniqueId(), event.getEntity());
+        if (isLoot(event.getEntity())) watched.put(event.getEntity().getUniqueId(), event.getEntity());
     }
 
     /** チャンクの読み込み・再起動などで、見張っていないアイテムを拾い上げる */
     private void scan() {
         for (World world : Bukkit.getWorlds()) {
             for (Item item : world.getEntitiesByClass(Item.class)) {
-                watched.putIfAbsent(item.getUniqueId(), item);
+                if (isLoot(item)) watched.putIfAbsent(item.getUniqueId(), item);
             }
         }
     }
@@ -137,6 +137,13 @@ public final class GroundItemService implements Listener {
             UUID id = entry.getKey();
             if (!item.isValid()) {
                 unflatten(id, null);
+                streak.remove(id);
+                it.remove();
+                continue;
+            }
+            // TODO(ai-collab): 後から拾得不可になった演出エンティティも、見た目の処理から外す。
+            if (!isLoot(item)) {
+                if (displays.containsKey(id)) unflatten(id,item);
                 streak.remove(id);
                 it.remove();
                 continue;
@@ -267,7 +274,7 @@ public final class GroundItemService implements Listener {
         Vector direction = eye.getDirection();
         double range = PICKUP_RANGE + SkillModule.value(player, SkillStat.PICKUP_RANGE);   // スキルで延びる
         RayTraceResult hit = player.getWorld().rayTraceEntities(eye, direction, range, PICKUP_RAY_SIZE,
-                entity -> entity instanceof Item item && item.isValid());
+                entity -> entity instanceof Item item && item.isValid() && isLoot(item));
         if (hit == null || !(hit.getHitEntity() instanceof Item item)) return null;
         double itemDistance = hit.getHitPosition().distance(eye.toVector());
         RayTraceResult wall = player.getWorld().rayTraceBlocks(eye, direction, itemDistance, FluidCollisionMode.NEVER, true);
@@ -278,6 +285,7 @@ public final class GroundItemService implements Listener {
 
     /** 拾う。バニラが拾う時と同じ EntityPickupItemEvent を呼んで、ほかの決まり (リグ・容量・FIR) を通す */
     private void pickUp(Player player, Item item) {
+        if (!item.isValid() || !isLoot(item)) return;
         ItemStack before = item.getItemStack().clone();
         EntityPickupItemEvent event = new EntityPickupItemEvent(player, item, 0);
         Bukkit.getPluginManager().callEvent(event);
@@ -299,6 +307,10 @@ public final class GroundItemService implements Listener {
             item.remove();
         }
         playPickup(player);
+    }
+
+    private static boolean isLoot(Item item) {
+        return GroundItemEligibility.accepts(item.getScoreboardTags(),item.getPickupDelay(),item.canPlayerPickup());
     }
 
     private static void playPickup(Player player) {
