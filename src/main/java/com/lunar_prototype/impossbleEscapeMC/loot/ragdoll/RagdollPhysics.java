@@ -82,7 +82,9 @@ public final class RagdollPhysics {
                 if(pass>=7)collideMeshes(terrain);
             }
             // 後から処理した腕が肩を動かすため、最後に全体を再確認して接触を収束させる。
-            for(int pass=0;pass<4;pass++)collideMeshes(terrain);
+            // 斜めに並んだ壁の角では、腕・脚の押し戻しが肩の軸を回し、先に処理した頭や胴を再侵入させる。
+            // 固定4回で打ち切らず、接触が小さくなるまで上限付きで収束させる。
+            for(int pass=0;pass<16;pass++)if(collideMeshes(terrain)<.00025)break;
             for(int i=0;i<point.length;i++) {
                 double d=point[i].distance(previous[i]);travel=Math.max(travel,d);
                 velocity[i].set(point[i]).sub(previous[i]).mul(4*.985);
@@ -129,12 +131,13 @@ public final class RagdollPhysics {
         return switch(part){case HEAD->new Vector3d(.25,.25,.25);case TORSO->new Vector3d(.25,.375,.125);default->new Vector3d(.125,.375,.125);};
     }
     /** 点・角に触れない面の交差も、回転した部位箱全体で押し戻す。 */
-    private void collideMeshes(Terrain terrain) {
+    private double collideMeshes(Terrain terrain) {
+        double largest=0;
         for(Part part:Part.values()) {
             Pose pose=pose(part);Vector3d half=halfSize(part).add(.01,.01,.01),shift=new Vector3d();
             for(Box box:terrain.boxes(pose.center.x,pose.center.y,pose.center.z)) {
                 Vector3d correction=RagdollCollision.correction(new Pose(new Vector3d(pose.center).add(shift),pose.rotation),half,box);
-                if(correction.lengthSquared()>0){shift.add(correction);contacts++;}
+                if(correction.lengthSquared()>0){largest=Math.max(largest,correction.length());shift.add(correction);contacts++;}
             }
             switch(part) {
                 case TORSO->{for(int i=0;i<6;i++)point[i].add(shift);}
@@ -145,6 +148,7 @@ public final class RagdollPhysics {
                 case LEFT_LEG->{point[5].add(shift);point[10].add(shift);}
             }
         }
+        return largest;
     }
     public Pose pose(Part part) {
         Vector3d up=up(),right=new Vector3d(point[3]).sub(point[2]);right.fma(-right.dot(up),up).normalize();
