@@ -438,9 +438,16 @@ public class ScavTactics {
     boolean isPeekResting() { return peekRestTicks > 0; }
 
     public boolean startPeekTo(Location peek) {
+        LivingEntity target=scav.getTarget();
+        return target!=null&&startPeekTo(peek,target.getEyeLocation());
+    }
+
+    public boolean startPeekTo(Location peek,Location threatEye) {
         if (peekRestTicks > 0) return false;
+        Location here=scav.getLocation();
+        if(peek==null||peek.getWorld()!=here.getWorld()||!ScavPeekCover.covered(here,threatEye,scav.getEyeHeight()))return false;
         // 立ち位置から少しずれて立っていると、顔出し位置との間に遮蔽の角が入ることがある
-        if (!canStepStraight(peek)) return false;
+        if (!clearLine(peek.clone().add(0,scav.getEyeHeight(),0),threatEye)||!canStepStraight(peek)) return false;
         coverLocation = scav.getLocation().clone();
         peekLocation = peek.clone();
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
@@ -455,6 +462,10 @@ public class ScavTactics {
 
     public boolean startPeek(Location lastKnownLocation, boolean isSprinting, boolean jump) {
         if (peekRestTicks > 0) return false;
+        if(lastKnownLocation==null)return false;
+        Location threatEye=lastKnownLocation.clone().add(0,1.5,0);
+        // 視認切れだけでは顔出しを始めない。開けた場所の位置調整は通常移動に任せる。
+        if(!ScavPeekCover.covered(scav.getLocation(),threatEye,scav.getEyeHeight()))return false;
         coverLocation = scav.getLocation().clone();
         Vector toTarget = lastKnownLocation.toVector().subtract(coverLocation.toVector()).setY(0);
         if (toTarget.lengthSquared() < 1.0E-6) return false;
@@ -467,7 +478,6 @@ public class ScavTactics {
         lastPeekSide = side;
         // 横へまっすぐ出られて、そこから相手のいそうな方向が見える所だけを顔出し位置にする。
         // 決めた側で見つからなければ逆側を試し、どちらも無ければ顔を出さない
-        Location threatEye = lastKnownLocation.clone().add(0, 1.5, 0);
         peekLocation = null;
         for (int s : new int[]{side, -side}) {
             for (double offset : new double[]{1.0 + Math.random() * 2.0, 1.5, 1.0}) {

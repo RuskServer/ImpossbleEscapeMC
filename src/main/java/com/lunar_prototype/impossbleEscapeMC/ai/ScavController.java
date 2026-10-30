@@ -1695,7 +1695,7 @@ public class ScavController {
                     preAimAtThreat();
                     // 撃てない間 (リロード・ボルト操作など) は顔を出さずに待つ
                     if (weaponReadyInTicks <= PEEK_READY_TICKS && !tactics.isPeekResting()
-                            && !tactics.startPeekTo(spot.peek())) {
+                            && !tactics.startPeekTo(spot.peek(),threat)) {
                         positioning.rejectCurrent(now);
                         arrivedSpot=null;
                         return false;

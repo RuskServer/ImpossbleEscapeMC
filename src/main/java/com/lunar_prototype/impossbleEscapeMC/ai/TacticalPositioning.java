@@ -210,7 +210,8 @@ public final class TacticalPositioning {
         if (clear(world, stand.clone().add(0, EYE_HEIGHT, 0), threat)) {
             type = SpotType.FIRE;
         } else {
-            peek = findPeek(world, stand, threat);
+            // 遠くの壁に射線が当たるだけの地点を「顔出し用の遮蔽」として選ばない。
+            peek = ScavPeekCover.covered(stand,threat,scav.getEyeHeight()) ? findPeek(world, stand, threat) : null;
             type = peek != null ? SpotType.COVER_PEEK : SpotType.HIDE;
         }
         // 出直す時に隠れるだけの場所を選ぶと、またその場で止まってしまう。
