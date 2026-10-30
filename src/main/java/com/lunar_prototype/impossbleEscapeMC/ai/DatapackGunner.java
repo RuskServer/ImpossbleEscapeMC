@@ -33,7 +33,6 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * SCAVの代わりにToi's Armoryのデータパック銃を撃つ不可視のFakePlayer。
@@ -64,19 +63,11 @@ public final class DatapackGunner {
     private static final String[] BLOCKING_TIMERS = {
             "toisarm.timer.swap", "toisarm.timer.reload", "toisarm.timer.empty_reload",
             "toisarm.timer.bolt_action", "toisarm.timer.bolt_action_delay"};
-    /** inaccuracy を照準のブレ角度 (度) に換算する係数 */
-    private static final double INACCURACY_TO_DEGREES = 45.0;
     /**
      * 引き金を引いた時の照準を保つtick数。データパックは引き金を引いてから (TRIGGER_PULL_VALUE + 1) tick撃ち続けるが、
      * その間にSCAVの体と頭は移動方向へ向き直るため、SCAVの向きをそのまま写すと2発目以降が横に逸れる
      */
     private static final int AIM_HOLD_TICKS = TRIGGER_PULL_VALUE + 2;
-    /**
-     * フルオートで撃ち続けている間の反動 (1tickあたり)。照準を保つ間に上へ跳ね上がり、左右にぶれる。
-     * SCAVの撃ち手 (FakePlayer) はデータパックの反動を受けないため、無いと連射の全弾が同じ所に当たる
-     */
-    private static final float RECOIL_CLIMB_DEG = 0.9f;
-    private static final float RECOIL_WOBBLE_DEG = 0.6f;
 
     /** 送信パケットをすべて捨てる接続 */
     private static final class DiscardingConnection extends Connection {
@@ -97,12 +88,15 @@ public final class DatapackGunner {
     private int age;
     private boolean armed;
     private int reloadTicks;
-    /** 引き金を引いた時の照準 (ブレ込み)。aimHoldTicks の間はSCAVの向きの代わりにこれを使う */
-    private float aimYaw;
-    private float aimPitch;
-    private int aimHoldTicks;
-    /** 今の照準がフルオートの連射か (反動をかける) */
-    private boolean burstRecoil;
+    private final ScavShotAim shotAim=new ScavShotAim();
+    public ScavShotAim.Rotation heldAim() {return shotAim.held();}
+    /** 歩行の向きを優先する間は、保持した射撃だけが別方向へ残らないよう引き金を離す。 */
+    public void stopTrigger() {
+        if(shotAim.held()==null)return;
+        shotAim.clear();
+        Objective objective=Bukkit.getScoreboardManager().getMainScoreboard().getObjective(TRIGGER_OBJECTIVE);
+        if(objective!=null)objective.getScore(handle.getScoreboardName()).setScore(-1);
+    }
     /** 最後に装填してから引き金を引いたか (弾数0が撃ち切りか、データパックによる上書きかの区別) */
     private boolean firedSinceFill;
     /** 装填した時に実際に込めた数 (予備が足りなければ装弾数より少ない)。まだ撃っていない間の弾数 ({@link #ammo}) */
@@ -165,13 +159,7 @@ public final class DatapackGunner {
     /** 毎tick呼ぶ。位置同期・銃の受け取り・再装填を行う */
     void tick() {
         age++;
-        if (aimHoldTicks > 0) {
-            if (burstRecoil) {
-                aimPitch = Math.max(-90f, aimPitch - RECOIL_CLIMB_DEG);
-                aimYaw += (float) ((ThreadLocalRandom.current().nextDouble() * 2 - 1) * RECOIL_WOBBLE_DEG);
-            }
-            aimHoldTicks--;
-        }
+        shotAim.tick();
         syncToOwner();
 
         if (age == GIVE_GUN_DELAY_TICKS) {
@@ -295,14 +283,9 @@ public final class DatapackGunner {
      */
     public boolean pullTrigger(double inaccuracy, boolean fullAuto) {
         if (!isReady()) return false;
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        double spread = inaccuracy * INACCURACY_TO_DEGREES;
-        // SCAVのAIは引き金を引く直前に照準を合わせているので、その向きを撃ち終わるまで保つ
+        // 誤差はSCAVの見える照準側で作る。撃ち手だけの抽選・上向き反動は重ねない。
         Location eye = owner.getEyeLocation();
-        aimYaw = eye.getYaw() + (float) ((random.nextDouble() * 2 - 1) * spread);
-        aimPitch = Math.max(-90f, Math.min(90f, eye.getPitch() + (float) ((random.nextDouble() * 2 - 1) * spread * 0.6)));
-        aimHoldTicks = AIM_HOLD_TICKS;
-        burstRecoil = profile.automatic() && fullAuto;
+        shotAim.capture(eye.getYaw(),eye.getPitch(),AIM_HOLD_TICKS);
         firedSinceFill = true;
         syncToOwner();
 
@@ -317,9 +300,9 @@ public final class DatapackGunner {
     /** SCAVの目の位置にFakePlayerの目の位置を合わせる。向きは撃っている間は引き金を引いた時の照準、それ以外はSCAVの向き */
     private void syncToOwner() {
         Location eye = owner.getEyeLocation();
-        boolean holdingAim = aimHoldTicks > 0;
-        float yaw = holdingAim ? aimYaw : eye.getYaw();
-        float pitch = holdingAim ? aimPitch : eye.getPitch();
+        ScavShotAim.Rotation held=shotAim.held();
+        float yaw = held!=null ? held.yaw() : eye.getYaw();
+        float pitch = held!=null ? held.pitch() : eye.getPitch();
         handle.snapTo(eye.getX(), eye.getY() - handle.getEyeHeight(), eye.getZ(), yaw, pitch);
         handle.setYHeadRot(yaw);
         if (handle.level() instanceof ServerLevel level && handle.connection != null && level.players().contains(handle)) {

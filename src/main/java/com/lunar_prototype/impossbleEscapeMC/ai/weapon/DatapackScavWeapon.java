@@ -77,6 +77,9 @@ public final class DatapackScavWeapon implements ScavWeapon {
             Map<String, Object> payload = new HashMap<>();
             payload.put("weapon", profile.id());
             payload.put("inaccuracy", inaccuracy);
+            payload.put("aim_model", "individual_target_v1");
+            payload.put("aim_yaw", scav.getEyeLocation().getYaw());
+            payload.put("aim_pitch", scav.getEyeLocation().getPitch());
             payload.put("pellets", profile.projectilesPerShot());
             payload.put("datapack", true);
             logger.logEvent(raidSessionId, scav.getUniqueId(), "SHOT_FIRED", payload);

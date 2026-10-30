@@ -181,7 +181,7 @@ public class ScavController {
     private static final long SUPPRESS_INTERVAL_MS = 330;
     private static final long SUPPRESS_INTERVAL_JITTER_MS = 170;
     /** 人を狙っていないぶんの追加のばらつき */
-    private static final double SUPPRESS_EXTRA_SPREAD = 0.04;
+    private static final double SUPPRESS_EXTRA_AIM_DIFFICULTY = 0.04;
     /** 何発撃ったら間を置くか、置く時間 (tick) */
     private static final int SUPPRESS_BURST_MIN = 3;
     private static final int SUPPRESS_BURST_MAX = 5;
@@ -230,19 +230,19 @@ public class ScavController {
     private int burstPullsRemaining = 0;
 
     // --- 命中精度 ---
-    /** 制圧値1.0あたりのばらつきの増加。撃ち返されるほど狙いが乱れる */
-    private static final double SUPPRESSION_SPREAD = 0.2;
-    /** 連射中、引き金を引くたびに増えるばらつき (反動で照準が上ずる) と、その上限 */
-    private static final double RECOIL_SPREAD_PER_PULL = 0.03;
-    /** 単発で撃つ時の1発あたりの反動。単発の間隔は反動が収まる時間より短いため、小さくしないと単発でも散り続ける */
-    private static final double RECOIL_SPREAD_PER_SINGLE_SHOT = 0.01;
-    private static final double RECOIL_SPREAD_MAX = 0.24;
-    /** この距離 (ブロック) を超えると距離による拡散が始まる。近距離の殺傷力は維持する */
-    private static final double RANGE_SPREAD_START = 12.0;
-    /** 1ブロックあたりの距離拡散 (遠距離のレーザー化を防ぐ) */
-    private static final double RANGE_SPREAD_PER_BLOCK = 0.012;
-    /** 距離拡散の上限 (約10度) */
-    private static final double RANGE_SPREAD_MAX = 0.22;
+    /** 制圧値1.0あたりの照準難度。追従の遅れと連続した狙点の揺れへ使う */
+    private static final double SUPPRESSION_AIM_DIFFICULTY = 0.2;
+    /** 連射中、引き金を引くたびに増える照準難度と、その上限 */
+    private static final double RECOIL_AIM_PER_PULL = 0.03;
+    /** 単発の照準難度の増分。発射方向のランダム抽選や撃ち手だけの反動にはしない */
+    private static final double RECOIL_AIM_PER_SINGLE_SHOT = 0.01;
+    private static final double RECOIL_AIM_MAX = 0.24;
+    /** この距離 (ブロック) を超えると距離による照準難度が増える */
+    private static final double RANGE_AIM_START = 12.0;
+    /** 1ブロックあたりの照準難度の増分 */
+    private static final double RANGE_AIM_PER_BLOCK = 0.012;
+    /** 距離による照準難度の上限（角度ではない） */
+    private static final double RANGE_AIM_MAX = 0.22;
     /** 前に引き金を引いてからこれだけ空いたら、反動は収まったとみなす (ms) */
     private static final long RECOIL_RESET_MS = 350;
     /** 反動が収まってから続けて引き金を引いた回数 */
@@ -292,8 +292,10 @@ public class ScavController {
     private Location preAimPoint = null;
     private int preAimUntilTick = 0;
     private static final int PRE_AIM_HOLD_TICKS = ScavController.STEP_TICKS * 2;
-    private double aimErrorYaw = 0;
-    private double aimErrorPitch = 0;
+    private final ScavIndividualTraits individual;
+    private final ScavAimModel humanAim;
+    /** 視認時だけ更新する距離・明るさの難度。毎tick相手の隠れた座標を読み直さない。 */
+    private double observedAimEnvironment;
     private long lastMobShotTime = 0;
 
     /** AIの1ステップのtick数 (AIは3tickごとに1回動く) */
@@ -412,10 +414,12 @@ public class ScavController {
         this.plugin = plugin;
         this.scav = scav;
         this.brainLevel = brainLevel;
+        this.individual=ScavIndividualTraits.create(scav.getUniqueId(),brainLevel.ordinal());
+        this.humanAim=new ScavAimModel(individual);
         this.brain = new ScavBrain(scav, brainLevel);
         this.vision = new ScavVision(scav);
         this.squad = new ScavSquad(this);
-        this.tactics = new ScavTactics(scav, brain);
+        this.tactics = new ScavTactics(scav, brain,individual);
         this.positioning = new TacticalPositioning(scav);
         this.withdrawal = new ScavWithdrawal(scav);
         this.currentAimVector = scav.getEyeLocation().getDirection();
@@ -717,8 +721,8 @@ public class ScavController {
         }
         if (tactics.getPeekPhase() > 0) {
             movementStability.clearMovement();
-            tactics.handlePeekManeuver(canSeeTarget, System.currentTimeMillis() >= fireHoldUntil, this::applyAimToEntity,
-                    weapon, baseSpread() + suppression * SUPPRESSION_SPREAD, isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
+            tactics.handlePeekManeuver(canSeeTarget, System.currentTimeMillis() >= fireHoldUntil, this::applyShotAimToEntity,
+                    weapon, aimDifficulty(), isSprinting, lastMobShotTime, t -> lastMobShotTime = t);
             enforceSoundBoundary();
             checkAndInteractWithDoors();
             logSnapshotIfNeeded(raidSessionId, target, canSeeTarget, tacticalAdvice, actions);
@@ -816,17 +820,10 @@ public class ScavController {
 
                     // 間が空いたら反動は収まっている
                     if (now - lastMobShotTime > RECOIL_RESET_MS) consecutivePulls = 0;
-                    double inacc = baseSpread()
-                            + (suppression * SUPPRESSION_SPREAD)
-                            + (scav.getVelocity().length() > 0.1 ? 0.04 : 0)
-                            + ScavVision.darknessSpread(target)
-                            + rangeSpread(target)
-                            + Math.min(RECOIL_SPREAD_MAX, consecutivePulls * (fullAuto ? RECOIL_SPREAD_PER_PULL : RECOIL_SPREAD_PER_SINGLE_SHOT));
-                    if (weapon.isManualAction()) {
-                        inacc += 0.08; // ポンプアクションは反動が大きく、次弾の精密射撃が難しいことを表現
-                    }
+                    double inacc = aimDifficulty();
 
                     // 構え直し中などで引き金を引けなかった時は、連射数・射撃間隔に数えない
+                    applyShotAimToEntity();
                     if (weapon.fire(inacc, fullAuto)) {
                         consecutivePulls++;
                         lastMobShotTime = now;
@@ -1021,8 +1018,8 @@ public class ScavController {
         if (currentAimVector == null || Math.toDegrees(currentAimVector.angle(toPoint)) > SUPPRESS_AIM_TOLERANCE_DEGREES) return false;
         long gap = SUPPRESS_INTERVAL_MS + (long) (Math.random() * SUPPRESS_INTERVAL_JITTER_MS);
         if (now < fireHoldUntil || now - lastMobShotTime < gap) return false;
-        applyAimToEntity();
-        if (!weapon.fire(baseSpread() + suppression * SUPPRESSION_SPREAD + SUPPRESS_EXTRA_SPREAD, false)) return false;
+        applyShotAimToEntity();
+        if (!weapon.fire(baseAimDifficulty() + suppression * SUPPRESSION_AIM_DIFFICULTY + SUPPRESS_EXTRA_AIM_DIFFICULTY, false)) return false;
         lastMobShotTime = now;
         lastSuppressTick = tick;
         if (++suppressShots >= suppressBurst) {
@@ -1043,8 +1040,8 @@ public class ScavController {
         return (withdrawal.active() && !withdrawal.arrived()) || (positioning.current() != null && arrivedSpot == null);
     }
 
-    /** ランクごとの基本の弾のばらつき。高ランクほど正確 */
-    private double baseSpread() {
+    /** ランクごとの照準難度の基本値。弾の拡散を変更する値ではない */
+    private double baseAimDifficulty() {
         return switch (brainLevel) {
             case LOW -> 0.15;
             case MID -> 0.11;
@@ -1052,11 +1049,20 @@ public class ScavController {
         };
     }
 
-    /** 距離が離れるほど狙いが粗くなる。近距離の殺傷力はそのままに、遠距離のレーザー化を防ぐ */
-    private double rangeSpread(LivingEntity target) {
+    /** 旧inaccuracy係数は照準の追従・狙点の誤差へ使い、発射時の角度抽選には使わない。 */
+    private double aimDifficulty() {
+        boolean automatic=weapon!=null&&useFullAuto(weapon);
+        return baseAimDifficulty()+suppression*SUPPRESSION_AIM_DIFFICULTY+(scav.getVelocity().length()>.1?.04:0)
+                +observedAimEnvironment
+                +Math.min(RECOIL_AIM_MAX,(System.currentTimeMillis()-lastMobShotTime>RECOIL_RESET_MS?0:consecutivePulls)*(automatic?RECOIL_AIM_PER_PULL:RECOIL_AIM_PER_SINGLE_SHOT))
+                +(weapon!=null&&weapon.isManualAction()?.08:0);
+    }
+
+    /** 距離が離れるほど照準の追従・狙点の維持を難しくする */
+    private double rangeAimDifficulty(LivingEntity target) {
         if (target == null || target.getWorld() != scav.getWorld()) return 0.0;
         double distance = scav.getLocation().distance(target.getLocation());
-        return Math.min(RANGE_SPREAD_MAX, Math.max(0.0, distance - RANGE_SPREAD_START) * RANGE_SPREAD_PER_BLOCK);
+        return Math.min(RANGE_AIM_MAX, Math.max(0.0, distance - RANGE_AIM_START) * RANGE_AIM_PER_BLOCK);
     }
 
     /** 発見から撃ち始めるまでの反応時間 (ms)。ランクが高いほど速いが、毎回ばらつく */
@@ -1230,11 +1236,9 @@ public class ScavController {
 
     /** 照準のブレを更新する。照準そのものは tickAim が毎tick相手へ寄せる */
     private void updateHumanAim(LivingEntity target) {
-        Location eye = scav.getEyeLocation();
-        Vector idealDir = target.getEyeLocation().toVector().subtract(eye.toVector()).normalize();
-        if (currentAimVector == null) currentAimVector = idealDir.clone();
-        aimErrorYaw = (aimErrorYaw + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
-        aimErrorPitch = (aimErrorPitch + (Math.random()-0.5)*0.04 + (suppression > 0.3 ? (Math.random()-0.5)*suppression*0.15 : 0)) * 0.4;
+        Location seen=target.getLocation();
+        humanAim.observe(target.getUniqueId(),new org.joml.Vector3d(seen.getX(),seen.getY(),seen.getZ()),target.getEyeHeight(),Bukkit.getCurrentTick());
+        observedAimEnvironment=ScavVision.darknessSpread(target)+rangeAimDifficulty(target);
     }
 
     /** 見えていない相手へ照準を向けておく。出てきそうな所 (遮蔽の端) が分かればそこへ、なければ一番ありそうな場所へ */
@@ -1301,19 +1305,24 @@ public class ScavController {
     private void updateAim() {
         // 経路探索で立ち位置へ歩いている間は、進む方向を向かせる (照準で向きを上書きすると、
         // 移動の制御が1tickに90度までしか回れず、相手と反対側の場所へ進めなくなる)
-        if (followingPath) return;
+        DatapackGunner gunner=DatapackGunnerManager.get(scav.getUniqueId());
+        if (followingPath) {if(gunner!=null)gunner.stopTrigger();return;}
         // 顔出し/戻りの歩行中は体を進行方向へ向ける (照準で上書きすると横滑り=瞬間移動に見える)
-        if (tactics.isPeekTraveling()) return;
+        if (tactics.isPeekTraveling()) {if(gunner!=null)gunner.stopTrigger();return;}
         LivingEntity target = scav.getTarget();
         Vector ideal = null;
         double stepLerp;
         if (sawTargetLastStep && target != null && target.isValid() && target.getWorld() == scav.getWorld()) {
-            ideal = target.getEyeLocation().toVector().subtract(scav.getEyeLocation().toVector());
+            Location eye=scav.getEyeLocation();
+            org.joml.Vector3d point=humanAim.aimPoint(new org.joml.Vector3d(eye.getX(),eye.getY(),eye.getZ()),Bukkit.getCurrentTick(),aimDifficulty());
+            if(point==null){if(gunner!=null&&gunner.heldAim()!=null)applyAimToEntity();return;}
+            ideal = new Vector(point.x-eye.getX(),point.y-eye.getY(),point.z-eye.getZ());
             stepLerp = 0.9 - (suppression * 0.2);
         } else if (preAimPoint != null && Bukkit.getCurrentTick() <= preAimUntilTick && preAimPoint.getWorld() == scav.getWorld()) {
             ideal = preAimPoint.toVector().subtract(scav.getEyeLocation().toVector());
             stepLerp = 0.3;
         } else {
+            if(gunner!=null&&gunner.heldAim()!=null)applyAimToEntity();
             return;
         }
         if (ideal.lengthSquared() < 1.0E-6) return;
@@ -1326,9 +1335,18 @@ public class ScavController {
     }
 
     private void applyAimToEntity() {
+        DatapackGunner gunner=DatapackGunnerManager.get(scav.getUniqueId());
+        ScavShotAim.Rotation held=gunner==null?null:gunner.heldAim();
+        if(held!=null){scav.setRotation(held.yaw(),held.pitch());return;}
+        applyShotAimToEntity();
+    }
+
+    /** 新しい引き金は更新中の照準から始める。保持照準の再保持で追従が永久停止するのを防ぐ。 */
+    private void applyShotAimToEntity() {
         if (currentAimVector == null) return;
         Location l = scav.getLocation();
-        scav.setRotation(l.setDirection(currentAimVector).getYaw() + (float)aimErrorYaw, l.setDirection(currentAimVector).getPitch() + (float)aimErrorPitch);
+        l.setDirection(currentAimVector);
+        scav.setRotation(l.getYaw(),l.getPitch());
     }
 
     public void onSoundHeard(Location source) {
@@ -1592,7 +1610,11 @@ public class ScavController {
         if (attacker instanceof LivingEntity living && living.getWorld() == scav.getWorld()) {
             Vector toAttacker = living.getLocation().toVector().subtract(scav.getLocation().toVector());
             // 同じ位置からの被弾 (向きが決まらない) では振り向かない
-            if (toAttacker.lengthSquared() > 1.0E-6) scav.teleport(scav.getLocation().setDirection(toAttacker.normalize()));
+            if (toAttacker.lengthSquared() > 1.0E-6) {
+                DatapackGunner gunner=DatapackGunnerManager.get(scav.getUniqueId());
+                if(gunner!=null)gunner.stopTrigger();
+                scav.teleport(scav.getLocation().setDirection(toAttacker.normalize()));
+            }
             // 撃たれた方向から、撃った相手のおおよその位置が分かる
             belief.observeNear(living.getLocation(), ATTACKER_LOCATION_SIGMA);
             if (scav.getTarget() == null) {

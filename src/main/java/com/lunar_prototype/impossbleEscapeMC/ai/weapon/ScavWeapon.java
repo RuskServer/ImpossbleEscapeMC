@@ -31,7 +31,8 @@ public interface ScavWeapon {
     boolean isReloading();
 
     /**
-     * 引き金を1回引く。inaccuracy は弾のばらつき量
+     * 引き金を1回引く。inaccuracy はAI照準の難度指標（互換用）。
+     * データパック銃は準備済みの照準をそのまま使い、撃ち手だけに角度の誤差を重ねない。
      *
      * @param fullAuto フルオートの銃で撃ち続けるか。false ならフルオートの銃でも1発だけ撃つ
      * @return 引き金を引けた場合true (構え直し中・リロード中などで撃てなかった場合false)

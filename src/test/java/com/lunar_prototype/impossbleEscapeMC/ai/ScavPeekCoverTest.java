@@ -54,6 +54,7 @@ public final class ScavPeekCoverTest {
             case "getWorld"->geometry.world;
             case "getTarget"->target;
             case "getEyeHeight"->1.6;
+            case "getUniqueId"->new java.util.UUID(0,1);
             default->throw new AssertionError("rejected peek must not issue movement: "+m.getName());
         });
     }

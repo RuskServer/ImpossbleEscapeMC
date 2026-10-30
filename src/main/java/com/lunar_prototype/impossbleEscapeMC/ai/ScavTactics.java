@@ -12,6 +12,7 @@ import org.bukkit.util.Vector;
 public class ScavTactics {
     private final Mob scav;
     private final ScavBrain brain;
+    private final ScavIndividualTraits individual;
 
     // Tactical Movement States
     private int strafeDir = 1; 
@@ -55,8 +56,12 @@ public class ScavTactics {
     private Location slicingPoint = null;
 
     public ScavTactics(Mob scav, ScavBrain brain) {
+        this(scav,brain,ScavIndividualTraits.create(scav.getUniqueId(),brain==null?1:brain.getBrainLevel().ordinal()));
+    }
+    public ScavTactics(Mob scav,ScavBrain brain,ScavIndividualTraits individual) {
         this.scav = scav;
         this.brain = brain;
+        this.individual = individual;
     }
 
     public Location getTacticalCoverLoc() { return tacticalCoverLoc; }
@@ -94,8 +99,8 @@ public class ScavTactics {
         boolean newStrafeSegment = strafeTicks <= 0;
         if (newStrafeSegment) {
             strafeDir = (Math.random() > 0.5) ? 1 : -1;
-            strafeTicks = minTicks + (int) (Math.random() * varTicks);
-            orbitScale = 0.6 + Math.random() * 0.8; // 区間ごとに回る半径・勢いを変える
+            strafeTicks = Math.max(3,(int)Math.round((minTicks+Math.random()*varTicks)*individual.strafeDuration()));
+            orbitScale = individual.orbit()*(.9+Math.random()*.2);
         }
 
         // 横移動・距離維持中は、時々立ち止まって狙いを安定させる (止まる長さもばらつかせる)
@@ -106,7 +111,7 @@ public class ScavTactics {
                 stopMoving();
                 return;
             }
-        } else if (newStrafeSegment && lateral && Math.random() < 0.05) {
+        } else if (newStrafeSegment && lateral && Math.random() < individual.pauseChance()) {
             strafePauseTicks = 2 + (int) (Math.random() * 5);
             stopMoving();
             return;
@@ -419,6 +424,7 @@ public class ScavTactics {
                 int restTicks = peekSawTarget
                         ? PEEK_REST_AFTER_CONTACT_MIN + (int) (Math.random() * PEEK_REST_AFTER_CONTACT_JITTER)
                         : PEEK_REST_AFTER_EMPTY_MIN + (int) (Math.random() * PEEK_REST_AFTER_EMPTY_JITTER);
+                restTicks=Math.max(peekSawTarget?PEEK_REST_AFTER_CONTACT_MIN:PEEK_REST_AFTER_EMPTY_MIN,(int)Math.round(restTicks*individual.peekRest()));
                 peekRestTicks = restTicks / ScavController.STEP_TICKS;
             }
         }
