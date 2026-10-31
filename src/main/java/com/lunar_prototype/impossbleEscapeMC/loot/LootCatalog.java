@@ -59,7 +59,13 @@ final class LootCatalog {
                 item("ram", 12.0),
                 item("unrg7k_ekho", 3.0),
                 item("eotech_xps2", 15.0),
-                item("ekp_8", 15.0),
+                // データパック側に装着先のある通常品のみ。無限マガジン・無反動グリップは除外。
+                item("pso_1", 8.0),
+                item("2_stage_suppressor", 8.0),
+                item("9x39mm_30round_magazine", 8.0),
+                item("uzi_short_magazine", 5.0),
+                item("uzi_mini_barrel", 5.0),
+                item("uzi_folded_stock", 5.0),
                 gun("ak74", "AK-74M", 10.0),
                 gun("mossberg_590", "Mossberg 590", 10.0),
                 gun("usp45", "USP 45", 15.0),
@@ -88,7 +94,8 @@ final class LootCatalog {
                 item("Slick", 3.0),
                 item("sp_v", 1.5),
                 item("pilgrim_tourist_backpack", 3.0),
-                item("pt_1", 10.0),
+                item("scar_h_drum_magazine", 5.0),
+                item("svd_long_barrel", 6.0),
                 item("545x39_bs", 10.0, 5, 15)));
         // 2030年代の弾 (クラス5〜6)
         addAmmo(tables.getLast(), 5, 2.0, 5, 15);
