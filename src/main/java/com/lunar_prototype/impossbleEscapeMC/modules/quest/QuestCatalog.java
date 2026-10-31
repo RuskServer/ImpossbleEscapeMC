@@ -199,13 +199,42 @@ final class QuestCatalog {
                 .unlockTrade(KOVACS, "mossberg_590")
                 .unlockTrade(KOVACS, "uzi")
                 .money(10000).exp(1800).build());
+        // 部品回収の支線。既存の銃・弾の解放条件には追加しない。
+        quests.add(new QuestBuilder(module, "kovacs_uzi_parts")
+                .trader(KOVACS).name("小回りの利く装備")
+                .description("UZIの部品を揃えておきたい。短いマガジンと整備用のドライバーを現地で拾ってきてくれ。"
+                        + "一度無事に持ち帰れたら、短いマガジンと折り畳みストックを仕入れに加える。")
+                .requiresLevel(5)
+                .requiresQuest("kovacs_close_supply")
+                .handInFir("uzi_short_magazine", 1).handInFir("screwdriver", 1).extractAny(1)
+                .unlockTrade(KOVACS, "uzi_short_magazine")
+                .unlockTrade(KOVACS, "uzi_folded_stock")
+                .money(12000).exp(2200).build());
+        quests.add(new QuestBuilder(module, "kovacs_suppressor_supply")
+                .trader(KOVACS).name("銃声を抑える手立て")
+                .description("UZIに合う二段式の消音器が出回っている。現物と工具箱を一つずつ回収してくれ。"
+                        + "それと二度、無事に帰ってこい。品物が揃ったら、こちらでも消音器を仕入れておく。")
+                .requiresLevel(7)
+                .requiresQuest("kovacs_uzi_parts")
+                .handInFir("2_stage_suppressor", 1).handInFir("tool_box", 1).extractAny(2)
+                .unlockTrade(KOVACS, "2_stage_suppressor")
+                .money(18000).exp(3000).build());
+        quests.add(new QuestBuilder(module, "kovacs_val_magazines")
+                .trader(KOVACS).name("二十発では足りない")
+                .description("AS VAL用の三十連マガジンを扱う。まずは見本を一つ、現地から持ってきてくれ。"
+                        + "修理に使うボルト四つとドライバーも頼む。揃えてくれれば継続して売れる。")
+                .requiresLevel(8)
+                .requiresQuest("kovacs_eastern_supply")
+                .handInFir("9x39mm_30round_magazine", 1).handInFir("bolts", 4).handInFir("screwdriver", 1)
+                .unlockTrade(KOVACS, "9x39mm_30round_magazine")
+                .money(15000).exp(2600).build());
         quests.add(new QuestBuilder(module, "kovacs_optic_reserve")
                 .trader(KOVACS).name("照準器の予備")
-                .description("予備のEKP-8を回収し、中距離の敵を仕留めてこい。仕入れた照準器も販売に回す。")
+                .description("SVD用のPSO-1を一つ持ち帰ってくれ。予備の照準器が足りていない。中距離のSCAVも片付けてくれたら、次からは店で回せるようにする。")
                 .requiresLevel(5)
                 .requiresQuest("kovacs_eastern_supply")
-                .handInFir("ekp_8", 1).killAtDistance("SCAV", 5, 15.0, 40.0)
-                .unlockTrade(KOVACS, "ekp_8")
+                .handInFir("pso_1", 1).killAtDistance("SCAV", 5, 15.0, 40.0)
+                .unlockTrade(KOVACS, "pso_1")
                 .money(16000).exp(2800).build());
         quests.add(new QuestBuilder(module, "kovacs_penetration")
                 .trader(KOVACS).name("貫通力の確保")
