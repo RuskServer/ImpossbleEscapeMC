@@ -38,6 +38,17 @@ public class ScavCommand implements BasicCommand {
             return;
         }
 
+        ScavSpawnArguments options;
+        try {
+            if(args.length>0&&args[0].equalsIgnoreCase("heatmap")) {
+                if(args.length!=1)throw new IllegalArgumentException();
+                options=null;
+            }else options=ScavSpawnArguments.parse(args);
+        }catch(IllegalArgumentException ex) {
+            sender.sendMessage(net.kyori.adventure.text.Component.text("使用法: /scavspawn [low|mid|high] [x y z] または /scavspawn heatmap",net.kyori.adventure.text.format.NamedTextColor.RED));
+            return;
+        }
+
         // ヒートマップ表示トグル
         if (args.length > 0 && args[0].equalsIgnoreCase("heatmap")) {
             if (!(sender instanceof Player player)) {
@@ -64,16 +75,16 @@ public class ScavCommand implements BasicCommand {
             spawnLoc = entity.getLocation();
         }
 
-        if (args.length >= 3) {
+        if (options.coordinates().length == 3) {
             try {
                 World world = (spawnLoc != null) ? spawnLoc.getWorld() : org.bukkit.Bukkit.getWorlds().get(0);
                 double baseEntityX = (spawnLoc != null) ? spawnLoc.getX() : 0;
                 double baseEntityY = (spawnLoc != null) ? spawnLoc.getY() : 0;
                 double baseEntityZ = (spawnLoc != null) ? spawnLoc.getZ() : 0;
 
-                double x = parseCoord(baseEntityX, args[0]);
-                double y = parseCoord(baseEntityY, args[1]);
-                double z = parseCoord(baseEntityZ, args[2]);
+                double x = ScavSpawnArguments.coordinate(baseEntityX, options.coordinates()[0]);
+                double y = ScavSpawnArguments.coordinate(baseEntityY, options.coordinates()[1]);
+                double z = ScavSpawnArguments.coordinate(baseEntityZ, options.coordinates()[2]);
 
                 spawnLoc = new Location(world, x, y, z);
             } catch (Exception e) {
@@ -88,11 +99,11 @@ public class ScavCommand implements BasicCommand {
         }
 
         try {
-            if (plugin.getScavSpawner().spawnScav(spawnLoc) == null) {
+            if (plugin.getScavSpawner().spawnScav(spawnLoc,options.level()) == null) {
                 sender.sendMessage(ChatColor.RED + "SCAVの銃がデータパックに無いため召喚できません (コンソールの警告を確認してください)。");
                 return;
             }
-            sender.sendMessage(ChatColor.GREEN + "SCAVを召喚しました。");
+            sender.sendMessage(net.kyori.adventure.text.Component.text("SCAVを召喚しました。"+(options.level()==null?"":" AI: "+options.level()),net.kyori.adventure.text.format.NamedTextColor.GREEN));
         } catch (Exception e) {
             sender.sendMessage(ChatColor.RED + "エラー: " + e.getMessage());
         }
@@ -137,10 +148,13 @@ public class ScavCommand implements BasicCommand {
         heatmapTasks.put(player.getUniqueId(), task);
     }
 
-    private double parseCoord(double base, String input) {
-        if (input.startsWith("~")) {
-            return (input.length() == 1) ? base : base + Double.parseDouble(input.substring(1));
-        }
-        return Double.parseDouble(input);
+    @Override
+    public @NotNull java.util.List<String> suggest(@NotNull CommandSourceStack stack,@NotNull String[] args) {
+        if(!stack.getSender().isOp())return java.util.List.of();
+        if(args.length==1)return java.util.List.of("low","mid","high","heatmap").stream()
+                .filter(v->v.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
+        if(args.length==4&&ScavSpawnArguments.rank(args[0])==null)return java.util.List.of("low","mid","high").stream()
+                .filter(v->v.startsWith(args[3].toLowerCase(java.util.Locale.ROOT))).toList();
+        return java.util.List.of();
     }
 }

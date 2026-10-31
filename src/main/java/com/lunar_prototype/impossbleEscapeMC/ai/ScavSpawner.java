@@ -100,16 +100,21 @@ public class ScavSpawner implements Listener {
 
     /** レイド参加者の装備帯に応じた弾薬クラス上限を適用してスポーンさせる。 */
     public UUID spawnScav(Location loc, String raidSessionId, String mapId, Integer maxAmmoClass) {
-        return spawnScav(loc,raidSessionId,mapId,maxAmmoClass,null,null);
+        return spawnScav(loc,raidSessionId,mapId,maxAmmoClass,null,null,null);
     }
 
     /** 通常SCAVの確率・装備上限とは別の、明示的なボス部隊専用スポーン。 */
     public UUID spawnBossMember(Location loc,String raidSessionId,String mapId,String role,ScavBossPost post) {
         if(!List.of("boss","guard1","guard2").contains(role)||post==null)throw new IllegalArgumentException("Invalid boss member");
-        return spawnScav(loc,raidSessionId,mapId,null,role,post);
+        return spawnScav(loc,raidSessionId,mapId,null,role,post,null);
     }
 
-    private UUID spawnScav(Location loc,String raidSessionId,String mapId,Integer maxAmmoClass,String bossRole,ScavBossPost post) {
+    /** 管理コマンド等から明示指定するAIレベル。装備は通常SCAVのまま。 */
+    public UUID spawnScav(Location loc,ScavBrain.BrainLevel level) {
+        return spawnScav(loc,null,null,null,null,null,level);
+    }
+
+    private UUID spawnScav(Location loc,String raidSessionId,String mapId,Integer maxAmmoClass,String bossRole,ScavBossPost post,ScavBrain.BrainLevel forcedLevel) {
         // 銃や必須装備が無い時は、弱い代用品でボスを出さない。
         ItemStack gun;
         ItemStack helmet=null,chest=null,backpack=null;
@@ -189,7 +194,7 @@ public class ScavSpawner implements Listener {
         Bukkit.getMobGoals().removeAllGoals(scav);
 
         // コントローラーを生成して登録
-        ScavBrain.BrainLevel brainLevel = bossRole==null?rollBrainLevel():bossRole.equals("boss")?ScavBrain.BrainLevel.HIGH:ScavBrain.BrainLevel.MID;
+        ScavBrain.BrainLevel brainLevel = forcedLevel!=null?forcedLevel:bossRole==null?rollBrainLevel():bossRole.equals("boss")?ScavBrain.BrainLevel.HIGH:ScavBrain.BrainLevel.MID;
         // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
         if(bossRole==null)com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav,brainLevel,maxAmmoClass);
         else if(com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assignBest(scav)==null){scav.remove();return null;}

@@ -5,3 +5,5 @@ api-version: '1.21'
 softdepend: [Citizens, WorldEdit, FastAsyncWorldEdit]
 
 # /raid boss <set|list|remove> is registered by the existing @Command RaidCommand.
+
+# /scavspawn [low|mid|high] [x y z] is registered by the existing @Command ScavCommand.

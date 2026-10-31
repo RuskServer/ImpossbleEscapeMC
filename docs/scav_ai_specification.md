@@ -467,3 +467,6 @@ AIの判断・移動・エンティティ操作はサーバースレッドで実
 ## 希少ボス部隊
 
 薬品工場の高脅威区域には、通常SCAVとは別にボス1人＋護衛2人を1レイド1回抽選できる。通常スポーンのLOW/MID比率は維持し、専用生成だけボスをHIGHにする。持ち場・部隊内の連携・装備・抽選・登録・復元時の抑止は [RAID_BOSS.md](RAID_BOSS.md) を参照。
+
+
+管理者の単体検証は `/scavspawn low`・`/scavspawn mid`・`/scavspawn high` でAIレベルを明示できる。座標は `/scavspawn high ~ ~ ~` または旧形式にレベルを足した `/scavspawn ~ ~ ~ high`。省略時は従来のLOW/MID抽選。明示HIGHはボス部隊の装備を付けず、HIGHの既存弾薬抽選を使う。通常のレイドスポーン地点登録 `/raid scavspawn` は変更しない。
