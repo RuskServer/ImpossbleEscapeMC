@@ -38,6 +38,20 @@ public class ScavCommand implements BasicCommand {
             return;
         }
 
+        if(args.length>0&&args[0].equalsIgnoreCase("inspect")) {
+            if(args.length!=1||!(sender instanceof Player player)) {
+                sender.sendMessage(net.kyori.adventure.text.Component.text("SCAVに照準を合わせて /scavspawn inspect を実行してください。",net.kyori.adventure.text.format.NamedTextColor.YELLOW));return;
+            }
+            Location eye=player.getEyeLocation();double distance=32;
+            var wall=player.getWorld().rayTraceBlocks(eye,eye.getDirection(),distance,org.bukkit.FluidCollisionMode.NEVER,true);
+            if(wall!=null)distance=eye.toVector().distance(wall.getHitPosition());
+            var hit=player.getWorld().rayTraceEntities(eye,eye.getDirection(),Math.max(.001,distance),.25,e->com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.isScav(e.getUniqueId()));
+            var controller=hit==null||hit.getHitEntity()==null?null:com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.getController(hit.getHitEntity().getUniqueId());
+            if(controller==null)player.sendMessage(net.kyori.adventure.text.Component.text("32ブロック以内のSCAVに照準を合わせてください。",net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+            else for(String line:controller.inspectCombat())player.sendMessage(net.kyori.adventure.text.Component.text(line,net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+            return;
+        }
+
         if(args.length>0&&args[0].equalsIgnoreCase("corpsecheck")) {
             if(args.length!=1||!(sender instanceof Player player)) {
                 sender.sendMessage(net.kyori.adventure.text.Component.text("死体の近くで /scavspawn corpsecheck を実行してください。",net.kyori.adventure.text.format.NamedTextColor.YELLOW));return;
@@ -55,7 +69,7 @@ public class ScavCommand implements BasicCommand {
                 options=null;
             }else options=ScavSpawnArguments.parse(args);
         }catch(IllegalArgumentException ex) {
-            sender.sendMessage(net.kyori.adventure.text.Component.text("使用法: /scavspawn [low|mid|high] [x y z] または /scavspawn <heatmap|corpsecheck>",net.kyori.adventure.text.format.NamedTextColor.RED));
+            sender.sendMessage(net.kyori.adventure.text.Component.text("使用法: /scavspawn [low|mid|high] [x y z] または /scavspawn <heatmap|corpsecheck|inspect>",net.kyori.adventure.text.format.NamedTextColor.RED));
             return;
         }
 
@@ -161,7 +175,7 @@ public class ScavCommand implements BasicCommand {
     @Override
     public @NotNull java.util.List<String> suggest(@NotNull CommandSourceStack stack,@NotNull String[] args) {
         if(!stack.getSender().isOp())return java.util.List.of();
-        if(args.length==1)return java.util.List.of("low","mid","high","heatmap","corpsecheck").stream()
+        if(args.length==1)return java.util.List.of("low","mid","high","heatmap","corpsecheck","inspect").stream()
                 .filter(v->v.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
         if(args.length==4&&ScavSpawnArguments.rank(args[0])==null)return java.util.List.of("low","mid","high").stream()
                 .filter(v->v.startsWith(args[3].toLowerCase(java.util.Locale.ROOT))).toList();

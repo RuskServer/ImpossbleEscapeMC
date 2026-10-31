@@ -381,6 +381,9 @@ public class ScavController {
     private int investigateTicks = 0;
     private BehaviorState behaviorState = BehaviorState.RELAXED;
     private float alertness;
+    private String lastAlertnessReason="SPAWN";
+    private long allyGunfireNotifications;
+    private int lastAllyGunfireTick=Integer.MIN_VALUE/2;
     private boolean returningHome = false;
 
     // --- 味方の救援 ---
@@ -445,6 +448,29 @@ public class ScavController {
     private ScavBossPost bossPost;
     private boolean bossReturning;
     private int bossNextRepath;
+    /** 管理者向けの読み取り専用情報。難易度やターゲットを変更しない。 */
+    public List<String> inspectCombat() {
+        List<String> lines=new ArrayList<>();
+        String role=bossPost==null?"通常SCAV":bossPost.leader()?"ボス":"ボス護衛";
+        lines.add("役割: "+role+" / AI: "+brainLevel+" / 個体: "+scav.getEntityId());
+        lines.add("所属レイド: "+Objects.toString(ScavSpawner.getRaidSessionId(scav.getUniqueId()),"なし"));
+        lines.add(String.format(Locale.ROOT,"警戒値: %.3f / 最終要因: %s / 制圧: %.3f",alertness,lastAlertnessReason,suppression));
+        lines.add(String.format(Locale.ROOT,"視野角: %.1f度 / 基本視認距離: %.1fブロック / 照準難度: %.3f",vision.fovDegrees(),vision.maxVisionDistance(),aimDifficulty()));
+        lines.add("射撃方式: "+(weapon==null?"未準備":useFullAuto(weapon)?"フルオート":"単発")+" / 発射待ち残り: "+Math.max(0,fireHoldUntil-System.currentTimeMillis())+"ms");
+        var supply=ScavAmmoSupply.of(scav.getUniqueId());var ammo=supply==null?null:supply.ammo();
+        lines.add("弾: "+(ammo==null?"未割り当て":ammo.id+" / クラス"+ammo.ammoClass+" / 予備"+supply.spare()));
+        var equipment=scav.getEquipment();
+        String gun=equipment==null?null:DatapackGunCatalog.gunIdOf(equipment.getItemInMainHand());
+        lines.add("銃: "+Objects.toString(gun,"なし")+" / 頭: "+inspectEquipment(equipment==null?null:equipment.getHelmet())+" / 胴: "+inspectEquipment(equipment==null?null:equipment.getChestplate()));
+        lines.add("味方銃声の通知: "+allyGunfireNotifications+"回 / 最終: "+(allyGunfireNotifications==0?"なし":Math.max(0,(Bukkit.getCurrentTick()-lastAllyGunfireTick)/20)+"秒前"));
+        if(bossPost==null&&brainLevel==ScavBrain.BrainLevel.HIGH)lines.add("注意: 持ち場なしのHIGHです。通常のレイド自動スポーンでは選ばれない設定です。");
+        return lines;
+    }
+    private static String inspectEquipment(ItemStack item) {
+        if(item==null||item.getType().isAir()||!item.hasItemMeta())return "なし";
+        var pdc=item.getItemMeta().getPersistentDataContainer();
+        return pdc.getOrDefault(PDCKeys.ITEM_ID,PDCKeys.STRING,item.getType().name())+"（クラス"+pdc.getOrDefault(PDCKeys.ARMOR_CLASS,PDCKeys.INTEGER,0)+"）";
+    }
     public ScavBossPost getBossPost(){return bossPost;}
     public void setBossPost(ScavBossPost post){bossPost=java.util.Objects.requireNonNull(post);}
     public boolean canCoordinateWith(ScavController other) {
@@ -2060,6 +2086,7 @@ public class ScavController {
 
     /** 味方の銃声を聞いた。戦闘が近くで起きていることだけ分かる (撃っている味方の位置を敵の位置とは扱わない) */
     public void onAllyGunfire() {
+        allyGunfireNotifications++;lastAllyGunfireTick=Bukkit.getCurrentTick();
         addAlertness(0.1f, "ALLY_GUNFIRE", ScavSpawner.getRaidSessionId(scav.getUniqueId()));
         isAlerted = true;
     }
@@ -2418,6 +2445,7 @@ public class ScavController {
     }
 
     private void addAlertness(float amount, String reason, String raidSessionId) {
+        lastAlertnessReason=reason;
         float before = alertness;
         alertness = clamp01(alertness + amount);
         if (raidSessionId != null && plugin.getAiRaidLogger() != null && plugin.getAiRaidLogger().isEnabled()) {

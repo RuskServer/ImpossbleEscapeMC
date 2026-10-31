@@ -9,3 +9,5 @@ softdepend: [Citizens, WorldEdit, FastAsyncWorldEdit]
 # /scavspawn [low|mid|high] [x y z] is registered by the existing @Command ScavCommand.
 
 # /scavspawn corpsecheck reports corpse interaction diagnostics through ScavCommand.
+
+# /scavspawn inspect reports actual SCAV role, AI, alertness and equipment (OP only).
