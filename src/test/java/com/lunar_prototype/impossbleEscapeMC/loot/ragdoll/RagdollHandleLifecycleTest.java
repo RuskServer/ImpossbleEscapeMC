@@ -12,12 +12,15 @@ import java.util.function.Consumer;
 /** 実Actorの生成・更新・部分欠損・回収を、サーバーを動かさず検証する。 */
 public final class RagdollHandleLifecycleTest {
     private static final List<Handle> spawned=new ArrayList<>();
+    private static boolean blocked;
     private static final class Handle implements InvocationHandler {
         boolean valid=true;float width,height;Location location;Interaction entity;
+        final UUID id=UUID.randomUUID();
         Handle(Location location){this.location=location.clone();entity=proxy(Interaction.class,this);}
         @Override public Object invoke(Object p,Method m,Object[] a) {
             return switch(m.getName()) {
                 case "isValid"->valid;
+                case "getUniqueId"->id;
                 case "setInteractionWidth"->{width=(float)a[0];yield null;}
                 case "setInteractionHeight"->{height=(float)a[0];yield null;}
                 case "getInteractionWidth"->width;
@@ -42,6 +45,10 @@ public final class RagdollHandleLifecycleTest {
             default->throw new AssertionError("unexpected server: "+m.getName());
         }));
         World world=proxy(World.class,(p,m,a)->{
+            if(m.getName().equals("rayTraceBlocks")) {
+                if(!blocked)return null;
+                return new org.bukkit.util.RayTraceResult(((Location)a[0]).toVector().add(((Vector)a[1]).clone().multiply(Math.min(.2,(double)a[2]))));
+            }
             if(m.getName().equals("spawn")) {
                 check(a[1]==Interaction.class,"only interaction handles spawned");
                 Handle handle=new Handle((Location)a[0]);spawned.add(handle);
@@ -77,12 +84,35 @@ public final class RagdollHandleLifecycleTest {
             var center=physics.pose(part).center();
             check(select.invoke(actor,part,new Vector(center.x,center.y,center.z))!=null,"forwarded event targets a handle at the clicked body part");
         }
+        // 実際のネイティブイベントから位置を保存し、別向きの視線でも距離・遮蔽だけで検証する。
+        var torso=physics.pose(RagdollPhysics.Part.TORSO).center();
+        Location eye=new Location(world,torso.x-1,torso.y,torso.z+2,90,0);
+        Player player=proxy(Player.class,(p,m,a)->switch(m.getName()) {
+            case "getWorld"->world;
+            case "getGameMode"->GameMode.SURVIVAL;
+            case "getEyeLocation"->eye.clone();
+            case "getUniqueId"->new UUID(56,78);
+            default->throw new AssertionError("unexpected player: "+m.getName());
+        });
+        Handle nativeHandle=spawned.get(1);
+        var hitBox=nativeHandle.entity.getBoundingBox();
+        Vector worldHit=new Vector(hitBox.getMaxX()-.001,hitBox.getCenterY(),hitBox.getMaxZ());
+        var clickEvent=new org.bukkit.event.player.PlayerInteractAtEntityEvent(player,nativeHandle.entity,worldHit.clone().subtract(nativeHandle.location.toVector()),org.bukkit.inventory.EquipmentSlot.HAND);
+        var capture=ScavRagdollModule.class.getDeclaredMethod("captureClick",org.bukkit.event.player.PlayerInteractEntityEvent.class,actorClass);capture.setAccessible(true);
+        Object saved=capture.invoke(module,clickEvent,actor);check(saved!=null,"actual event captured even without looking through the inner box");
+        var clickClass=Class.forName(ScavRagdollModule.class.getName()+"$LootClick");
+        var validate=ScavRagdollModule.class.getDeclaredMethod("validateClickInRange",Player.class,actorClass,clickClass,double.class);validate.setAccessible(true);
+        check((boolean)validate.invoke(module,player,actor,saved,3.0),"native click does not require an exact camera recast");
+        eye.setYaw(-90);check((boolean)validate.invoke(module,player,actor,saved,3.0),"next-tick camera turn retains captured target");
+        blocked=true;check(!(boolean)validate.invoke(module,player,actor,saved,3.0),"same actual event blocked by wall");blocked=false;
+        eye.add(10,0,0);check(!(boolean)validate.invoke(module,player,actor,saved,3.0),"same actual event rejected after leaving range");
+        eye.subtract(10,0,0);
         update.invoke(actor);check(spawned.size()==11,"updates reuse existing handles");
         spawned.get(4).valid=false;update.invoke(actor);
         check(spawned.size()==12&&spawned.stream().filter(h->h.valid).count()==11,"only missing handle repaired");
         var remove=ScavRagdollModule.class.getDeclaredMethod("remove",actorClass,boolean.class);remove.setAccessible(true);remove.invoke(module,actor,false);
         check(spawned.stream().noneMatch(h->h.valid),"all handles removed during fallback/cleanup");
-        System.out.println("RagdollHandleLifecycleTest passed: native creation, reuse, missing-handle repair and complete cleanup");
+        System.out.println("RagdollHandleLifecycleTest passed: native click capture/validation, creation, reuse, missing-handle repair and complete cleanup");
     }
     private static <T> T proxy(Class<T> type,InvocationHandler handler){return type.cast(Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},handler));}
     private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}

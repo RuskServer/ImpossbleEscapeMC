@@ -38,6 +38,16 @@ public class ScavCommand implements BasicCommand {
             return;
         }
 
+        if(args.length>0&&args[0].equalsIgnoreCase("corpsecheck")) {
+            if(args.length!=1||!(sender instanceof Player player)) {
+                sender.sendMessage(net.kyori.adventure.text.Component.text("死体の近くで /scavspawn corpsecheck を実行してください。",net.kyori.adventure.text.format.NamedTextColor.YELLOW));return;
+            }
+            var module=plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.loot.ragdoll.ScavRagdollModule.class);
+            if(module==null)sender.sendMessage(net.kyori.adventure.text.Component.text("ラグドールモジュールがありません。",net.kyori.adventure.text.format.NamedTextColor.RED));
+            else for(String line:module.diagnose(player))player.sendMessage(net.kyori.adventure.text.Component.text(line,net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+            return;
+        }
+
         ScavSpawnArguments options;
         try {
             if(args.length>0&&args[0].equalsIgnoreCase("heatmap")) {
@@ -45,7 +55,7 @@ public class ScavCommand implements BasicCommand {
                 options=null;
             }else options=ScavSpawnArguments.parse(args);
         }catch(IllegalArgumentException ex) {
-            sender.sendMessage(net.kyori.adventure.text.Component.text("使用法: /scavspawn [low|mid|high] [x y z] または /scavspawn heatmap",net.kyori.adventure.text.format.NamedTextColor.RED));
+            sender.sendMessage(net.kyori.adventure.text.Component.text("使用法: /scavspawn [low|mid|high] [x y z] または /scavspawn <heatmap|corpsecheck>",net.kyori.adventure.text.format.NamedTextColor.RED));
             return;
         }
 
@@ -151,7 +161,7 @@ public class ScavCommand implements BasicCommand {
     @Override
     public @NotNull java.util.List<String> suggest(@NotNull CommandSourceStack stack,@NotNull String[] args) {
         if(!stack.getSender().isOp())return java.util.List.of();
-        if(args.length==1)return java.util.List.of("low","mid","high","heatmap").stream()
+        if(args.length==1)return java.util.List.of("low","mid","high","heatmap","corpsecheck").stream()
                 .filter(v->v.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList();
         if(args.length==4&&ScavSpawnArguments.rank(args[0])==null)return java.util.List.of("low","mid","high").stream()
                 .filter(v->v.startsWith(args[3].toLowerCase(java.util.Locale.ROOT))).toList();

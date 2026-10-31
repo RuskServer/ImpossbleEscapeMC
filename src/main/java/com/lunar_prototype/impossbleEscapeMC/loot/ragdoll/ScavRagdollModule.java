@@ -36,10 +36,13 @@ public final class ScavRagdollModule implements IModule,Listener {
     private PlayerInteractEntityEvent forwardedClick;
     private record BodyPick(Actor actor,RagdollPhysics.Part part,double distance) {}
     private final class PendingOpen {
-        final Actor actor;final List<PlayerInteractEntityEvent> events=new ArrayList<>();
+        final Actor actor;final List<LootClick> clicks=new ArrayList<>();
         PendingOpen(Actor actor){this.actor=actor;}
     }
+    private record LootClick(PlayerInteractEntityEvent event,BodyHandle handle,RagdollLootTarget target) {}
+    private record Diagnostic(int tick,String result) {}
     private final Map<UUID,PendingOpen> pendingOpens=new HashMap<>();
+    private final Map<UUID,Diagnostic> lastClicks=new HashMap<>();
     public ScavRagdollModule(ImpossbleEscapeMC plugin){this.plugin=plugin;}
     @Override public void onEnable(ServiceContainer services) {
         if(!plugin.getConfig().getBoolean("scav-ragdoll.enabled",true))return;
@@ -57,7 +60,7 @@ public final class ScavRagdollModule implements IModule,Listener {
     @Override public void onDisable() {
         if(task!=null)task.cancel();task=null;
         for(Actor actor:List.copyOf(actors.values()))fallback(actor);
-        active.clear();impacts.clear();deaths.clear();pendingOpens.clear();HandlerList.unregisterAll(this);
+        active.clear();impacts.clear();deaths.clear();pendingOpens.clear();lastClicks.clear();HandlerList.unregisterAll(this);
     }
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
     public void impact(EntityDamageByEntityEvent event) {
@@ -235,7 +238,8 @@ public final class ScavRagdollModule implements IModule,Listener {
         try{return actors.get(UUID.fromString(key));}catch(IllegalArgumentException ex){return null;}
     }
     /** 通常のInteractionと補助経路で同じ射程・外層・遮蔽条件を使う。 */
-    private BodyPick pick(Player player,Actor only) {
+    private BodyPick pick(Player player,Actor only){return pick(player,only,true);}
+    private BodyPick pick(Player player,Actor only,boolean report) {
         if(player.getGameMode()==GameMode.SPECTATOR)return null;
         var attribute=player.getAttribute(org.bukkit.attribute.Attribute.ENTITY_INTERACTION_RANGE);
         double range=attribute==null?3.0:attribute.getValue();
@@ -251,10 +255,10 @@ public final class ScavRagdollModule implements IModule,Listener {
                 if(Double.isFinite(distance)&&distance<=nearest){nearest=distance;best=actor;bestPart=part;}
             }
         }
-        if(best==null){trace("Loot click rejected: no visible body part in reach");return null;}
+        if(best==null){if(report)remember(player,"視線に触れる部位なし／射程外");return null;}
         var wall=player.getWorld().rayTraceBlocks(eye,direction,Math.max(nearest,.001),FluidCollisionMode.NEVER,true);
         double blocked=wall==null?Double.POSITIVE_INFINITY:wall.getHitPosition().distance(eye.toVector());
-        if(!RagdollInteractionGeometry.visible(nearest,blocked,range)){trace("Loot click rejected: block occludes body");return null;}
+        if(!RagdollInteractionGeometry.visible(nearest,blocked,range)){if(report)remember(player,"補助判定: ブロックに遮られています");return null;}
         return new BodyPick(best,bestPart,nearest);
     }
     // 空・地面への元の拒否は解除せず、死体のエンティティ操作として保護側へ確認する。
@@ -281,27 +285,104 @@ public final class ScavRagdollModule implements IModule,Listener {
     public void interact(PlayerInteractEntityEvent event){if(event!=forwardedClick)requestOpen(event);}
     @EventHandler(priority=EventPriority.MONITOR)
     public void interactAt(PlayerInteractAtEntityEvent event){if(event!=forwardedClick)requestOpen(event);}
+    private void remember(Player player,String result) {
+        lastClicks.put(player.getUniqueId(),new Diagnostic(Bukkit.getCurrentTick(),result));trace(result);
+    }
+    private LootClick captureClick(PlayerInteractEntityEvent event,Actor actor) {
+        // 実際にこの死体へ割り当てた操作箱だけを認める。表示用PDCだけでは開かせない。
+        BodyHandle handle=actor.handles.stream().filter(h->h.entity!=null&&h.entity.isValid()
+                &&h.entity.getUniqueId().equals(event.getRightClicked().getUniqueId())).findFirst().orElse(null);
+        if(handle==null){remember(event.getPlayer(),"操作判定の所属が見つかりません");return null;}
+        org.bukkit.util.Vector hit;
+        var box=handle.entity.getBoundingBox();
+        if(event instanceof PlayerInteractAtEntityEvent at) {
+            hit=at.getClickedPosition().clone().add(handle.entity.getLocation().toVector());
+            // 動いている操作箱の通信遅延を少し許容する。射程と遮蔽は実際の部位で別途検証。
+            if((!Double.isFinite(hit.getX())||!Double.isFinite(hit.getY())||!Double.isFinite(hit.getZ()))||!box.clone().expand(.35).contains(hit)){remember(event.getPlayer(),"操作位置が判定箱から離れています");return null;}
+        } else {
+            var eye=event.getPlayer().getEyeLocation();
+            hit=new org.bukkit.util.Vector(Math.clamp(eye.getX(),box.getMinX(),box.getMaxX()),Math.clamp(eye.getY(),box.getMinY(),box.getMaxY()),Math.clamp(eye.getZ(),box.getMinZ(),box.getMaxZ()));
+        }
+        RagdollLootTarget target=RagdollLootTarget.capture(actor.physics.pose(handle.part),RagdollPhysics.halfSize(handle.part),new Vector3d(hit.getX(),hit.getY(),hit.getZ()));
+        if(target==null){remember(event.getPlayer(),"部位の姿勢が無効です");return null;}
+        return new LootClick(event,handle,target);
+    }
+    /** 視線を引き直さず、クリックした部位への距離と遮蔽を検証する。 */
+    private boolean validateClick(Player player,Actor actor,LootClick click) {
+        if(player.getGameMode()==GameMode.SPECTATOR||player.getWorld()!=actor.world||!actor.corpse.isValid()){remember(player,"プレイヤー／死体の状態が変わりました");return false;}
+        var attribute=player.getAttribute(org.bukkit.attribute.Attribute.ENTITY_INTERACTION_RANGE);
+        double range=attribute==null?3.0:attribute.getValue();
+        return validateClickInRange(player,actor,click,range);
+    }
+    private boolean validateClickInRange(Player player,Actor actor,LootClick click,double range) {
+        if(player.getGameMode()==GameMode.SPECTATOR||player.getWorld()!=actor.world||!actor.corpse.isValid()){remember(player,"プレイヤー／死体の状態が変わりました");return false;}
+        Location eye=player.getEyeLocation();Vector3d start=new Vector3d(eye.getX(),eye.getY(),eye.getZ());
+        var pose=actor.physics.pose(click.handle.part);
+        var bounds=RagdollInteractionGeometry.bounds(pose,RagdollPhysics.halfSize(click.handle.part),click.handle.section,RagdollInteractionGeometry.sections(click.handle.part));
+        double reach=RagdollLootTarget.distanceToBox(bounds,start);
+        if(!Double.isFinite(range)||range<=0||!Double.isFinite(reach)||reach>range+.05){remember(player,"クリックした部位が射程外です");return false;}
+        Vector3d point=click.target.world(pose);if(!point.isFinite()){remember(player,"部位の姿勢が無効です");return false;}
+        var direction=new org.bukkit.util.Vector(point.x-eye.getX(),point.y-eye.getY(),point.z-eye.getZ());double distance=direction.length();
+        double blocked=Double.POSITIVE_INFINITY;
+        if(distance>1e-6) {
+            var wall=actor.world.rayTraceBlocks(eye,direction.multiply(1/distance),distance,FluidCollisionMode.NEVER,true);
+            if(wall!=null)blocked=wall.getHitPosition().distance(eye.toVector());
+        }
+        if(!RagdollInteractionGeometry.visible(distance,blocked,Double.MAX_VALUE)){remember(player,"クリックした部位がブロックに遮られています");return false;}
+        return true;
+    }
     private void requestOpen(PlayerInteractEntityEvent event) {
         Actor actor=actorOf(event.getRightClicked());if(actor==null)return;
-        if(event.isCancelled()){trace("Loot click blocked: interaction event cancelled");return;}
-        if(event.getHand()!=EquipmentSlot.HAND||pick(event.getPlayer(),actor)==null)return;
+        if(event.isCancelled()){remember(event.getPlayer(),"エンティティ操作イベントがキャンセルされています");return;}
+        if(event.getHand()!=EquipmentSlot.HAND)return;
+        PendingOpen existing=pendingOpens.get(event.getPlayer().getUniqueId());
+        if(existing!=null&&existing.actor==actor&&existing.clicks.stream().anyMatch(c->c.event==event))return;
+        LootClick click=captureClick(event,actor);if(click==null||!validateClick(event.getPlayer(),actor,click))return;
+        remember(event.getPlayer(),"部位クリック受信: "+click.handle.part+"／GUI待ち");
         UUID playerId=event.getPlayer().getUniqueId();PendingOpen pending=pendingOpens.get(playerId);
-        if(pending!=null&&pending.actor==actor){pending.events.add(event);return;}
-        pending=new PendingOpen(actor);pending.events.add(event);pendingOpens.put(playerId,pending);
+        if(pending!=null&&pending.actor==actor){pending.clicks.add(click);return;}
+        pending=new PendingOpen(actor);pending.clicks.add(click);pendingOpens.put(playerId,pending);
         PendingOpen queued=pending;
-        // 全ハンドラーの完了後に開く。INTERACT_AT/INTERACT等の重複も1回へまとめる。
         Bukkit.getScheduler().runTask(plugin,()->{
             if(!pendingOpens.remove(playerId,queued))return;
             Player player=event.getPlayer();
-            if(!player.isOnline()||actors.get(actor.corpse.getUniqueId())!=actor)return;
-            if(queued.events.stream().allMatch(PlayerInteractEntityEvent::isCancelled)){trace("Loot click blocked: late interaction cancellation");return;}
-            if(pick(player,actor)==null)return;
-            if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse)return;
-            plugin.getSearchGUI().open(player,actor.corpse);
+            if(!player.isOnline())return;
+            if(actors.get(actor.corpse.getUniqueId())!=actor){remember(player,"GUI待機中に死体が削除されました");return;}
+            boolean allowed=false;
+            for(LootClick request:queued.clicks)if(!request.event.isCancelled()&&validateClick(player,actor,request)){allowed=true;break;}
+            if(!allowed){if(queued.clicks.stream().allMatch(c->c.event.isCancelled()))remember(player,"処理完了後に操作イベントがキャンセルされています");return;}
+            if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse){remember(player,"同じ死体のGUIは既に開いています");return;}
+            try{plugin.getSearchGUI().open(player,actor.corpse);}
+            catch(RuntimeException ex){remember(player,"GUIを開く際の例外: "+ex.getClass().getSimpleName());plugin.getLogger().log(java.util.logging.Level.WARNING,"SCAV死体のGUIを開けませんでした",ex);return;}
             boolean opened=player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse;
-            trace(opened?"Corpse loot opened":"Corpse loot did not open: inventory data/open-event cancellation");
+            remember(player,opened?"死体GUIを開きました":"GUIを開けませんでした（中身データ／InventoryOpenの拒否）");
         });
     }
+    /** OP用の読取専用診断。拒否を解除したり、GUIを強制的に開いたりしない。 */
+    public List<String> diagnose(Player player) {
+        if(corpseKey==null)return List.of("ラグドール機能は無効です。");
+        List<String> lines=new ArrayList<>();Diagnostic last=lastClicks.get(player.getUniqueId());
+        lines.add("最終クリック: "+(last==null?"記録なし":last.result+"（"+Math.max(0,(Bukkit.getCurrentTick()-last.tick)/20)+"秒前）"));
+        Actor nearest=null;double distance=64;
+        for(Actor actor:actors.values())if(actor.world==player.getWorld()&&actor.corpse.isValid()) {
+            var center=actor.physics.pose(RagdollPhysics.Part.TORSO).center();double d=player.getLocation().toVector().distanceSquared(new org.bukkit.util.Vector(center.x,center.y,center.z));
+            if(d<distance){distance=d;nearest=actor;}
+        }
+        if(nearest==null){lines.add("8ブロック以内に登録済みのラグドール死体がありません。通常死体・旧jar・清掃済みも確認してください。");return lines;}
+        int valid=0,visible=0;for(BodyHandle handle:nearest.handles)if(handle.entity!=null&&handle.entity.isValid()){valid++;if(player.canSee(handle.entity))visible++;}
+        lines.add("操作箱: "+valid+"/"+nearest.handles.size()+"／本人への表示許可: "+visible);
+        var reach=player.getAttribute(org.bukkit.attribute.Attribute.ENTITY_INTERACTION_RANGE);
+        lines.add(String.format(Locale.ROOT,"操作射程: %.2fブロック",reach==null?3.0:reach.getValue()));
+        var pdc=nearest.corpse.getPersistentDataContainer();
+        lines.add("中身データ: "+(pdc.has(PDCKeys.CORPSE_INVENTORY,org.bukkit.persistence.PersistentDataType.BYTE_ARRAY)||pdc.has(PDCKeys.CORPSE_INVENTORY,org.bukkit.persistence.PersistentDataType.STRING)?"あり":"なし"));
+        BodyPick picked=pick(player,nearest,false);lines.add("現在の視線: "+(picked==null?"部位に未交差／射程外／遮蔽":"部位 "+picked.part));
+        var listeners=new TreeSet<String>();
+        for(var listener:PlayerInteractAtEntityEvent.getHandlerList().getRegisteredListeners())listeners.add(listener.getPlugin().getName());
+        for(var listener:PlayerInteractEntityEvent.getHandlerList().getRegisteredListeners())listeners.add(listener.getPlugin().getName());
+        lines.add("操作イベントの登録プラグイン（拒否元の断定ではありません）: "+String.join(", ",listeners));
+        return lines;
+    }
+    @EventHandler public void quit(PlayerQuitEvent event){lastClicks.remove(event.getPlayer().getUniqueId());pendingOpens.remove(event.getPlayer().getUniqueId());}
     private void remove(Actor actor,boolean removeCorpse) {
         actors.remove(actor.corpse.getUniqueId());active.remove(actor.corpse.getUniqueId());
         for(Player p:Bukkit.getOnlinePlayers())if(p.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse)p.closeInventory();
