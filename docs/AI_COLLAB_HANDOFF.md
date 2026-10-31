@@ -238,3 +238,5 @@ In `config.yml`:
 - 2026-11-01: Unified quest and hideout item-need tooltips with shared headings, indented name/count rows and dim condition notes, preserving gold/aqua categories and independent FIR/stock/glint rules. Sorted quest presentation to avoid map-order reshuffles; added formatting/order and existing eligibility regressions. No item state or requirement calculation changed.
 
 - 2026-11-01: Added compact terminal-palette quest-completion chat receipts after reward application and completion recording: cash/EXP totals plus unlocked trades, with long trade lists in hover text. Preserved completion sound and reward/eligibility behavior; added completion-once and reward-receipt regressions.
+
+- 2026-11-01: Corrected datapack arm candidates using forward trajectory intersection with a body-oriented torso core, preventing side/diagonal expanded-AABB entries aimed through the torso from bypassing torso armor. Preserved outer-only arm hits, existing head/face/leg logic, damage/penetration and SCAV aiming; unknown-direction torso contacts conservatively use body. Added geometric and actual-bridge regressions and documented the single-region policy.

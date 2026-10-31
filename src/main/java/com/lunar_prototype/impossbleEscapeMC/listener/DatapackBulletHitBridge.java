@@ -38,7 +38,8 @@ import java.util.UUID;
  *   <li>頭: データパックは当たり判定の上0.45ブロックへの命中に CRIT_HIT タグを付け、頭用のダメージで撃つ。
  *       タグは damage コマンドの実行中も付いたままなので、それで判断する (頭の倍率はデータパック側で入っている)</li>
  *   <li>胴・腕・足: ダメージを与えている最中の弾 (BULLET と HIT_ENTITY タグの付いた marker) は、その tick の移動先に
- *       進行方向を向いて置かれている。その位置と向きから当たり判定の箱への入射点を逆算する</li>
+ *       進行方向を向いて置かれている。その位置と向きから当たり判定の箱への入射点を逆算する。
+ *       腕と胴は、入射点だけでなく胴の中心領域を弾道が横切るかで分ける</li>
  * </ul>
  * 基礎ダメージは装填弾の定義値 (散弾は弾Markerの粒数で割る)、足は×0.6、防具を貫通しなければ
  * ダメージなし (打撲なし) にし、バニラの防具による軽減は外す (プラグイン銃と同じく防具クラスで判断するため)。
@@ -84,9 +85,9 @@ public class DatapackBulletHitBridge implements Listener {
         AmmoDefinition ammo = shooterAmmo(event.getDamager(), contact);
         int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
         double rawDamage = BulletDamageModel.baseDamage(ammo, projectilesPerShot(event.getDamager(), contact));
-        String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null);
-        // 処理中の弾Markerから入射方向を読む。
+        // 処理中の弾Markerから入射方向を読み、腕と胴の区別にも使う。
         Vector incoming = contact != null ? contact.direction() : null;
+        String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null, incoming);
         if (BulletDamageModel.visorRicochets(victim, hitLocation, incoming)) {
             event.setCancelled(true);
             victim.getWorld().playSound(victim.getEyeLocation(), org.bukkit.Sound.ENTITY_ARROW_HIT_PLAYER, 1.0f, 1.3f);
@@ -196,7 +197,7 @@ public class DatapackBulletHitBridge implements Listener {
         return DATAPACK_BULLET_DAMAGE.equals(event.getDamageSource().getDamageType().getKey());
     }
 
-    private static String hitLocation(LivingEntity victim, Vector entry) {
+    private static String hitLocation(LivingEntity victim, Vector entry, Vector incoming) {
         if (victim.getScoreboardTags().contains(CRIT_HIT_TAG)) {
             if (entry != null && BulletDamageModel.FACE.equals(BulletDamageModel.hitLocation(victim, entry))) {
                 return BulletDamageModel.FACE;
@@ -204,7 +205,7 @@ public class DatapackBulletHitBridge implements Listener {
             return BulletDamageModel.HEAD;
         }
         if (entry == null) return BulletDamageModel.BODY;
-        String location = BulletDamageModel.hitLocation(victim, entry);
+        String location = BulletDamageModel.hitLocation(victim, entry, incoming);
         // 頭はデータパックの判定 (CRIT_HIT) に合わせる。付いていなければ胴として扱う
         return BulletDamageModel.HEAD.equals(location) ? BulletDamageModel.BODY : location;
     }

@@ -12,6 +12,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
+import org.bukkit.util.BoundingBox;
 
 import java.util.UUID;
 
@@ -35,6 +36,8 @@ public final class BulletDamageModel {
     private static final double LEGS_RATIO = 0.45;
     /** 胴の高さで、体の中心から左右にこの距離 (当たり判定の幅に対する割合) より外は腕 */
     private static final double ARMS_LATERAL_RATIO = 0.3;
+    /** 胴の中心領域の前後半径 (当たり判定の幅に対する割合)。 */
+    private static final double TORSO_DEPTH_RATIO = 0.25;
 
     private BulletDamageModel() {
     }
@@ -47,6 +50,38 @@ public final class BulletDamageModel {
         if (hit.getY() >= headY - HEAD_HEIGHT) return isFaceHit(victim, hit, headY) ? FACE : HEAD;
         if (hit.getY() <= footY + height * LEGS_RATIO) return LEGS;
         return isArm(victim, hit) ? ARMS : BODY;
+    }
+
+    /**
+     * 弾道が胴の中心領域を横切るなら胴を優先し、そこを外れる外周の命中だけ腕とする。
+     * 拡張AABBの側面への入射を、そのまま腕の無防護へ置き換えない。
+     * 1発で複数部位へのダメージは発生させず、頭・顔・脚の既存判定は維持する。
+     */
+    public static String hitLocation(LivingEntity victim, Vector hit, Vector incoming) {
+        if(hit==null)return BODY;
+        String location=hitLocation(victim,hit);
+        if(!ARMS.equals(location))return location;
+        // 方向を復元できない接触点から、腕を推定して胴防具を無効にしない。
+        if(!finite(hit)||incoming==null||!finite(incoming))return BODY;
+        double lengthSquared=incoming.lengthSquared();
+        if(!Double.isFinite(lengthSquared)||lengthSquared<1e-12)return BODY;
+        var feet=victim.getLocation();
+        double width=victim.getWidth(),height=victim.getEyeLocation().getY()-feet.getY();
+        double yaw=Math.toRadians(victim.getBodyYaw());
+        if(!Double.isFinite(width)||width<=0||!Double.isFinite(height)||height<=0
+                ||!Double.isFinite(yaw)||height-HEAD_HEIGHT<=height*LEGS_RATIO)return BODY;
+        double cos=Math.cos(yaw),sin=Math.sin(yaw);
+        double x=hit.getX()-feet.getX(),z=hit.getZ()-feet.getZ();
+        Vector start=new Vector(x*cos+z*sin,hit.getY()-feet.getY(),-x*sin+z*cos);
+        Vector direction=new Vector(incoming.getX()*cos+incoming.getZ()*sin,incoming.getY(),
+                -incoming.getX()*sin+incoming.getZ()*cos).normalize();
+        BoundingBox torso=new BoundingBox(-width*ARMS_LATERAL_RATIO,height*LEGS_RATIO,-width*TORSO_DEPTH_RATIO,
+                width*ARMS_LATERAL_RATIO,height-HEAD_HEIGHT,width*TORSO_DEPTH_RATIO);
+        return torso.rayTrace(start,direction,2*(height+width))!=null?BODY:ARMS;
+    }
+
+    private static boolean finite(Vector point) {
+        return Double.isFinite(point.getX())&&Double.isFinite(point.getY())&&Double.isFinite(point.getZ());
     }
 
     /** 頭部の前面に入った弾を顔面として分ける。頭頂・側面・後頭部は頭部扱い。 */
