@@ -89,6 +89,7 @@ public final class RagdollHandleLifecycleTest {
         Location eye=new Location(world,torso.x-1,torso.y,torso.z+2,90,0);
         Player player=proxy(Player.class,(p,m,a)->switch(m.getName()) {
             case "getWorld"->world;
+            case "getAttribute"->null;
             case "getGameMode"->GameMode.SURVIVAL;
             case "getEyeLocation"->eye.clone();
             case "getUniqueId"->new UUID(56,78);
@@ -107,6 +108,13 @@ public final class RagdollHandleLifecycleTest {
         blocked=true;check(!(boolean)validate.invoke(module,player,actor,saved,3.0),"same actual event blocked by wall");blocked=false;
         eye.add(10,0,0);check(!(boolean)validate.invoke(module,player,actor,saved,3.0),"same actual event rejected after leaving range");
         eye.subtract(10,0,0);
+        // 操作箱の角は回転身体の内側を通らなくても、通常クリックと補助クリックで一致する。
+        eye.setX(hitBox.getMaxX()-.001);eye.setY(hitBox.getCenterY());eye.setZ(hitBox.getMaxZ()+1);eye.setYaw(180);eye.setPitch(0);
+        var pick=ScavRagdollModule.class.getDeclaredMethod("probeInRange",Player.class,actorClass,double.class);pick.setAccessible(true);
+        var resultHit=Class.forName(ScavRagdollModule.class.getName()+"$PickResult").getDeclaredMethod("hit");resultHit.setAccessible(true);
+        check(resultHit.invoke(pick.invoke(module,player,actor,3.0))!=null,"fallback accepts the native handle corner");
+        blocked=true;check(resultHit.invoke(pick.invoke(module,player,actor,3.0))==null,"fallback rejects a wall before the native handle");blocked=false;
+        eye.add(0,0,10);check(resultHit.invoke(pick.invoke(module,player,actor,3.0))==null,"fallback rejects native handles beyond reach");
         update.invoke(actor);check(spawned.size()==11,"updates reuse existing handles");
         spawned.get(4).valid=false;update.invoke(actor);
         check(spawned.size()==12&&spawned.stream().filter(h->h.valid).count()==11,"only missing handle repaired");

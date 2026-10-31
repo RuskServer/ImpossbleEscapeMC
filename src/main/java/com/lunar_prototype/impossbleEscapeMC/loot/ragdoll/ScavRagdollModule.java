@@ -237,29 +237,40 @@ public final class ScavRagdollModule implements IModule,Listener {
         if(key==null)return null;
         try{return actors.get(UUID.fromString(key));}catch(IllegalArgumentException ex){return null;}
     }
-    /** 通常のInteractionと補助経路で同じ射程・外層・遮蔽条件を使う。 */
+    private record PickResult(BodyPick hit,String reason) {}
+    /** 補助経路もクライアントと同じ操作箱へ当て、保存した部位位置の遮蔽は開く前に再確認する。 */
     private BodyPick pick(Player player,Actor only){return pick(player,only,true);}
     private BodyPick pick(Player player,Actor only,boolean report) {
-        if(player.getGameMode()==GameMode.SPECTATOR)return null;
+        PickResult result=probe(player,only);
+        if(report&&result.hit==null)remember(player,result.reason);
+        return result.hit;
+    }
+    private PickResult probe(Player player,Actor only) {
+        if(player.getGameMode()==GameMode.SPECTATOR)return new PickResult(null,"観戦中は操作できません");
         var attribute=player.getAttribute(org.bukkit.attribute.Attribute.ENTITY_INTERACTION_RANGE);
         double range=attribute==null?3.0:attribute.getValue();
-        if(!Double.isFinite(range)||range<=0)return null;
+        return probeInRange(player,only,range);
+    }
+    private PickResult probeInRange(Player player,Actor only,double range) {
+        if(!Double.isFinite(range)||range<=0)return new PickResult(null,"操作射程が無効です");
         Location eye=player.getEyeLocation();var direction=eye.getDirection();
-        Vector3d start=new Vector3d(eye.getX(),eye.getY(),eye.getZ());
-        Vector3d ray=new Vector3d(direction.getX(),direction.getY(),direction.getZ());
-        Actor best=null;RagdollPhysics.Part bestPart=null;double nearest=range;
+        Actor best=null;RagdollPhysics.Part bestPart=null;double nearest=Double.POSITIVE_INFINITY;
         for(Actor actor:only==null?actors.values():List.of(only)) {
             if(actor.world!=player.getWorld()||!actor.corpse.isValid())continue;
-            for(var part:RagdollPhysics.Part.values()) {
-                double distance=RagdollInteractionGeometry.distance(actor.physics.pose(part),RagdollPhysics.halfSize(part),start,ray,range);
-                if(Double.isFinite(distance)&&distance<=nearest){nearest=distance;best=actor;bestPart=part;}
+            for(BodyHandle handle:actor.handles) {
+                if(handle.entity==null||!handle.entity.isValid())continue;
+                var hit=handle.entity.getBoundingBox().rayTrace(eye.toVector(),direction,Math.max(range,64));
+                if(hit==null)continue;
+                double distance=hit.getHitPosition().distance(eye.toVector());
+                if(distance<nearest){nearest=distance;best=actor;bestPart=handle.part;}
             }
         }
-        if(best==null){if(report)remember(player,"視線に触れる部位なし／射程外");return null;}
+        if(best==null)return new PickResult(null,"視線が操作箱に未交差");
+        if(nearest>range)return new PickResult(null,String.format(Locale.ROOT,"操作箱まで %.2fブロック／射程 %.2fブロック",nearest,range));
         var wall=player.getWorld().rayTraceBlocks(eye,direction,Math.max(nearest,.001),FluidCollisionMode.NEVER,true);
         double blocked=wall==null?Double.POSITIVE_INFINITY:wall.getHitPosition().distance(eye.toVector());
-        if(!RagdollInteractionGeometry.visible(nearest,blocked,range)){if(report)remember(player,"補助判定: ブロックに遮られています");return null;}
-        return new BodyPick(best,bestPart,nearest);
+        if(!RagdollInteractionGeometry.visible(nearest,blocked,range))return new PickResult(null,String.format(Locale.ROOT,"操作箱より手前にブロック（箱 %.2f／ブロック %.2f）",nearest,blocked));
+        return new PickResult(new BodyPick(best,bestPart,nearest),"操作箱に交差: "+bestPart);
     }
     // 空・地面への元の拒否は解除せず、死体のエンティティ操作として保護側へ確認する。
     @EventHandler(priority=EventPriority.HIGH)
@@ -375,7 +386,7 @@ public final class ScavRagdollModule implements IModule,Listener {
         lines.add(String.format(Locale.ROOT,"操作射程: %.2fブロック",reach==null?3.0:reach.getValue()));
         var pdc=nearest.corpse.getPersistentDataContainer();
         lines.add("中身データ: "+(pdc.has(PDCKeys.CORPSE_INVENTORY,org.bukkit.persistence.PersistentDataType.BYTE_ARRAY)||pdc.has(PDCKeys.CORPSE_INVENTORY,org.bukkit.persistence.PersistentDataType.STRING)?"あり":"なし"));
-        BodyPick picked=pick(player,nearest,false);lines.add("現在の視線: "+(picked==null?"部位に未交差／射程外／遮蔽":"部位 "+picked.part));
+        lines.add("現在の視線: "+probe(player,nearest).reason);
         var listeners=new TreeSet<String>();
         for(var listener:PlayerInteractAtEntityEvent.getHandlerList().getRegisteredListeners())listeners.add(listener.getPlugin().getName());
         for(var listener:PlayerInteractEntityEvent.getHandlerList().getRegisteredListeners())listeners.add(listener.getPlugin().getName());
