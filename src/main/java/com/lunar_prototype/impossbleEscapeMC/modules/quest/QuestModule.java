@@ -171,8 +171,32 @@ public class QuestModule implements IModule {
         data.completeQuest(quest.getId());
         data.setDirty(true);
         
-        player.sendMessage(net.kyori.adventure.text.Component.text("クエストを完了しました: " + quest.getDisplayName(), net.kyori.adventure.text.format.NamedTextColor.GREEN));
+        notifyCompletion(player, quest);
+    }
+
+    /** 報酬付与・完了記録の後だけ、受取内容を通知する。 */
+    void notifyCompletion(Player player, QuestDefinition quest) {
+        for(Component line:QuestCompletionNotice.lines(quest,this::completionItemName,this::completionTraderName))
+            player.sendMessage(line);
         player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+    }
+
+    private String completionItemName(String id) {
+        var item=QuestItems.resolve(id);
+        return plainName(item==null?id:item.name());
+    }
+
+    private String completionTraderName(String id) {
+        var traders=plugin==null?null:plugin.getServiceContainer().get(
+                com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule.class);
+        var trader=traders==null?null:traders.getTrader(id);
+        return plainName(trader==null?id:trader.displayName).replace(" (Buy Only)","").replace(" (Sell Only)","");
+    }
+
+    private static String plainName(String text) {
+        var plain=net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+        String name=plain.serialize(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(text));
+        return plain.serialize(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(name));
     }
 
     /** クエスト定義 ({@link QuestCatalog}) を読み込み、参照の誤りを確かめる */
