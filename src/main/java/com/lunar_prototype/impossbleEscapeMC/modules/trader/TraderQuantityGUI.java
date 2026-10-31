@@ -44,7 +44,7 @@ public class TraderQuantityGUI implements Listener {
     public void open() {
         PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
         if (!traderModule.isUnlocked(data, traderItem)) {
-            player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(traderItem), NamedTextColor.RED));
+            player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(data, traderItem), NamedTextColor.RED));
             return;
         }
         setupGUI();

@@ -25,7 +25,7 @@ public final class PharmakonOfficeQuestTest {
         QuestDefinition office = quest("pharmakon_office_recon");
         check(requires(office, "stop_the_bleed"), "office follows stop the bleed");
         check(requires(quest("sanitary_maintenance"), office.getId()), "sanitary maintenance follows office");
-        check(office.getObjectives().size() == 2, "two locations only");
+        check(office.getObjectives().size() == 4, "locations plus medical supply and extraction");
 
         ReachLocationObjective breakRoom = (ReachLocationObjective) office.getObjectives().get(0);
         ReachLocationObjective lab = (ReachLocationObjective) office.getObjectives().get(1);

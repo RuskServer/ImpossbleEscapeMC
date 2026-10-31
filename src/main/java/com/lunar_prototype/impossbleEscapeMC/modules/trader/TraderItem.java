@@ -14,6 +14,8 @@ public class TraderItem {
     public double price;     // 価格
     public int dailyLimit;   // 1日の購入制限 (0なら無制限)
     public int requiredLevel; // 解放に必要なプレイヤーレベル
+    /** 所属トレーダーと現金/交換を区別した、旧販売資格のキー。 */
+    public String retainedUnlockKey;
     public String requiredQuestId; // 解放に必要なクエストID (nullなら無条件)
     /** 交換で渡す品物 (1 回の取引の分。空ならルーブルの取引) */
     public List<HideoutFacility.ItemCost> barter = List.of();

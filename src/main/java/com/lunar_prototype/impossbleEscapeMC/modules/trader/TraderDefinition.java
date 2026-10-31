@@ -20,6 +20,8 @@ public class TraderDefinition {
         this.displayName = displayName;
         this.type = type;
         this.items = items;
+        for(TraderItem item:items)item.retainedUnlockKey =
+                com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestlineMigration.tradeKey(id,item.itemId,item.isBarter());
         this.npcId = npcId;
         this.canRepairArmor = canRepairArmor;
         this.canRepairWeapon = canRepairWeapon;

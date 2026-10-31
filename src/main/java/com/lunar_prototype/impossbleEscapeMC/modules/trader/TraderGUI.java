@@ -206,8 +206,8 @@ public class TraderGUI implements Listener {
                 .append(Component.text("Lv." + requiredLevel, data.getLevel() >= requiredLevel ? NamedTextColor.GREEN : NamedTextColor.RED)
                         .decoration(TextDecoration.ITALIC, false)));
         if (ti.requiredQuestId != null) {
-            lore.add(Component.text(traderModule.getUnlockRequirements(ti),
-                    data.isQuestCompleted(ti.requiredQuestId) ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(traderModule.getUnlockRequirements(data, ti),
+                    traderModule.isQuestRequirementMet(data, ti) ? NamedTextColor.GREEN : NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         }
         if (ti.isBarter()) {
             StringBuilder cost = new StringBuilder();
@@ -356,7 +356,7 @@ public class TraderGUI implements Listener {
                         TraderItem ti = tradeOf(clicked);
                         if (ti != null) {
                             if (!traderModule.isUnlocked(data, ti)) {
-                                player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(ti), NamedTextColor.RED));
+                                player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(data, ti), NamedTextColor.RED));
                                 return;
                             }
                             new TraderQuantityGUI(traderModule, trader, ti, player, this).open();

@@ -25,7 +25,7 @@ public final class CoastalWarehouseQuestTest {
         QuestDefinition warehouse = quest("bastion_coastal_warehouses");
         check(requires(warehouse, "bastion_coastal_clearance"), "warehouse follows clearance");
         check(requires(quest("bastion_rifle_drill"), warehouse.getId()), "rifle drill follows warehouse");
-        check(warehouse.getObjectives().size() == 2, "two locations only");
+        check(warehouse.getObjectives().size() == 5, "locations plus supplies and extraction");
 
         ReachLocationObjective first = (ReachLocationObjective) warehouse.getObjectives().get(0);
         ReachLocationObjective second = (ReachLocationObjective) warehouse.getObjectives().get(1);

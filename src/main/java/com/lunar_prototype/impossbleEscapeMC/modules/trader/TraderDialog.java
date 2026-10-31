@@ -543,7 +543,7 @@ public final class TraderDialog implements Listener {
                 QuestModule quests = module.getPlugin().getServiceContainer().get(QuestModule.class);
                 QuestDefinition quest = quests == null ? null : quests.getQuest(e.item().requiredQuestId);
                 String questName = quest != null ? quest.getDisplayName() : e.item().requiredQuestId;
-                requirements.add(new Part("クエスト「" + questName + "」", e.questMet() ? OK : NG));
+                requirements.add(new Part(e.questMet() ? "取引解放済み" : "クエスト「" + questName + "」", e.questMet() ? OK : NG));
             }
             return new RowView(rowName(e), priceText(e), true, false, null, requirements, null, false, e.barter() ? "交換" : "購入");
         }
@@ -690,7 +690,7 @@ public final class TraderDialog implements Listener {
             entries.add(new Entry(i, ti, icon, name, categoryOf(ti.itemId), ItemRegistry.getAmmo(ti.itemId),
                     Math.max(1, ItemWeights.costOf(icon)), module.isUnlocked(data, ti),
                     data.getLevel() >= module.getRequiredLevel(ti),
-                    ti.requiredQuestId == null || data.isQuestCompleted(ti.requiredQuestId),
+                    module.isQuestRequirementMet(data, ti),
                     module.remainingToday(data, trader, ti),
                     TraderModule.buyPrice(player.getUniqueId(), trader, ti), TraderModule.dailyLimit(player.getUniqueId(), ti),
                     needs(ti, have)));

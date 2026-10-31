@@ -125,12 +125,24 @@ public class TraderModule implements IModule {
 
     public boolean isUnlocked(PlayerData data, TraderItem item) {
         if (data.getLevel() < getRequiredLevel(item)) return false;
-        if (item.requiredQuestId != null && !data.isQuestCompleted(item.requiredQuestId)) return false;
+        if (!isQuestRequirementMet(data, item)) return false;
         return true;
+    }
+
+    /** 購入・交換と両画面で同じ解放条件を使う。レベル・日次制限は別途維持する。 */
+    public boolean isQuestRequirementMet(PlayerData data,TraderItem item) {
+        return item.requiredQuestId==null||data.isQuestCompleted(item.requiredQuestId)
+                ||data.hasRetainedTradeUnlock(item.retainedUnlockKey);
     }
 
     public int getRequiredLevel(TraderItem item) {
         return Math.max(1, item.requiredLevel);
+    }
+
+    public String getUnlockRequirements(PlayerData data,TraderItem item) {
+        if(item.requiredQuestId!=null&&data.hasRetainedTradeUnlock(item.retainedUnlockKey))
+            return "Lv."+getRequiredLevel(item)+" ＋ 取引解放済み";
+        return getUnlockRequirements(item);
     }
 
     public String getUnlockRequirements(TraderItem item) {
@@ -274,7 +286,7 @@ public class TraderModule implements IModule {
         List<Component> messages = new ArrayList<>();
         if (data == null || quantity <= 0) return new Purchase(0, messages, null);
         if (!isUnlocked(data, ti)) {
-            messages.add(Component.text("この取引の解放条件: " + getUnlockRequirements(ti), NamedTextColor.RED));
+            messages.add(Component.text("この取引の解放条件: " + getUnlockRequirements(data, ti), NamedTextColor.RED));
             return new Purchase(0, messages, "未解放です");
         }
         int allowed = remainingToday(data, trader, ti);

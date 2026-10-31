@@ -51,6 +51,9 @@ public class PlayerData {
     // クエストシステム
     private java.util.Map<String, com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest> activeQuests;
     private java.util.List<String> completedQuests;
+    /** 旧JSONに無い時は0。新規データは現行版から開始する。 */
+    private int questlineVersion;
+    private java.util.Set<String> retainedTradeUnlocks;
 
     // プレイヤー個人設定
     private boolean cancelAdsOnSprint;
@@ -100,6 +103,8 @@ public class PlayerData {
 
         this.activeQuests = new ConcurrentHashMap<>();
         this.completedQuests = new CopyOnWriteArrayList<>();
+        this.questlineVersion = com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestlineMigration.CURRENT_VERSION;
+        this.retainedTradeUnlocks = ConcurrentHashMap.newKeySet();
         
         this.cancelAdsOnSprint = true;
         this.keybinds = new ConcurrentHashMap<>();
@@ -131,6 +136,18 @@ public class PlayerData {
             getActiveQuests().remove(questId);
             this.dirty = true;
         }
+    }
+
+    public int getQuestlineVersion(){return questlineVersion;}
+    public void setQuestlineVersion(int version) {
+        if(questlineVersion!=version){questlineVersion=version;dirty=true;}
+    }
+    public boolean hasRetainedTradeUnlock(String key) {
+        return key!=null&&retainedTradeUnlocks!=null&&retainedTradeUnlocks.contains(key);
+    }
+    public void retainTradeUnlock(String key) {
+        if(retainedTradeUnlocks==null)retainedTradeUnlocks=ConcurrentHashMap.newKeySet();
+        if(retainedTradeUnlocks.add(java.util.Objects.requireNonNull(key)))dirty=true;
     }
 
     public int getCurrentWeight() {

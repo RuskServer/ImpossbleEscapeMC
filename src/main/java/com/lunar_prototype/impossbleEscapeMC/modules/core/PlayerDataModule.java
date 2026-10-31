@@ -121,6 +121,9 @@ public class PlayerDataModule implements IModule, Listener {
             loadFailed.remove(uuid);
         }
         if (result.fromBackup()) result.data().setDirty(true);
+        // TODO(ai-collab): 旧販売資格を先に退避し、進捗リセットと同じ保存単位に含める。
+        // オフラインも初回読込で移行する。読込失敗の代替データは変更しない。
+        migrateLoadedQuests(result);
         if (result.created()) {
             // 初めてのプレイヤー: 参加した時に初期物資を入れる (StarterKit)。
             // 新しいデータは今まで通り、何か変わるまでは保存しない (参加しないまま読まれただけのデータをファイルにしない)
@@ -128,6 +131,11 @@ public class PlayerDataModule implements IModule, Listener {
             result.data().setDirty(false);
         }
         return result.data();
+    }
+
+    static boolean migrateLoadedQuests(PlayerDataStorage.LoadResult result) {
+        return !result.failed()&&!result.created()
+                &&com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestlineMigration.migrate(result.data());
     }
 
     /** ログインの直前に、別スレッドで読む。読めなければログインを断る */

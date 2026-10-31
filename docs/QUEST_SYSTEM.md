@@ -90,3 +90,14 @@ quests.add(new QuestBuilder(module, "first_contact")
 1.  `com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl` パッケージに新しいクラスを作成 (目標は `AbstractQuestObjective` を継承し、既定の説明文を `defaultDescription` に書く)。
 2.  `QuestBuilder` に、そのコンポーネントを追加するメソッドを足す。
 3.  必要に応じて `QuestTrigger` を追加し、`QuestListener` で Bukkit イベントをブリッジする。
+
+
+## テスト段階のクエスト再構築（2026-11-01）
+
+現行の51件は三勢力の立場に沿って再構築している。具体的な目標・前提・報酬と導入時の確認は [再構築計画](QUESTLINE_REBUILD_PLAN.md) を参照する。
+
+`QuestlineMigration` は旧プレイヤーデータの初回正常読込時に、旧販売資格を保持してクエストの受注・目標進捗・完了履歴をリセットする。移行版と販売資格は同じJSONに保存される。レベル・所持金・EXP・所持品・Hideout・日次購入数は変更しない。新規データと移行済みデータは再リセットしない。
+
+保持する資格はトレーダー・商品・現金購入／交換で区別する。購入時のレベル・代金・日次上限は免除しない。旧完了履歴を新クエストの前提達成に使うこともない。
+
+到達・討伐・脱出は受注後に独立して累計され、目標の表示順は実行順序を強制しない。地点の到達と同じレイドでの脱出、専用資料の回収、実際の護送を達成条件として表現しない。

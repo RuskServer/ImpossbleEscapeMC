@@ -43,7 +43,7 @@ public final class QuestExpansionTest {
         Map<String,AmmoDefinition> ammoMap = registry("AMMO_MAP");
         items.forEach(i -> itemMap.put(i.id, i)); ammo.forEach(i -> ammoMap.put(i.id, i));
         var definitions = QuestCatalog.create(null);
-        check(definitions.size() == 45, "45 quests");
+        check(definitions.size() == 51, "51 rebuilt quests");
         Map<String,QuestDefinition> byId = new HashMap<>();
         Map<String,Integer> counts = new HashMap<>();
         Set<String> calibers = new HashSet<>();
@@ -54,12 +54,7 @@ public final class QuestExpansionTest {
             check(byId.put(q.getId(),q) == null, "duplicate ID");
             counts.merge(q.getTraderId(),1,Integer::sum);
             check(!q.getTraderId().equals("broker"), "broker has no quests");
-            if (LEGACY.contains(q.getId())) continue;
-            for (var condition : q.getConditions()) if (condition instanceof CompletedQuestCondition c)
-                check(!LEGACY.contains(c.getRequiredQuestId()), "new quest depends on old map chain");
             for (var objective : q.getObjectives()) {
-                check(!(objective instanceof ReachLocationObjective), "new quest has location objective");
-                if (objective instanceof ExtractObjective) check(field(objective,"mapId") == null,"new quest map restricted");
                 if (objective instanceof HandInObjective h) {
                     check(h.isRequireFIR(), "new hand-in requires FIR");
                     if (h.getItemId() != null) check(available.contains(h.getItemId()), "missing loot source: " + h.getItemId());
@@ -70,7 +65,7 @@ public final class QuestExpansionTest {
             }
         }
         check(byId.keySet().containsAll(LEGACY), "legacy IDs preserved");
-        check(counts.equals(Map.of("kovacs",19,"pharmakon",8,"bastion",18)), "trader quest counts");
+        check(counts.equals(Map.of("kovacs",22,"pharmakon",9,"bastion",20)), "trader quest counts");
         check(calibers.size()==8, "all eight calibers covered");
         for (String id : byId.keySet()) visit(id,byId,new HashSet<>(),new HashSet<>());
         List<TraderDefinition> traders = catalog("com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCatalog", "create");
@@ -108,6 +103,6 @@ public final class QuestExpansionTest {
         check(!extract.isCompleted(extraction,0),"first extract partial");
         extract.updateProgress(null,null,extraction,0,QuestTrigger.RAID_EXTRACT,Map.of("mapId","map_b"));
         check(extract.isCompleted(extraction,0),"different maps counted");
-        System.out.println("QuestExpansionTest: all checks passed (45 quests, 34 independent additions, 8 calibers, loot, unlocks, FIR progression)");
+        System.out.println("QuestExpansionTest: all checks passed (51 rebuilt quests, 8 calibers, loot, unlocks, FIR progression)");
     }
 }

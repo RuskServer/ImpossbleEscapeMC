@@ -23,9 +23,9 @@ public final class SpectreCampQuestTest {
 
     public static void main(String[] args) {
         QuestDefinition camp = quest("bastion_spectre_camp_recon");
-        check(requires(camp, "bastion_rifle_drill"), "camp follows rifle drill");
+        check(requires(camp, "bastion_coastal_warehouses"), "camp follows warehouse without optional weapon trial");
         check(requires(quest("bastion_close_quarters"), camp.getId()), "close quarters follows camp");
-        check(camp.getObjectives().size() == 2, "two locations only");
+        check(camp.getObjectives().size() == 5, "locations plus supplies and extraction");
 
         ReachLocationObjective sandbags = (ReachLocationObjective) camp.getObjectives().get(0);
         ReachLocationObjective tower = (ReachLocationObjective) camp.getObjectives().get(1);
