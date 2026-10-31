@@ -89,12 +89,13 @@ public class ScavSquad {
         for (Entity e : scav.getNearbyEntities(15, 8, 15)) {
             if (e instanceof Mob mob && !e.equals(scav)) {
                 ScavController controller = ScavSpawner.getController(e.getUniqueId());
-                if (controller != null) nearbyAllies.add(controller);
+                if (controller != null&&owner.canCoordinateWith(controller)) nearbyAllies.add(controller);
             }
         }
     }
 
     public void handleSquadRoles() {
+        if(owner.getBossPost()!=null){myRole=owner.getBossPost().leader()?SquadRole.COVERMAN:SquadRole.POINTMAN;return;}
         if (nearbyAllies.isEmpty()) {
             myRole = SquadRole.NONE;
             return;
@@ -154,7 +155,7 @@ public class ScavSquad {
         for (Entity e : scav.getNearbyEntities(HELP_CALL_RANGE, HELP_CALL_RANGE / 2, HELP_CALL_RANGE)) {
             if (!(e instanceof Mob)) continue;
             ScavController ally = ScavSpawner.getController(e.getUniqueId());
-            if (ally == null || ally == owner) continue;
+            if (ally == null || ally == owner || !owner.canCoordinateWith(ally)) continue;
             double distance = scav.getLocation().distance(e.getLocation());
             if (distance > HELP_CALL_RANGE) continue;
             if (distance > HELP_CALL_RANGE / 2 && !scav.hasLineOfSight(e)) continue;
@@ -177,6 +178,7 @@ public class ScavSquad {
      * @return 交代した場合true (呼び出し側で物陰探しを始める)
      */
     public boolean requestRoleSwitch() {
+        if(owner.getBossPost()!=null)return false;
         for (ScavController ally : nearbyAllies) {
             if (scav.getLocation().distance(ally.getScav().getLocation()) < 8.0 && ally.getSquad().getMyRole() == SquadRole.COVERMAN) {
                 this.myRole = SquadRole.COVERMAN;

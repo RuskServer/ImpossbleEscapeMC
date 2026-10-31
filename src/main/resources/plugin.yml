@@ -3,3 +3,5 @@ version: '1.0-SNAPSHOT'
 main: com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC
 api-version: '1.21'
 softdepend: [Citizens, WorldEdit, FastAsyncWorldEdit]
+
+# /raid boss <set|list|remove> is registered by the existing @Command RaidCommand.

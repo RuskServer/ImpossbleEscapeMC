@@ -63,6 +63,9 @@ public class RaidCommand implements BasicCommand {
             case "spawn":
                 if (player.isOp()) handleSpawn(player, args);
                 break;
+            case "boss":
+                if(player.isOp())handleBoss(player,args);
+                break;
             case "danger":
                 if(player.isOp())handleDanger(player,args);
                 break;
@@ -150,6 +153,41 @@ public class RaidCommand implements BasicCommand {
         spawnDiagnostics.invalidate(map);
         manager.saveMap(map);
         spawnDiagnostics.request(player, map, 0, true);
+    }
+
+    private void handleBoss(Player player,String[] args) {
+        String usage="/raid boss <set|list|remove> <mapID> [区域ID] [boss|guard1|guard2]";
+        if(args.length<3){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+        RaidMap map=manager.getMap(args[2]);if(map==null){player.sendMessage(Component.text("マップがありません。",NamedTextColor.RED));return;}
+        switch(args[1].toLowerCase(java.util.Locale.ROOT)) {
+            case "set" -> {
+                if(args.length!=5||!RaidBossGroup.ROLES.contains(args[4])){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+                if(!map.isWorld(player.getWorld())){player.sendMessage(Component.text("対象マップのワールドで実行してください。",NamedTextColor.RED));return;}
+                if(!RaidBossEncounter.safePosition(player.getLocation())){player.sendMessage(Component.text("足場と頭上に余裕がある、安全な地点に立って登録してください。",NamedTextColor.RED));return;}
+                try {
+                    map.setBossPosition(args[3],args[4],player.getLocation());manager.saveMap(map);
+                    player.sendMessage(Component.text(args[3]+" / "+args[4]+" を登録しました。3地点が揃った次のレイドから抽選対象です。",NamedTextColor.GREEN));
+                }catch(IllegalArgumentException ex){player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+            }
+            case "remove" -> {
+                if(args.length!=4){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+                if(!map.removeBossGroup(args[3])){player.sendMessage(Component.text("その区域にボス地点はありません。",NamedTextColor.RED));return;}
+                manager.saveMap(map);player.sendMessage(Component.text("ボス部隊の地点を削除しました。高脅威区域は残ります。",NamedTextColor.GREEN));
+            }
+            case "list" -> {
+                player.sendMessage(Component.text("ボス部隊: "+map.getMapId()+" / "+map.bossGroups().size()+"区域",NamedTextColor.GOLD));
+                for(var group:map.bossGroups()) {
+                    var zone=map.highThreatZones().stream().filter(z->z.id().equals(group.zoneId())).findFirst().orElse(null);
+                    String problem=group.problem(zone);
+                    player.sendMessage(Component.text(group.zoneId()+" — "+(problem==null?"登録完了":problem),problem==null?NamedTextColor.GREEN:NamedTextColor.YELLOW));
+                    for(String role:RaidBossGroup.ROLES) {
+                        double[] p=group.position(role);
+                        player.sendMessage(Component.text("  "+role+": "+(p==null?"未登録":String.format(java.util.Locale.ROOT,"%.1f %.1f %.1f",p[0],p[1],p[2])),NamedTextColor.GRAY));
+                    }
+                }
+            }
+            default -> player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));
+        }
     }
 
     private void handleDanger(Player player,String[] args) {
@@ -261,6 +299,7 @@ public class RaidCommand implements BasicCommand {
             player.sendMessage(Component.text("/raid start - レイドを強制開始 (デバッグ用)", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid spawn <add|remove|list|analyze|clear> <mapID> [地点ID / ページ]", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid danger <add|list|remove> <mapID> [区域ID] [表示名] (WorldEdit選択)",NamedTextColor.WHITE));
+            player.sendMessage(Component.text("/raid boss <set|list|remove> <mapID> [区域ID] [boss|guard1|guard2]",NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
             player.sendMessage(Component.text("/raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.WHITE));
@@ -273,7 +312,7 @@ public class RaidCommand implements BasicCommand {
         if (args.length == 1) {
             List<String> subs = new ArrayList<>(Arrays.asList("open", "join", "leave"));
             if (sender.isOp()) {
-                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn", "start", "danger", "radio"));
+                subs.addAll(Arrays.asList("map", "spawn", "extract", "scavspawn", "start", "danger", "radio", "boss"));
             }
             return subs.stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
@@ -286,6 +325,7 @@ public class RaidCommand implements BasicCommand {
                     .filter(s -> s.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
             if (sender.isOp()) {
+                if(sub.equals("boss"))return List.of("set","list","remove").stream().filter(v->v.startsWith(args[1])).toList();
                 if(sub.equals("danger"))return List.of("add","list","remove").stream().filter(v->v.startsWith(args[1])).toList();
                 if(sub.equals("radio"))return List.of("preview");
                 if (sub.equals("map")) return Arrays.asList("create", "delete");
@@ -299,6 +339,10 @@ public class RaidCommand implements BasicCommand {
             }
         }
 
+        if(args.length>0&&sender.isOp()&&args[0].equalsIgnoreCase("boss")) {
+            if(args.length==4){RaidMap map=manager.getMap(args[2]);return map==null?List.of():map.highThreatZones().stream().map(RaidRadioZone::id).filter(v->v.startsWith(args[3])).toList();}
+            if(args.length==5&&args[1].equalsIgnoreCase("set"))return RaidBossGroup.ROLES.stream().filter(v->v.startsWith(args[4])).toList();
+        }
         if(args.length==3&&args[0].equalsIgnoreCase("radio"))return List.of("zone","item").stream().filter(v->v.startsWith(args[2])).toList();
         if(args.length==4&&args[0].equalsIgnoreCase("danger")&&args[1].equalsIgnoreCase("remove")) {
             RaidMap map=manager.getMap(args[2]);

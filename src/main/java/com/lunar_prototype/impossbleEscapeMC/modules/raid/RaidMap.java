@@ -15,6 +15,17 @@ public class RaidMap {
     private List<Integer> spawnIds = new ArrayList<>();
     private int nextSpawnId = 1;
     private List<RaidRadioZone> highThreatZones = new ArrayList<>();
+    private List<RaidBossGroup> bossGroups=new ArrayList<>();
+    List<RaidBossGroup> bossGroups(){if(bossGroups==null)bossGroups=new ArrayList<>();return List.copyOf(bossGroups);}
+    void setBossPosition(String zoneId,String role,Location loc) {
+        ensureWorld(loc);
+        RaidRadioZone zone=highThreatZones().stream().filter(z->z.id().equals(zoneId)).findFirst().orElseThrow(()->new IllegalArgumentException("高脅威区域がありません"));
+        if(!zone.contains(loc.getX(),loc.getY(),loc.getZ(),0))throw new IllegalArgumentException("指定した高脅威区域内で実行してください");
+        RaidBossGroup group=bossGroups().stream().filter(g->g.zoneId().equals(zoneId)).findFirst().orElse(new RaidBossGroup(zoneId,null,null,null));
+        RaidBossGroup updated=group.with(role,locationToCoords(loc));
+        bossGroups.removeIf(g->g.zoneId().equals(zoneId));bossGroups.add(updated);
+    }
+    boolean removeBossGroup(String zoneId){bossGroups();return bossGroups.removeIf(g->g.zoneId().equals(zoneId));}
 
     List<RaidRadioZone> highThreatZones() {
         if(highThreatZones==null)highThreatZones=new ArrayList<>();
@@ -25,7 +36,7 @@ public class RaidMap {
         highThreatZones.add(zone);return true;
     }
     boolean removeHighThreatZone(String id) {
-        highThreatZones();return highThreatZones.removeIf(z->z.id().equals(id));
+        highThreatZones();boolean removed=highThreatZones.removeIf(z->z.id().equals(id));if(removed)removeBossGroup(id);return removed;
     }
 
     public record SpawnEntry(int id, double x, double y, double z, float yaw, float pitch) {}

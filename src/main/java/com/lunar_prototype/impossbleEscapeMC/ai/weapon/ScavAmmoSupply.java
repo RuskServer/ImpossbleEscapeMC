@@ -92,6 +92,22 @@ public final class ScavAmmoSupply {
         return supply;
     }
 
+    /** ボス部隊だけは、口径内で貫通クラス・ダメージの順に最上位の弾を選ぶ。 */
+    public static ScavAmmoSupply assignBest(Mob scav) {
+        String gunId=DatapackGunCatalog.gunIdOf(scav.getEquipment().getItemInMainHand());
+        DatapackGunProfile profile=DatapackGunCatalog.get(gunId);String caliber=DatapackAmmo.caliberOf(gunId);
+        if(profile==null||caliber==null)return null;
+        AmmoDefinition chosen=bestForCaliber(ItemRegistry.getAmmoIds().stream().map(ItemRegistry::getAmmo).toList(),caliber);
+        if(chosen==null)return null;
+        ScavAmmoSupply supply=new ScavAmmoSupply(chosen.id,profile.magazineSize()*3);SUPPLIES.put(scav.getUniqueId(),supply);return supply;
+    }
+
+    static AmmoDefinition bestForCaliber(List<AmmoDefinition> choices,String caliber) {
+        if(caliber==null)return null;
+        return choices.stream().filter(a->a!=null&&caliber.equalsIgnoreCase(a.caliber))
+                .max(Comparator.comparingInt((AmmoDefinition a)->a.ammoClass).thenComparingDouble(a->a.damage).thenComparing(a->a.id)).orElse(null);
+    }
+
     /** 重みで貫通クラス (1〜6) を選ぶ */
     private static int rollClass(double[] weights, ThreadLocalRandom random) {
         double total = 0;

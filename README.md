@@ -73,6 +73,7 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | `/scavspawn [x y z]` | Manually spawn a SCAV. Use `heatmap` to toggle spawn map. | `op` |
 | `/raid <join\|leave\|start\|extract\|scavspawn>` | Complete raid queueing and map interactions. | `op` |
 | `/raid danger <add\|list\|remove> <mapID> [zoneID] [name]` | Manage high-threat cuboids selected with WorldEdit/FAWE. | `op` |
+| `/raid boss <set\|list\|remove> <mapID> [zoneID] [boss\|guard1\|guard2]` | Register a rare boss squad inside a high-threat zone; see [boss setup](docs/RAID_BOSS.md). | `op` |
 | `/raid radio preview <zone\|item>` | Preview radio while participating in a raid. | `op` |
 | `/party <create\|invite\|accept\|leave\|kick\|info\|chat>` | Squad management and secure communication. | *None (All Players)* |
 | `/loot <container\|drawer\|locker\|egg\|draweregg\|lockeregg\|groundegg\|remover\|refill>` | Place, remove and refill loot crates and ground loot spots. | `op` |

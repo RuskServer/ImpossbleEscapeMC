@@ -65,3 +65,9 @@ scav-ragdoll:
   max-corpses: 64
   max-animation-ticks: 48
   millis-per-tick: 3
+
+# 薬品工場の高脅威区域に登録したボス1人＋護衛2人。通常SCAVとは別の抽選。
+raid-boss:
+  enabled: true
+  map-id: "ノヴォザリエ薬品工場"
+  chance: 0.125 # 1レイドにつき1回。0～1、範囲外・非有限値は出現なし。

@@ -442,7 +442,51 @@ public class ScavController {
     public int getSearchTicks() { return searchTicks; }
     public void setSearchTicks(int ticks) { this.searchTicks = ticks; }
 
+    private ScavBossPost bossPost;
+    private boolean bossReturning;
+    private int bossNextRepath;
+    public ScavBossPost getBossPost(){return bossPost;}
+    public void setBossPost(ScavBossPost post){bossPost=java.util.Objects.requireNonNull(post);}
+    public boolean canCoordinateWith(ScavController other) {
+        if(other==null)return false;
+        return bossPost==null?other.bossPost==null:other.bossPost!=null&&bossPost.unitId().equals(other.bossPost.unitId());
+    }
+    private boolean withinBossPost(Location point) {
+        return point!=null&&point.getWorld()==homeLocation.getWorld()&&bossPost.contains(point.getX(),point.getY(),point.getZ());
+    }
+    /** 通常SCAVのAIはそのまま。ボス部隊だけ、戦闘・索敵・音・巡回の経路を持ち場で制限する。 */
+    private boolean enforceBossPost() {
+        if(bossPost==null)return false;
+        Location here=scav.getLocation();
+        if(bossReturning&&here.getWorld()==homeLocation.getWorld()&&here.distanceSquared(homeLocation)<=2.25)bossReturning=false;
+        boolean invalid=!withinBossPost(here);
+        var path=scav.getPathfinder().getCurrentPath();
+        if(!bossReturning&&path!=null)for(int i=Math.max(0,path.getNextPointIndex());i<path.getPoints().size();i++)
+            if(!withinBossPost(path.getPoints().get(i))){invalid=true;break;}
+        Location direct=tactics.directMoveDestination(),peek=tactics.peekMoveDestination();
+        if(direct!=null&&!withinBossPost(direct)||peek!=null&&!withinBossPost(peek))invalid=true;
+        if(!invalid&&!bossReturning)return false;
+        if(!bossReturning) {
+            tactics.cancelPeek();tactics.stopMoving();positioning.clear();withdrawal.clear();squad.releaseSearch();
+            tactics.setTacticalCoverLoc(null);tactics.setCoverStayTicks(0);
+            scav.getPathfinder().stopPathfinding();followingPath=false;isSprinting=false;
+            lastKnownLocation=null;lastHeardSoundLocation=null;patrolTarget=null;assignedSearchPoint=null;assistCallerId=null;
+            investigateTicks=0;pursuitSteps=0;searchTicks=0;soundOnlyContact=false;belief.clear();
+            bossReturning=true;bossNextRepath=0;
+        }
+        DatapackGunner gunner=DatapackGunnerManager.get(scav.getUniqueId());
+        if(gunner!=null)gunner.stopTrigger();
+        scav.setTarget(null);
+        if(here.getWorld()==homeLocation.getWorld()&&Bukkit.getCurrentTick()>=bossNextRepath) {
+            scav.getPathfinder().moveTo(homeLocation,PATROL_SPEED);bossNextRepath=Bukkit.getCurrentTick()+20;
+        }
+        return true;
+    }
     public void onTick() {
+        if(enforceBossPost())return;
+        try{tickAi();}finally{enforceBossPost();}
+    }
+    private void tickAi() {
         updateChunkTicket();
         cleanupTargetMemories();
         String raidSessionId = ScavSpawner.getRaidSessionId(scav.getUniqueId());
@@ -1306,7 +1350,7 @@ public class ScavController {
         // 経路探索で立ち位置へ歩いている間は、進む方向を向かせる (照準で向きを上書きすると、
         // 移動の制御が1tickに90度までしか回れず、相手と反対側の場所へ進めなくなる)
         DatapackGunner gunner=DatapackGunnerManager.get(scav.getUniqueId());
-        if (followingPath) {if(gunner!=null)gunner.stopTrigger();return;}
+        if (followingPath||bossReturning) {if(gunner!=null)gunner.stopTrigger();return;}
         // 顔出し/戻りの歩行中は体を進行方向へ向ける (照準で上書きすると横滑り=瞬間移動に見える)
         if (tactics.isPeekTraveling()) {if(gunner!=null)gunner.stopTrigger();return;}
         LivingEntity target = scav.getTarget();
@@ -1857,7 +1901,7 @@ public class ScavController {
      * @return 引き受けた場合true
      */
     public boolean receiveHelpCall(ScavController caller) {
-        if (caller == this || isInCombat() || !caller.getScav().isValid()
+        if (!canCoordinateWith(caller) || caller == this || isInCombat() || !caller.getScav().isValid()
                 || caller.getScav().getWorld() != scav.getWorld() || !caller.isInCombat()) return false;
         UUID callerId = caller.getScav().getUniqueId();
         UUID previousCallerId = assistCallerId;
@@ -2342,10 +2386,12 @@ public class ScavController {
         int baseY = (int) Math.floor(homeLocation.getY());
         for (int attempt = 0; attempt < 8; attempt++) {
             double angle = Math.random() * Math.PI * 2.0;
-            double radius = PATROL_RADIUS_MIN + Math.random() * (PATROL_RADIUS_MAX - PATROL_RADIUS_MIN);
+            double patrolMax=bossPost==null?PATROL_RADIUS_MAX:Math.max(PATROL_RADIUS_MIN,bossPost.radius()-1);
+            double radius = PATROL_RADIUS_MIN + Math.random() * (patrolMax - PATROL_RADIUS_MIN);
             int x = (int) Math.floor(homeLocation.getX() + Math.cos(angle) * radius);
             int z = (int) Math.floor(homeLocation.getZ() + Math.sin(angle) * radius);
             for (int dy = 2; dy >= -3; dy--) {
+                if(bossPost!=null&&(!bossPost.contains(x+.5,baseY+dy,z+.5)||!homeLocation.getWorld().isChunkLoaded(x>>4,z>>4)))continue;
                 Block feet = homeLocation.getWorld().getBlockAt(x, baseY + dy, z);
                 Block head = homeLocation.getWorld().getBlockAt(x, baseY + dy + 1, z);
                 Block ground = homeLocation.getWorld().getBlockAt(x, baseY + dy - 1, z);

@@ -41,6 +41,7 @@ public class RaidInstance {
     private final Map<UUID, RaidResult> raidResults = new HashMap<>();
     private final RaidEndSequence endSequence;
     private final RaidRadio radio;
+    private final RaidBossEncounter bossEncounter;
 
     private final long startTime;
     private final String raidSessionId;
@@ -123,10 +124,15 @@ public class RaidInstance {
      * @param participants 初期参加者のリスト（空の場合は参加処理を行わない）
      */
     public RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants) {
+        this(plugin,map,participants,false);
+    }
+    /** 復元したレイドではボス抽選を抑止し、再起動による再抽選・装備の復活を防ぐ。 */
+    RaidInstance(ImpossbleEscapeMC plugin,RaidMap map,List<Player> participants,boolean restored) {
         this.plugin = plugin;
         this.map = map;
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
+        this.bossEncounter=new RaidBossEncounter(plugin,map,raidSessionId,restored);
         this.radio = new RaidRadio(plugin,map);
         this.endSequence = new RaidEndSequence(plugin, map,radio);
         this.hud = new RaidHud(plugin, map, activeExtractions,radio);
@@ -270,6 +276,7 @@ public class RaidInstance {
                 checkExtractions();
                 endSequence.tick(getTimeLeft(), players);
                 updateScavs();
+                bossEncounter.tick(RaidInstance.this::isLocationVisible);
                 logPlayerSnapshots();
 
                 respawnTicks++;
@@ -401,6 +408,7 @@ public class RaidInstance {
     }
 
     public void resetCycle() {
+        bossEncounter.cleanup();
         activeExtractions.clear();
         assignExtractions();
         // Cleanup SCAVs for the new cycle
@@ -662,6 +670,7 @@ public class RaidInstance {
         if (rangeTask != null) rangeTask.cancel();
         hud.stop();
         endSequence.stop();
+        bossEncounter.cleanup();
 
         // Cleanup all spawned SCAVs
         for (VirtualScav vs : virtualScavs) {
@@ -992,6 +1001,7 @@ public class RaidInstance {
         if (rangeTask != null) rangeTask.cancel();
         hud.stop();
         endSequence.stop();
+        bossEncounter.cleanup();
         for (VirtualScav vs : virtualScavs) {
             if (vs.isSpawned() && vs.getEntityId() != null) {
                 plugin.getScavSpawner().removeScav(vs.getEntityId());

@@ -100,8 +100,28 @@ public class ScavSpawner implements Listener {
 
     /** レイド参加者の装備帯に応じた弾薬クラス上限を適用してスポーンさせる。 */
     public UUID spawnScav(Location loc, String raidSessionId, String mapId, Integer maxAmmoClass) {
-        // 銃を持たない SCAV は撃たず動かない的になるので、銃が無ければ出さない
-        ItemStack gun = pickGun(loc);
+        return spawnScav(loc,raidSessionId,mapId,maxAmmoClass,null,null);
+    }
+
+    /** 通常SCAVの確率・装備上限とは別の、明示的なボス部隊専用スポーン。 */
+    public UUID spawnBossMember(Location loc,String raidSessionId,String mapId,String role,ScavBossPost post) {
+        if(!List.of("boss","guard1","guard2").contains(role)||post==null)throw new IllegalArgumentException("Invalid boss member");
+        return spawnScav(loc,raidSessionId,mapId,null,role,post);
+    }
+
+    private UUID spawnScav(Location loc,String raidSessionId,String mapId,Integer maxAmmoClass,String bossRole,ScavBossPost post) {
+        // 銃や必須装備が無い時は、弱い代用品でボスを出さない。
+        ItemStack gun;
+        ItemStack helmet=null,chest=null,backpack=null;
+        if(bossRole==null)gun=pickGun(loc);
+        else {
+            String id=switch(bossRole){case "boss"->"scar_h";case "guard1"->"m4a1";default->"as_val";};
+            DatapackGunProfile profile=DatapackGunCatalog.get(id);
+            gun=profile==null?null:DatapackGunCatalog.createItem(loc.getWorld(),profile);
+            if(gun!=null)gun=DatapackGunCondition.repair(gun);
+            helmet=ItemFactory.create("Altyn");chest=ItemFactory.create("sp_v");backpack=ItemFactory.create("pilgrim_tourist_backpack");
+            if(helmet==null||chest==null||backpack==null)return null;
+        }
         if (gun == null) {
             if (!warnedNoGun) {
                 warnedNoGun = true;
@@ -117,11 +137,13 @@ public class ScavSpawner implements Listener {
         Mob scav = loc.getWorld().spawn(loc, Zombie.class, false, zombie -> {
             zombie.setAdult();
             zombie.setCanPickupItems(false);
+            if(bossRole!=null)zombie.setPersistent(false);
             // プレイヤーから離れて止まっていても、バニラの決まりで消させない (消えると死体も出ず、その場所に湧き直さない)。
             // 片付けはレイドが removeScav で行う
             zombie.setRemoveWhenFarAway(false);
         });
 
+        try {
         // 体力を40 (バニラの2倍) に固定、移動速度を 0.1 に設定
         var healthAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         if (healthAttr != null) {
@@ -142,7 +164,12 @@ public class ScavSpawner implements Listener {
         }
 
         // タルコフ風の装備設定
-        setupScavEquipment(scav, gun, raidSessionId);
+        if(bossRole==null)setupScavEquipment(scav,gun,raidSessionId);
+        else {
+            var equipment=scav.getEquipment();equipment.setItemInMainHand(gun);equipment.setHelmet(helmet);equipment.setChestplate(chest);equipment.setItemInOffHand(backpack);
+            // 実際の装備・残弾は既存の死体インベントリへ移す。バニラの追加ドロップは死亡処理が消す。
+            equipment.setItemInMainHandDropChance(0);equipment.setHelmetDropChance(0);equipment.setChestplateDropChance(0);equipment.setItemInOffHandDropChance(0);
+        }
 
         // 例: プレイヤー風に偽装（名前は"SCAV"）
         try {
@@ -162,10 +189,12 @@ public class ScavSpawner implements Listener {
         Bukkit.getMobGoals().removeAllGoals(scav);
 
         // コントローラーを生成して登録
-        ScavBrain.BrainLevel brainLevel = rollBrainLevel();
+        ScavBrain.BrainLevel brainLevel = bossRole==null?rollBrainLevel():bossRole.equals("boss")?ScavBrain.BrainLevel.HIGH:ScavBrain.BrainLevel.MID;
         // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
-        com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav, brainLevel, maxAmmoClass);
+        if(bossRole==null)com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav,brainLevel,maxAmmoClass);
+        else if(com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assignBest(scav)==null){scav.remove();return null;}
         ScavController controller = new ScavController(plugin, scav, brainLevel);
+        if(post!=null)controller.setBossPost(post);
         controllers.put(scav.getUniqueId(), controller);
         if (raidSessionId != null && !raidSessionId.isEmpty()) {
             scavRaidSessions.put(scav.getUniqueId(), raidSessionId);
@@ -176,6 +205,15 @@ public class ScavSpawner implements Listener {
 
         Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId() + " level=" + brainLevel);
         return scav.getUniqueId();
+        } catch(RuntimeException ex) {
+            if(bossRole!=null) {
+                removeScav(scav.getUniqueId());
+                com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.remove(scav.getUniqueId());
+                DatapackGunnerManager.remove(scav.getUniqueId());
+                if(scav.isValid())scav.remove();
+            }
+            throw ex;
+        }
     }
 
     private ScavBrain.BrainLevel rollBrainLevel() {
