@@ -1,10 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
-import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
-import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
@@ -22,6 +22,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
@@ -29,6 +30,8 @@ import org.bukkit.util.Vector;
 
 import java.util.Collection;
 import java.util.UUID;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Toi's Armoryデータパック銃の命中に、プラグイン銃と同じ部位判定・防具の貫通判定を入れ、{@link BulletHitEvent} として通知する。
@@ -36,7 +39,7 @@ import java.util.UUID;
  * データパックの {@code damage} コマンドで起きるダメージイベントの中で判断する。
  * <ul>
  *   <li>頭: データパックは当たり判定の上0.45ブロックへの命中に CRIT_HIT タグを付け、頭用のダメージで撃つ。
- *       タグは damage コマンドの実行中も付いたままなので、それで判断する (頭の倍率はデータパック側で入っている)</li>
+ *       タグは damage コマンドの実行中も付いたままなので、それで判断する (倍率はプラグイン側で一度だけ掛ける)</li>
  *   <li>胴・腕・足: ダメージを与えている最中の弾 (BULLET と HIT_ENTITY タグの付いた marker) は、その tick の移動先に
  *       進行方向を向いて置かれている。その位置と向きから当たり判定の箱への入射点を逆算する。
  *       腕と胴は、入射点だけでなく胴の中心領域を弾道が横切るかで分ける</li>
@@ -53,7 +56,7 @@ public class DatapackBulletHitBridge implements Listener {
     private static final String BULLET_TAG = "BULLET";
     private static final String HIT_ENTITY_TAG = "HIT_ENTITY";
     private static final String MULTI_PROJECTILE_TAG = "toisarm.bullet.shots_divide_damage";
-    private static final String FIRING_OBJECTIVE = "toisarm.timer.firing";
+    private static final String PLAYER_ID_OBJECTIVE = "toisarm.id";
     private static final String PROJECTILES_OBJECTIVE = "toisarm.bullet.shots";
     private static final int DEFAULT_SHOTGUN_PROJECTILES = 12;
     /** 弾を探す範囲。弾は1tickにこれより長くは進まない */
@@ -70,21 +73,55 @@ public class DatapackBulletHitBridge implements Listener {
                              BulletDamageModel.ArmorPiece armor) {
     }
 
-    /** LOW で決めた部位・貫通を MONITOR の通知で使う (ダメージイベントは入れ子にならないため1件で足りる) */
-    private EntityDamageEvent pendingEvent;
-    private HitResult pendingResult;
+    // TODO(ai-collab): 再入するFakePlayer転送でも結果を混ぜず、弾単位の命中と耐久処理を一度に制限する。
+    private final Map<EntityDamageEvent, HitResult> pending = new WeakHashMap<>();
+    /** PaperがlastDamageCauseを設定してから行う防具消耗だけを識別する。イベントを強参照しない。 */
+    private final Map<EntityDamageEvent, Integer> completed = new WeakHashMap<>();
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onBulletAdded(EntityAddToWorldEvent event) {
+        if (!(event.getEntity() instanceof Marker bullet)
+                || !bullet.getScoreboardTags().contains("toisarm.bullet")
+                || !bullet.getScoreboardTags().contains("BULLET_INIT")) return;
+        // summonのNBTは追加イベントより前に読み込まれる。ownerのスコア転記より前なので、
+        // 実行中のPLAYERと#idを照合する。距離や「直前に撃った人」からは推定しない。
+        var manager = Bukkit.getScoreboardManager();
+        var ids = manager != null ? manager.getMainScoreboard().getObjective(PLAYER_ID_OBJECTIVE) : null;
+        var temporary = manager != null ? manager.getMainScoreboard().getObjective("_") : null;
+        if (ids == null || temporary == null || !temporary.getScore("#id").isScoreSet()) return;
+        int id = temporary.getScore("#id").getScore();
+        for (Player player : bullet.getWorld().getPlayers()) {
+            if (!player.getScoreboardTags().contains("PLAYER")) continue;
+            var playerId = ids.getScore(player.getName());
+            if (!playerId.isScoreSet() || playerId.getScore() != id) continue;
+            Entity shooter = DatapackGunnerManager.resolveShooter(player);
+            ScavAmmoSupply supply = ScavAmmoSupply.of(shooter.getUniqueId());
+            AmmoDefinition ammo = supply != null ? supply.ammo()
+                    : ItemRegistry.getAmmo(DatapackAmmo.loadedAmmoId(player.getInventory().getItemInMainHand()));
+            var shots = manager.getMainScoreboard().getObjective("toisarm.state.projectiles_per_shot");
+            var score = shots != null ? shots.getScore(player.getName()) : null;
+            int pellets = score != null && score.isScoreSet() ? Math.max(1, score.getScore()) : 1;
+            DatapackBulletState.capture(bullet, shooter.getUniqueId(), ammo, pellets);
+            return;
+        }
+    }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onDamageCalculate(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof LivingEntity victim)) return;
         if (!isDatapackBullet(event)) return;
 
-        // 撃った弾の貫通クラスと定義威力。プレイヤーは撃った時に銃に込めていた弾、
-        // SCAVは割り当てられた弾。分からない時 (弾を込めていない銃・弾の無い口径のSCAV) は貫通クラス1
         BulletContact contact = bulletContact(victim);
-        AmmoDefinition ammo = shooterAmmo(event.getDamager(), contact);
-        int ammoClass = ammo != null ? ammo.ammoClass : DATAPACK_AMMO_CLASS;
-        double rawDamage = BulletDamageModel.baseDamage(ammo, projectilesPerShot(event.getDamager(), contact));
+        // 本体への直撃とFakePlayerからの転送が来ても、同じ弾・本体は一度しか処理しない。
+        if (contact != null && !DatapackBulletState.claim(contact.bullet(), victim.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+        DatapackBulletState.Shot shot = contact != null ? DatapackBulletState.read(contact.bullet()) : null;
+        int ammoClass = shot != null ? shot.ammoClass() : DATAPACK_AMMO_CLASS;
+        // 更新前から飛んでいた弾は発射情報を復元できない。射手の現在の弾を流用しない。
+        double rawDamage = shot != null ? shot.pelletDamage()
+                : BulletDamageModel.baseDamage(null, projectilesPerShot(contact));
         // 処理中の弾Markerから入射方向を読み、腕と胴の区別にも使う。
         Vector incoming = contact != null ? contact.direction() : null;
         String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null, incoming);
@@ -96,7 +133,8 @@ public class DatapackBulletHitBridge implements Listener {
         BulletDamageModel.ArmorPiece armor = BulletDamageModel.armorPiece(victim, hitLocation);
         int armorClass = armor != null ? armor.armorClass() : 0;
         Entity shooter = DatapackGunnerManager.resolveShooter(event.getDamager());
-        UUID shooterId = shooter != null ? shooter.getUniqueId() : event.getDamager().getUniqueId();
+        UUID shooterId = shot != null ? shot.shooter()
+                : shooter != null ? shooter.getUniqueId() : event.getDamager().getUniqueId();
         boolean penetrated = BulletDamageModel.penetrates(ammoClass, armorClass, shooterId,
                 victim.getUniqueId(), hitLocation);
 
@@ -110,24 +148,20 @@ public class DatapackBulletHitBridge implements Listener {
             }
         }
 
-        pendingEvent = event;
-        pendingResult = new HitResult(hitLocation, penetrated, rawDamage, ammoClass, armor);
+        pending.put(event, new HitResult(hitLocation, penetrated, rawDamage, ammoClass, armor));
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onDamage(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof LivingEntity victim)) return;
         if (!isDatapackBullet(event)) return;
-        HitResult result = event == pendingEvent ? pendingResult : null;
-        pendingEvent = null;
-        pendingResult = null;
-        if (result == null) return;
+        HitResult result = pending.remove(event);
+        if (result == null || event.isCancelled()) return;
+        completed.put(event, Bukkit.getCurrentTick());
 
-        // 止められた弾はダメージ0なので、止めた防具の耐久をここで減らす。
-        // 貫通した弾はバニラの防具耐久 (damageOnHurt) に任せる。
-        if (!result.penetrated() && result.armor() != null) {
-            wearArmor(victim, result.armor());
-        }
+        // 防護を判定した一着だけを消耗させる。プレイヤーとSCAVで同じ規則を使う。
+        int wear = armorWear(result.penetrated(), event.getFinalDamage());
+        if (result.armor() != null && wear > 0) wearArmor(victim, result.armor(), wear);
 
         // SCAVのFakePlayerが撃った場合は、撃ったSCAV本体を射手とする
         Entity shooter = DatapackGunnerManager.resolveShooter(event.getDamager());
@@ -143,40 +177,36 @@ public class DatapackBulletHitBridge implements Listener {
                 result.ammoClass(), result.rawDamage()));
     }
 
-    private static void wearArmor(LivingEntity victim, BulletDamageModel.ArmorPiece armor) {
-        ItemStack worn = ArmorDurability.wear(armor.item(), ArmorDurability.BLOCKED_WEAR, victim instanceof Player);
+    private static void wearArmor(LivingEntity victim, BulletDamageModel.ArmorPiece armor, int amount) {
+        ItemStack worn = ArmorDurability.wear(armor.item(), amount, victim instanceof Player);
         if (worn != null && victim.getEquipment() != null) {
             victim.getEquipment().setItem(armor.slot(), worn);
         }
     }
 
-    private static AmmoDefinition shooterAmmo(Entity damager, BulletContact contact) {
-        Entity shooter = DatapackGunnerManager.resolveShooter(damager);
-        if (shooter == null) return null;
-        ScavAmmoSupply supply = ScavAmmoSupply.of(shooter.getUniqueId());
-        if (supply != null) return supply.ammo();
-        if (!(shooter instanceof Player player) || DatapackGunnerManager.isGunner(player)) return null;
-        AmmoDefinition immediate = immediateScatterAmmo(player, contact);
-        return immediate != null ? immediate : DatapackAmmo.lastShotAmmo(player.getUniqueId());
+    /** 貫通は従来のバニラ相当、防いだ弾は従来の固定消耗。ゼロダメージの貫通は消耗なし。 */
+    static int armorWear(boolean penetrated, double damage) {
+        if (!penetrated) return ArmorDurability.BLOCKED_WEAR;
+        return Double.isFinite(damage) && damage > 0 ? Math.max(1, (int) (damage / 4.0)) : 0;
     }
 
-    /** 同tickで当たる散弾は発射監視がまだ走っていないため、手にある銃の装填弾を使う。 */
-    private static AmmoDefinition immediateScatterAmmo(Player player, BulletContact contact) {
-        if (contact == null || !contact.bullet().getScoreboardTags().contains(MULTI_PROJECTILE_TAG)) return null;
-        var manager = Bukkit.getScoreboardManager();
-        var firing = manager != null ? manager.getMainScoreboard().getObjective(FIRING_OBJECTIVE) : null;
-        if (firing == null) return null;
-        var score = firing.getScore(player.getName());
-        if (!score.isScoreSet() || score.getScore() < 0) return null;
-
-        ItemStack gun = player.getInventory().getItemInMainHand();
-        DatapackGunProfile profile = DatapackGunCatalog.get(DatapackGunCatalog.gunIdOf(gun));
-        if (profile == null || profile.projectilesPerShot() <= 1) return null;
-        return ItemRegistry.getAmmo(DatapackAmmo.loadedAmmoId(gun));
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onVanillaArmorDamage(PlayerItemDamageEvent event) {
+        EntityDamageEvent cause = event.getPlayer().getLastDamageCause();
+        Integer tick = completed.get(cause);
+        if (tick == null || tick != Bukkit.getCurrentTick() || cause.isCancelled() || !isDatapackBullet(cause)) return;
+        // Paperは元のダメージイベントが戻った後に全防具を削る。選択した防具は既に手動消耗済み。
+        // 手持ちの道具や、別のダメージ原因による耐久消費は取り消さない。
+        for (ItemStack armor : event.getPlayer().getInventory().getArmorContents()) {
+            if (armor != null && armor.equals(event.getItem())) {
+                event.setCancelled(true);
+                return;
+            }
+        }
     }
 
     /** 発射時に弾Markerへ記録された粒数を使う。銃を持ち替えた後の着弾でも粒数は変わらない。 */
-    private static int projectilesPerShot(Entity damager, BulletContact contact) {
+    private static int projectilesPerShot(BulletContact contact) {
         if (contact != null) {
             var manager = Bukkit.getScoreboardManager();
             var objective = manager != null ? manager.getMainScoreboard().getObjective(PROJECTILES_OBJECTIVE) : null;
@@ -186,11 +216,7 @@ public class DatapackBulletHitBridge implements Listener {
             }
             if (contact.bullet().getScoreboardTags().contains(MULTI_PROJECTILE_TAG)) return DEFAULT_SHOTGUN_PROJECTILES;
         }
-        Entity shooter = DatapackGunnerManager.resolveShooter(damager);
-        ItemStack gun = shooter instanceof LivingEntity living && living.getEquipment() != null
-                ? living.getEquipment().getItemInMainHand() : null;
-        DatapackGunProfile profile = DatapackGunCatalog.get(DatapackGunCatalog.gunIdOf(gun));
-        return profile != null ? Math.max(1, profile.projectilesPerShot()) : 1;
+        return 1;
     }
 
     private static boolean isDatapackBullet(EntityDamageEvent event) {
@@ -207,7 +233,8 @@ public class DatapackBulletHitBridge implements Listener {
         if (entry == null) return BulletDamageModel.BODY;
         String location = BulletDamageModel.hitLocation(victim, entry, incoming);
         // 頭はデータパックの判定 (CRIT_HIT) に合わせる。付いていなければ胴として扱う
-        return BulletDamageModel.HEAD.equals(location) ? BulletDamageModel.BODY : location;
+        return BulletDamageModel.HEAD.equals(location) || BulletDamageModel.FACE.equals(location)
+                ? BulletDamageModel.BODY : location;
     }
 
     private record BulletContact(Vector entry, Vector direction, Marker bullet) {

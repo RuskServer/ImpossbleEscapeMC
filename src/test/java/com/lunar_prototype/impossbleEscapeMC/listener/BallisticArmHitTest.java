@@ -68,6 +68,7 @@ public final class BallisticArmHitTest {
         check(bridge.invoke(null,v.entity,side,new Vector(-1,0,0)).equals(BulletDamageModel.BODY),"actual bridge passes incoming direction into body trace");
         check(bridge.invoke(null,v.entity,side,null).equals(BulletDamageModel.BODY),"nearest-marker fallback remains conservative");
         check(bridge.invoke(null,v.entity,head,new Vector(0,0,-1)).equals(BulletDamageModel.BODY),"unmarked head stays datapack-controlled");
+        check(bridge.invoke(null,v.entity,face,new Vector(0,0,-1)).equals(BulletDamageModel.BODY),"unmarked face cannot bypass datapack head authority");
         v.tags.add("CRIT_HIT");
         check(bridge.invoke(null,v.entity,head,new Vector(0,0,-1)).equals(BulletDamageModel.HEAD),"marked head preserved");
         check(bridge.invoke(null,v.entity,face,new Vector(0,0,-1)).equals(BulletDamageModel.FACE),"marked face preserved");

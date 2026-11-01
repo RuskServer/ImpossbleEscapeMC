@@ -2,6 +2,7 @@ package com.lunar_prototype.impossbleEscapeMC.ai;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -27,6 +28,7 @@ import java.util.UUID;
  */
 public final class DatapackGunnerManager implements Listener {
 
+    private static final NamespacedKey DATAPACK_BULLET_DAMAGE = new NamespacedKey("toisarm", "bullet");
     private static DatapackGunnerManager instance;
 
     private final Plugin plugin;
@@ -130,6 +132,9 @@ public final class DatapackGunnerManager implements Listener {
         DatapackGunner gunner = byGunner.get(event.getEntity().getUniqueId());
         if (gunner == null) return;
         event.setCancelled(true);
+        // TODO(ai-collab): 本体も命中対象なら直接のイベントを使い、FakePlayerの頭部タグや転送順に結果を左右させない。
+        if (DATAPACK_BULLET_DAMAGE.equals(event.getDamageSource().getDamageType().getKey())
+                && gunner.getOwner().getScoreboardTags().contains("HIT")) return;
         if (event instanceof EntityDamageByEntityEvent byEntity) {
             Entity attacker = resolveShooter(byEntity.getDamager());
             if (attacker != null && !attacker.equals(gunner.getOwner()) && gunner.getOwner().isValid()) {

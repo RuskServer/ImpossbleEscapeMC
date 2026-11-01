@@ -103,6 +103,16 @@ In `config.yml`:
 4. Update `Change Log` below after any non-trivial change.
 
 ## Change Log
+
+### 2026-11-01 — Damage review fixes
+
+- Scope: `DatapackBulletHitBridge`, new `DatapackBulletState`, `DatapackGunnerManager`, combat regression tests and `BULLET_HIT_REGIONS.md`.
+- Minimal direct changes replace shooter-level last-shot damage lookup with immutable per-Marker spawn snapshots; deduplicate real-body/FakePlayer hits by Marker and normalized victim UUID; prefer a directly marked body over FakePlayer forwarding.
+- Require CRIT_HIT for both HEAD and FACE. Keep body/arm geometry, damage multipliers, penetration curves and SCAV aim unchanged.
+- Wear only the selected armor on both blocked and penetrating hits, equally for players/SCAVs. Suppress the matching post-event vanilla player armor wear without disabling ordinary tool/melee wear. Keep the SCAV sunlight/item-damage guard intact.
+- Store pending damage results per event to preserve nested forwarding; weak keys avoid retaining completed/cancelled events.
+- Validation: package/test compilation and five combat test mains, including new spawn/duplicate/armor regression coverage. Live-server validation remains necessary; no datapack/resource-pack edits.
+
 - 2026-03-24: Added collaboration boundary doc and ownership map for SearchGUI, SCAV behavior, alertness, and raid logger pipeline.
 - 2026-03-24: Added TraderSelectionGUI and updated PDAGUI to allow remote trader access when not in a raid.
 - 2026-03-31: Added loot session start/end custom events and a loot-backpack overlay listener that temporarily maps player inventory rows (9-35) to backpack pages during SearchGUI sessions, with map/rig suppression and end-of-session restoration.
