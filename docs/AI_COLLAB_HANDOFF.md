@@ -104,6 +104,13 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-01 — Persistent SCAV aim bias floor
+
+- LOW draws a signed 0.06–0.16 block side bias, MID 0.03–0.12; HIGH retains its 0–0.08 distribution.
+- Use the same single random draw and preserve subsequent personality draws. Apply the floor only to the persistent trait; continuous sway and acquisition/tracking calculations can still cancel it.
+- Expand ScavIndividualAimTest with 30,000 individual/rank cases, distribution/seed stability and an actual aim-model cancellation case. Update aim and AI specifications.
+
+
 ### 2026-11-01 — PDA trader contacts
 
 - Refresh TraderSelectionGUI with the existing PDA/party background, terminal palette, centered contact portraits, stable ordering, pagination and a PDA return action.
