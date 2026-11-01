@@ -50,7 +50,7 @@ import java.util.UUID;
  *   <li>照明弾: レイド終盤の照明弾が見えている間 iem:flare_light_&lt;段階&gt; (照明弾の位置から周りを照らす光。段階は強さで、
  *       見えなくなった時にゆっくり消す。RaidEndSequence の照明弾が決める)</li>
  *   <li>フラッシュライト: 点けたフラッシュライトを手に持っている間 iem:flashlight (周りを照らす光なので色味より下)</li>
- *   <li>マズルフラッシュ: 自分が撃った tick だけ iem:muzzle_flash_hip / _ads / _suppressed (周りを照らす光なので色味より下)</li>
+ *   <li>マズルフラッシュ: 発射信号を画作りへ渡す (追加パスなし) (周りを照らす光なので色味より下)</li>
  *   <li>画作り: ロビーでもレイド中でも常に iem:grade (太陽の影・接地の影・光の筋・レンズフレア・色味)。太陽のフレアの位置は数値から求める
  *       (ここより下の層は数値の画素をそのまま通す)。バイザーを付けたヘルメットをかぶっている間は、バイザー付きの画作り
  *       (iem:grade_&lt;バイザーの効果&gt;。最初の段でバイザーをかける。目の手前のガラスなのでレンズフレアより下)。
@@ -90,9 +90,6 @@ public final class ScreenEffectService implements Listener {
     private static final Key HIT = Key.key(NAMESPACE, "hit");
     private static final Key HIT_FADE = Key.key(NAMESPACE, "hit_fade");
     private static final Key EMP_FLASH = Key.key(NAMESPACE, "emp_flash");
-    private static final Key MUZZLE_FLASH_HIP = Key.key(NAMESPACE, "muzzle_flash_hip");
-    private static final Key MUZZLE_FLASH_ADS = Key.key(NAMESPACE, "muzzle_flash_ads");
-    private static final Key MUZZLE_FLASH_SUPPRESSED = Key.key(NAMESPACE, "muzzle_flash_suppressed");
     /** EMP の閃光は emp_flash (真っ白) から emp_flash_fade_1〜3 へ順に薄れる */
     private static final int EMP_FLASH_FADE_STAGES = 3;
     private static final int EMP_FLASH_TICKS = 3;
@@ -200,8 +197,8 @@ public final class ScreenEffectService implements Listener {
     /** 被弾した tick */
     private final Map<UUID, Integer> hitTick = new HashMap<>();
     /** マズルフラッシュの層のエフェクトと、撃った tick (その tick だけかける) */
-    private final Map<UUID, Key> muzzleFlash = new HashMap<>();
-    private final Map<UUID, Integer> muzzleFlashTick = new HashMap<>();
+    private final MuzzleFlashSignal muzzleSignal;
+
     /** ワールドの読み込み待ちのプレイヤーと、待ち始めたtick */
     private final Map<UUID, Integer> awaitingLoad = new HashMap<>();
     /** 読み込みが終わったプレイヤーと、演出を進めてよくなるtick */
@@ -213,6 +210,7 @@ public final class ScreenEffectService implements Listener {
 
     private ScreenEffectService(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
+        this.muzzleSignal = new MuzzleFlashSignal(plugin);
         this.tickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
         Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, WET_CHANNEL);
         this.playerLoadedListener = new PlayerLoadedListener();
@@ -247,6 +245,7 @@ public final class ScreenEffectService implements Listener {
     public static void shutdown() {
         if (instance == null) return;
         instance.tickTask.cancel();
+        instance.muzzleSignal.close();
         PacketEvents.getAPI().getEventManager().unregisterListener(instance.playerLoadedListener);
         Bukkit.getOnlinePlayers().forEach(ScreenEffectService::clearIem);
         instance = null;
@@ -589,27 +588,17 @@ public final class ScreenEffectService implements Listener {
 
     /**
      * 撃った本人の画面に、その tick だけマズルフラッシュをかける。
-     * 銃口の画面上の位置は送れないため、腰だめ・ADS で別のエフェクトにしてある (位置は muzzle_flash.py が各銃の中央値で決める)
+     * 銃口の画面上の位置は送れないため、腰だめ・ADS で別のエフェクトにしてある (位置はパック側の従来値を使う)
      */
     public static void playMuzzleFlash(Player player, boolean aiming, boolean suppressed) {
         if (instance == null) return;
         if (player.getGameMode() == GameMode.SPECTATOR) return;
-        UUID playerId = player.getUniqueId();
-        Key effect = suppressed ? MUZZLE_FLASH_SUPPRESSED : aiming ? MUZZLE_FLASH_ADS : MUZZLE_FLASH_HIP;
-        instance.muzzleFlash.put(playerId, effect);
-        instance.muzzleFlashTick.put(playerId, Bukkit.getCurrentTick());
-        instance.refresh(player);
+        instance.muzzleSignal.flash(player, suppressed ? 3 : aiming ? 2 : 1);
     }
 
-    /** 撃った次の tick にマズルフラッシュを外す */
+    /** 信号だけを解除する。ポストエフェクトの構成は変更しない。 */
     private void tickMuzzleFlashes(int now) {
-        for (Map.Entry<UUID, Integer> entry : new ArrayList<>(muzzleFlashTick.entrySet())) {
-            if (now - entry.getValue() < 1) continue;
-            muzzleFlashTick.remove(entry.getKey());
-            muzzleFlash.remove(entry.getKey());
-            Player player = Bukkit.getPlayer(entry.getKey());
-            if (player != null) refresh(player);
-        }
+        muzzleSignal.tick(now);
     }
 
     private Key hitEffectOf(UUID playerId) {
@@ -655,7 +644,7 @@ public final class ScreenEffectService implements Listener {
         refresh(player);
     }
 
-    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → 照明弾 → フラッシュライト → マズルフラッシュ → 画作り (バイザー・水滴付きもある) → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
+    /** iem 以外のポストエフェクトは残したまま、iem のエフェクトを今の層 (確認用 → 空 → 照明弾 → フラッシュライト → 画作り (バイザー・水滴付きもある) → 数値の画素 (画作りの無い時) → 負傷 → 演出 → 被弾 → メニューのぼかし止め) にする */
     private void refresh(Player player) {
         UUID playerId = player.getUniqueId();
         List<Key> current = new ArrayList<>(player.postEffects().values());
@@ -669,8 +658,6 @@ public final class ScreenEffectService implements Listener {
         Key flareEffect = flareLight.get(playerId);
         if (flareEffect != null) effects.add(flareEffect);
         if (flashlit.contains(playerId)) effects.add(FLASHLIGHT);
-        Key flashEffect = muzzleFlash.get(playerId);
-        if (flashEffect != null) effects.add(flashEffect);
         // バイザーは画作りの最初の段でかける (画面全体の段と写し戻しを 1 組減らす)。画作りの無い時 (死亡中など) はかけない
         Key visorEffect = visor.get(playerId);
         if (graded.contains(playerId)) effects.add(visorEffect != null ? Key.key(NAMESPACE, "grade_" + visorEffect.value()) : GRADE);
@@ -716,8 +703,7 @@ public final class ScreenEffectService implements Listener {
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
-        muzzleFlash.remove(playerId);
-        muzzleFlashTick.remove(playerId);
+        muzzleSignal.clear(playerId);
         awaitingLoad.remove(playerId);
         settlingUntil.remove(playerId);
         awaitingRespawn.remove(playerId);
@@ -740,8 +726,7 @@ public final class ScreenEffectService implements Listener {
         graded.remove(playerId);
         wound.remove(playerId);
         hitTick.remove(playerId);
-        muzzleFlash.remove(playerId);
-        muzzleFlashTick.remove(playerId);
+        muzzleSignal.clear(playerId);
         playing.put(playerId, new Playback(List.of(
                 new Step(DEATH_IMPACT, DEATH_IMPACT_TICKS, false),
                 new Step(DEATH_BLACKOUT, DEATH_BLACKOUT_TICKS, false),

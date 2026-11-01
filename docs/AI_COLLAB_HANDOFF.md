@@ -104,6 +104,13 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-01 — Muzzle signal integration
+
+- Replace per-shot post-effect list changes with `MuzzleFlashSignal`: one-byte mod channel or a reusable private text glyph for vanilla clients.
+- Integrate the previous muzzle shader into grade, preserving position/light/occlusion while enlarging flame dimensions by 1.2. Update pack generator and use spare Visor.y in the existing client frame UBO.
+- See `MUZZLE_FLASH.md` for update requirements and live validation. Toi's Armory and other effect layers remain intact.
+
+
 ### 2026-11-01 — Damage review fixes
 
 - Scope: `DatapackBulletHitBridge`, new `DatapackBulletState`, `DatapackGunnerManager`, combat regression tests and `BULLET_HIT_REGIONS.md`.
