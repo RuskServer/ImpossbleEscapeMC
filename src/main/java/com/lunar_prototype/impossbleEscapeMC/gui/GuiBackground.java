@@ -30,6 +30,9 @@ public enum GuiBackground {
             label("カーソルで詳細", 8, 2, Ink.AMBER_DIM), label("閉じる", 101, 2, Ink.RUST)),
     PARTY(0xE120, 3, "パーティー", "ОТРЯД", engraving("КПК-3М", 4, false),
             label("メンバー", 8, 0, Ink.AMBER), labelRight("招待", 41, 2, Ink.AMBER), label("脱退", 135, 2, Ink.RUST)),
+    // パーティー画面と同じ端末・中央の連絡先欄を使用する (追加のパック素材は不要)。
+    TRADERS(0xE120, 3, "トレーダー", "КОНТАКТЫ", engraving("КПК-3М", 4, false),
+            label("取引先を選択", 8, 0, Ink.AMBER), label("PDAへ戻る", 8, 2, Ink.AMBER_DIM)),
     PARTY_INVITE(0xE140, 6, "招待する相手", "ПРИГЛАШЕНИЕ", engraving("КПК-3М", 4, false)),
     STASH_SELECT(0xE160, 3, "スタッシュ", "ХРАНИЛИЩЕ", engraving("КПК-3М", 4, false), label("ページを選択", 8, 0, Ink.AMBER)),
     STASH_3(0xE180, 3, "スタッシュ", "ХРАНИЛИЩЕ", engraving("КПК-3М", 4, false)),

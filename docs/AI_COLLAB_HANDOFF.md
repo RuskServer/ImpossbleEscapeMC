@@ -104,6 +104,14 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-01 — PDA trader contacts
+
+- Refresh TraderSelectionGUI with the existing PDA/party background, terminal palette, centered contact portraits, stable ordering, pagination and a PDA return action.
+- Read configured Citizens NPC saved skins (including unspawned NPCs and ID0), with live profile and original-icon fallbacks; do not fetch skins or mutate NPCs.
+- Keep existing trade dialogs and availability rules. Cancel drag/transfer interactions and defer screen transitions to the next tick with a current-view guard.
+- See `TRADER_SELECTION.md` and `TraderPortraitsTest`. Pack and mod assets are reused without changes.
+
+
 ### 2026-11-01 — Muzzle signal integration
 
 - Replace per-shot post-effect list changes with `MuzzleFlashSignal`: one-byte mod channel or a reusable private text glyph for vanilla clients.
