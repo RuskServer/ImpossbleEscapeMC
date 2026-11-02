@@ -128,6 +128,7 @@ public final class QuestAutoHandIn {
      * 納品できた数を返す
      */
     public int apply(List<Allocation> allocations) {
+        if (!QuestDeliveryAccess.requireOutsideRaid(player)) return 0;
         int done = 0;
         HandInPlaces.Store store = new HandInPlaces.Store(player, data);
         for (Allocation a : allocations) {

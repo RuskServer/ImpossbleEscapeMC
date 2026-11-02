@@ -326,7 +326,7 @@ public final class QuestDialog implements Listener {
         if (session.pda()) {
             chips.add(new Chip(session.showAll ? "完了・ロック: 表示" : "完了・ロック: 隠す", NOTE, "all",
                     session.showAll ? "進行中・受領可だけにする" : "完了・ロック中のクエストも並べる"));
-        } else if (trader != null) {
+        } else if (trader != null && !QuestDeliveryAccess.blocked(player)) {
             int bulk = QuestHandInDialog.openHandIns(data, trader, quests).size();
             if (bulk > 0) chips.add(new Chip("まとめて納品  " + bulk + "件", AMBER, "bulk", "入れた物を、進行中のクエストの納品に順に充てる"));
         }
@@ -334,6 +334,8 @@ public final class QuestDialog implements Listener {
 
         List<DialogBody> body = new ArrayList<>();
         body.add(DialogBody.plainMessage(listHeader(new ListHeaderView(name, reportable, active, startable, chips, tabs)), HEADER_BODY_W));
+        if (QuestDeliveryAccess.blocked(player)) body.add(DialogBody.plainMessage(
+                Component.text("納品・報告はレイド終了後に行えます", NOTE), HEADER_BODY_W));
         for (Entry e : shown) {
             body.add(DialogBody.item(listIcon(player, e)).description(DialogBody.plainMessage(row(rowView(e, session.pda())), ROW_BODY_W))
                     .showTooltip(true).showDecorations(false).width(ITEM_BOX).height(ITEM_BOX).build());
@@ -361,6 +363,7 @@ public final class QuestDialog implements Listener {
     }
 
     private static void showDetail(Player player, Session session, QuestModule quests, PlayerData data, Entry e) {
+        boolean deliveryAllowed = !QuestDeliveryAccess.blocked(player);
         QuestDefinition quest = e.quest();
         String traderName = traderName(trader(quest.getTraderId()), quest.getTraderId());
         List<DialogBody> body = new ArrayList<>();
@@ -388,7 +391,7 @@ public final class QuestDialog implements Listener {
             int target = target(o);
             int progress = progress(o, e.active(), i);
             boolean done = e.status() == Status.DONE || (e.active() != null && o.isCompleted(e.active(), i));
-            boolean handIn = o instanceof HandInObjective && e.active() != null && !done;
+            boolean handIn = deliveryAllowed && o instanceof HandInObjective && e.active() != null && !done;
             String count = o instanceof ReachLocationObjective ? (done ? "到達済み" : "未到達") : (done ? target : progress) + "/" + target;
             body.add(itemRow(objectiveIcon(player, o), row(new ObjectiveView(o.getDescription(), count, done,
                     done ? 1.0 : (double) progress / Math.max(1, target), handIn ? "handin/" + quest.getId() : null))));
@@ -402,14 +405,16 @@ public final class QuestDialog implements Listener {
             }
         }
 
+        if (!deliveryAllowed) body.add(DialogBody.plainMessage(
+                Component.text("納品・報告はレイド終了後に行えます", NOTE), HEADER_BODY_W));
         Component title = Component.text(traderName + " ― " + quest.getDisplayName()).append(noticeText(session));
         DialogBase base = DialogBase.builder(title).canCloseWithEscape(true).pause(false)
                 .afterAction(DialogBase.DialogAfterAction.NONE).body(body).build();
         ActionButton back = ActionButton.create(Component.text("戻る"), null, 150, action("back"));
         ActionButton main = switch (e.status()) {
             case START -> ActionButton.create(Component.text("受領する"), null, 150, action("accept/" + quest.getId()));
-            case REPORT -> ActionButton.create(Component.text("報告して報酬を受け取る"), null, 150, action("report/" + quest.getId()));
-            case ACTIVE -> QuestHandInDialog.hasOpenHandIn(quest, e.active())
+            case REPORT -> deliveryAllowed ? ActionButton.create(Component.text("報告して報酬を受け取る"), null, 150, action("report/" + quest.getId())) : null;
+            case ACTIVE -> deliveryAllowed && QuestHandInDialog.hasOpenHandIn(quest, e.active())
                     ? ActionButton.create(Component.text("納品する"), Component.text("納品の画面を開く"), 150, action("handin/" + quest.getId()))
                     : null;
             default -> null;
@@ -930,6 +935,9 @@ public final class QuestDialog implements Listener {
             player.closeDialog();
             return;
         }
+        String operation = action.split("/", 2)[0];
+        if ((operation.equals("report") || operation.equals("handin") || operation.equals("bulk"))
+                && !QuestDeliveryAccess.requireOutsideRaid(player)) return;
         QuestModule quests = questModule();
         PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
         PlayerData data = dataModule == null ? null : dataModule.getPlayerData(player.getUniqueId());

@@ -5,6 +5,7 @@ import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDeliveryAccess;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDialog;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -51,6 +52,7 @@ public class QuestCommand implements BasicCommand {
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("handin")) {
+            if (!QuestDeliveryAccess.requireOutsideRaid(player)) return;
             ItemStack item = player.getInventory().getItemInMainHand();
             if (item == null || item.getType().isAir()) {
                 player.sendMessage("§c手にアイテムを持っていません。");

@@ -226,11 +226,13 @@ public final class QuestHandInDialog implements Listener {
 
     /** 1 つのクエストの納品の画面を開く */
     public static void open(Player player, TraderDefinition trader, QuestDefinition quest) {
+        if (!QuestDeliveryAccess.requireOutsideRaid(player)) return;
         start(player, new Session(trader, List.of(quest.getId()), false));
     }
 
     /** トレーダーの進行中のクエストにまとめて納品する画面を開く。納品の残っているクエストが無ければ false */
     public static boolean openForTrader(Player player, TraderDefinition trader, QuestModule questModule) {
+        if (!QuestDeliveryAccess.requireOutsideRaid(player)) return false;
         PlayerData data = dataModule().getPlayerData(player.getUniqueId());
         List<QuestDefinition> quests = openHandIns(data, trader, questModule);
         if (quests.isEmpty()) return false;
@@ -423,6 +425,7 @@ public final class QuestHandInDialog implements Listener {
 
     /** 選んだ物で納品する。目標ごとに納品できた数 */
     private static Map<Objective, Integer> handIn(Player player, Session session) {
+        if (!QuestDeliveryAccess.requireOutsideRaid(player)) return Map.of();
         PlayerData data = dataModule().getPlayerData(player.getUniqueId());
         List<Group> groups = collect(player, data);
         List<Objective> objectives = objectives(data, questModule(), session, groups);
@@ -473,6 +476,12 @@ public final class QuestHandInDialog implements Listener {
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null || !player.isOnline()) return;
         String[] parts = action.split("/");
+        // ロビーで開いた画面の操作が、レイド参加後に届いた場合も再判定する。
+        if (!"back".equals(parts[0]) && !QuestDeliveryAccess.requireOutsideRaid(player)) {
+            SESSIONS.remove(player.getUniqueId());
+            player.closeDialog();
+            return;
+        }
         switch (parts[0]) {
             case "toggle" -> {
                 if (parts.length < 3) return;

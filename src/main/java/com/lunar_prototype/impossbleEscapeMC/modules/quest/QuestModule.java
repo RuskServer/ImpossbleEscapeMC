@@ -122,6 +122,7 @@ public class QuestModule implements IModule {
     private void setupEventBus() {
         for (QuestTrigger trigger : QuestTrigger.values()) {
             eventBus.register(trigger, (player, data, t, params) -> {
+                if (t == QuestTrigger.HAND_IN && !QuestDeliveryAccess.requireOutsideRaid(player)) return;
                 boolean changed = false;
                 for (ActiveQuest activeQuest : data.getActiveQuests().values()) {
                     QuestDefinition def = getQuest(activeQuest.getQuestId());
@@ -151,6 +152,7 @@ public class QuestModule implements IModule {
      * クエストを完了させ、報酬を付与する
      */
     public void completeQuest(Player player, PlayerData data, QuestDefinition quest) {
+        if (!QuestDeliveryAccess.requireOutsideRaid(player)) return;
         if (!data.getActiveQuests().containsKey(quest.getId())) return;
         
         ActiveQuest active = data.getActiveQuests().get(quest.getId());

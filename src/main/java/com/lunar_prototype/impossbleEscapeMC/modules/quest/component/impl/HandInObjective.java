@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDeliveryAccess;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.AbstractQuestObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
 import org.bukkit.entity.Player;
@@ -39,7 +40,7 @@ public class HandInObjective extends AbstractQuestObjective {
 
     @Override
     public boolean updateProgress(Player player, PlayerData data, ActiveQuest activeQuest, int index, QuestTrigger trigger, Map<String, Object> params) {
-        if (trigger != QuestTrigger.HAND_IN) return false;
+        if (trigger != QuestTrigger.HAND_IN || QuestDeliveryAccess.blocked(player)) return false;
 
         String handedItemId = (String) params.get("itemId");
         String handedItemType = (String) params.get("itemType");
