@@ -37,15 +37,18 @@ public class ScavTactics {
     private boolean peekSawTarget = false;
     /** 顔出し位置まで出切って止まったか (出ている間は体を進行方向へ向けて歩き、狙いで上書きしない) */
     private boolean peekSettled = false;
+    /** 到着判定が続いた判断ステップ数。到着した瞬間を0とする。 */
+    private int peekAimSteps = 0;
+    private static final int PEEK_AIM_STEPS = 2; // 6tick (0.3秒) 構えてから射撃する。
     /** 次の顔出しまでの待ち (tick)。相手が見えた後は短め、空振りの後は長め */
     private static final int PEEK_REST_AFTER_CONTACT_MIN = 60;
     private static final int PEEK_REST_AFTER_CONTACT_JITTER = 60;
     private static final int PEEK_REST_AFTER_EMPTY_MIN = 100;
     private static final int PEEK_REST_AFTER_EMPTY_JITTER = 80;
     /** 出るのにかかる分、見えないまま出ていられる時間に足す (判断ステップ数) */
-    private static final int PEEK_TRAVEL_STEPS = 4;
+    private static final int PEEK_TRAVEL_STEPS = 6;
     /** 戻りにかける時間の上限 (判断ステップ数) */
-    private static final int PEEK_RETURN_STEPS = 8;
+    private static final int PEEK_RETURN_STEPS = 12;
 
     // 横移動の緩急
     /** 横移動の区間ごとの回る勢い (回る半径) の倍率 */
@@ -162,8 +165,8 @@ public class ScavTactics {
     // 行き先へ向かう指示 (setWantedPosition) は体を移動方向へ回すため、照準を合わせた向きと毎tick取り合って体が揺れる。
     // そこでスケルトンが弓を構えたまま横移動するのと同じストレイフ (向いている方向を基準に前後左右へ動く) を使う
 
-    /** 顔出しの出入りの速さ (移動速度に対する倍率)。約3ブロック/秒 (銃を構えたまま歩いて出る程度。1.8 では約6ブロック/秒で、走るより速く不自然だった) */
-    private static final double PEEK_SPEED = 0.5;
+    /** 顔出しの出入りの速さ (移動速度に対する倍率)。通常移動を変えず、従来の0.5から30%抑える。 */
+    private static final double PEEK_SPEED = 0.35;
     /** 顔出し位置にこの距離まで来たら止まったとみなして撃つ */
     private static final double PEEK_SETTLED_DISTANCE = 0.6;
 
@@ -279,6 +282,7 @@ public class ScavTactics {
         peekPhase = 0;
         peekTicks = 0;
         peekSettled = false;
+        peekAimSteps = 0;
         coverLocation = null;
         peekLocation = null;
     }
@@ -369,6 +373,8 @@ public class ScavTactics {
         if (peekPhase == 1) { // Moving out
             // 角から「歩いて」出る (横滑りだと瞬間移動に見える)。出切ったら止まって撃つ
             boolean settled = scav.getLocation().distanceSquared(peekLocation) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE;
+            // 押されて到着範囲を外れたら構え直す。移動時間を構え時間には数えない。
+            peekAimSteps = settled && peekSettled ? peekAimSteps + 1 : 0;
             peekSettled = settled;
             if (settled) {
                 // 出切ったら歩みを止める。止めないと歩きながら狙うことになり、体が揺れる
@@ -383,7 +389,7 @@ public class ScavTactics {
             if (targetVisible) {
                 long now = System.currentTimeMillis();
                 long interval = (long) (60000.0 / weapon.rpm());
-                if (settled && fireAllowed && now - lastShotTime >= interval) {
+                if (settled && peekAimSteps >= PEEK_AIM_STEPS && fireAllowed && now - lastShotTime >= interval) {
                     aim.run();
                     // 顔出しは単発で撃つ
                     if (weapon.fire(spread, false)) {
@@ -457,9 +463,10 @@ public class ScavTactics {
         coverLocation = scav.getLocation().clone();
         peekLocation = peek.clone();
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
-        peekOutLimit = PEEK_TRAVEL_STEPS + 4 + (int) (Math.random() * 6);
+        peekOutLimit = PEEK_TRAVEL_STEPS + PEEK_AIM_STEPS + 4 + (int) (Math.random() * 6);
         peekSawTarget = false;
         peekSettled = false;
+        peekAimSteps = 0;
         peekPhase = 1;
         peekTicks = 0;
         walkStraightTo(peekLocation, PEEK_SPEED);
@@ -498,9 +505,10 @@ public class ScavTactics {
         }
         if (peekLocation == null) return false;
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
-        peekOutLimit = PEEK_TRAVEL_STEPS + 3 + (int) (Math.random() * 6);
+        peekOutLimit = PEEK_TRAVEL_STEPS + PEEK_AIM_STEPS + 3 + (int) (Math.random() * 6);
         peekSawTarget = false;
         peekSettled = false;
+        peekAimSteps = 0;
         peekPhase = 1;
         peekTicks = 0;
         walkStraightTo(peekLocation, PEEK_SPEED);
