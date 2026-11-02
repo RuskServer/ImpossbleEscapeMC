@@ -1376,9 +1376,9 @@ public class ScavController {
         // 経路探索で立ち位置へ歩いている間は、進む方向を向かせる (照準で向きを上書きすると、
         // 移動の制御が1tickに90度までしか回れず、相手と反対側の場所へ進めなくなる)
         DatapackGunner gunner=DatapackGunnerManager.get(scav.getUniqueId());
-        if (followingPath||bossReturning) {if(gunner!=null)gunner.stopTrigger();return;}
-        // 顔出し/戻りの歩行中は体を進行方向へ向ける (照準で上書きすると横滑り=瞬間移動に見える)
-        if (tactics.isPeekTraveling()) {if(gunner!=null)gunner.stopTrigger();return;}
+        if ((followingPath && tactics.getPeekPhase() == 0) || bossReturning || tactics.isPeekPathfinding()) {if(gunner!=null)gunner.stopTrigger();return;}
+        // 顔出しの移動中も相手へ照準を向ける。残った射撃だけ止め、横移動入力は照準更新後に与える。
+        if (tactics.isPeekTraveling() && gunner != null) gunner.stopTrigger();
         LivingEntity target = scav.getTarget();
         Vector ideal = null;
         double stepLerp;

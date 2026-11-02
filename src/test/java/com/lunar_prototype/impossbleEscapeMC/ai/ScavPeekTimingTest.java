@@ -26,6 +26,7 @@ public final class ScavPeekTimingTest {
         int stops;
         Tactics(Mob mob) {super(mob,null);}
         @Override public void stopMoving() {stops++;}
+        @Override void applyPeekInput(double x, double z) { }
     }
     private static void begin(Tactics tactics,Location destination)throws Exception {
         tactics.cancelPeek();
@@ -46,6 +47,7 @@ public final class ScavPeekTimingTest {
         Mob mob=proxy(Mob.class,(p,m,a)->switch(m.getName()) {
             case "getUniqueId"->new UUID(0,1);
             case "getLocation"->position.clone();
+            case "getVelocity"->new Vector();
             default->throw new AssertionError(m.getName());
         });
         int[] shots={0},aimed={0},ready={0};

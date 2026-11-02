@@ -46,9 +46,12 @@ public class ScavTactics {
     private static final int PEEK_REST_AFTER_EMPTY_MIN = 100;
     private static final int PEEK_REST_AFTER_EMPTY_JITTER = 80;
     /** 出るのにかかる分、見えないまま出ていられる時間に足す (判断ステップ数) */
-    private static final int PEEK_TRAVEL_STEPS = 6;
+    private int peekTravelSteps = 6;
     /** 戻りにかける時間の上限 (判断ステップ数) */
-    private static final int PEEK_RETURN_STEPS = 12;
+    private int peekReturnSteps = 12;
+    private final ScavPeekMotion peekMotion = new ScavPeekMotion();
+    private boolean peekPathfinding;
+    private int peekInputAge;
 
     // 横移動の緩急
     /** 横移動の区間ごとの回る勢い (回る半径) の倍率 */
@@ -74,7 +77,7 @@ public class ScavTactics {
     public int getCoverSearchCooldown() { return coverSearchCooldown; }
     public void setCoverSearchCooldown(int ticks) { this.coverSearchCooldown = ticks; }
     public int getPeekPhase() { return peekPhase; }
-    /** 顔を出す/戻るために歩いている最中か (この間は体を進行方向へ向け、照準で上書きしない) */
+    /** 顔を出す/戻るために移動中か (残った引き金は離すが、照準の追従は続ける) */
     public boolean isPeekTraveling() { return peekPhase != 0 && !peekSettled; }
     
     public void updateTimers() {
@@ -165,10 +168,8 @@ public class ScavTactics {
     // 行き先へ向かう指示 (setWantedPosition) は体を移動方向へ回すため、照準を合わせた向きと毎tick取り合って体が揺れる。
     // そこでスケルトンが弓を構えたまま横移動するのと同じストレイフ (向いている方向を基準に前後左右へ動く) を使う
 
-    /** 顔出しの出入りの速さ (移動速度に対する倍率)。通常移動を変えず、従来の0.5から30%抑える。 */
-    private static final double PEEK_SPEED = 0.35;
     /** 顔出し位置にこの距離まで来たら止まったとみなして撃つ */
-    private static final double PEEK_SETTLED_DISTANCE = 0.6;
+    private static final double PEEK_SETTLED_DISTANCE = 0.3;
 
     /** 直接移動の行き先。MoveControl は行き先を与えた次の1tickしか動かないため、毎tick与え直す (tickDirectMove) */
     private Location directTarget;
@@ -199,19 +200,67 @@ public class ScavTactics {
         return true;
     }
 
-    /**
-     * 体を進行方向へ向けて短い距離を「歩く」(ストレイフではなく歩き)。顔出しの出入りに使う。
-     * MoveControl に目的地点を直接与えるため、まっすぐ歩く。まっすぐ行けない時は false (動かない)
-     */
-    private boolean walkStraightTo(Location dest, double speed) {
-        if (!canStepStraight(dest)) {
-            endStrafe();
-            return false;
+    /** 顔出しは相手を向いたまま、毎tickの前後・左右入力で動かす。経路退避中だけは経路に任せる。 */
+    private void tickPeekMove() {
+        if (peekPathfinding) return;
+        Location dest = peekMoveDestination();
+        if (dest == null || ++peekInputAge > ScavController.STEP_TICKS + 2) {
+            peekMotion.clear();
+            applyPeekInput(0, 0);
+            return;
         }
-        scav.getPathfinder().stopPathfinding();
+        if (!peekRouteClear(dest)) {
+            peekMotion.clear();
+            applyPeekInput(0, 0);
+            if (peekPhase == 1) returnFromPeek();
+            else {
+                peekPathfinding = true;
+                scav.getPathfinder().moveTo(coverLocation, ScavPeekMotion.MAX_INPUT);
+            }
+            return;
+        }
+        Location here = scav.getLocation();
+        var input = peekMotion.step(dest.getX() - here.getX(), dest.getZ() - here.getZ());
+        applyPeekInput(input.x(), input.z());
+    }
+
+    boolean peekRouteClear(Location dest) { return canStepStraight(dest); }
+    boolean isPeekPathfinding() { return peekPathfinding; }
+
+    /** 入力を現在の照準方向へ変換。setVelocity/teleportは使わず、衝突・摩擦は通常の移動に任せる。 */
+    void applyPeekInput(double x, double z) {
         net.minecraft.world.entity.Mob handle = ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle();
-        handle.getMoveControl().setWantedPosition(dest.getX(), dest.getY(), dest.getZ(), speed);
-        return true;
+        var control = handle.getMoveControl();
+        double speed = Math.hypot(x, z);
+        double yaw = Math.toRadians(handle.getYRot());
+        float forward = speed > 1e-6 ? (float)((-x * Math.sin(yaw) + z * Math.cos(yaw)) / speed) : 0;
+        float right = speed > 1e-6 ? (float)((x * Math.cos(yaw) + z * Math.sin(yaw)) / speed) : 0;
+        control.strafe(forward, right);
+        setStrafeSpeed(control, speed);
+    }
+
+    private void beginPeekMove() {
+        endStrafe();
+        scav.getPathfinder().stopPathfinding();
+        peekMotion.clear();
+        peekPathfinding = false;
+        peekInputAge = 0;
+        peekTravelSteps = ScavPeekMotion.travelSteps(scav.getLocation().distance(peekLocation));
+    }
+
+    private void returnFromPeek() {
+        peekPhase = 2;
+        peekTicks = 0;
+        peekSettled = false;
+        peekAimSteps = 0;
+        peekReturnSteps = ScavPeekMotion.travelSteps(scav.getLocation().distance(coverLocation));
+        // 入力は消さず、次のtickから減速して戻る方向へ切り替える。
+    }
+
+    private boolean peekArrived(Location dest) {
+        Vector velocity = scav.getVelocity();
+        return scav.getLocation().distanceSquared(dest) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE
+                && peekMotion.stopped() && velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ() < .000625;
     }
 
     /** 今の位置からまっすぐ歩いて行けるか。段差の上り下りはまっすぐには調べられないため、行き先に立てるかだけ見る */
@@ -224,6 +273,7 @@ public class ScavTactics {
 
     /** 毎tick、照準を合わせた後に呼ぶ。直接移動中なら、今の向きを基準にした前後左右の移動を MoveControl に指示し直す */
     public void tickDirectMove() {
+        if (peekPhase != 0) { tickPeekMove(); return; }
         if (directTarget == null) return;
         if (org.bukkit.Bukkit.getCurrentTick() > directUntilTick || directTarget.getWorld() != scav.getWorld()
                 || scav.getLocation().distanceSquared(directTarget) < DIRECT_ARRIVE_DISTANCE * DIRECT_ARRIVE_DISTANCE) {
@@ -279,6 +329,12 @@ public class ScavTactics {
     Location directMoveDestination() { return directTarget; }
     Location peekMoveDestination() { return peekPhase == 1 ? peekLocation : peekPhase == 2 ? coverLocation : null; }
     void cancelPeek() {
+        if (peekPhase != 0) {
+            if (peekPathfinding) scav.getPathfinder().stopPathfinding();
+            else applyPeekInput(0, 0);
+        }
+        peekMotion.clear();
+        peekPathfinding = false;
         peekPhase = 0;
         peekTicks = 0;
         peekSettled = false;
@@ -362,28 +418,26 @@ public class ScavTactics {
     /**
      * @param targetVisible 相手が見えているか (SCAVの視覚判定の結果)
      * @param fireAllowed   撃ってよいか (発見直後の反応時間などで撃てない時はfalse)
-     * @param aim           撃つ直前に照準を相手へ合わせる処理。移動中は頭が進行方向を向くため、撃つ前に必ず合わせる
+     * @param aim           撃つ直前に照準を相手へ合わせる処理。移動中も追従するが、撃つ前に必ず最新の照準を反映する
      */
     /**
      * @param spread 弾のばらつき (通常の射撃と同じ、ランク別の基本値 + 制圧による乱れ)
      */
     public void handlePeekManeuver(boolean targetVisible, boolean fireAllowed, Runnable aim, ScavWeapon weapon, double spread, boolean isSprinting, long lastShotTime, java.util.function.Consumer<Long> shotTimeSetter) {
         peekTicks++;
+        peekInputAge = 0;
         if (targetVisible) peekSawTarget = true;
         if (peekPhase == 1) { // Moving out
-            // 角から「歩いて」出る (横滑りだと瞬間移動に見える)。出切ったら止まって撃つ
-            boolean settled = scav.getLocation().distanceSquared(peekLocation) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE;
+            // 到着距離だけでなく、入力と実際の滑りが落ち着いてから構える。
+            boolean settled = peekArrived(peekLocation);
             // 押されて到着範囲を外れたら構え直す。移動時間を構え時間には数えない。
             peekAimSteps = settled && peekSettled ? peekAimSteps + 1 : 0;
             peekSettled = settled;
             if (settled) {
                 // 出切ったら歩みを止める。止めないと歩きながら狙うことになり、体が揺れる
                 stopMoving();
-            } else if (!walkStraightTo(peekLocation, PEEK_SPEED)) {
-                // 出る途中で行けなくなった (押された・相手の位置が変わったなど): 引っ込む
-                peekPhase = 2;
-                peekTicks = 0;
-                peekSettled = false;
+            } else if (!peekRouteClear(peekLocation)) {
+                returnFromPeek();
                 return;
             }
             if (targetVisible) {
@@ -397,35 +451,26 @@ public class ScavTactics {
                         peekShotsRemaining--;
                     }
                     if (peekShotsRemaining <= 0) {
-                        peekPhase = 2;
-                        peekTicks = 0;
-                        peekSettled = false;
+                        returnFromPeek();
                     }
                 }
             } else if (peekTicks >= peekOutLimit) {
                 // 見えないまま時間切れなら撃たずに引っ込む (誰もいない方向への空撃ちを防ぐ)
-                peekPhase = 2;
-                peekTicks = 0;
-                peekSettled = false;
+                returnFromPeek();
             }
             // 撃てなくなった (撃ち切った・ボルト操作・リロード) なら、出たままにせず引っ込む
             if (peekPhase == 1 && weapon.ticksUntilReady() > ScavController.PEEK_READY_TICKS) {
-                peekPhase = 2;
-                peekTicks = 0;
-                peekSettled = false;
+                returnFromPeek();
             }
             // 連射の遅い銃でも出っぱなしにならないようにする
             if (peekPhase == 1 && peekTicks > peekOutLimit + 8) {
-                peekPhase = 2;
-                peekTicks = 0;
-                peekSettled = false;
+                returnFromPeek();
             }
         } else if (peekPhase == 2) { // Moving back
-            // 戻りも歩いて戻る。押されてまっすぐ戻れない時だけ経路探索で遮蔽へ戻る
-            if (!walkStraightTo(coverLocation, PEEK_SPEED)) scav.getPathfinder().moveTo(coverLocation, PEEK_SPEED);
-            if (scav.getLocation().distance(coverLocation) < 1.0 || peekTicks >= PEEK_RETURN_STEPS) {
-                peekPhase = 0;
-                peekSettled = false;
+            // 通常は連続入力で戻る。直線が塞がれた時だけtickPeekMoveから経路探索へ切り替える。
+            if (peekArrived(coverLocation) || peekTicks >= peekReturnSteps) {
+                stopMoving();
+                cancelPeek();
                 // 次に顔を出すまでの間をばらつかせる。誰も見えなかった時は、すぐ出直さずに長めに待つ
                 int restTicks = peekSawTarget
                         ? PEEK_REST_AFTER_CONTACT_MIN + (int) (Math.random() * PEEK_REST_AFTER_CONTACT_JITTER)
@@ -463,13 +508,13 @@ public class ScavTactics {
         coverLocation = scav.getLocation().clone();
         peekLocation = peek.clone();
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
-        peekOutLimit = PEEK_TRAVEL_STEPS + PEEK_AIM_STEPS + 4 + (int) (Math.random() * 6);
+        beginPeekMove();
+        peekOutLimit = peekTravelSteps + PEEK_AIM_STEPS + 4 + (int) (Math.random() * 6);
         peekSawTarget = false;
         peekSettled = false;
         peekAimSteps = 0;
         peekPhase = 1;
         peekTicks = 0;
-        walkStraightTo(peekLocation, PEEK_SPEED);
         return true;
     }
 
@@ -505,13 +550,13 @@ public class ScavTactics {
         }
         if (peekLocation == null) return false;
         peekShotsRemaining = 1 + (int) (Math.random() * 3);
-        peekOutLimit = PEEK_TRAVEL_STEPS + PEEK_AIM_STEPS + 3 + (int) (Math.random() * 6);
+        beginPeekMove();
+        peekOutLimit = peekTravelSteps + PEEK_AIM_STEPS + 3 + (int) (Math.random() * 6);
         peekSawTarget = false;
         peekSettled = false;
         peekAimSteps = 0;
         peekPhase = 1;
         peekTicks = 0;
-        walkStraightTo(peekLocation, PEEK_SPEED);
         if (jump && scav.isOnGround() && jumpCooldown <= 0) {
             scav.setVelocity(scav.getVelocity().add(new Vector(0, 0.45, 0)));
             jumpCooldown = 20;
