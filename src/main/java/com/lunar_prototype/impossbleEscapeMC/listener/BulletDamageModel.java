@@ -104,7 +104,8 @@ public final class BulletDamageModel {
     }
 
     /** 着弾部位を防護している防具のうち、有効クラスが一番高い物 */
-    public record ArmorPiece(EquipmentSlot slot, ItemStack item, int armorClass) {
+    public record ArmorPiece(EquipmentSlot slot, ItemStack item, int armorClass, boolean visor) {
+        public ArmorPiece(EquipmentSlot slot, ItemStack item, int armorClass) { this(slot, item, armorClass, false); }
     }
 
     private static final EquipmentSlot[] ARMOR_SLOTS = {
@@ -132,6 +133,17 @@ public final class BulletDamageModel {
     private static ArmorPiece armorPieceFromSlot(LivingEntity entity, EquipmentSlot slot, ArmorStats.ProtectedZone zone) {
         ItemStack item = entity.getEquipment().getItem(slot);
         if (item == null || item.getType() == Material.AIR || !item.hasItemMeta()) return null;
+        if (slot == EquipmentSlot.HEAD && zone == ArmorStats.ProtectedZone.FACE) {
+            String visorId = HelmetVisors.visorOf(item);
+            ItemDefinition visor = visorId != null ? ItemRegistry.get(visorId) : null;
+            if (visor != null && visor.visorStats != null && visor.visorStats.armorClass > 0
+                    && HelmetVisors.fits(HelmetVisors.helmetDef(item), visorId)) {
+                int effective = effectiveArmorClass(visor.visorStats.armorClass,
+                        HelmetVisors.durability(item, visor), visor.visorStats.maxDurability);
+                // 壊れた追加バイザーを本体のクラスで代用しない。
+                return effective > 0 ? new ArmorPiece(slot, item, effective, true) : null;
+            }
+        }
         var pdc = item.getItemMeta().getPersistentDataContainer();
         int armorClass = pdc.getOrDefault(PDCKeys.ARMOR_CLASS, PDCKeys.INTEGER, 0);
         String id = pdc.get(PDCKeys.ITEM_ID, PDCKeys.STRING);
@@ -193,40 +205,6 @@ public final class BulletDamageModel {
         if (!penetrated) return 0.0;
         int clamped = Math.max(0, Math.min(MAX_ARMOR_CLASS, armorClass));
         return damage * (1.0 - PENETRATED_REDUCTION_PER_CLASS * clamped);
-    }
-
-    /**
-     * バイザーの正面防護。付けたバイザー (FAST-MT のバイザーなど) があればその跳弾率、
-     * 無ければ元からバイザーと一体のヘルメット (Altyn など) の跳弾率で判定する。入射方向が不明なら判定しない。
-     */
-    public static boolean visorRicochets(LivingEntity victim, String hitLocation, Vector incomingDirection) {
-        if ((!HEAD.equals(hitLocation) && !FACE.equals(hitLocation)) || incomingDirection == null || victim.getEquipment() == null) return false;
-        double chance = faceShieldRicochetChance(victim.getEquipment().getHelmet());
-        return rollVisorRicochet(hitLocation, chance, victim.getEyeLocation().getDirection(), incomingDirection, Math.random());
-    }
-
-    /** かぶっているヘルメットの、正面頭部の跳弾率 (付けたバイザー → ヘルメット自体の順)。無ければ0 */
-    public static double faceShieldRicochetChance(ItemStack helmet) {
-        if (helmet == null || helmet.getType().isAir() || !helmet.hasItemMeta()) return 0;
-        String visorId = HelmetVisors.visorOf(helmet);
-        if (visorId != null && HelmetVisors.fits(HelmetVisors.helmetDef(helmet), visorId)) {
-            ItemDefinition visor = ItemRegistry.get(visorId);
-            if (visor != null && visor.visorStats != null) return visor.visorStats.ricochetChance;
-        }
-        ItemDefinition def = ItemRegistry.get(helmet.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING));
-        return def != null && def.armorStats != null ? def.armorStats.ricochetChance : 0;
-    }
-
-    /** 頭の向きに対して左右60度以内の正面入射だけを対象にする。ベクトルは変更しない。 */
-    static boolean rollVisorRicochet(String hitLocation, double chance, Vector facing, Vector incoming, double roll) {
-        if (!HEAD.equals(hitLocation) || !Double.isFinite(chance) || chance <= 0
-                || facing == null || incoming == null) return false;
-        double facingLength = Math.hypot(facing.getX(), facing.getZ());
-        double incomingLength = Math.hypot(incoming.getX(), incoming.getZ());
-        if (facingLength < 1e-6 || incomingLength < 1e-6) return false;
-        double dot = (facing.getX() * incoming.getX() + facing.getZ() * incoming.getZ())
-                / (facingLength * incomingLength);
-        return dot <= -0.5 && roll >= 0 && roll < Math.min(1.0, chance);
     }
 
     /**

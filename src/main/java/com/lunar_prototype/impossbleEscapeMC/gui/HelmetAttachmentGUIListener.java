@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.gui;
 
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -74,8 +73,9 @@ public class HelmetAttachmentGUIListener implements Listener {
 
         String visorId = HelmetVisors.visorOf(helmet);
         if (visorId == null) return;
+        ItemStack visor = HelmetVisors.attachedItem(helmet);
+        if (visor == null) return;
         gui.setHelmet(HelmetVisors.withoutVisor(helmet));
-        ItemStack visor = ItemFactory.create(visorId);
         if (visor != null) give(player, visor);
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 0.8f, 0.8f);
         player.sendMessage(displayName(visorId) + " §eを取り外しました");
@@ -112,9 +112,10 @@ public class HelmetAttachmentGUIListener implements Listener {
             return false;
         }
         String previous = HelmetVisors.visorOf(helmet);
-        gui.setHelmet(HelmetVisors.withVisor(helmet, visor.id));
+        ItemStack old = previous != null ? HelmetVisors.attachedItem(helmet) : null;
+        if (previous != null && old == null) return false;
+        gui.setHelmet(HelmetVisors.withVisor(helmet, item));
         if (previous != null) {
-            ItemStack old = ItemFactory.create(previous);
             if (old != null) give(player, old);
         }
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_IRON, 0.8f, 1.2f);

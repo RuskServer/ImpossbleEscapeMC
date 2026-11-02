@@ -43,6 +43,8 @@ public class PDCKeys {
     public static final NamespacedKey GUI_TYPE = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "gui_type");
     /** ヘルメットに付けたバイザーのアイテムID */
     public static final NamespacedKey HELMET_VISOR = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "helmet_visor");
+    /** 単体・装着中のバイザーの残耐久。ヘルメット本体のdurabilityには混ぜない。 */
+    public static final NamespacedKey VISOR_DURABILITY = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "visor_durability");
     /** 支給装備 (無料の装備) の品。売値 0 (トレーダーで処分はできる)・納品できない・FIR にならない */
     public static final NamespacedKey SUPPLIED = new NamespacedKey(ImpossbleEscapeMC.getInstance(), "supplied");
 

@@ -102,8 +102,7 @@ public final class ItemCatalog {
         // weight: 3.8kg
         // cost: 2x2相当のサイズ感を占有
         altyn.armorStats = armor(4, 3, "HEAD", "minecraft:misc/altyn_overray");
-        // 元から厚い防弾バイザーと一体。正面からの頭部被弾を跳ね返すことがある
-        altyn.armorStats.ricochetChance = 0.20;
+        // 一体型のバイザーは頭部と同じクラス・耐久で顔面も防護する。
         altyn.armorStats.coverage = List.of(ArmorStats.ProtectedZone.HEAD, ArmorStats.ProtectedZone.FACE);
         items.add(altyn);
 
@@ -127,7 +126,8 @@ public final class ItemCatalog {
         // weight: 0.6kg
         // FAST-MT のアタッチメント。付けたヘルメットをかぶると、バイザー越しの見え方になる
         fast_mt_visor.visorStats = visor("iem:visor");
-        fast_mt_visor.visorStats.ricochetChance = 0.10;
+        fast_mt_visor.visorStats.armorClass = 2;
+        fast_mt_visor.visorStats.maxDurability = 300;
         items.add(fast_mt_visor);
 
         ItemDefinition pvs_14 = item("PVS-14", "VISOR", Material.DIAMOND, "§a[PVS-14] 暗視単眼鏡", 3, 11, 0, 400, 2);

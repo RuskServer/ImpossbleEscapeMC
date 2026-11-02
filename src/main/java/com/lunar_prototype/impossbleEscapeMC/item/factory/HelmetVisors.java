@@ -59,6 +59,50 @@ public final class HelmetVisors {
         return result;
     }
 
+    /** 実物の残耐久を引き継いで装着する。 */
+    public static ItemStack withVisor(ItemStack helmet, ItemStack visor) {
+        ItemDefinition def = visorDef(visor);
+        if (def == null || !fits(helmetDef(helmet), def.id)) return helmet.clone();
+        ItemStack result = helmet.clone();
+        apply(result, def.id, durability(visor, def));
+        return result;
+    }
+
+    /** 同じキーを単体と装着先に保存する。旧アイテムにキーがなければ満タン。0は壊れた状態のまま保持する。 */
+    public static int durability(ItemStack item, ItemDefinition visor) {
+        if (item == null || visor == null || visor.visorStats == null || !item.hasItemMeta()) return 0;
+        int max = Math.max(0, visor.visorStats.maxDurability);
+        int value = item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.VISOR_DURABILITY, PDCKeys.INTEGER, max);
+        return Math.clamp(value, 0, max);
+    }
+
+    /** 取り外し・交換・画面表示用の実物。装着中の残耐久を戻す。 */
+    public static ItemStack attachedItem(ItemStack helmet) {
+        String id = visorOf(helmet);
+        ItemDefinition def = id != null ? ItemRegistry.get(id) : null;
+        if (def == null || !fits(helmetDef(helmet), id)) return null;
+        ItemStack item = ItemFactory.create(id);
+        if (item == null) return null;
+        ItemMeta meta = item.getItemMeta();
+        meta.getPersistentDataContainer().set(PDCKeys.VISOR_DURABILITY, PDCKeys.INTEGER, durability(helmet, def));
+        item.setItemMeta(meta);
+        return ItemFactory.updateLore(item);
+    }
+
+    /** 顔に当たった弾で消耗するのはバイザーだけ。本体の耐久・バーは変えない。 */
+    public static ItemStack wear(ItemStack helmet, int amount, boolean updateLore) {
+        String id = visorOf(helmet);
+        ItemDefinition visor = id != null ? ItemRegistry.get(id) : null;
+        if (visor == null || visor.visorStats == null || !fits(helmetDef(helmet), id) || amount <= 0) return null;
+        int before = durability(helmet, visor), after = Math.max(0, before - amount);
+        if (before == after) return null;
+        ItemStack result = helmet.clone();
+        ItemMeta meta = result.getItemMeta();
+        meta.getPersistentDataContainer().set(PDCKeys.VISOR_DURABILITY, PDCKeys.INTEGER, after);
+        result.setItemMeta(meta);
+        return updateLore ? ItemFactory.updateLore(result) : result;
+    }
+
     /** バイザーを外したヘルメット (元のヘルメットは変えない) */
     public static ItemStack withoutVisor(ItemStack helmet) {
         ItemStack result = helmet.clone();
@@ -76,15 +120,25 @@ public final class HelmetVisors {
 
     /** バイザーの有無に合わせて、モデル・重さ・説明を書き直す */
     private static void apply(ItemStack helmet, String visorId) {
+        ItemDefinition visor = visorId != null ? ItemRegistry.get(visorId) : null;
+        int durability = visor != null && visor.visorStats != null ? visor.visorStats.maxDurability : 0;
+        if (java.util.Objects.equals(visorId, visorOf(helmet))) durability = durability(helmet, visor);
+        apply(helmet, visorId, durability);
+    }
+
+    private static void apply(ItemStack helmet, String visorId, int durability) {
         ItemDefinition def = helmetDef(helmet);
         if (def == null) return;
         ItemDefinition visor = visorId != null ? ItemRegistry.get(visorId) : null;
         ItemMeta meta = helmet.getItemMeta();
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        if (visor != null) {
+        if (visor != null && visor.visorStats != null && fits(def, visor.id)) {
             pdc.set(PDCKeys.HELMET_VISOR, PDCKeys.STRING, visor.id);
+            pdc.set(PDCKeys.VISOR_DURABILITY, PDCKeys.INTEGER, Math.clamp(durability, 0, Math.max(0, visor.visorStats.maxDurability)));
         } else {
             pdc.remove(PDCKeys.HELMET_VISOR);
+            pdc.remove(PDCKeys.VISOR_DURABILITY);
+            visor = null;
         }
 
         int model = visor == null ? def.armorStats.customModelData

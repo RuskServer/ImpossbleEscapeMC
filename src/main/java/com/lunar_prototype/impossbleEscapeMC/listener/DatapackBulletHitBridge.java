@@ -8,6 +8,7 @@ import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.item.ArmorDurability;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -125,11 +126,6 @@ public class DatapackBulletHitBridge implements Listener {
         // 処理中の弾Markerから入射方向を読み、腕と胴の区別にも使う。
         Vector incoming = contact != null ? contact.direction() : null;
         String hitLocation = hitLocation(victim, contact != null ? contact.entry() : null, incoming);
-        if (BulletDamageModel.visorRicochets(victim, hitLocation, incoming)) {
-            event.setCancelled(true);
-            victim.getWorld().playSound(victim.getEyeLocation(), org.bukkit.Sound.ENTITY_ARROW_HIT_PLAYER, 1.0f, 1.3f);
-            return;
-        }
         BulletDamageModel.ArmorPiece armor = BulletDamageModel.armorPiece(victim, hitLocation);
         int armorClass = armor != null ? armor.armorClass() : 0;
         Entity shooter = DatapackGunnerManager.resolveShooter(event.getDamager());
@@ -178,7 +174,8 @@ public class DatapackBulletHitBridge implements Listener {
     }
 
     private static void wearArmor(LivingEntity victim, BulletDamageModel.ArmorPiece armor, int amount) {
-        ItemStack worn = ArmorDurability.wear(armor.item(), amount, victim instanceof Player);
+        ItemStack worn = armor.visor() ? HelmetVisors.wear(armor.item(), amount, victim instanceof Player)
+                : ArmorDurability.wear(armor.item(), amount, victim instanceof Player);
         if (worn != null && victim.getEquipment() != null) {
             victim.getEquipment().setItem(armor.slot(), worn);
         }

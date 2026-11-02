@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.gui;
 
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
-import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
@@ -71,7 +70,7 @@ public class HelmetAttachmentGUI implements InventoryHolder {
         inventory.clear();
         inventory.setItem(HELMET_SLOT, helmet.clone());
         String visorId = HelmetVisors.visorOf(helmet);
-        inventory.setItem(VISOR_SLOT, visorId != null ? attachedIcon(visorId) : emptyIcon());
+        inventory.setItem(VISOR_SLOT, visorId != null ? attachedIcon(helmet) : emptyIcon());
         return true;
     }
 
@@ -100,11 +99,11 @@ public class HelmetAttachmentGUI implements InventoryHolder {
         return player;
     }
 
-    private ItemStack attachedIcon(String visorId) {
-        ItemStack icon = ItemFactory.create(visorId);
+    private ItemStack attachedIcon(ItemStack helmet) {
+        ItemStack icon = HelmetVisors.attachedItem(helmet);
         if (icon == null) return emptyIcon();
         ItemMeta meta = icon.getItemMeta();
-        List<Component> lore = new ArrayList<>();
+        List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
         lore.add(line(AttachmentLayout.label("visor"), NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(line("左クリック: 取り外し", NamedTextColor.YELLOW));

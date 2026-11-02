@@ -318,13 +318,15 @@ public class ItemFactory {
                 pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, durability);
                 lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
             }
-            if (def.armorStats.ricochetChance > 0) {
-                lore.add("§7正面頭部の跳弾率 §f" + Math.round(def.armorStats.ricochetChance * 100) + "%");
-            }
             if (def.armorStats.visors != null && !def.armorStats.visors.isEmpty()) {
                 String visorId = pdc.get(PDCKeys.HELMET_VISOR, PDCKeys.STRING);
                 ItemDefinition visor = visorId != null ? ItemRegistry.get(visorId) : null;
                 lore.add("§7顔面装備 " + (visor != null ? visor.displayName : "§8なし"));
+                if (visor != null && visor.visorStats != null && visor.visorStats.armorClass > 0
+                        && HelmetVisors.fits(def, visorId)) {
+                    lore.add(visorLore("顔面防護クラス", Integer.toString(visor.visorStats.armorClass)));
+                    lore.add(visorLore("バイザー耐久", HelmetVisors.durability(item, visor) + " / " + visor.visorStats.maxDurability));
+                }
             }
             lore.add("");
         }
@@ -338,8 +340,11 @@ public class ItemFactory {
                 ItemDefinition helmet = ItemRegistry.get(id);
                 if (HelmetVisors.fits(helmet, def.id)) helmets.add(helmet.displayName);
             }
-            if (def.visorStats.ricochetChance > 0) {
-                lore.add("§7正面頭部の跳弾率 §f" + Math.round(def.visorStats.ricochetChance * 100) + "%");
+            if (def.visorStats.armorClass > 0) {
+                int current = HelmetVisors.durability(item, def);
+                pdc.set(PDCKeys.VISOR_DURABILITY, PDCKeys.INTEGER, current);
+                lore.add(visorLore("顔面防護クラス", Integer.toString(def.visorStats.armorClass)));
+                lore.add(visorLore("バイザー耐久", current + " / " + def.visorStats.maxDurability));
             }
             if (!helmets.isEmpty()) lore.add("§7付けられるヘルメット " + String.join("§7, ", helmets));
             lore.add("§8ヘルメットのアタッチメント画面で装着");
@@ -402,6 +407,10 @@ public class ItemFactory {
         TooltipStyle.forRarity(rarity).applyTo(meta);
         item.setItemMeta(meta);
 
+        if (def != null && def.visorStats != null && def.visorStats.maxDurability > 0) {
+            item.setData(DataComponentTypes.MAX_DAMAGE, def.visorStats.maxDurability);
+            item.setData(DataComponentTypes.DAMAGE, def.visorStats.maxDurability - HelmetVisors.durability(item, def));
+        }
         // --- 耐久値バー同期 ---
         if (def != null && def.maxDurability > 0) {
             int current = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
@@ -411,6 +420,12 @@ public class ItemFactory {
         }
 
         return item;
+    }
+
+    private static String visorLore(String label, String value) {
+        return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(
+                net.kyori.adventure.text.Component.text(label + " ", net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                        .append(net.kyori.adventure.text.Component.text(value, net.kyori.adventure.text.format.NamedTextColor.WHITE)));
     }
 
     /** 支給品 (PDCKeys.SUPPLIED) の説明の行 */
