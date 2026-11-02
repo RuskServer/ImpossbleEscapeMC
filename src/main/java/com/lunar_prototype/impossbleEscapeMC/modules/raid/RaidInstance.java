@@ -518,7 +518,7 @@ public class RaidInstance {
      * プレイヤーによるSCAVの撃破をこのレイドの集計に反映する。
      *
      * 指定したKillerがこのレイドの参加者（raidMembers）であり、指定したSCAV実体IDがこのレイドに属する場合に、
-     * そのプレイヤーの `RaidResult.scavKills` を1増やし `RaidResult.experienceToGrant` に50を加算する。
+     * そのプレイヤーの `RaidResult.scavKills` を1増やし `RaidResult.experienceToGrant` にレベル補正済みの撃破経験値を加算する。
      *
      * @param scavEntityId 撃破されたSCAVのエンティティUUID
      * @param killerUuid   撃破を行ったプレイヤーのUUID
@@ -542,7 +542,9 @@ public class RaidInstance {
         } else {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.scavKills += 1;
-            grant(result, EXP_SCAV, levelModule != null ? levelModule.getScaledKillReward(playerLevel, 50L) : 50L);
+            grant(result, EXP_SCAV, levelModule != null ? levelModule.getScaledKillReward(playerLevel,
+                    com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.SCAV_BASE_EXP)
+                    : com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.SCAV_BASE_EXP);
             result.kills.add(killRecord(scavEntityId, killerUuid, RaidReport.Kind.SCAV, null));
         }
     }
@@ -615,7 +617,7 @@ public class RaidInstance {
             com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                     plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
             grant(result, EXP_SURVIVED, levelModule != null
-                    ? levelModule.getRaidOutcomeReward(levelModule.getLevel(p.getUniqueId()), "SURVIVED") : 250L);
+                    ? levelModule.getRaidOutcomeReward(levelModule.getLevel(p.getUniqueId()), "SURVIVED") : 50L);
 
             // 脱出回数加算
             com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
@@ -744,7 +746,7 @@ public class RaidInstance {
         result.endMillis = System.currentTimeMillis();
         plugin.getRaidModule().markFinished(map.getMapId(), player.getUniqueId());
         result.lostValue = broughtInValue(player);
-        grant(result, EXP_DEAD, levelModule != null ? levelModule.getRaidOutcomeReward(playerLevel, "DEAD") : 150L);
+        grant(result, EXP_DEAD, levelModule != null ? levelModule.getRaidOutcomeReward(playerLevel, "DEAD") : 10L);
         RaidKillTracker.Hit lastHit = RaidKillTracker.lastHitOn(player.getUniqueId());
         if (lastHit != null) {
             result.death = new RaidReport.Kill(result.endMillis - startTime, lastHit.shooterName(), lastHit.shooterKind(),

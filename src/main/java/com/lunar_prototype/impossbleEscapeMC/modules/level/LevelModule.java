@@ -13,6 +13,8 @@ import java.util.UUID;
  * レベルシステムを担当するモジュール
  */
 public class LevelModule implements IModule {
+    public static final long SCAV_BASE_EXP = 150L;
+
     private PlayerDataModule dataModule;
 
     @Override
@@ -55,9 +57,9 @@ public class LevelModule implements IModule {
     public long getRaidOutcomeReward(int level, String outcome) {
         long required = getRequiredExperience(level);
         return switch (outcome.toUpperCase()) {
-            case "SURVIVED" -> (long) (required * 0.25); // 25%
-            case "DEAD" -> (long) (required * 0.10);     // 10%
-            case "MIA", "LEFT" -> (long) (required * 0.05); // 5%
+            case "SURVIVED" -> (long) (required * 0.05); // 5%
+            case "DEAD" -> (long) (required * 0.01);     // 1%
+            case "MIA", "LEFT" -> 0L; // 参加だけでは経験値を与えない
             default -> 0L;
         };
     }
@@ -65,7 +67,7 @@ public class LevelModule implements IModule {
     /**
      * レベルに応じてスケーリングされたキル報酬を計算
      * @param level プレイヤーの現在のレベル
-     * @param baseAmount 基礎経験値量 (例: SCAV=50, BOSS=250)
+     * @param baseAmount 基礎経験値量 (例: SCAV=150, BOSS=250)
      * @return スケーリング後の経験値量
      */
     public long getScaledKillReward(int level, long baseAmount) {
