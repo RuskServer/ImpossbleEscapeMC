@@ -1827,7 +1827,7 @@ public class ScavController {
         // すぐ隣の遮蔽まで直進できる時だけ、敵を向いたまま下がる。
         if (canSeeTarget && scav.getLocation().distanceSquared(plan.destination()) <= 16
                 && TacticalPositioning.walkableStraight(scav.getLocation(), plan.destination())
-                && tactics.moveDirectTo(plan.destination(), 1.35)) {
+                && tactics.moveWithdrawalDirectTo(plan.destination(), 1.35)) {
             withdrawal.directMovement(true);
             followingPath = false;
             isSprinting = false;

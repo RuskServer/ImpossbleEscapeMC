@@ -174,6 +174,8 @@ public class ScavTactics {
     /** 直接移動の行き先。MoveControl は行き先を与えた次の1tickしか動かないため、毎tick与え直す (tickDirectMove) */
     private Location directTarget;
     private double directSpeed;
+    private boolean directWithdrawal;
+    private final ScavCombatMotion combatMotion = new ScavCombatMotion();
     /** 判断 (3tickごと) で更新されなくなったら直接移動をやめる tick */
     private int directUntilTick;
     private static final double DIRECT_ARRIVE_DISTANCE = 0.3;
@@ -187,7 +189,12 @@ public class ScavTactics {
         return moveDirect(dest, speed);
     }
 
-    private boolean moveDirect(Location dest, double speed) {
+    /** 専用退避は従来の速度を維持する。射撃位置への横移動と同じ入口にはしない。 */
+    public boolean moveWithdrawalDirectTo(Location dest, double speed) { return moveDirect(dest, speed, true); }
+
+    private boolean moveDirect(Location dest, double speed) { return moveDirect(dest, speed, false); }
+
+    private boolean moveDirect(Location dest, double speed, boolean withdrawal) {
         if (!canStepStraight(dest)) {
             endStrafe();
             return false;
@@ -195,6 +202,7 @@ public class ScavTactics {
         scav.getPathfinder().stopPathfinding();
         directTarget = dest.clone();
         directSpeed = speed;
+        directWithdrawal = withdrawal;
         directUntilTick = org.bukkit.Bukkit.getCurrentTick() + ScavController.STEP_TICKS + 1;
         tickDirectMove();
         return true;
@@ -206,11 +214,13 @@ public class ScavTactics {
         Location dest = peekMoveDestination();
         if (dest == null || ++peekInputAge > ScavController.STEP_TICKS + 2) {
             peekMotion.clear();
+            combatMotion.clear();
             applyPeekInput(0, 0);
             return;
         }
         if (!peekRouteClear(dest)) {
             peekMotion.clear();
+            combatMotion.clear();
             applyPeekInput(0, 0);
             if (peekPhase == 1) returnFromPeek();
             else {
@@ -228,8 +238,14 @@ public class ScavTactics {
     boolean isPeekPathfinding() { return peekPathfinding; }
 
     /** 入力を現在の照準方向へ変換。setVelocity/teleportは使わず、衝突・摩擦は通常の移動に任せる。 */
-    void applyPeekInput(double x, double z) {
+    void applyPeekInput(double x, double z) { applyCombatInput(x, z); }
+
+    /** 通常の戦闘横移動もピークと同じ属性補正・加速上限へ通す。外力や座標は書き換えない。 */
+    private void applyCombatInput(double x, double z) {
         net.minecraft.world.entity.Mob handle = ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle();
+        double attribute = handle.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+        var input = combatMotion.step(x, z, attribute, org.bukkit.Bukkit.getCurrentTick());
+        x = input.x();z = input.z();
         var control = handle.getMoveControl();
         double speed = Math.hypot(x, z);
         double yaw = Math.toRadians(handle.getYRot());
@@ -260,7 +276,7 @@ public class ScavTactics {
     private boolean peekArrived(Location dest) {
         Vector velocity = scav.getVelocity();
         return scav.getLocation().distanceSquared(dest) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE
-                && peekMotion.stopped() && velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ() < .000625;
+                && peekMotion.stopped() && combatMotion.stopped() && velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ() < .000625;
     }
 
     /** 今の位置からまっすぐ歩いて行けるか。段差の上り下りはまっすぐには調べられないため、行き先に立てるかだけ見る */
@@ -287,6 +303,11 @@ public class ScavTactics {
         if (length < 1.0E-4) return;
         dx /= length;
         dz /= length;
+        if (!directWithdrawal) {
+            applyCombatInput(dx * directSpeed, dz * directSpeed);
+            return;
+        }
+        combatMotion.clear();
         // 向き (yaw) の前方は (-sin, cos)、MoveControl の横方向 (xxa の正) は (cos, sin)
         double yaw = Math.toRadians(handle.getYRot());
         float forward = (float) (-dx * Math.sin(yaw) + dz * Math.cos(yaw));
@@ -316,6 +337,7 @@ public class ScavTactics {
      * そのままだと止めた後や経路探索に切り替えた後も横に流れ続ける
      */
     private void endStrafe() {
+        combatMotion.clear();
         if (directTarget == null) return;
         directTarget = null;
         net.minecraft.world.entity.Mob handle = ((org.bukkit.craftbukkit.entity.CraftMob) scav).getHandle();
@@ -329,6 +351,7 @@ public class ScavTactics {
     Location directMoveDestination() { return directTarget; }
     Location peekMoveDestination() { return peekPhase == 1 ? peekLocation : peekPhase == 2 ? coverLocation : null; }
     void cancelPeek() {
+        combatMotion.clear();
         if (peekPhase != 0) {
             if (peekPathfinding) scav.getPathfinder().stopPathfinding();
             else applyPeekInput(0, 0);

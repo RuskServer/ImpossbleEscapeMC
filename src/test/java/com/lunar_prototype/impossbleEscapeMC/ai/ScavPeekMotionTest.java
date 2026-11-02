@@ -18,9 +18,17 @@ public final class ScavPeekMotionTest {
     }
     private static final class Tactics extends ScavTactics {
         double x,z;
+        int tick;
+        final ScavCombatMotion combat;
         boolean clear=true;
-        Tactics(Mob mob) {super(mob,null);}
-        @Override void applyPeekInput(double x,double z) {this.x=x;this.z=z;}
+        Tactics(Mob mob)throws Exception {
+            super(mob,null);
+            Field field=ScavTactics.class.getDeclaredField("combatMotion");field.setAccessible(true);
+            combat=(ScavCombatMotion)field.get(this);
+        }
+        @Override void applyPeekInput(double x,double z) {
+            var input=combat.step(x,z,.15,tick);this.x=input.x();this.z=input.z();
+        }
         @Override boolean peekRouteClear(Location dest) {return clear;}
         @Override public void stopMoving() {x=z=0;}
     }
@@ -69,11 +77,12 @@ public final class ScavPeekMotionTest {
             set(tactics,"peekOutLimit",ScavPeekMotion.travelSteps(distance)+8);set(tactics,"peekShotsRemaining",1);
             double previous=0;int lastPhase=1;boolean returned=false;
             for(int tick=0;tick<300&&tactics.getPeekPhase()!=0;tick++) {
+                tactics.tick=tick;
                 if(tick%3==0)tactics.handlePeekManeuver(true,true,()->{},weapon,0,false,0,t->{});
                 int phase=tactics.getPeekPhase();
                 if(phase==0)break;
                 tactics.tickDirectMove();
-                check(Math.abs(tactics.x-previous)<=.0600001,"per-tick bridge retains continuous input");
+                check(Math.abs(tactics.x-previous)<=.0600001,"per-tick bridge retains continuous input: tick="+tick+" phase="+phase+" input="+tactics.x+" previous="+previous);
                 if(phase==1)check(position.getX()<=distance+.15,"no outward overshoot");
                 if(phase!=lastPhase) {returned=true;lastPhase=phase;}
                 previous=tactics.x;
@@ -84,7 +93,7 @@ public final class ScavPeekMotionTest {
             check(position.distance(new Location(world,0,0,0))<.3,"return reaches cover rather than timing out early");
             check(tactics.x==0&&tactics.z==0,"finished peek leaves no movement input");
             set(tactics,"peekPhase",1);set(tactics,"peekLocation",destination);set(tactics,"peekInputAge",0);
-            for(int tick=0;tick<8;tick++)tactics.tickDirectMove();
+            for(int tick=0;tick<8;tick++) {tactics.tick++;tactics.tickDirectMove();}
             check(tactics.x==0&&tactics.z==0,"stale decision cannot keep steering forever");
             tactics.cancelPeek();check(tactics.x==0&&tactics.z==0,"cancel clears input");
             set(tactics,"peekPhase",2);set(tactics,"coverLocation",position.clone().add(-1,0,0));
