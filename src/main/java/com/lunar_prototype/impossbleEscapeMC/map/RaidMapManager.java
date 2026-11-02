@@ -22,6 +22,9 @@ import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 public class RaidMapManager {
 
     public static final int MAP_SLOT = 8;
+    static final int MAX_ZOOM_INDEX = 2; // 最大広域は1:2。
+
+    static int normalizeZoom(int index) { return Math.clamp(index, 0, MAX_ZOOM_INDEX); }
 
     private final ImpossbleEscapeMC plugin;
     private final RaidMapRenderer renderer;
@@ -120,7 +123,7 @@ public class RaidMapManager {
         if (view == null) return;
 
         int currentZoom = meta.getPersistentDataContainer().getOrDefault(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1);
-        int nextZoom = (currentZoom + 1) % 6;
+        int nextZoom = (normalizeZoom(currentZoom) + 1) % (MAX_ZOOM_INDEX + 1);
         
         meta.getPersistentDataContainer().set(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, nextZoom);
         
@@ -156,12 +159,9 @@ public class RaidMapManager {
     }
 
     private MapView.Scale getVanillaScale(int zoomIndex) {
-        return switch (zoomIndex) {
+        return switch (normalizeZoom(zoomIndex)) {
             case 0, 1 -> MapView.Scale.CLOSEST;
             case 2 -> MapView.Scale.CLOSE;
-            case 3 -> MapView.Scale.NORMAL;
-            case 4 -> MapView.Scale.FAR;
-            case 5 -> MapView.Scale.FARTHEST;
             default -> MapView.Scale.CLOSEST;
         };
     }
@@ -175,13 +175,10 @@ public class RaidMapManager {
     }
 
     private String getScaleName(int zoomIndex) {
-        return switch (zoomIndex) {
+        return switch (normalizeZoom(zoomIndex)) {
             case 0 -> "2:1 (最大拡大)";
             case 1 -> "1:1 (詳細)";
             case 2 -> "1:2";
-            case 3 -> "1:4";
-            case 4 -> "1:8";
-            case 5 -> "1:16 (広域)";
             default -> "不明";
         };
     }

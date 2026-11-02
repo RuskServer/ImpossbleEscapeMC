@@ -88,11 +88,11 @@ public class RaidMapRenderer extends MapRenderer {
     private int getZoomIndex(Player player, MapView map) {
         ItemStack item = player.getInventory().getItemInMainHand();
         if (isTargetMap(item, map)) {
-            return item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1);
+            return RaidMapManager.normalizeZoom(item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1));
         }
         item = player.getInventory().getItemInOffHand();
         if (isTargetMap(item, map)) {
-            return item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1);
+            return RaidMapManager.normalizeZoom(item.getItemMeta().getPersistentDataContainer().getOrDefault(PDCKeys.MAP_ZOOM, PDCKeys.INTEGER, 1));
         }
         return 1;
     }
@@ -371,13 +371,10 @@ public class RaidMapRenderer extends MapRenderer {
     }
 
     private double getScaleFactor(int zoomIndex) {
-        return switch (zoomIndex) {
+        return switch (RaidMapManager.normalizeZoom(zoomIndex)) {
             case 0 -> 0.5; // 2:1 (Super Zoom)
             case 1 -> 1.0; // 1:1
             case 2 -> 2.0; // 1:2
-            case 3 -> 4.0; // 1:4
-            case 4 -> 8.0; // 1:8
-            case 5 -> 16.0; // 1:16
             default -> 1.0;
         };
     }
