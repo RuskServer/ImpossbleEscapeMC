@@ -17,13 +17,22 @@
     </properties>
 
     <pluginRepositories>
+        <!-- 汎用プラグインとその依存は、通常依存と同じCentralのID・URLを先に使う。 -->
+        <pluginRepository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
         <pluginRepository>
             <id>bytecode.space</id>
             <url>https://repo.bytecode.space/repository/maven-public/</url>
+            <snapshots><enabled>false</enabled></snapshots>
         </pluginRepository>
         <pluginRepository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
+            <snapshots><enabled>false</enabled></snapshots>
         </pluginRepository>
     </pluginRepositories>
 
@@ -31,6 +40,22 @@
     <build>
         <defaultGoal>clean package</defaultGoal>
         <plugins>
+            <!-- Actionsで実際に使っていた版へ固定し、RunnerのMaven更新による解決先の変動を防ぐ。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.4.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -76,6 +101,13 @@
     </build>
 
     <repositories>
+        <!-- Paper等のプロキシ経由で汎用ライブラリの取得元が揺れないようにする。 -->
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
         <repository>
             <id>papermc-repo</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
@@ -87,14 +119,17 @@
         <repository>
             <id>codemc-releases</id>
             <url>https://repo.codemc.io/repository/maven-releases/</url>
+            <snapshots><enabled>false</enabled></snapshots>
         </repository>
         <repository>
             <id>codemc-snapshots</id>
             <url>https://repo.codemc.io/repository/maven-snapshots/</url>
+            <releases><enabled>false</enabled></releases>
         </repository>
         <repository>
             <id>libsdisguises-public</id>
             <url>https://mvn.lib.co.nz/public</url>
+            <snapshots><enabled>false</enabled></snapshots>
         </repository>
         <repository>
             <id>citizens-repo</id>
@@ -103,6 +138,7 @@
         <repository>
             <id>minecraft-libraries</id>
             <url>https://libraries.minecraft.net/</url>
+            <snapshots><enabled>false</enabled></snapshots>
         </repository>
     </repositories>
 

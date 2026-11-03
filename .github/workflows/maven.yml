@@ -24,6 +24,10 @@ jobs:
         java-version: '25'
         distribution: 'temurin'
         cache: maven
+        # 取得元の変更も新しいキャッシュへ保存する。古いキーの完全ヒットを繰り返さない。
+        cache-dependency-path: |
+          pom.xml
+          .github/workflows/maven.yml
 
     - name: Generate CalVer
       id: calver
@@ -33,15 +37,15 @@ jobs:
 
     - name: Set Maven Version
       run: |
-        mvn -B versions:set \
+        mvn -B -ntp org.codehaus.mojo:versions-maven-plugin:2.23.0:set \
           -DnewVersion=${{ steps.calver.outputs.version }} \
           -DgenerateBackupPoms=false
         
     - name: Initialize Paper NMS
-      run: mvn -B paper-nms:init
+      run: mvn -B -ntp paper-nms:init
 
     - name: Build
-      run: mvn -B package --file pom.xml
+      run: mvn -B -ntp package --file pom.xml
 
     - name: Get Jar
       id: jar
