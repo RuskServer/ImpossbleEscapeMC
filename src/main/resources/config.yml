@@ -24,6 +24,7 @@ ai_log:
 
 # 管理用スポーン診断。満タン開始・指定重量の基準ペース（スキルなし）。
 raid-spawn-diagnostics:
+  # 以下は共通移動倍率を掛ける前の基準値。MovementTuningを別途適用する。
   speed-blocks-per-second: 5.6
   walk-speed-blocks-per-second: 4.3
   reference-weight-grams: 20000

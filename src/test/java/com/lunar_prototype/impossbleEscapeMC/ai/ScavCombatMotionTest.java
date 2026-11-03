@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
+
 /** SCAVの属性・高速な戦闘移動指定が変わっても、共通上限と加速上限を超えないことを検証する。 */
 public final class ScavCombatMotionTest {
     private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
@@ -8,25 +10,25 @@ public final class ScavCombatMotionTest {
             var motion=new ScavCombatMotion();double oldX=0,oldZ=0;
             for(int tick=0;tick<180;tick++) {
                 // 装備・効果で属性が変わる場合も、倍率ではなく属性適用後の量を揃える。
-                double attribute=new double[]{.05,.10,.15,.3,1}[tick/36];
+                double attribute=MovementTuning.scale(new double[]{.05,.10,.15,.3,1}[tick/36]);
                 double sign=tick<90?1:-1,dx=Math.cos(Math.toRadians(angle))*request*sign,dz=Math.sin(Math.toRadians(angle))*request*sign;
                 var input=motion.step(dx,dz,attribute,tick);
                 double x=input.x()*attribute,z=input.z()*attribute;
-                check(Math.hypot(x,z)<=.080000001,"native movement cap despite rank/attribute/request changes");
-                check(Math.hypot(x-oldX,z-oldZ)<=.005000001,"continuous native acceleration, including reversals");
+                check(Math.hypot(x,z)<=MovementTuning.scale(.08)+1e-9,"native movement cap despite rank/attribute/request changes");
+                check(Math.hypot(x-oldX,z-oldZ)<=MovementTuning.scale(.005)+1e-9,"continuous native acceleration, including reversals");
                 var duplicate=motion.step(dx,dz,attribute,tick);
                 check(duplicate.equals(input),"AI step and render tick must not accelerate twice in the same server tick");
                 oldX=x;oldZ=z;
             }
-            motion.clear();var initial=motion.step(request,0,.15,200);
-            check(initial.x()*.15<=.005000001,"restart begins with a bounded first step");
+            motion.clear();var initial=motion.step(request,0,MovementTuning.scale(.15),200);
+            check(initial.x()*MovementTuning.scale(.15)<=MovementTuning.scale(.005)+1e-9,"restart begins with a bounded first step");
         }
         // 同じ通常地面を仮定した加速・摩擦モデルで、停止からの人間の横歩きを追い越さない。
         var motion=new ScavCombatMotion();double scav=0,player=0,scavX=0,playerX=0;
         for(int tick=0;tick<120;tick++) {
-            var input=motion.step(1.5,0,.15,tick);
-            scav=scav*.546+input.x()*.15*.98;
-            player=player*.546+.1*.98;
+            var input=motion.step(1.5,0,MovementTuning.scale(.15),tick);
+            scav=scav*.546+input.x()*MovementTuning.scale(.15)*.98;
+            player=player*.546+MovementTuning.scale(.1)*.98;
             scavX+=scav;playerX+=player;
             check(scav<=player&&scavX<=playerX,"bounded combat strafe cannot beat reference player walking in ground model");
         }

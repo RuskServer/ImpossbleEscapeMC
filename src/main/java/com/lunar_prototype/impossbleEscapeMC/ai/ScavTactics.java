@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalMath;
 import com.lunar_prototype.impossbleEscapeMC.ai.util.TacticalVision;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
@@ -276,7 +278,7 @@ public class ScavTactics {
     private boolean peekArrived(Location dest) {
         Vector velocity = scav.getVelocity();
         return scav.getLocation().distanceSquared(dest) < PEEK_SETTLED_DISTANCE * PEEK_SETTLED_DISTANCE
-                && peekMotion.stopped() && combatMotion.stopped() && velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ() < .000625;
+                && peekMotion.stopped() && combatMotion.stopped() && velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ() < Math.pow(MovementTuning.scale(.025), 2);
     }
 
     /** 今の位置からまっすぐ歩いて行けるか。段差の上り下りはまっすぐには調べられないため、行き先に立てるかだけ見る */

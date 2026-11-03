@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -27,7 +29,7 @@ public final class ScavPeekMotionTest {
             combat=(ScavCombatMotion)field.get(this);
         }
         @Override void applyPeekInput(double x,double z) {
-            var input=combat.step(x,z,.15,tick);this.x=input.x();this.z=input.z();
+            var input=combat.step(x,z,MovementTuning.scale(.15),tick);this.x=input.x();this.z=input.z();
         }
         @Override boolean peekRouteClear(Location dest) {return clear;}
         @Override public void stopMoving() {x=z=0;}
@@ -86,7 +88,7 @@ public final class ScavPeekMotionTest {
                 if(phase==1)check(position.getX()<=distance+.15,"no outward overshoot");
                 if(phase!=lastPhase) {returned=true;lastPhase=phase;}
                 previous=tactics.x;
-                velocity.setX(velocity.getX()*.546+tactics.x*.2);
+                velocity.setX(velocity.getX()*.546+tactics.x*MovementTuning.scale(.2));
                 position.add(velocity);
             }
             check(shots[0]==1&&returned&&tactics.getPeekPhase()==0,"out/fire/back cycle completes");

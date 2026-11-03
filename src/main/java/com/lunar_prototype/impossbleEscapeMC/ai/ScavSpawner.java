@@ -166,6 +166,7 @@ public class ScavSpawner implements Listener {
         var speedAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED);
         if (speedAttr != null) {
             speedAttr.setBaseValue(0.15);
+            com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning.applyTo(speedAttr);
         }
 
         // タルコフ風の装備設定

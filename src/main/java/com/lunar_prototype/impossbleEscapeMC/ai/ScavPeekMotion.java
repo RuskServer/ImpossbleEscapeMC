@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
+
 /** 顔出し専用のワールド方向入力。速度や座標を直接書かず、地上移動の加速・摩擦はMobに任せる。 */
 final class ScavPeekMotion {
     static final double MAX_INPUT = .35;
@@ -26,6 +28,6 @@ final class ScavPeekMotion {
 
     /** 最大3ブロック程度の出入りを想定。低速での接近と入力の立ち上がりにも猶予を置く。 */
     static int travelSteps(double distance) {
-        return (int)Math.clamp(Math.ceil((distance / .06 + 12) / ScavController.STEP_TICKS), 6, 36);
+        return (int)Math.clamp(Math.ceil((distance / MovementTuning.scale(.06) + 12) / ScavController.STEP_TICKS), 6, Math.ceil(36 / MovementTuning.MULTIPLIER));
     }
 }

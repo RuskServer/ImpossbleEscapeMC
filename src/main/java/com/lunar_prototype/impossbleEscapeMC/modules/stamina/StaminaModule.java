@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stamina;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
+
 import com.destroystokyo.paper.event.player.PlayerJumpEvent;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
@@ -46,7 +48,7 @@ public class StaminaModule implements IModule, Listener {
     public static StaminaTravelModel diagnosticTravel(int weightGrams, int food, double reserve,
                                                       double sprintSpeed, double walkSpeed) {
         WeightStage stage = WeightStage.getFromWeight(weightGrams);
-        double speedMultiplier = com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightModule.baseSpeedMultiplier(weightGrams);
+        double speedMultiplier = MovementTuning.scale(com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightModule.baseSpeedMultiplier(weightGrams));
         return new StaminaTravelModel(MAX_STAMINA,
                 SPRINT_COST_PER_TICK * 20 * stage.getStaminaCostMultiplier(weightGrams),
                 RECOVERY_PER_TICK * 20 * (.3 + .7 * Math.clamp(food, 0, 20) / 20.0),

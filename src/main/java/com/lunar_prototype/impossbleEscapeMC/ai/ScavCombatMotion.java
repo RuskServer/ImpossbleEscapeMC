@@ -1,10 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
+
 /** 戦闘横移動とピークの共通上限。入力倍率ではなく、移動属性を掛けた後の移動指示量で制御する。 */
 final class ScavCombatMotion {
     // 標準的な地上横移動で、無負荷のプレイヤー歩行より遅い基準を使う。
-    static final double MAX_SPEED = .08;
-    static final double CHANGE_PER_TICK = .005;
+    static final double MAX_SPEED = MovementTuning.scale(.08);
+    static final double CHANGE_PER_TICK = MovementTuning.scale(.005);
     private double x, z;
     private int lastTick = Integer.MIN_VALUE;
     record Input(double x, double z) { }
@@ -27,7 +29,7 @@ final class ScavCombatMotion {
         return new Input(x / attribute, z / attribute);
     }
 
-    boolean stopped() {return Math.hypot(x,z) < .00075;}
+    boolean stopped() {return Math.hypot(x,z) < MovementTuning.scale(.00075);}
 
     void clear() {x = z = 0;lastTick = Integer.MIN_VALUE;}
 }
