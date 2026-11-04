@@ -28,6 +28,9 @@ public enum GuiBackground {
     PDA(0xE100, 3, null, null, engraving("КПК-3М", 4, false),
             label("オペレーター", 8, 0, Ink.AMBER), labelRight("通信", 154, 0, Ink.AMBER),
             label("カーソルで詳細", 8, 2, Ink.AMBER_DIM), label("閉じる", 101, 2, Ink.RUST)),
+    PDA_HIDEOUT(0xE100, 3, "隠れ家", null, engraving("КПК-3М", 4, false),
+            labelCenter("移動", 52, 0, Ink.AMBER), labelCenter("設備管理", 124, 0, Ink.AMBER),
+            label("PDAへ戻る", 101, 2, Ink.AMBER_DIM)),
     PARTY(0xE120, 3, "パーティー", "ОТРЯД", engraving("КПК-3М", 4, false),
             label("メンバー", 8, 0, Ink.AMBER), labelRight("招待", 41, 2, Ink.AMBER), label("脱退", 135, 2, Ink.RUST)),
     // パーティー画面と同じ端末・中央の連絡先欄を使用する (追加のパック素材は不要)。

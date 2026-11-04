@@ -242,6 +242,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI.shutdown();
         if (operationHintHud != null) operationHintHud.stop();
         // 開いている画面を閉じる。納品・売却・修理の欄に入れていたアイテムは、各画面の閉じる処理が持ち主に返す
         // (リスナーが外れる前に閉じないと、欄の中身が消える)
