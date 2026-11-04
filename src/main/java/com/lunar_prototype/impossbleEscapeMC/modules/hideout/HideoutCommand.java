@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * /hideout: 隠れ家の画面。visit で自分の隠れ家へ。
+ * /hideout: 隠れ家の画面。visit で隠れ家へ (パーティーのメンバーはリーダーの隠れ家に集まる。設備の利用は各自のレベル)。
  * 建築を作る (OP):
  * <ul>
  *   <li>/hideout base save: WorldEdit で選んだ範囲をベースとして保存 (原点は範囲の最小の角、立つ位置は今いる所)</li>
@@ -167,9 +167,10 @@ public class HideoutCommand implements BasicCommand {
         World hideoutWorld = worlds.getPlayerWorld();
         player.sendMessage(Component.text("ワールド: " + block.getWorld().getName() + " / 隠れ家のワールド: "
                 + (hideoutWorld != null ? hideoutWorld.getName() : "null") + " / 一致: " + worlds.isPlayerWorld(block.getWorld()), NamedTextColor.GOLD));
-        BlockVector3 origin = module.origin(data.getHideoutIndex());
+        int slot = HideoutModule.slotAt(block.getX());
+        BlockVector3 origin = module.origin(slot);
         int x = block.getX() - origin.x(), y = block.getY() - origin.y(), z = block.getZ() - origin.z();
-        player.sendMessage(Component.text("隠れ家の番号: " + data.getHideoutIndex() + " / 原点: " + origin + " / ブロック: "
+        player.sendMessage(Component.text("隠れ家の番号: " + slot + " / 原点: " + origin + " / ブロック: "
                 + block.getType() + " at (" + x + ", " + y + ", " + z + ")", NamedTextColor.GOLD));
         player.sendMessage(Component.text("持ち主の判定: " + module.facilityAt(player, block) + " / 建てた時の版: "
                 + data.getHideoutBuiltVersion() + " / 今の版: " + module.getLayout().version(), NamedTextColor.GOLD));
@@ -198,9 +199,9 @@ public class HideoutCommand implements BasicCommand {
             return;
         }
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        BlockVector3 origin = module.originAt(player, data);
+        BlockVector3 origin = module.originAt(player);
         if (origin == null) {
-            player.sendMessage(Component.text("エディターの区画か、自分の隠れ家の中で実行してください。", NamedTextColor.RED));
+            player.sendMessage(Component.text("エディターの区画か、隠れ家の中で実行してください。", NamedTextColor.RED));
             return;
         }
         Location eye = player.getEyeLocation();
@@ -284,7 +285,7 @@ public class HideoutCommand implements BasicCommand {
 
     private void sendHelp(Player player) {
         player.sendMessage(Component.text("--- Hideout Commands ---", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/hideout visit - 自分の隠れ家へ移動", NamedTextColor.YELLOW));
+        player.sendMessage(Component.text("/hideout visit - 隠れ家へ移動 (パーティー所属時はリーダーの隠れ家)", NamedTextColor.YELLOW));
         if (player.isOp()) {
             player.sendMessage(Component.text("/hideout base save - WorldEdit で選んだ範囲をベースとして保存", NamedTextColor.YELLOW));
             player.sendMessage(Component.text("/hideout edit <設備> <レベル> [reset] - そのレベルの建築を作る区画へ", NamedTextColor.YELLOW));
