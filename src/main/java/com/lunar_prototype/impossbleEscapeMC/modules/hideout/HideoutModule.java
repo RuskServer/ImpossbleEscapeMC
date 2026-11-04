@@ -5,6 +5,8 @@ import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.party.Party;
+import com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule;
 import com.sk89q.worldedit.math.BlockVector3;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -28,12 +30,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 
 /**
  * 隠れ家システムのメインモジュール。
  * 建築はベースと、設備のレベルごとの差分 ({@link HideoutLayout})。プレイヤーの隠れ家は、建てた時の建築データの版が今と違えば
- * 次に入った時に建て直す ({@link #ensureBuilt})
+ * 次に入った時に建て直す ({@link #ensureBuilt})。
+ * パーティーに所属している人は、入る時はリーダーの隠れ家に集まる ({@link #visit})。設備の利用のレベルの判定は
+ * クラフトやスキルの各画面がプレイヤー自身のデータで行うので、どの隠れ家にいても自分のレベルのまま
  */
 public class HideoutModule implements IModule {
     private final ImpossbleEscapeMC plugin;
@@ -74,9 +79,17 @@ public class HideoutModule implements IModule {
         Bukkit.getLogger().info("HideoutModule disabled.");
     }
 
+    /** 隠れ家の区画の間隔 (x 方向のブロック数)。どの区画かは {@link #slotAt} で座標から求める */
+    static final int SLOT_STRIDE = 1000;
+
     /** プレイヤーの隠れ家の原点 (ベースの最小の角が来る所) */
     public BlockVector3 origin(int index) {
-        return BlockVector3.at(index * 1000, 64, 0);
+        return BlockVector3.at(index * SLOT_STRIDE, 64, 0);
+    }
+
+    /** 座標 x が属する隠れ家の区画の番号 (原点の x を区画の間隔で割った物。負の座標も左の区画になる) */
+    static int slotAt(int x) {
+        return Math.floorDiv(x, SLOT_STRIDE);
     }
 
     /** プレイヤーの隠れ家で立つ位置 */
@@ -90,7 +103,7 @@ public class HideoutModule implements IModule {
                 base.spawnYaw, base.spawnPitch);
     }
 
-    /** 自分の隠れ家へ移す (初めてなら場所を割り当てて建てる)。移せなかった時は、その理由をプレイヤーに伝えて false */
+    /** 隠れ家へ移す (初めてなら場所を割り当てて建てる)。パーティーのメンバーはリーダーの隠れ家に集まる。移せなかった時は、その理由をプレイヤーに伝えて false */
     public boolean visit(Player player) {
         if (layout.base() == null) {
             player.sendMessage(Component.text("隠れ家はまだ準備中です。", NamedTextColor.RED));
@@ -98,19 +111,39 @@ public class HideoutModule implements IModule {
         }
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         assignSlot(player.getUniqueId(), data, true);
+        // パーティーに所属していてリーダーでなければ、リーダーの隠れ家に建ててもらって集まる (設備のレベルの判定は各自のデータのまま)
+        PlayerData host = hostData(player.getUniqueId());
+        PlayerData target = host != null ? host : data;
         try {
-            ensureBuilt(data);
+            ensureBuilt(target);
         } catch (IOException e) {
             plugin.getLogger().log(Level.WARNING, "隠れ家を建てられませんでした", e);
             player.sendMessage(Component.text("隠れ家を建てられませんでした: " + e.getMessage(), NamedTextColor.RED));
             return false;
         }
-        dataModule.saveAsync(player.getUniqueId());
-        Location spawn = spawn(data.getHideoutIndex());
+        dataModule.saveAsync(target.getUuid());
+        Location spawn = spawn(target.getHideoutIndex());
         if (spawn == null) return false;
         player.teleport(spawn);
-        player.sendMessage(Component.text("自分の隠れ家に移動しました。", NamedTextColor.GREEN));
+        player.sendMessage(Component.text(host != null ? "パーティーリーダーの隠れ家に移動しました。" : "自分の隠れ家に移動しました。",
+                NamedTextColor.GREEN));
         return true;
+    }
+
+    /** 隠れ家に入った時に集まる先の持ち主のデータ。パーティーに所属していない人と、リーダー自身は null (自分の隠れ家) */
+    private PlayerData hostData(UUID visitor) {
+        PartyModule parties = PartyModule.get();
+        UUID host = parties != null ? visitHost(parties.getParty(visitor), visitor) : null;
+        if (host == null) return null;
+        PlayerData data = dataModule.getPlayerData(host);
+        // リーダーがまだ隠れ家に入ったことがなくても、区画を割り当ててから案内する (建てるのは visit の ensureBuilt)
+        assignSlot(host, data, true);
+        return data;
+    }
+
+    /** 隠れ家に入った時の案内先の持ち主。パーティーに所属していてリーダーでなければリーダー、それ以外は null */
+    static UUID visitHost(Party party, UUID self) {
+        return party != null && party.isMember(self) && !party.isLeader(self) ? party.getLeader() : null;
     }
 
     /**
@@ -182,10 +215,10 @@ public class HideoutModule implements IModule {
     }
 
     /**
-     * 今いる所の原点 (ベースの最小の角が来る所)。エディターのワールドならいちばん近い区画、隠れ家のワールドなら自分の隠れ家。
-     * どちらでもなければ null
+     * 今いる所の原点 (ベースの最小の角が来る所)。エディターのワールドならいちばん近い区画、隠れ家のワールドなら立っている区画
+     * (パーティーでほかの人の隠れ家にいる時もその区画)。どちらでもなければ null
      */
-    public BlockVector3 originAt(Player player, PlayerData data) {
+    public BlockVector3 originAt(Player player) {
         Location at = player.getLocation();
         if (worldManager.isEditorWorld(player.getWorld())) {
             int facility = (int) Math.round(at.getX() / HideoutBuilder.EDITOR_STRIDE);
@@ -193,8 +226,8 @@ public class HideoutModule implements IModule {
             if (facility < 0 || facility >= HideoutFacility.values().length || level < 0) return null;
             return HideoutBuilder.editorOrigin(HideoutFacility.values()[facility], level);
         }
-        if (worldManager.isPlayerWorld(player.getWorld()) && data != null && data.getHideoutIndex() >= 0) {
-            return origin(data.getHideoutIndex());
+        if (worldManager.isPlayerWorld(player.getWorld())) {
+            return origin(slotAt(at.getBlockX()));
         }
         return null;
     }
@@ -326,14 +359,27 @@ public class HideoutModule implements IModule {
         return consumed;
     }
 
-    /** 自分の隠れ家のブロックなら、それを置いた設備 (ベースのブロック・ほかの場所なら null) */
+    /** 隠れ家のワールドのブロックなら、それを置いた設備 (ベースのブロック・ほかの場所なら null)。どの区画かは座標から求め、
+     *  建っている物はその区画の持ち主のレベルで判定する (パーティーでリーダーの隠れ家にいる時も、リーダーが建てた物が分かる) */
     public HideoutFacility facilityAt(Player player, Block block) {
         if (!worldManager.isPlayerWorld(block.getWorld())) return null;
-        PlayerData data = dataModule.getPlayerData(player.getUniqueId());
-        if (data == null || data.getHideoutIndex() < 0) return null;
-        BlockVector3 origin = origin(data.getHideoutIndex());
-        return builder.ownerAt(facility -> data.getHideoutLevel(facility.id),
+        int slot = slotAt(block.getX());
+        BlockVector3 origin = origin(slot);
+        return builder.ownerAt(levelsForSlot(slot, player),
                 block.getX() - origin.x(), block.getY() - origin.y(), block.getZ() - origin.z());
+    }
+
+    /** 区画に建っている物を判定するための設備レベル: その区画の持ち主のもの。持ち主が分からなければ見ている人のもの */
+    private ToIntFunction<HideoutFacility> levelsForSlot(int slot, Player viewer) {
+        UUID owner = slots.ownerOf(slot);
+        if (owner == null && viewer != null) {
+            PlayerData own = dataModule.getPlayerData(viewer.getUniqueId());
+            if (own != null && own.getHideoutIndex() == slot) owner = viewer.getUniqueId();
+        }
+        PlayerData resolved = owner != null ? dataModule.getPlayerData(owner) : null;
+        if (resolved == null && viewer != null) resolved = dataModule.getPlayerData(viewer.getUniqueId());
+        final PlayerData data = resolved;
+        return facility -> data != null ? data.getHideoutLevel(facility.id) : 0;
     }
 
     /** 設備を 1 レベル上げて、その差分を反映してからレベルを保存する。 */

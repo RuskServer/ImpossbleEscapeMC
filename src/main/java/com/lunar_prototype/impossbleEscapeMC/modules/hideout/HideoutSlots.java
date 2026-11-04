@@ -63,6 +63,14 @@ final class HideoutSlots {
         return slot;
     }
 
+    /** その番号の区画を使っている人。誰も使っていなければ null */
+    synchronized UUID ownerOf(int slot) {
+        for (Map.Entry<UUID, Integer> entry : slots.entrySet()) {
+            if (entry.getValue() == slot) return entry.getKey();
+        }
+        return null;
+    }
+
     /**
      * 台帳導入前から保存されているプレイヤーの番号を先に予約する。
      * オフラインの人や、まだ隠れ家に入ったことがない人の番号を知らずに再利用すると、

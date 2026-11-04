@@ -19,7 +19,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import java.util.*;
 
 /**
- * パーティー (メモリだけに持つ。再起動で解散)。/party コマンドと、抜けた人をパーティーから外す処理もここ
+ * パーティー (メモリだけに持つ。再起動で解散)。/party コマンドと、抜けた人をパーティーから外す処理もここ。
+ * リーダーがログアウトしても解散しない (メンバーはリーダーの隠れ家に集まり続けられる。明示的な
+ * /party leave と /party disband は今まで通り解散する)
  */
 public class PartyModule implements IModule, Listener {
     private final ImpossbleEscapeMC plugin;
@@ -50,6 +52,14 @@ public class PartyModule implements IModule, Listener {
     // レイドの抜けた時の処理 (PlayerListener・NORMAL) の後に外す (前はそこで続けて呼んでいた)
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        Party party = getParty(event.getPlayer().getUniqueId());
+        // リーダーのログアウトでは解散しない (メンバーはリーダーの隠れ家に集まり続けられる。戻ればそのままリーダー)。
+        // 解散するのは明示的な抜け方 (/party leave と /party disband) の時だけ
+        if (party != null && party.isLeader(event.getPlayer().getUniqueId())) {
+            broadcast(party, Component.text(event.getPlayer().getName() + " がオフラインになりました。パーティーは維持されます。",
+                    NamedTextColor.YELLOW));
+            return;
+        }
         leaveParty(event.getPlayer());
     }
 
@@ -196,6 +206,7 @@ public class PartyModule implements IModule, Listener {
         broadcast(party, Component.text(player.getName() + " がパーティーに参加しました。", NamedTextColor.GREEN));
     }
 
+    /** 抜ける。リーダーが抜けると解散する (リーダーのログアウトは {@link #onQuit} が維持するので、ここに来るのは明示的な抜け方) */
     public void leaveParty(Player player) {
         Party party = getParty(player.getUniqueId());
         if (party == null) {

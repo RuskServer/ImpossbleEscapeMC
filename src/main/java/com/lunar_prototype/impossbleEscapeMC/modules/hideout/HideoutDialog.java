@@ -48,7 +48,7 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
  * <ul>
  *   <li>◀ ▶ で設備を前・次へ切り替える (端は反対の端へ回る)。カメラもその設備へ動く</li>
  *   <li>下の帯: 強化する / 閉じる。カメラを使っている間は Esc で閉じない (閉じるで元の位置とゲームモードに戻す)</li>
- *   <li>カメラは自分の隠れ家にいる時だけ使う。ほかの所で開いた時は、普通のダイアログ (後ろはぼける)</li>
+ *   <li>カメラは自分の隠れ家の区画にいる時だけ使う (パーティーでリーダーの隠れ家にいる時などは、カメラなしで自分の隠れ家を遠隔で管理する)</li>
  * </ul>
  * 本文は 1 つの要素 (幅 {@link #BODY_W}) で、行はすべて {@link #LINE_W} にそろえる (クライアントの中央揃えで位置がずれないように)。
  * 行の頭はパネルの左の 4 右、行の上端はパネルの上から 9 x 行目 - 3 (要素の上 + 4 + 9 x 行目)
@@ -139,20 +139,27 @@ public final class HideoutDialog implements Listener {
     private void openFor(Player player) {
         player.closeInventory();
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
-        if (!inOwnHideout(player, data)) {
+        if (!inHideout(player, data)) {
             player.sendMessage(Component.text("隠れ家の中で開いてください。", NamedTextColor.RED));
             return;
         }
         Session session = sessions.computeIfAbsent(player.getUniqueId(), id -> new Session());
-        if (!camera.isActive(player)) {
+        // カメラは自分の区画にいる時だけ。ほかの人の隠れ家にいる時は、カメラなしで自分の隠れ家を遠隔で管理する
+        if (!camera.isActive(player) && inOwnHideout(player, data)) {
             camera.start(player, module.cameraPose(data, FACILITIES[session.index]));
         }
         show(player, session);
     }
 
-    private boolean inOwnHideout(Player player, PlayerData data) {
+    /** 隠れ家のワールドにいて、自分の区画の番号を持っているか (画面を開くのと強化はここでできる) */
+    private boolean inHideout(Player player, PlayerData data) {
         return data != null && data.getHideoutIndex() >= 0 && module.getLayout().base() != null
                 && module.getWorldManager().isPlayerWorld(player.getWorld());
+    }
+
+    /** 自分の隠れ家の区画に立っているか (カメラを出すのはここだけ) */
+    private boolean inOwnHideout(Player player, PlayerData data) {
+        return inHideout(player, data) && HideoutModule.slotAt(player.getLocation().getBlockX()) == data.getHideoutIndex();
     }
 
     // ---- 表示 ----
@@ -400,7 +407,7 @@ public final class HideoutDialog implements Listener {
 
     private void upgrade(Player player, PlayerData data, Session session) {
         HideoutFacility facility = FACILITIES[session.index];
-        if (!inOwnHideout(player, data)) {
+        if (!inHideout(player, data)) {
             notice(session, Component.text("隠れ家の中で強化してください", NamedTextColor.RED));
             return;
         }
