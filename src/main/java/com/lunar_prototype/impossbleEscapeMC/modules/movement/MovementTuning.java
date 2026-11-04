@@ -6,7 +6,7 @@ import org.bukkit.attribute.AttributeModifier;
 
 /** プレイヤー・SCAV・移動診断の共通倍率。調整はこの値だけを変更する。スタミナ消費には使わない。 */
 public final class MovementTuning {
-    public static final double MULTIPLIER = 0.8;
+    public static final double MULTIPLIER = 0.85;
     private static final NamespacedKey KEY = new NamespacedKey("iem", "global_movement_speed");
     static {
         if (!Double.isFinite(MULTIPLIER) || MULTIPLIER <= 0) throw new IllegalStateException("Movement multiplier must be positive and finite");
