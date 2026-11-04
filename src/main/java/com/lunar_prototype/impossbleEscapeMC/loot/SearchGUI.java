@@ -15,6 +15,9 @@ import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.Color;
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.CustomModelData;
 import org.bukkit.NamespacedKey;
 import org.bukkit.SoundCategory;
 import org.bukkit.block.Block;
@@ -52,9 +55,6 @@ import java.util.Set;
 import java.util.UUID;
 
 public class SearchGUI implements Listener {
-    /** 1 マスの探索にかかる時間 (tick) */
-    private static final int SEARCH_TICKS = 10;
-
     private final ImpossbleEscapeMC plugin;
     private final NamespacedKey SEARCHED_SLOTS_KEY;
 
@@ -68,7 +68,7 @@ public class SearchGUI implements Listener {
         private final Inventory liveInventory;
         private final Set<Integer> sessionSearchedSlots = new HashSet<>();
         private final Set<Integer> searchingSlots = new HashSet<>();
-        private final Map<Integer, Integer> searchFrames = new HashMap<>();
+        private final Map<Integer, LootSearchAnimation.Frame> searchFrames = new HashMap<>();
         private final Map<Integer, int[]> waves = new HashMap<>();
         private com.lunar_prototype.impossbleEscapeMC.gui.InventoryPanel.Bag bag;
         public SearchHolder(Object source, Inventory liveInventory) {
@@ -238,7 +238,7 @@ public class SearchGUI implements Listener {
             }
 
             if (holder != null && holder.searchingSlots.contains(i)) {
-                guiInv.setItem(i, searchIcon(holder.searchFrames.getOrDefault(i, 0)));
+                guiInv.setItem(i, searchIcon(holder.searchFrames.getOrDefault(i, LootSearchAnimation.frame(1, 0, 10))));
             } else if (searchedSlots.contains(i)) {
                 guiInv.setItem(i, realItem.clone());
             } else {
@@ -256,12 +256,14 @@ public class SearchGUI implements Listener {
         return item;
     }
 
-    private ItemStack searchIcon(int frame) {
+    private ItemStack searchIcon(LootSearchAnimation.Frame frame) {
         ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
-        meta.setItemModel(new NamespacedKey("iem", "search/spin_" + (frame % 8)));
+        meta.setItemModel(new NamespacedKey("iem", "search/spin_" + frame.rotation()));
         meta.displayName(Component.text("サーチ中...", NamedTextColor.GRAY));
         item.setItemMeta(meta);
+        item.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData()
+                .addColor(Color.fromRGB(frame.color())).addColor(Color.fromRGB(frame.highlight())).build());
         return item;
     }
 
@@ -280,8 +282,8 @@ public class SearchGUI implements Listener {
             int rgb = switch (rarity) {
                 case 2 -> 0x55FF55;
                 case 3 -> 0x5555FF;
-                case 4 -> 0xB954FF;
-                case 5 -> 0xFFAA00;
+                case 4 -> LootSearchAnimation.EPIC_COLOR;
+                case 5 -> LootSearchAnimation.LEGENDARY_COLOR;
                 default -> 0xFFFFFF;
             };
             line.moveTo((slot % 9) * 18 - 24).glyph(net.kyori.adventure.key.Key.key("iem:search"),
@@ -446,8 +448,11 @@ public class SearchGUI implements Listener {
             return;
         }
 
-        // 1 マス 10 tick (スキルで縮む)。1 tick ごとに進める
-        final int searchTicks = Math.max(1, SEARCH_TICKS + (int) SkillModule.value(player, SkillStat.SEARCH_TICKS));
+        // 開始時の品物と同じレアリティを、時間・予告色・発見演出で共有する。
+        final ItemStack searchingItem = current.clone();
+        final int searchRarity = revealRarity(current);
+        final int searchTicks = LootSearchAnimation.durationTicks(searchRarity,
+                (int) SkillModule.value(player, SkillStat.SEARCH_TICKS));
         new BukkitRunnable() {
             int elapsed = 0;
             int flashFrame = -1;
@@ -471,9 +476,16 @@ public class SearchGUI implements Listener {
                         holder.waves.get(slot)[1] = flashFrame;
                         refreshTitle(player, holder.bag);
                     }
+                } else if (!sameSearchTarget(searchingItem, realInv.getItem(slot))) {
+                    // 他の人の取得や補充で別の品になったら、古い予告や経過時間で確定しない。
+                    holder.getSearchingSlots().remove(slot);
+                    holder.searchFrames.remove(slot);
+                    updateInventory(guiInv, source);
+                    cancel();
                 } else if (elapsed < searchTicks) {
-                    holder.searchFrames.put(slot, elapsed % 8);
-                    guiInv.setItem(slot, searchIcon(elapsed));
+                    var frame = LootSearchAnimation.frame(searchRarity, elapsed, searchTicks);
+                    holder.searchFrames.put(slot, frame);
+                    guiInv.setItem(slot, searchIcon(frame));
                     elapsed++;
                 } else {
                     ItemStack revealed = realInv.getItem(slot);
@@ -483,7 +495,7 @@ public class SearchGUI implements Listener {
                     updateInventory(guiInv, source);
                     if (revealed != null && !revealed.getType().isAir()) {
                         Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.LootItemRevealEvent(player,revealed));
-                        int rarity = revealRarity(revealed);
+                        int rarity = searchRarity;
                         holder.waves.put(slot, new int[]{rarity, 0});
                         flashFrame = 0;
                         refreshTitle(player, holder.bag);
@@ -500,6 +512,11 @@ public class SearchGUI implements Listener {
                 }
             }
         }.runTaskTimer(plugin, 0, 1);
+    }
+
+    /** 同じ品の残数が変わるだけなら継続し、種類・メタデータの変更や消失では中断する。 */
+    static boolean sameSearchTarget(ItemStack expected, ItemStack current) {
+        return current != null && current.getAmount() > 0 && expected.isSimilar(current);
     }
 
     private static int revealRarity(ItemStack item) {
