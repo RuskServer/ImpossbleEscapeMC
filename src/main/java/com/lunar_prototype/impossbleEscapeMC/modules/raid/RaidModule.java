@@ -99,6 +99,7 @@ public class RaidModule implements IModule {
 
     @Override
     public void onDisable() {
+        RaidSelectionGUI.shutdown();
         saveState(); // 終了時に保存
         suspendAllRaids();   // 結果を出さずに止める (再起動の後に参加者を戻して続ける)
         
@@ -535,17 +536,7 @@ public class RaidModule implements IModule {
         }
 
         if (bestMapId != null) {
-            final String finalMapId = bestMapId;
-            if (party != null) {
-                List<Player> members = new ArrayList<>();
-                for (UUID member : party.getMembers()) {
-                    Player p = Bukkit.getPlayer(member);
-                    if (p != null) members.add(p);
-                }
-                joinQueue(members, finalMapId);
-            } else {
-                joinQueue(player, bestMapId);
-            }
+            new RaidSelectionGUI(this).confirm(player, bestMapId);
         }
     }
 

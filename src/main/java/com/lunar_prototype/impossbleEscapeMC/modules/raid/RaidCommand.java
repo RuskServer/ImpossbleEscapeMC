@@ -98,9 +98,7 @@ public class RaidCommand implements BasicCommand {
             return;
         }
         String mapId = args[1];
-        if (!manager.joinQueue(player, mapId)) {
-            player.sendMessage(Component.text("待機列への参加に失敗しました。マップIDを確認してください。", NamedTextColor.RED));
-        }
+        new RaidSelectionGUI(manager).confirm(player, mapId);
     }
 
     private void handleMap(Player player, String[] args) {

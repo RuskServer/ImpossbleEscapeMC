@@ -30,6 +30,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -61,6 +62,8 @@ public class RaidSelectionGUI implements Listener {
     private static final String CLOSE = "raid/close";
     private static final String AUTO_MATCH = "raid/auto";
     private static final String SUPPLY = "raid/supply";
+    private static final String CONFIRM_PREFIX = "raid/confirm_";
+    private static final String BACK_PREFIX = "raid/back_";
     private static final String MAP_PREFIX = "raid/map_";
 
     // ---- 絵の寸法・文字の番号 (raid_dialog.py と同じ) ----
@@ -105,6 +108,7 @@ public class RaidSelectionGUI implements Listener {
         final int openedTick = Bukkit.getCurrentTick();
         List<String> mapIds = List.of();
         String lastSignature;
+        RaidDeploymentApproval approval;
         String notice;
         int noticeUntilTick;
     }
@@ -118,6 +122,7 @@ public class RaidSelectionGUI implements Listener {
     }
 
     public void open(Player player) {
+        if (!player.isOnline() || player.isDead() || module.isInRaid(player)) return;
         // チェスト画面 (PDA など) から開いた時は、先に閉じる (ダイアログが画面を置き換えても、サーバーは開いたままとみなすため)
         player.closeInventory();
         Session session = new Session();
@@ -128,12 +133,23 @@ public class RaidSelectionGUI implements Listener {
         }
     }
 
+    /** プラグイン停止時に確認も含めて破棄し、再有効化へ古い同意を持ち越さない。 */
+    static void shutdown() {
+        for (UUID id : SESSIONS.keySet()) {
+            Player player = Bukkit.getPlayer(id);
+            if (player != null) player.closeDialog();
+        }
+        SESSIONS.clear();
+        if (refresher != null) refresher.cancel();
+        refresher = null;
+    }
+
     /** 開いている全員の画面を、状況 (待機人数・出撃までの時間など) が変わっていれば送り直す */
     private static void refreshAll() {
         int now = Bukkit.getCurrentTick();
         SESSIONS.entrySet().removeIf(entry -> {
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (player == null || now - entry.getValue().openedTick > SESSION_TIMEOUT_TICKS) return true;
+            if (player == null || !player.isOnline() || player.isDead() || now - entry.getValue().openedTick > SESSION_TIMEOUT_TICKS) return true;
             if (module.isInRaid(player)) {
                 player.closeDialog();
                 return true;
@@ -148,6 +164,15 @@ public class RaidSelectionGUI implements Listener {
     }
 
     private static void show(Player player, Session session, boolean force) {
+        if (session.approval != null) {
+            // 確認中に地図の定期更新で画面を上書きしない。
+            if (session.approval.expired(Bukkit.getCurrentTick())) {
+                session.approval = null;
+                session.notice = "確認の有効期限が切れました。出撃先を選び直してください";
+                session.noticeUntilTick = Bukkit.getCurrentTick() + NOTICE_TICKS;
+                force = true;
+            } else return;
+        }
         List<String> mapIds = module.getMapIds();
         String queued = module.getQueuedMap(player);
         int now = Bukkit.getCurrentTick();
@@ -285,11 +310,11 @@ public class RaidSelectionGUI implements Listener {
         if (status.queued()) {
             lines.add(Component.text("▶ 出撃待機中 (クリックで取り消し)", NamedTextColor.YELLOW));
         } else if (instant) {
-            lines.add(Component.text("▶ クリックで即時出撃 (空きマップを今すぐ開始)", NamedTextColor.GREEN));
+            lines.add(Component.text("▶ クリックで出撃内容を確認 (確認後すぐに出撃)", NamedTextColor.GREEN));
         } else if (status.state() == State.LATE_JOIN) {
-            lines.add(Component.text("▶ クリックで途中参加", NamedTextColor.YELLOW));
+            lines.add(Component.text("▶ クリックで途中参加の内容を確認", NamedTextColor.YELLOW));
         } else {
-            lines.add(Component.text("▶ クリックで出撃待機列に参加", NamedTextColor.YELLOW));
+            lines.add(Component.text("▶ クリックで出撃待機の内容を確認", NamedTextColor.YELLOW));
         }
         return Component.join(net.kyori.adventure.text.JoinConfiguration.newlines(), lines);
     }
@@ -302,7 +327,7 @@ public class RaidSelectionGUI implements Listener {
                 Component.text("- 空いているマップは即時出撃", NamedTextColor.DARK_GRAY),
                 Component.text("- なければ開始が最も近いマップ", NamedTextColor.DARK_GRAY),
                 Component.empty(),
-                Component.text("▶ クリックでマッチング開始", NamedTextColor.YELLOW));
+                Component.text("▶ クリックで候補を選んで出撃内容を確認", NamedTextColor.YELLOW));
     }
 
     /** 支給装備のボタンの吹き出し (次に受け取れるまでの時間) */
@@ -325,6 +350,118 @@ public class RaidSelectionGUI implements Listener {
         return String.format("%02d:%02d", seconds / 60, seconds % 60);
     }
 
+    /** コマンド・オートマッチも、選択した候補を確認してから参加させる。 */
+    public void confirm(Player player, String mapId) {
+        open(player);
+        Session session = SESSIONS.get(player.getUniqueId());
+        if (session != null) prepareConfirmation(player, session, mapId, null);
+    }
+
+    private static RaidDeploymentApproval.Snapshot deploymentSnapshot(Player player, String mapId) {
+        if (!player.isOnline() || player.isDead() || module.isInRaid(player) || module.getMap(mapId) == null) return null;
+        PartyModule parties = PartyModule.get();
+        Party party = parties != null ? parties.getParty(player.getUniqueId()) : null;
+        if (party != null && !party.isLeader(player.getUniqueId())) return null;
+        List<UUID> members = party == null ? List.of(player.getUniqueId()) : List.copyOf(party.getMembers());
+        List<UUID> online = members.stream().filter(id -> {
+            Player member = Bukkit.getPlayer(id);
+            return member != null && member.isOnline();
+        }).toList();
+        if (online.isEmpty()) return null;
+        RaidInstance active = module.getActiveRaid(mapId);
+        long age = (System.currentTimeMillis() - module.getMapLastStartTime(mapId)) / 1000;
+        var mode = active == null ? RaidDeploymentApproval.Mode.IMMEDIATE : age < RaidModule.LATE_JOIN_WINDOW
+                ? RaidDeploymentApproval.Mode.LATE_JOIN : RaidDeploymentApproval.Mode.QUEUE;
+        RaidConditions conditions = mode == RaidDeploymentApproval.Mode.QUEUE ? module.getNextConditions(mapId) : module.getConditions(mapId);
+        return new RaidDeploymentApproval.Snapshot(mapId, mode, module.getMapLastStartTime(mapId), conditions,
+                party != null ? party.getLeader() : null, members, online, module.getQueuedMap(player));
+    }
+
+    private static void notice(Player player, Session session, String message) {
+        session.approval = null;
+        session.notice = message;
+        session.noticeUntilTick = Bukkit.getCurrentTick() + NOTICE_TICKS;
+        show(player, session, true);
+    }
+
+    private static void prepareConfirmation(Player player, Session session, String mapId, String changed) {
+        var snapshot = deploymentSnapshot(player, mapId);
+        if (snapshot == null) {
+            notice(player, session, "出撃先・参加状態・パーティリーダーを確認してください");
+            return;
+        }
+        session.approval = new RaidDeploymentApproval(snapshot, Bukkit.getCurrentTick());
+        showConfirmation(player, session.approval, changed);
+    }
+
+    static List<Component> confirmationLines(RaidDeploymentApproval.Snapshot snapshot, List<String> names, int waitingSeconds) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.text(snapshot.mapId(), com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.AMBER, TextDecoration.BOLD));
+        lines.add(line("参加方法", switch (snapshot.mode()) {
+            case IMMEDIATE -> "確認後すぐに出撃";
+            case LATE_JOIN -> "進行中のレイドに途中参加";
+            case QUEUE -> "次のレイドを待機 / あと " + formatTime(waitingSeconds);
+        }));
+        lines.add(line("現地", snapshot.conditions() != null ? snapshot.conditions().describe() : "確認できません"));
+        lines.add(line(snapshot.leader() == null ? "ソロ出撃" : "同行メンバー", names.size() + "名"));
+        for (String name : names) lines.add(Component.text("  " + name, com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.INK));
+        lines.add(Component.empty());
+        lines.add(Component.text("現在の装備・持ち物で参加します。", com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE));
+        return List.copyOf(lines);
+    }
+
+    private static void showConfirmation(Player player, RaidDeploymentApproval approval, String changed) {
+        var snapshot = approval.snapshot();
+        List<String> names = snapshot.onlineMembers().stream().map(id -> {
+            Player member = Bukkit.getPlayer(id);
+            return member != null ? member.getName() : "オフライン";
+        }).toList();
+        List<DialogBody> body = new ArrayList<>();
+        if (changed != null) body.add(DialogBody.plainMessage(Component.text(changed, com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NG), 300));
+        body.add(DialogBody.plainMessage(Component.join(net.kyori.adventure.text.JoinConfiguration.newlines(),
+                confirmationLines(snapshot, names, module.getMapTimeLeft(snapshot.mapId()))), 300));
+        DialogBase base = DialogBase.builder(Component.text("出撃内容の確認", AMBER))
+                .canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).body(body).build();
+        ActionButton yes = ActionButton.create(Component.text(snapshot.mode() == RaidDeploymentApproval.Mode.QUEUE ? "出撃待機する" : "出撃する",
+                com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK), null, 145,
+                DialogAction.customClick(Key.key(KEY_NAMESPACE, CONFIRM_PREFIX + approval.id()), null));
+        ActionButton back = ActionButton.create(Component.text("戻る", com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.NOTE), null, 145,
+                DialogAction.customClick(Key.key(KEY_NAMESPACE, BACK_PREFIX + approval.id()), null));
+        player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(DialogType.confirmation(yes, back))));
+    }
+
+    private static void handleConfirmation(Player player, Session session, String action) {
+        RaidDeploymentApproval approval = session.approval;
+        if (approval == null) return;
+        if (action.startsWith(BACK_PREFIX)) {
+            if (approval.matches(action.substring(BACK_PREFIX.length()))) {
+                session.approval = null;
+                show(player, session, true);
+            }
+            return;
+        }
+        if (!action.startsWith(CONFIRM_PREFIX)) return;
+        var current = deploymentSnapshot(player, approval.snapshot().mapId());
+        var result = approval.accept(action.substring(CONFIRM_PREFIX.length()), current, Bukkit.getCurrentTick());
+        if (result == RaidDeploymentApproval.Result.INVALID) return;
+        if (result == RaidDeploymentApproval.Result.CHANGED) {
+            prepareConfirmation(player, session, approval.snapshot().mapId(), "参加条件が変わりました。もう一度確認してください。");
+            return;
+        }
+        session.approval = null;
+        SESSIONS.remove(player.getUniqueId());
+        player.closeDialog();
+        List<Player> members = current.onlineMembers().stream().map(Bukkit::getPlayer).toList();
+        // 装備容量・持込制限・再参加制限は、確定直後に既存の参加処理で再判定する。
+        if (module.joinQueue(members, current.mapId())) {
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
+        } else {
+            new RaidSelectionGUI(module).open(player);
+            Session reopened = SESSIONS.get(player.getUniqueId());
+            if (reopened != null) notice(player, reopened, "出撃できません (理由はチャット)");
+        }
+    }
+
     // ---- 操作 ----
 
     @EventHandler
@@ -340,6 +477,11 @@ public class RaidSelectionGUI implements Listener {
 
     private void handle(Player player, String action) {
         if (!player.isOnline()) return;
+        if (player.isDead() || module.isInRaid(player)) {
+            SESSIONS.remove(player.getUniqueId());
+            player.closeDialog();
+            return;
+        }
         if (CLOSE.equals(action)) {
             SESSIONS.remove(player.getUniqueId());
             player.closeDialog();
@@ -347,6 +489,7 @@ public class RaidSelectionGUI implements Listener {
         }
         Session session = SESSIONS.get(player.getUniqueId());
         if (session == null) return;
+        if (session.approval != null) {handleConfirmation(player, session, action);return;}
         if (SUPPLY.equals(action)) {
             // チェスト画面を開くとダイアログは置き換わる (onInventoryOpen で送り直しを止める)
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
@@ -390,16 +533,8 @@ public class RaidSelectionGUI implements Listener {
             members.forEach(module::leaveQueue);
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.5f);
         } else {
-            // パーティーはまとめて (途中参加なら同じ所に出る。1 人でも出撃できなければ誰も入らない)
-            boolean joined = module.joinQueue(members, mapId);
-            if (joined) {
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
-            } else {
-                // 理由 (容量オーバーなど) はチャットに出ているが、ダイアログの間は見えないのでタイトルで知らせる
-                session.notice = "出撃できません (理由はチャット)";
-                session.noticeUntilTick = Bukkit.getCurrentTick() + NOTICE_TICKS;
-                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.6f);
-            }
+            prepareConfirmation(player, session, mapId, null);
+            return;
         }
         show(player, session, true);
     }
@@ -409,6 +544,9 @@ public class RaidSelectionGUI implements Listener {
     public void onInventoryOpen(InventoryOpenEvent event) {
         SESSIONS.remove(event.getPlayer().getUniqueId());
     }
+
+    @EventHandler
+    public void onDeath(PlayerDeathEvent event) {SESSIONS.remove(event.getEntity().getUniqueId());}
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
