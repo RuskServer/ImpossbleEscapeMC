@@ -49,8 +49,8 @@ public enum GuiBackground {
     QUEST(0xE240, 3, "クエスト", "ЗАДАНИЯ", engraving("КПК-3М", 4, false)),
     /** アタッチメント画面 (PDA ではなく武器職人の作業台。テープに「武器整備」、右上に刻印) */
     ATTACHMENT(0xE260, 5, null, null, engraving("ВЕРСТАК №3", 169, true), label("武器整備", 10, -1, Ink.MARKER)),
-    /** 支給装備 (無料の最低限の装備) */
-    SUPPLY(0xE280, 4, "支給装備", "ВЫДАЧА", engraving("КПК-3М", 4, false),
+    /** 無料装備 (無料の最低限の装備) */
+    SUPPLY(0xE280, 4, "無料装備", "ВЫДАЧА", engraving("КПК-3М", 4, false),
             label("武器を選ぶ", 8, 0, Ink.AMBER), label("戻る", 27, 3, Ink.RUST), labelRight("受け取る", 149, 3, Ink.AMBER));
 
     private static final Key GUI_FONT = Key.key("iem", "gui");

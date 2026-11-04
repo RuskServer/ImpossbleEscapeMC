@@ -211,7 +211,7 @@ public final class SkillCatalog {
         node(SkillCategory.TRADE, 5, "repair", 1, "修理の伝手", "修理代 -10%",
                 List.of(), false, 10000, List.of(cost("wrench", 2)),
                 2, 1, 59, stats(SkillStat.REPAIR_COST, -0.1));
-        node(SkillCategory.TRADE, 6, "supply", 1, "配給係と顔なじみ", "支給装備の待ち時間 15 → 12 分",
+        node(SkillCategory.TRADE, 6, "supply", 1, "配給係と顔なじみ", "無料装備の待ち時間 15 → 12 分",
                 List.of(), false, 8000, List.of(cost("cigarettes", 2)),
                 1, 8, 60, stats(SkillStat.SUPPLY_COOLDOWN_MIN, -3.0));
         node(SkillCategory.TRADE, 7, "records", 1, "記録係", "レイドの経験値 +5%",

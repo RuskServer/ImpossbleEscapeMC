@@ -100,6 +100,7 @@ public class RaidModule implements IModule {
     @Override
     public void onDisable() {
         RaidSelectionGUI.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI.shutdown();
         saveState(); // 終了時に保存
         suspendAllRaids();   // 結果を出さずに止める (再起動の後に参加者を戻して続ける)
         

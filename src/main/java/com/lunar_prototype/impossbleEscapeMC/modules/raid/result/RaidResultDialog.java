@@ -4,6 +4,9 @@ import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
+import com.lunar_prototype.impossbleEscapeMC.modules.supply.FreeLoadoutPresentation;
+import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn;
@@ -72,13 +75,14 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_LINE_W;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
 
 /**
- * レイド結果の画面。4 ページを順に送る (2 ページ目の戦利品だけチェストの画面 {@link RaidResultLootGUI}):
+ * レイド結果の画面。5 ページを順に送る (2 ページ目の戦利品だけチェストの画面 {@link RaidResultLootGUI}):
  * <ol>
  *   <li>経験値: 内訳が 1 行ずつ足され、レベルの棒が伸びる (ダイアログを 2 tick ごとに送り直す。送り直しても
  *       クライアントは同じ描画の間に画面を差し替えるので、ちらつかない)</li>
  *   <li>戦利品 (チェストの画面)</li>
  *   <li>クエスト納品: 持ち物・バックパックの中・スタッシュの FIR の物で納品できる目標 ({@link QuestAutoHandIn})。行ごと・まとめて (確認を挟む)</li>
  *   <li>キルログ: 倒した相手を時刻順に (武器・弾・距離・部位)。倒された時はその相手も</li>
+ *   <li>無料装備: 受取条件と中身の確認。選択画面を閉じるとこのページに戻る</li>
  * </ol>
  * 見た目の部品はクエストの画面と同じ (フォント iem:trader・iem:quest) と、iem:result ({@link RaidResultFont})。
  * 本文の文字は行ごとに中央揃えになるので、すべての行をちょうど決まった幅にする ({@link DialogLine})
@@ -99,11 +103,12 @@ public final class RaidResultDialog implements Listener {
     private static final String LEVEL_UP_SOUND = "iem:result.level_up";
     private static final int NOTICE_TICKS = 80;
 
-    enum Page { EXP, HANDIN, CONFIRM, KILLS }
+    enum Page { EXP, HANDIN, CONFIRM, KILLS, SUPPLY }
 
     private static final class Session {
         final RaidReport report;
         Page page = Page.EXP;
+        boolean supplyOpen;
         int animTick;
         int shownLevel;
         BukkitTask anim;
@@ -160,6 +165,7 @@ public final class RaidResultDialog implements Listener {
             case HANDIN -> showHandIn(player, session);
             case CONFIRM -> showConfirm(player, session);
             case KILLS -> showKills(player, session);
+            case SUPPLY -> showSupply(player, session);
         }
     }
 
@@ -427,9 +433,34 @@ public final class RaidResultDialog implements Listener {
         if (kills.isEmpty() && r.death() == null) {
             body.add(DialogBody.plainMessage(Component.text("倒した相手はいません", NOTE), BODY_W));
         }
-        ActionButton back = ActionButton.create(Component.text("戻る: クエスト納品"), null, 150, action("page/handin"));
+        ActionButton back = ActionButton.create(Component.text("次へ: 無料装備"), null, 150, action("page/supply"));
         ActionButton close = ActionButton.create(Component.text("閉じる"), null, 150, action("close"));
         showDialog(player, session, body, DialogType.confirmation(back, close));
+    }
+
+    private static void showSupply(Player player, Session session) {
+        List<DialogBody> body = new ArrayList<>();
+        body.add(header(session.report, "戻る: キルログ", "page/kills"));
+        var status = FreeLoadoutPresentation.capture(player);
+        body.add(DialogBody.plainMessage(FreeLoadoutPresentation.buttonLabel(status), BODY_W));
+        for (Component text : FreeLoadoutPresentation.summary(status)) {
+            body.add(DialogBody.plainMessage(text, BODY_W));
+        }
+        ActionButton choose = ActionButton.create(Component.text("無料装備を確認", AMBER), null, 150, action("supply"));
+        ActionButton close = ActionButton.create(Component.text("閉じる"), null, 150, action("close"));
+        showDialog(player, session, body, DialogType.confirmation(choose, close));
+    }
+
+    private static void returnFromSupply(Player player, Session session) {
+        if (!player.isOnline() || player.isDead() || SESSIONS.get(player.getUniqueId()) != session || !session.supplyOpen) return;
+        RaidModule raids = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+        if (raids != null && raids.isInRaid(player)) {
+            SESSIONS.remove(player.getUniqueId(), session);
+            return;
+        }
+        session.supplyOpen = false;
+        session.page = Page.SUPPLY;
+        show(player, session);
     }
 
     /** キルログの行: 時刻・相手 (種類の札)・距離 / 武器・弾・部位 (頭は赤)。died なら自分を倒した相手 (赤い字) */
@@ -554,6 +585,7 @@ public final class RaidResultDialog implements Listener {
     private static void handle(Player player, String action) {
         if (!player.isOnline()) return;
         Session session = SESSIONS.get(player.getUniqueId());
+        if (session != null && session.supplyOpen) return;
         if (session == null || action.equals("close")) {
             stopAnim(session);
             SESSIONS.remove(player.getUniqueId());
@@ -568,8 +600,17 @@ public final class RaidResultDialog implements Listener {
                 session.page = switch (parts.length > 1 ? parts[1] : "") {
                     case "exp" -> Page.EXP;
                     case "kills" -> Page.KILLS;
+                    case "supply" -> Page.SUPPLY;
                     default -> Page.HANDIN;
                 };
+            }
+            case "supply" -> {
+                stopAnim(session);
+                session.animTick = ANIM_TICKS;
+                session.supplyOpen = true;
+                player.closeDialog();
+                new SupplyLoadoutGUI(player, () -> returnFromSupply(player, session)).open();
+                return;
             }
             case "loot" -> {
                 stopAnim(session);

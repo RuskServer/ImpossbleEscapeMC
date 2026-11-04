@@ -304,3 +304,11 @@ In `config.yml`:
 - 2026-11-04: Kept the party alive when the leader logs out instead of auto-disbanding, so members keep gathering at the leader's hideout while the leader is away and a returning leader resumes leadership. Explicit /party leave and /party disband still disband. Raid deployment and invites remain leader-only, so a party with an offline leader waits for the leader or re-forms. See HIDEOUT_PARTY.md.
 
 - 2026-11-04: Added rarity-based loot search durations (10/12/15/20/26 ticks) with the existing additive search-skill reduction. Epic/legendary rings transition into the existing reveal colors over three ticks starting halfway through the adjusted duration, using independently tinted ring layers and unchanged backgrounds. Keep item reveal/event/audio/waves at completion and cancel when the searched stack disappears or changes identity/meta. Preserve shared inventory, searched-slot persistence and transfer/FIR protections. Build and six targeted tests passed; pack pixel/model checks passed. Live-client visuals remain pending. See LOOT_SEARCH.md.
+
+### 無料装備への導線
+
+- 表示名を「無料装備」に統一。PDA ホームには項目を増やさず、出撃画面の既存ボタンにアイコンと受取状態（受取可・待ち時間・要整理など）を表示する。
+- リザルトはキルログの次に無料装備の確認ページを追加。武器の選択ダイアログから戻る・受取・Esc で元の確認ページへ戻る。経験値演出や報酬付与は再実行しない。
+- 受取条件・待ち時間・支給品の制約は変更しない。状態表示は `FreeLoadoutPresentation`、最終受取判定は既存の `SupplyLoadout.give`。リソースパックの追加変更は不要。
+
+- 無料装備の選択もダイアログに変更。武器タブとアイコン・品名・数量の一覧で、受け取る内容を全件表示する。`SupplyLoadoutGUI` の名前と呼び出し口は維持。出撃画面から移る時はその定期更新セッションを解除する。画面と選択の世代番号で古い操作・二重受取を拒否する。

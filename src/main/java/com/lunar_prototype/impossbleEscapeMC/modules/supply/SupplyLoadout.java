@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 支給装備: 装備を失ってもレイドに出られるよう、無料で受け取れる最低限の装備 (SCAV に勝てる程度)。
+ * 無料装備: 装備を失ってもレイドに出られるよう、無料で受け取れる最低限の装備 (SCAV に勝てる程度)。
  * <ul>
  *   <li>中身: 選んだ武器 (弾を込めた状態) と予備の弾 {@link #SPARE_MAGAZINES} マガジン分 (貫通クラス {@link #AMMO_CLASS})、
  *       耐久の減ったクラス2のヘルメットとアーマー (中古)、スリングバッグ、マイクロリグ、医療品</li>
@@ -250,7 +250,7 @@ public final class SupplyLoadout {
         String reason = blockingReason(player, data);
         if (reason != null) return reason;
         List<ItemStack> items = contents(player.getWorld(), weapon, data);
-        if (items.isEmpty() || DatapackGunCatalog.gunIdOf(items.getFirst()) == null) return "支給装備を用意できませんでした";
+        if (items.isEmpty() || DatapackGunCatalog.gunIdOf(items.getFirst()) == null) return "無料装備を用意できませんでした";
 
         PlayerInventory inventory = player.getInventory();
         int hotbar = 0;
