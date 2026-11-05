@@ -9,7 +9,7 @@ import java.util.Map;
 public final class RaidRadioHudTest {
     private static final Key HUD=Key.key("iem","hud"),ALERT=Key.key("iem","radio_alert");
     private static final Map<Character,Integer> WIDTH=Map.ofEntries(
-            Map.entry('',181),Map.entry('',1),Map.entry('',5),Map.entry('',5),Map.entry('',5),Map.entry('',5),
+            Map.entry('',180),Map.entry((char)0xE43F,181),Map.entry('',1),Map.entry('',5),Map.entry('',5),Map.entry('',5),Map.entry('',5),
             Map.entry('',8),Map.entry('',7),Map.entry('',9),Map.entry('',10),Map.entry('',3),
             Map.entry(OperationHintHud.MAP.glyph(),OperationHintHud.MAP.width()));
     public static void main(String[] args) {
@@ -22,7 +22,7 @@ public final class RaidRadioHudTest {
                 String text=((TextComponent)part).content();
                 for(char c:text.toCharArray()) {
                     if(ALERT.equals(part.font())) {
-                        check(cursor==(alerts==0?-20:90),"alert halves meet at compass center");
+                        check(cursor==(alerts==0?70:180),"alert halves meet at compass center");
                         check(c==(alerts==0?0xE000:0xE020)+frame,"correct animation glyph");
                         cursor+=111;alerts++;
                     } else if(HUD.equals(part.font())&&c>=0xE500&&c<=0xE508)cursor+=1<<(c-0xE500);
@@ -34,6 +34,9 @@ public final class RaidRadioHudTest {
             check(alerts==2&&cursor==RaidHud.STRIP,"overlay does not change the bossbar title's centering width");
         }
         check(RaidHud.compose(0,List.of(),List.of(),10,null,-1).equals(RaidHud.compose(0,List.of(),List.of(),10)),"expired alert leaves no glyph");
+        var plain=net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+        check(plain.serialize(RaidHud.compose(0,List.of(),List.of(),10,null,7,"軍事キャンプ")).contains("軍事キャンプ"),"active notification includes zone name");
+        check(!plain.serialize(RaidHud.compose(0,List.of(),List.of(),10,null,-1,"軍事キャンプ")).contains("軍事キャンプ"),"zone name disappears with notification");
         System.out.println("RaidRadioHudTest OK");
     }
     private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}

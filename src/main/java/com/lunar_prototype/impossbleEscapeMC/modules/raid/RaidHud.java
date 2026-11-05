@@ -43,7 +43,7 @@ import java.util.UUID;
 final class RaidHud {
 
     private static final Key FONT = Key.key("iem", "hud");
-    static final int STRIP = 181;
+    static final int STRIP = 361;
     private static final int CENTER = STRIP / 2;
     /** 方位の文字・印をこれより外 (中央から何度) には描かない (帯の端で切れないように) */
     private static final int VISIBLE = 86;
@@ -79,7 +79,7 @@ final class RaidHud {
     private static final TextColor TIMER_WARN = TextColor.color(255, 80, 65);
     private static final ShadowColor TIMER_WARN_SHADOW = ShadowColor.shadowColor(63, 20, 17, 255);
 
-    private static final Style HUD = Style.empty().font(FONT).color(TextColor.color(0xFFFFFF));
+    private static final Style HUD = Style.empty().font(FONT).color(TextColor.color(233,232,231)).shadowColor(ShadowColor.none());
     private static final Style HUD_NO_SHADOW = HUD.shadowColor(ShadowColor.none());
     /** 文字シェーダーが左上へ移すための専用色。絵の色はシェーダーで白へ戻す。 */
     private static final Style HINT = HUD.color(TextColor.color(233, 234, 235)).shadowColor(ShadowColor.none());
@@ -161,7 +161,7 @@ final class RaidHud {
             if (data != null) collectQuestTargets(data, here, quests);
         }
         return compose(here.getYaw(), targets, quests, timeLeft,
-                OperationHintHud.raidHint(player, plugin),radio==null?-1:radio.frame(player));
+                OperationHintHud.raidHint(player, plugin),radio==null?-1:radio.frame(player),radio==null?null:radio.zoneName(player));
     }
 
     /** 受けているクエストの、まだ着いていない到達の目標のうち、このワールドの物への水平の差 {dx, dz} */
@@ -200,15 +200,22 @@ final class RaidHud {
 
     static Component compose(double yaw,List<double[]> targets,List<double[]> quests,int timeLeft,
                              OperationHintHud.Hint hint,int alertFrame) {
+        return compose(yaw,targets,quests,timeLeft,hint,alertFrame,null);
+    }
+
+    static Component compose(double yaw,List<double[]> targets,List<double[]> quests,int timeLeft,
+                             OperationHintHud.Hint hint,int alertFrame,String zoneName) {
         Line line = new Line();
-        line.glyph(0, BG, STRIP, HUD_NO_SHADOW);
+        // アトラスの上限に合わせて左右に分割する。
+        line.glyph(0, BG, 180, HUD_NO_SHADOW);
+        line.glyph(180, (char)0xE43F, 181, HUD_NO_SHADOW);
 
         // 方位: 0 = 北 (-z)、時計回り
         double heading = wrap360(yaw + 180.0);
         for (int angle = 0; angle < 360; angle += 15) {
             double rel = wrap180(angle - heading);
             if (Math.abs(rel) > VISIBLE) continue;
-            int x = CENTER + (int) Math.round(rel);
+            int x = CENTER + (int) Math.round(rel * 2.0);
             if (angle % 45 == 0) {
                 int i = angle / 45;
                 line.glyph(x - DIRECTION_WIDTH[i] / 2, DIRECTION[i], DIRECTION_WIDTH[i], HUD);
@@ -225,10 +232,16 @@ final class RaidHud {
         timer(line, Math.max(0, timeLeft));
         if (hint != null) hint(line, hint);
         if(alertFrame>=0&&alertFrame<12) {
-            Style alert=Style.empty().font(Key.key("iem","radio_alert")).color(TextColor.color(0xFFFFFF)).shadowColor(ShadowColor.none());
+            Style alert=Style.empty().font(Key.key("iem","radio_alert")).color(TextColor.color(233,235,236)).shadowColor(ShadowColor.none());
             // 440pxの画像は256pxの文字アトラスに収まらないため、左右220pxずつ（表示110px）で描く。
             line.glyph(CENTER-110,(char)(0xE000+alertFrame),110,alert);
             line.glyph(CENTER,(char)(0xE020+alertFrame),110,alert);
+            if (zoneName != null && !zoneName.isBlank()) {
+                String label=com.lunar_prototype.impossbleEscapeMC.util.FontWidths.truncate(zoneName,220);
+                int width=com.lunar_prototype.impossbleEscapeMC.util.FontWidths.width(label);
+                Style style=Style.empty().color(TextColor.color(233,236,237)).shadowColor(ShadowColor.none());
+                line.text(CENTER-width/2,label,width,style);
+            }
         }
         line.moveTo(STRIP);
         return line.build();
@@ -251,7 +264,7 @@ final class RaidHud {
         double rel = wrap180(bearing - heading);
         int x;
         if (Math.abs(rel) <= VISIBLE) {
-            x = CENTER + (int) Math.round(rel);
+            x = CENTER + (int) Math.round(rel * 2.0);
             line.glyph(x - marker.width() / 2, marker.mark(), marker.width(), HUD);
         } else if (rel < 0) {
             x = 2;

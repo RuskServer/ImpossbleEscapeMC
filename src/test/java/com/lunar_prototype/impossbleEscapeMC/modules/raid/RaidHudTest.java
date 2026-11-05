@@ -20,7 +20,8 @@ public final class RaidHudTest {
     private static final Map<Character, Integer> WIDTH = new HashMap<>();
 
     static {
-        WIDTH.put('', 181);
+        WIDTH.put('', 180);
+        WIDTH.put((char)0xE43F, 181);
         WIDTH.put('', 1);
         char[] directions = {'', '', '', '', '', '', '', ''};
         int[] widths = {5, 5, 5, 5, 8, 7, 9, 10};
@@ -36,9 +37,9 @@ public final class RaidHudTest {
         WIDTH.put('', 4);
         for (int i = 0; i < 10; i++) WIDTH.put((char) (0xE430 + i), 3);
         WIDTH.put('', 5);
-        WIDTH.put('', 79);
-        WIDTH.put('', 88);
-        WIDTH.put('', 118);
+        WIDTH.put('', OperationHintHud.MAP.width());
+        WIDTH.put('', OperationHintHud.ZOOM.width());
+        WIDTH.put('', OperationHintHud.LOBBY.width());
         WIDTH.put('', 49);
     }
 
@@ -83,8 +84,8 @@ public final class RaidHudTest {
         List<Placed> placed = new ArrayList<>();
         int width = layout(RaidHud.compose(180, List.of(new double[]{0, -100}), List.of(), 600), placed);
         check(width == RaidHud.STRIP, "strip width " + width);
-        check(xOf(placed, '') == 88, "N centered: " + xOf(placed, ''));
-        check(xOf(placed, '') == 85, "extract centered: " + xOf(placed, ''));
+        check(xOf(placed, '') == 178, "N centered: " + xOf(placed, ''));
+        check(xOf(placed, '') == 175, "extract centered: " + xOf(placed, ''));
         check(xOf(placed, '') == -1, "E at +90 is outside the visible 86 degrees");
         // 東を向くと、北の脱出地点は左の端の矢印
         placed.clear();
@@ -101,7 +102,7 @@ public final class RaidHudTest {
         List<Placed> timer = placed.stream().filter(p -> p.color() != null && p.color().equals(TextColor.color(240, 240, 241))).toList();
         check(timer.size() == 5, "timer chars " + timer.size());
         Placed last = timer.getLast();
-        check(last.x() + 6 == 90 + 1 - 6, "timer ends left of center: " + (last.x() + 6));
+        check(last.x() + 6 == 180 + 1 - 6, "timer ends left of center: " + (last.x() + 6));
         placed.clear();
         layout(RaidHud.compose(0, List.of(), List.of(), 120), placed);
         check(placed.stream().anyMatch(p -> TextColor.color(255, 80, 65).equals(p.color())), "warning color under 2 min");
@@ -109,14 +110,14 @@ public final class RaidHudTest {
         placed.clear();
         check(layout(RaidHud.compose(0, List.of(), List.of(), 600, OperationHintHud.MAP), placed)
                 == RaidHud.STRIP, "hint changes strip width");
-        check(xOf(placed, '') == 98, "hint anchor: " + xOf(placed, ''));
+        check(xOf(placed, '') == 188, "hint anchor: " + xOf(placed, ''));
         placed.clear();
         check(layout(RaidHud.lobbyHintTitle(), placed) == RaidHud.STRIP, "lobby hint width");
-        check(xOf(placed, '') == 98, "lobby hint anchor");
+        check(xOf(placed, '') == 188, "lobby hint anchor");
         // タスクの地点: 北を向き、真北 45m は琥珀色の菱形 (幅 9 の中央) と琥珀色の数字。真南は端の琥珀色の矢印
         placed.clear();
         layout(RaidHud.compose(180, List.of(), List.of(new double[]{0, -45}), 600), placed);
-        check(xOf(placed, '') == 86, "quest marker centered: " + xOf(placed, ''));
+        check(xOf(placed, '') == 176, "quest marker centered: " + xOf(placed, ''));
         check(xOf(placed, '') >= 0 && xOf(placed, '') >= 0 && xOf(placed, '') >= 0, "quest distance 45m");
         check(xOf(placed, '') == -1 && xOf(placed, '') == -1, "no extract glyphs for a quest");
         placed.clear();
