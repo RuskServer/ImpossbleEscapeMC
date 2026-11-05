@@ -49,7 +49,7 @@ public final class FreeLoadoutPresentation {
     }
 
     public static Component buttonLabel(Status status) {
-        return UiIcon.TRADE.glyph().append(Component.text(" " + TITLE, AMBER).decorate(TextDecoration.BOLD))
+        return Component.empty().append(UiIcon.TRADE.glyph()).append(Component.text(" " + TITLE, AMBER).decorate(TextDecoration.BOLD))
                 .append(Component.text(" · " + status.shortLabel(), status.state() == State.READY ? OK : NOTE));
     }
 

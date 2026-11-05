@@ -141,7 +141,7 @@ public final class SupplyLoadoutGUI implements Listener {
         DialogBase base = DialogBase.builder(Component.text(FreeLoadoutPresentation.TITLE))
                 .canCloseWithEscape(true).pause(false).afterAction(DialogBase.DialogAfterAction.NONE).body(body).build();
         player.showDialog(Dialog.create(builder -> builder.empty().base(base)
-                .type(DialogType.multiAction(List.of(receive, back)).columns(2).exitAction(back).build())));
+                .type(DialogType.confirmation(receive, back))));
     }
 
     /** トレーダーやリザルトと同じ品物の札。名前が長い時も数量を隠さない。 */

@@ -18,6 +18,11 @@ public final class FreeLoadoutPresentationTest {
         var inventory = status(true, false, 0, 900000, "持ち物を空にしてください");
         check(inventory.state() == State.INVENTORY && inventory.shortLabel().equals("要整理"), "inventory block");
         var plain = PlainTextComponentSerializer.plainText();
+        var label = buttonLabel(ready);
+        check(label.font() == null, "icon font must not become the label parent font");
+        check(label.children().getFirst().font().equals(net.kyori.adventure.key.Key.key("iem", "icon")), "icon keeps its own font");
+        for (var child : label.children().subList(1, label.children().size()))
+            check(child.font() == null, "text uses the default font instead of inheriting icon glyphs");
         check(plain.serialize(buttonLabel(ready)).contains("無料装備 · 受取可"), "visible name and availability");
         check(summary(inventory).stream().map(plain::serialize).anyMatch(s -> s.contains(inventory.reason())), "reason in body");
         check(summary(waiting).stream().map(plain::serialize).anyMatch(s -> s.contains("12 分")), "skill-adjusted interval");
