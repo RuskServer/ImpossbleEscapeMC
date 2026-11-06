@@ -148,7 +148,8 @@ public final class ScavRagdollModule implements IModule,Listener {
         final ItemDisplay display;final RagdollPhysics.Part part;final Vector3f offset;final Quaternionf rotation;final float scale;
         Visual(Actor actor,RagdollPhysics.Part part,ItemStack item,ItemDisplay.ItemDisplayTransform context,Vector3f offset,Quaternionf rotation,float scale) {
             this.part=part;this.offset=offset;this.rotation=rotation;this.scale=scale;
-            display=actor.world.spawn(actor.origin,ItemDisplay.class,d->{
+            // 向きは 0 にする (Display の変換はエンティティの向きで回るため、そのままだと操作箱とずれる)
+            display=actor.world.spawn(RagdollDisplayFrame.at(actor.origin),ItemDisplay.class,d->{
                 d.setPersistent(false);d.setGravity(false);d.setInvulnerable(true);d.setItemDisplayTransform(context);d.setItemStack(item.clone());
                 d.setDisplayWidth(12);d.setDisplayHeight(12);d.setViewRange(1);d.setShadowRadius(0);
                 d.getPersistentDataContainer().set(corpseKey,org.bukkit.persistence.PersistentDataType.STRING,actor.corpse.getUniqueId().toString());
