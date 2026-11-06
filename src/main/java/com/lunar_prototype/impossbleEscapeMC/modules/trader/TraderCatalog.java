@@ -79,9 +79,7 @@ final class TraderCatalog {
                 false, false, List.of(
                         item("ai2", 3200, 50, 1, null, null),
                         item("CAT", 1200, 50, 1, null, null),
-                        item("water_filter", 4400, 5, 4, null, "pharmakon_factory_sweep"),
-                        // 交換 (仮の値)
-                        barter("CAT", 1, 3, 1, null, cost("cigarettes", 2), cost("toilet_paper", 1))
+                        item("water_filter", 4400, 5, 4, null, "pharmakon_factory_sweep")
                 )));
 
         traders.add(trader("bastion", "§bBastion (Buy Only)", TraderType.BUY, 3,
@@ -99,7 +97,6 @@ final class TraderCatalog {
                         // 最初から買える
                         item("flashlight", 2800, 0, 1, null, null),
                         // 交換 (仮の値)
-                        barter("micro_rig", 1, 1, 3, null, cost("tool_box", 1), cost("bolts", 4)),
                         barter("PVS-14", 1, 1, 3, "bastion_night_optics_trial",
                                 cost("mini_battery", 1), cost("copper_wire", 2), cost("tool_box", 1)),
                         // Spectre試作装備: 防具とリグを素材に、電子部品で制御系を組む。
