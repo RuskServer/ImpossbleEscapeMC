@@ -190,7 +190,7 @@ public final class LightHeads implements Listener {
     /** そのブロックが光源ヘッドなら芯を出し (出ていれば何もしない)、違えば芯を消す */
     private void update(Block block, Skull skull) {
         BlockKey key = BlockKey.of(block);
-        Color color = skull != null ? HEADS.get(textureOf(skull)) : null;
+        Color color = skull != null ? colorOf(textureOf(skull)) : null;
         ItemDisplay existing = cores.get(key);
         if (color == null) {
             if (existing != null) {
@@ -231,6 +231,14 @@ public final class LightHeads implements Listener {
     }
 
     /** ヘッドのスキンのテクスチャ (URL の最後)。無ければnull */
+    /**
+     * スキンの ID から光の色を引く。光源ヘッドでなければ null。
+     * HEADS は Map.of (不変) で get(null) が NullPointerException になるので、テクスチャの無いスカル (textureOf が null) をここで弾く
+     */
+    static Color colorOf(String texture) {
+        return texture == null ? null : HEADS.get(texture);
+    }
+
     static String textureOf(Skull skull) {
         PlayerProfile profile = skull.getPlayerProfile();
         if (profile == null) return null;
