@@ -280,6 +280,8 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
     private static void setScore(Player player, String objectiveName, int value) {
         Objective objective = Bukkit.getScoreboardManager().getMainScoreboard().getObjective(objectiveName);
         if (objective != null) objective.getScore(player.getName()).setScore(value);
+        // データパックの状態を直接書くので、アニメーションの異常との相関を後で見られるよう記録に添える (読み取りの記録だけ)
+        com.lunar_prototype.impossbleEscapeMC.diag.GunTrace.noteWrite(player, objectiveName, value);
     }
 
     /** データパックの「リロードに弾が要る」設定を有効にする (データパックの再読み込みで消えても戻るよう、定期的に) */

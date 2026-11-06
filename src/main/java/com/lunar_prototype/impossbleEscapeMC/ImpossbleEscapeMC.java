@@ -184,6 +184,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         new com.lunar_prototype.impossbleEscapeMC.listener.DatapackBulletAudio(this);
         // データパックの作業用エンティティがレイドのワールドに残って銃が壊れるのを防ぐ
         com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.init(this);
+        // 銃のアニメーションの異常の記録 (読み取り専用。異常の時だけ書く。diagnostics.gun-trace で切れる)
+        com.lunar_prototype.impossbleEscapeMC.diag.GunTrace.start(this);
         getServer().getPluginManager().registerEvents(scavSpawner, this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.TooltipStyleMigration(), this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.gui.DatapackAttachmentGUIListener(), this);
@@ -265,6 +267,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.diag.GunTrace.stop();
         com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.shutdown();
         com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
         com.lunar_prototype.impossbleEscapeMC.listener.ItemSizeTooltip.shutdown();

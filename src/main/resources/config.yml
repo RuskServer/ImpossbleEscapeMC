@@ -72,3 +72,7 @@ raid-boss:
   enabled: true
   map-id: "ノヴォザリエ薬品工場"
   chance: 0.125 # 1レイドにつき1回。0～1、範囲外・非有限値は出現なし。
+
+# 診断 (読み取り専用)。gun-trace: 銃のアニメーションの異常 (止まる・モデルが消える) を、異常の時だけ plugins/<プラグイン>/gun-trace/日付.log に履歴つきで書く
+diagnostics:
+  gun-trace: true

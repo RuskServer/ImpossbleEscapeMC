@@ -33,7 +33,7 @@ import java.util.UUID;
 public final class DatapackWorkEntityGuard implements Listener {
 
     /** データパックが UUID:[I;0,0,0,110110] で出す作業用エンティティ */
-    static final UUID WORK_UUID = new UUID(0L, 110110L);
+    public static final UUID WORK_UUID = new UUID(0L, 110110L);
     static final String TAG = "toisarm.util_display";
 
     private static DatapackWorkEntityGuard instance;
