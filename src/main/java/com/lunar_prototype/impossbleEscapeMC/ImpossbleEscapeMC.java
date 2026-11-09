@@ -110,6 +110,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.init(this);
         // アドレナリン・死亡時の画面演出 (26.3のポストエフェクト)
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.init(this);
+        com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmup.init(this);
         com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.init(this);
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.init(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
@@ -264,6 +265,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // SCAVのデータパック銃用FakePlayerは、サーバー停止時の退出・保存処理に乗らないよう先に取り除く
         com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmDiagnostic.shutdown();
+        com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmup.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
         com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();

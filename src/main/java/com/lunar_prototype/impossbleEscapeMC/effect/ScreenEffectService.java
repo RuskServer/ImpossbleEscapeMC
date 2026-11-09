@@ -85,6 +85,8 @@ public final class ScreenEffectService implements Listener {
     private static final Key FLASHLIGHT = Key.key(NAMESPACE, "flashlight");
     /** 隠れ家の画面を開いている間、メニューの後ろをぼかさない印 (IEM_shader/tools/menu_clear.py)。いちばん後ろの層 */
     private static final Key MENU_CLEAR = Key.key(NAMESPACE, "menu_clear");
+    /** 画面を真っ黒にする (イントロの最初の段と同じ) */
+    private static final Key COVER = Key.key(NAMESPACE, "intro_0");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key HIT = Key.key(NAMESPACE, "hit");
@@ -196,6 +198,10 @@ public final class ScreenEffectService implements Listener {
     private final Map<UUID, Key> wound = new HashMap<>();
     /** 被弾した tick */
     private final Map<UUID, Integer> hitTick = new HashMap<>();
+    /** 診断 ({@link ShaderWarmDiagnostic}) が一番上の層に重ねる 1 つのエフェクト。{@link #refresh} が iem のエフェクトを組み直しても消えないようにここで持つ */
+    private final Map<UUID, Key> probe = new HashMap<>();
+    /** シェーダーの準備 ({@link ShaderWarmup}) の間、画面を真っ黒にする (一番上の層) */
+    private final Set<UUID> cover = new HashSet<>();
     /** マズルフラッシュの層のエフェクトと、撃った tick (その tick だけかける) */
     private final MuzzleFlashSignal muzzleSignal;
 
@@ -259,6 +265,24 @@ public final class ScreenEffectService implements Listener {
         if (!enabled) instance.controlDebug.remove(playerId);
         instance.refresh(player);
         return enabled;
+    }
+
+    /**
+     * 診断用: iem のエフェクトを 1 つ、一番上の層に重ねる (null で外す)。ふだんの層はそのまま。メインスレッドから呼ぶ。
+     * 初めてそのエフェクトを重ねた時のクライアントの停止時間を測る {@link ShaderWarmDiagnostic} が使う
+     */
+    public static void setProbe(Player player, Key effect) {
+        if (instance == null) return;
+        if (effect == null) instance.probe.remove(player.getUniqueId());
+        else instance.probe.put(player.getUniqueId(), effect);
+        instance.refresh(player);
+    }
+
+    /** 画面を真っ黒にする層 (iem:intro_0) を付け外しする。{@link ShaderWarmup} が、準備の間の停止を隠すために使う。メインスレッドから呼ぶ */
+    static void setCover(Player player, boolean on) {
+        if (instance == null) return;
+        boolean changed = on ? instance.cover.add(player.getUniqueId()) : instance.cover.remove(player.getUniqueId());
+        if (changed) instance.refresh(player);
     }
 
     /** メニューの後ろをぼかさない (隠れ家の画面でカメラが映す設備を見せる) を付け外しする */
@@ -423,7 +447,8 @@ public final class ScreenEffectService implements Listener {
 
     private boolean canAdvance(UUID playerId) {
         return !awaitingRespawn.contains(playerId) && !awaitingLoad.containsKey(playerId)
-                && Bukkit.getCurrentTick() >= settlingUntil.getOrDefault(playerId, 0);
+                && Bukkit.getCurrentTick() >= settlingUntil.getOrDefault(playerId, 0)
+                && !ShaderWarmup.isActive(playerId);
     }
 
     private void tick() {
@@ -675,6 +700,9 @@ public final class ScreenEffectService implements Listener {
         if (hitEffect != null) effects.add(hitEffect);
         // 印は数値の画素を隠す層より後ろ (隠す層が左下の画素を書き換えるため)
         if (menuClear.contains(playerId)) effects.add(MENU_CLEAR);
+        Key probeEffect = probe.get(playerId);
+        if (probeEffect != null) effects.add(probeEffect);
+        if (cover.contains(playerId)) effects.add(COVER);
 
         if (!effects.equals(current)) player.postEffects().set(effects);
     }
@@ -704,6 +732,8 @@ public final class ScreenEffectService implements Listener {
         wound.remove(playerId);
         hitTick.remove(playerId);
         muzzleSignal.clear(playerId);
+        probe.remove(playerId);
+        cover.remove(playerId);
         awaitingLoad.remove(playerId);
         settlingUntil.remove(playerId);
         awaitingRespawn.remove(playerId);
@@ -762,6 +792,7 @@ public final class ScreenEffectService implements Listener {
         // ワールドの切り替えでクライアントの表示がリセットされていても、今の層を確実に送り直す
         refresh(player);
         player.postEffects().update();
+        ShaderWarmup.onWorldLoaded(player);
     }
 
     @EventHandler

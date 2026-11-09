@@ -1,0 +1,24 @@
+# 参加した時に先にコンパイルしておくポストエフェクト。1 行 = リソースパックの assets/iem/post_effect/ のファイル名 (画面にもこの名前を出す)。
+# /shaderdebug warm の測定で、初めて重ねた時に 50 ms 以上クライアントが止まったもの。上から順に 1 つずつ重ねる。
+# 軽いエフェクトは、使う時に止まっても目に見えないので入れない。control_debug は確認用なので入れない。
+#
+# 画作り (バイザー・暗視・水滴付き)
+grade_visor
+grade_visor_rain
+grade_visor_rain_1
+grade_visor_rain_2
+grade_visor_rain_3
+grade_visor_rain_4
+grade_visor_rain_5
+grade_visor_rain_6
+grade_night_vision
+grade_night_vision_camera
+grade_night_vision_full
+# 銃口の閃光・アドレナリン・出血・死亡
+muzzle_flash_hip
+adrenaline
+bleeding
+death_blackout
+adrenaline_fade
+# ロアのムービー
+lore_intro

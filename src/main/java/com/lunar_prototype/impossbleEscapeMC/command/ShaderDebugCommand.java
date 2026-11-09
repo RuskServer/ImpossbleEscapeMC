@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.command;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
+import com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmDiagnostic;
 import com.lunar_prototype.impossbleEscapeMC.effect.SunShadowService;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -21,6 +22,8 @@ import org.jetbrains.annotations.NotNull;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +36,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * テスト用のテキストディスプレイを出す・消す。確認用エフェクトの左下の帯が緑になれば、値が正しい場所に届いている。
  * {@code /shaderdebug sun}: サーバーで計算した太陽の影 ({@link SunShadowService}。ふだんはレイド中だけ自動) を、レイドに関係なく付け外しする。
  * {@code /shaderdebug sun auto} で自動に戻す。データの画素を使うので、テストとはどちらか一方
+ * <p>
+ * {@code /shaderdebug warm [回数] [ping を送る tick 数] [エフェクト名...]}: ポストエフェクトを初めて重ねた時のクライアントの停止時間を、
+ * ping の返事の遅れで測る ({@link ShaderWarmDiagnostic})。{@code /shaderdebug warm stop} で止める
  */
 @Command(name = "shaderdebug", description = "数値の画素 (空のシェーダーが書くカメラ・太陽の向き) の確認表示を付け外しします。", permission = "op")
 public class ShaderDebugCommand implements BasicCommand {
@@ -64,6 +70,23 @@ public class ShaderDebugCommand implements BasicCommand {
         if (args.length > 0 && args[0].equalsIgnoreCase("data")) {
             if (SunShadowService.isEnabled(player)) SunShadowService.toggle(player);
             toggleDataTest(player);
+            return;
+        }
+        if (args.length > 0 && args[0].equalsIgnoreCase("warm")) {
+            if (args.length > 1 && args[1].equalsIgnoreCase("stop")) {
+                player.sendMessage(Component.text(ShaderWarmDiagnostic.stop(player) ? "測定を止めます" : "測定していません", NamedTextColor.AQUA));
+                return;
+            }
+            int passes = 2;
+            int window = 20;
+            List<String> only = new ArrayList<>();
+            for (int i = 1; i < args.length; i++) {
+                if (i == 1 && args[i].matches("\\d+")) passes = Integer.parseInt(args[i]);
+                else if (i == 2 && args[i].matches("\\d+")) window = Integer.parseInt(args[i]);
+                else only.add(args[i]);
+            }
+            String error = ShaderWarmDiagnostic.start(ImpossbleEscapeMC.getInstance(), player, passes, window, only);
+            if (error != null) player.sendMessage(Component.text(error, NamedTextColor.RED));
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("lore")) {
