@@ -36,7 +36,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BackpackListener implements Listener {
-    private static final int BACKPACK_BUTTON_SLOT = 2;
+    /** クラフトグリッドの下段の 2 マス。左に BACKPACK の看板の絵 (横長)、右は透明で、どちらを押しても開く */
+    private static final int BACKPACK_BUTTON_LEFT_SLOT = 3;
+    private static final int BACKPACK_BUTTON_RIGHT_SLOT = 4;
+    private static final java.util.Set<Integer> BACKPACK_BUTTON_SLOTS = java.util.Set.of(BACKPACK_BUTTON_LEFT_SLOT, BACKPACK_BUTTON_RIGHT_SLOT);
 
     private final BackpackModule backpackModule;
     private final ImpossbleEscapeMC plugin;
@@ -45,11 +48,12 @@ public class BackpackListener implements Listener {
         this.backpackModule = backpackModule;
         this.plugin = ImpossbleEscapeMC.getInstance();
         // クラフトグリッドのボタンはサーバー上には置かず、パケットで見せる (閉じた時などにドロップしない)
+        java.util.function.Predicate<Player> visible =
+                player -> isPlayableMode(player) && backpackModule.isBackpackItem(player.getInventory().getItemInOffHand());
         CraftingGridButtons.get().register(new CraftingGridButtons.Button(
-                BACKPACK_BUTTON_SLOT,
-                getBackpackTriggerButton(),
-                player -> isPlayableMode(player) && backpackModule.isBackpackItem(player.getInventory().getItemInOffHand()),
-                backpackModule::openBackpackFromOffhand));
+                BACKPACK_BUTTON_LEFT_SLOT, getBackpackTriggerButton("backpack_button"), visible, backpackModule::openBackpackFromOffhand));
+        CraftingGridButtons.get().register(new CraftingGridButtons.Button(
+                BACKPACK_BUTTON_RIGHT_SLOT, getBackpackTriggerButton("backpack_button_hit"), visible, backpackModule::openBackpackFromOffhand));
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
@@ -57,7 +61,7 @@ public class BackpackListener implements Listener {
         InventoryView view = event.getView();
 
         // ボタンのスロットにはアイテムを置かせない (ボタン押下自体は CraftingGridButtons がパケットで処理する)
-        if (isPlayerCraftingGrid(view) && event.getRawSlot() == BACKPACK_BUTTON_SLOT) {
+        if (isPlayerCraftingGrid(view) && BACKPACK_BUTTON_SLOTS.contains(event.getRawSlot())) {
             event.setCancelled(true);
             return;
         }
@@ -71,7 +75,7 @@ public class BackpackListener implements Listener {
         }
 
         // Trigger item cleanup
-        if (isBackpackTrigger(event.getCurrentItem()) && (!isPlayerCraftingGrid(view) || event.getRawSlot() != BACKPACK_BUTTON_SLOT)) {
+        if (isBackpackTrigger(event.getCurrentItem()) && (!isPlayerCraftingGrid(view) || !BACKPACK_BUTTON_SLOTS.contains(event.getRawSlot()))) {
             event.setCurrentItem(null);
         }
         if (isBackpackTrigger(event.getCursor())) {
@@ -196,7 +200,7 @@ public class BackpackListener implements Listener {
             }
         }
 
-        if (isPlayerCraftingGrid(event.getView()) && event.getRawSlots().contains(BACKPACK_BUTTON_SLOT)) {
+        if (isPlayerCraftingGrid(event.getView()) && event.getRawSlots().stream().anyMatch(BACKPACK_BUTTON_SLOTS::contains)) {
             event.setCancelled(true);
         }
     }
@@ -205,8 +209,11 @@ public class BackpackListener implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (isPlayerCraftingGrid(event.getView())) {
             // 以前のバージョンでサーバー上のグリッドに置いていたボタンが残っていれば消す
-            if (isBackpackTrigger(event.getView().getItem(BACKPACK_BUTTON_SLOT))) {
-                event.getView().setItem(BACKPACK_BUTTON_SLOT, null);
+            // (以前は 2 番にあった。今は 3・4 番。どれも消す)
+            for (int slot : new int[]{2, BACKPACK_BUTTON_LEFT_SLOT, BACKPACK_BUTTON_RIGHT_SLOT}) {
+                if (isBackpackTrigger(event.getView().getItem(slot))) {
+                    event.getView().setItem(slot, null);
+                }
             }
             Player player = (Player) event.getPlayer();
             for (int i = 0; i < player.getInventory().getSize(); i++) {
@@ -257,10 +264,12 @@ public class BackpackListener implements Listener {
         }
     }
 
-    private ItemStack getBackpackTriggerButton() {
-        ItemStack item = new ItemStack(Material.CHEST);
+    /** model: リソースパックのアイテム定義 (iem:backpack_button = 看板の絵、iem:backpack_button_hit = 何も描かない) */
+    private ItemStack getBackpackTriggerButton(String model) {
+        ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
+            meta.setItemModel(new org.bukkit.NamespacedKey("iem", model));
             meta.setDisplayName("§a[ Backpack ]");
             List<String> lore = new ArrayList<>();
             lore.add("§7オフハンドのバックパックを開きます");

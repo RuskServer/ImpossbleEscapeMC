@@ -37,7 +37,7 @@ public class InventoryListener implements Listener {
 
         // クラフトグリッドのボタンはサーバー上には置かず、パケットで見せる (閉じた時などにドロップしない)
         CraftingGridButtons buttons = CraftingGridButtons.get();
-        buttons.register(new CraftingGridButtons.Button(4, getGuiTriggerButton(), this::isPlayableMode, this::openAttachmentGui));
+        buttons.register(new CraftingGridButtons.Button(2, getGuiTriggerButton(), this::isPlayableMode, this::openAttachmentGui));
         buttons.register(new CraftingGridButtons.Button(1, getPdaButton(), this::isPlayableMode, player -> new PDAGUI(player).open()));
     }
 
@@ -156,7 +156,8 @@ public class InventoryListener implements Listener {
             player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
 
         // ボタンのスロットにはアイテムを置かせない (ボタン押下自体は CraftingGridButtons がパケットで処理する)
-        if (event.getRawSlot() == 4 || event.getRawSlot() == 1) {
+        // 0 = 出力 (容量ゲージ)、1 = PDA、2 = アタッチメント、3・4 = バックパック
+        if (event.getRawSlot() >= 0 && event.getRawSlot() <= 4) {
             event.setCancelled(true);
             return;
         }

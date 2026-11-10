@@ -29,7 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 持ち物の容量のゲージ。インベントリのクラフトグリッドの左下 ({@link #SLOT}) に、使っているマスの割合を見せる。
+ * 持ち物の容量のゲージ。インベントリのクラフトの出力の位置 ({@link #SLOT}) に、使っているマスの割合を見せる。
  * <ul>
  *   <li>見た目はリソースパックの iem:capacity_gauge (IEM_shader/tools/capacity_icons.py)。
  *       custom_model_data の floats[0] が目盛り (0〜{@link #LEVELS})、flags[0] が赤く光らせるか</li>
@@ -40,8 +40,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class CapacityGauge {
 
-    /** クラフトグリッドの左下 (1: PDA、2: バックパック、4: アタッチメント) */
-    public static final int SLOT = 3;
+    /** クラフトの出力 (0)。グリッドは 1: PDA、2: アタッチメント、3・4: バックパック (横長の 1 つのボタン) */
+    public static final int SLOT = 0;
     /** ゲージの目盛りの数 (リソースパックの絵の数 - 1 と同じ) */
     public static final int LEVELS = 12;
     private static final int FLASH_TICKS = 20;
