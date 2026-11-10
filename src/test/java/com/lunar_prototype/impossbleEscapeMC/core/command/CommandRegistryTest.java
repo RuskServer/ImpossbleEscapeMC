@@ -43,7 +43,7 @@ public final class CommandRegistryTest {
         Map<String, Command> found = new HashMap<>();
         try (Stream<Path> files = Files.walk(root)) {
             for (Path file : files.filter(f -> f.toString().endsWith(".class")).toList()) {
-                String name = root.relativize(file).toString().replace('/', '.').replaceAll("\\.class$", "");
+                String name = root.relativize(file).toString().replace('\\', '.').replace('/', '.').replaceAll("\\.class$", "");   // Windows は区切りが \\
                 Class<?> type;
                 try {
                     type = Class.forName(name, false, CommandRegistryTest.class.getClassLoader());

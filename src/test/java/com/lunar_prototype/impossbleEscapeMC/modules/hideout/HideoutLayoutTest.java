@@ -9,6 +9,13 @@ public final class HideoutLayoutTest {
         if (!condition) throw new AssertionError(message);
     }
 
+    /** 差分は中身が無いと「ある」と数えない (HideoutLayout.hasLayer) ので、エンティティを 1 つ足した差分にする */
+    private static HideoutLayout.Layer layer() {
+        HideoutLayout.Layer layer = new HideoutLayout.Layer();
+        layer.added.add(new HideoutLayout.EntityEntry("layer_0", "{id:\"minecraft:armor_stand\"}", 0, 0, 0, 0f, 0f));
+        return layer;
+    }
+
     public static void main(String[] args) throws Exception {
         File dir = Files.createTempDirectory("hideout-layout").toFile();
         HideoutLayout layout = new HideoutLayout(dir);
@@ -26,19 +33,22 @@ public final class HideoutLayoutTest {
         check(read.sizeX == 20 && read.spawnX == 3.5 && read.entities.size() == 1 && "base_0".equals(read.entities.getFirst().key()), "base round trip");
 
         // 続いているレベルだけ数える (Lv.3 だけあっても Lv.2 が無ければ 1)
-        layout.saveLayer(HideoutFacility.WORKBENCH, 1, new HideoutLayout.Layer());
-        layout.saveLayer(HideoutFacility.WORKBENCH, 3, new HideoutLayout.Layer());
+        layout.saveLayer(HideoutFacility.WORKBENCH, 1, layer());
+        layout.saveLayer(HideoutFacility.WORKBENCH, 3, layer());
         check(layout.highestLevel(HideoutFacility.WORKBENCH) == 1, "gap stops the count");
-        layout.saveLayer(HideoutFacility.WORKBENCH, 2, new HideoutLayout.Layer());
+        layout.saveLayer(HideoutFacility.WORKBENCH, 2, layer());
         check(layout.highestLevel(HideoutFacility.WORKBENCH) == 3, "contiguous levels");
-        check(layout.version() == 4, "each layer save bumps version: " + layout.version());
+        // 中身の無い差分は数えない
+        layout.saveLayer(HideoutFacility.MEDICAL, 1, new HideoutLayout.Layer());
+        check(layout.highestLevel(HideoutFacility.MEDICAL) == 0, "an empty layer does not count");
+        check(layout.version() == 5, "each layer save bumps version: " + layout.version());
         // 最大レベルより上は数えない
-        layout.saveLayer(HideoutFacility.AMMO, 1, new HideoutLayout.Layer());
-        layout.saveLayer(HideoutFacility.AMMO, 2, new HideoutLayout.Layer());
+        layout.saveLayer(HideoutFacility.AMMO, 1, layer());
+        layout.saveLayer(HideoutFacility.AMMO, 2, layer());
         check(layout.highestLevel(HideoutFacility.AMMO) == 1, "capped at the facility max");
         // 建物 (ベースの建築改良) の最大レベルは作った差分の数
         check(HideoutFacility.BASE.maxLevel(layout) == 0, "no base upgrades yet");
-        layout.saveLayer(HideoutFacility.BASE, 1, new HideoutLayout.Layer());
+        layout.saveLayer(HideoutFacility.BASE, 1, layer());
         check(HideoutFacility.BASE.maxLevel(layout) == 1 && HideoutFacility.WORKBENCH.maxLevel(layout) == 4, "max levels");
 
         // カメラの記録: 設備ごと。建物は変わらないので版は上げない
