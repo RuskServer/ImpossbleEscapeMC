@@ -409,8 +409,8 @@ public class LootBackpackOverlayListener implements Listener {
 
     private void sendTitle(Player player, OverlaySession session) {
         if (!session.isHost(player.getOpenInventory().getTopInventory())) return;
-        InventoryPanel.Bag bag = session.mode == ViewMode.BACKPACK ? bagOf(player, session) : null;
-        String key = bag == null ? "player" : bag.toString();
+        InventoryPanel.Bag bag = session.mode == ViewMode.BACKPACK ? bagOf(player, session) : InventoryPanel.Bag.PLAYER;
+        String key = bag.isPlayer() ? "player" : bag.toString();
         if (key.equals(session.titleKey)) return;
         session.titleKey = key;
         if (player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder) {

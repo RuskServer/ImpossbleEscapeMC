@@ -42,7 +42,7 @@ public final class InventoryPanelTest {
             } else if (Key.key("iem", "inventory_panel").equals(font)) {
                 for (char ch : s.toCharArray()) {
                     out.add(new Placed(String.valueOf(ch), font, x[0]));
-                    x[0] += 45;
+                    x[0] += ch >= '' ? 24 : 45;   // 切り替えボタンの枠は幅 23 + 1
                 }
             } else {
                 out.add(new Placed(s, font, x[0]));
@@ -64,10 +64,24 @@ public final class InventoryPanelTest {
             check(p.stream().noneMatch(e -> Key.key("iem", "inventory_panel").equals(e.font())), "no tiles in normal view");
         }
 
+        // 切り替えボタンのある画面のいつもの表示: 「インベントリ」はそのまま、ボタンの枠 (青) が 149 に、「右下で切替」は右寄せ
+        for (int rows = 1; rows <= 6; rows++) {
+            List<Placed> p = layout(InventoryPanel.title("Searching...", rows, InventoryPanel.Bag.PLAYER));
+            Placed label = p.stream().filter(e -> e.text().equals(InventoryPanel.INVENTORY)).findFirst().orElseThrow();
+            check(label.x() == 8, "toggle screen label x " + label.x());
+            List<Placed> frames = p.stream().filter(e -> Key.key("iem", "inventory_panel").equals(e.font())).toList();
+            check(frames.size() == 1, "one frame: " + frames.size());
+            check(frames.get(0).x() == 149 && frames.get(0).text().charAt(0) == 0xE060 + (rows - 1) * 2, "frame " + frames.get(0));
+            Placed hint = p.stream().filter(e -> e.text().equals(InventoryPanel.TOGGLE_HINT)).findFirst().orElseThrow();
+            check(hint.x() + FontWidths.width(hint.text()) == 168 - 6, "hint right " + (hint.x() + FontWidths.width(hint.text())));
+            check(hint.x() >= 8 + FontWidths.width(InventoryPanel.INVENTORY) + 6, "hint clear of the label");
+            check(Key.key("iem", "shift_" + (14 + 18 * rows)).equals(hint.font()), "hint font");
+        }
+
         // バックパックの表示: タイルは段数ごとの文字で 0・44・88・132、名前は 8、使っているマスは右端 168
         for (int rows = 1; rows <= 6; rows++) {
             List<Placed> p = layout(InventoryPanel.title("Searching...", rows, new InventoryPanel.Bag("MBSS Backpack", 12, 36)));
-            List<Placed> tiles = p.stream().filter(e -> Key.key("iem", "inventory_panel").equals(e.font())).toList();
+            List<Placed> tiles = p.stream().filter(e -> Key.key("iem", "inventory_panel").equals(e.font()) && e.text().charAt(0) < 0xE060).toList();
             check(tiles.size() == 8, "eight tiles: " + tiles.size());
             for (int i = 0; i < 8; i++) {
                 check(tiles.get(i).x() == (i % 4) * 44, "tile " + i + " x " + tiles.get(i).x());
@@ -78,6 +92,12 @@ public final class InventoryPanelTest {
             check(name.x() == 8, "name x " + name.x());
             check(count.x() + FontWidths.width("12 / 36") == 168, "count right " + (count.x() + FontWidths.width("12 / 36")));
             check(Key.key("iem", "shift_" + (14 + 18 * rows)).equals(count.font()), "count font");
+            // 切り替えボタンの枠 (黄土色のほう) と案内。案内は名前と使っているマスの間に収まる
+            List<Placed> frames = p.stream().filter(e -> Key.key("iem", "inventory_panel").equals(e.font()) && e.text().charAt(0) >= 0xE060).toList();
+            check(frames.size() == 1 && frames.get(0).x() == 149 && frames.get(0).text().charAt(0) == 0xE060 + (rows - 1) * 2 + 1, "bag frame");
+            Placed hint = p.stream().filter(e -> e.text().equals(InventoryPanel.TOGGLE_HINT_SHORT)).findFirst().orElseThrow();   // 長い案内は入らない
+            check(hint.x() >= name.x() + FontWidths.width(name.text()) + 6, "hint clear of the name");
+            check(hint.x() + FontWidths.width(hint.text()) + 6 <= count.x(), "hint clear of the count");
         }
 
         // 長い名前は使っているマスと重ならないように切る
@@ -86,6 +106,25 @@ public final class InventoryPanelTest {
         Placed count = p.stream().filter(e -> e.text().equals("45 / 45")).findFirst().orElseThrow();
         check(name.x() + FontWidths.width(name.text()) <= count.x() - 6, "long name truncated: " + name.text());
         check(name.text().endsWith("…"), "ellipsis");
+        // 袋の名前が長くて案内の入る余地が無い時は、案内を出さない (枠は出す)
+        List<Placed> crowded = layout(InventoryPanel.title("x", 3, new InventoryPanel.Bag("MBSS Backpack Of The Wandering Pilgrim", 45, 45)));
+        check(crowded.stream().noneMatch(e -> e.text().equals(InventoryPanel.TOGGLE_HINT) || e.text().equals(InventoryPanel.TOGGLE_HINT_SHORT)), "no hint when crowded");
+        check(crowded.stream().anyMatch(e -> Key.key("iem", "inventory_panel").equals(e.font()) && e.text().charAt(0) == 0xE060 + 2 * 2 + 1), "frame still drawn");
+
+        // ボタンの無い画面は枠も案内も出さない
+        check(layout(InventoryPanel.title("x", 3, null)).stream().noneMatch(e -> e.text().equals(InventoryPanel.TOGGLE_HINT)), "no hint without a toggle");
+
+        String dump = System.getenv("IEM_PANEL_DUMP");
+        if (dump != null) {
+            var gson = net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson();
+            String json = "{\"rows\":3,\"normal\":" + gson.serialize(InventoryPanel.title("Searching...", 3, InventoryPanel.Bag.PLAYER))
+                    + ",\"backpack\":" + gson.serialize(InventoryPanel.title("Searching...", 3, new InventoryPanel.Bag("MBSS Backpack", 12, 36))) + "}";
+            try {
+                java.nio.file.Files.writeString(java.nio.file.Path.of(dump), json, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         System.out.println("InventoryPanelTest OK");
     }
 }
