@@ -163,6 +163,16 @@ final class PdaHomeScreen implements Listener, PdaHomeController.Port {
         };
     }
 
+    /** ボタンのピクトグラム (リソースパックの iem:pda_<名前>) */
+    private static String pictogram(Action action) {
+        return switch (action) {
+            case RAID -> "raid"; case QUESTS -> "quests"; case STASH -> "stash"; case TRADERS -> "traders";
+            case HIDEOUT_MENU -> "hideout"; case HIDEOUT -> "move"; case FACILITIES -> "facilities";
+            case MARKET -> "market"; case PARTY -> "party"; case SETTINGS -> "settings"; case REFRESH -> "refresh";
+            case CLOSE -> "close"; case BACK -> "back";
+        };
+    }
+
     private static ItemStack item(Material material, Component name, List<Component> lore) {
         ItemStack item = new ItemStack(material);
         var meta = item.getItemMeta();
@@ -180,7 +190,7 @@ final class PdaHomeScreen implements Listener, PdaHomeController.Port {
         skull.setOwningPlayer(player);
         head.setItemMeta(skull);
         if (!hideoutPage) inventory.setItem(4, head);
-        if (!hideoutPage) inventory.setItem(13, item(Material.EXPERIENCE_BOTTLE, Component.text("統計情報 / Lv." + view.level(), AMBER), header(view)));
+        if (!hideoutPage) inventory.setItem(13, PdaIcons.of(item(Material.EXPERIENCE_BOTTLE, Component.text("統計情報 / Lv." + view.level(), AMBER), header(view)), "stats"));
         for (var entry : hideoutPage ? PdaHomeModel.hideoutEntries(view) : PdaHomeModel.entries(view)) {
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(entry.description(), NOTE));
@@ -190,12 +200,13 @@ final class PdaHomeScreen implements Listener, PdaHomeController.Port {
             }
             lore.add(Component.empty());
             lore.add(Component.text(entry.enabled() ? "クリックして開く" : entry.reason(), entry.enabled() ? OK : NG));
-            inventory.setItem(slot(page, entry.action()), item(entry.enabled() ? icon(entry.action()) : Material.BARRIER,
-                    buttonLabel(entry), lore));
+            ItemStack button = item(entry.enabled() ? icon(entry.action()) : Material.BARRIER, buttonLabel(entry), lore);
+            inventory.setItem(slot(page, entry.action()), entry.enabled() ? PdaIcons.of(button, pictogram(entry.action()))
+                    : PdaIcons.off(button, pictogram(entry.action())));
         }
         Action exit = hideoutPage ? Action.BACK : Action.CLOSE;
-        inventory.setItem(slot(page, exit), item(hideoutPage ? Material.ARROW : Material.BARRIER,
-                Component.text(hideoutPage ? "PDAへ戻る" : "閉じる", NOTE), List.of()));
+        inventory.setItem(slot(page, exit), PdaIcons.of(item(hideoutPage ? Material.ARROW : Material.BARRIER,
+                Component.text(hideoutPage ? "PDAへ戻る" : "閉じる", NOTE), List.of()), pictogram(exit)));
         // 先に新しい画面を登録し、古い画面のCloseイベントによる新セッション削除を防ぐ。
         inventories.put(player.getUniqueId(), new HomeInventory(inventory, token, page));
         player.openInventory(inventory);

@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
@@ -113,7 +114,7 @@ public class MarketMainGUI implements Listener {
         sellMeta.displayName(Component.text("アイテムを出品する", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         sellMeta.lore(List.of(Component.text("手持ちのFIRアイテムをマーケットに出品します。", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
         sellBtn.setItemMeta(sellMeta);
-        inventory.setItem(49, sellBtn);
+        inventory.setItem(49, PdaIcons.of(sellBtn, "sell"));
 
         // ページネーション
         if (page > 0) {
@@ -121,14 +122,14 @@ public class MarketMainGUI implements Listener {
             ItemMeta prevMeta = prev.getItemMeta();
             prevMeta.displayName(Component.text("前のページ", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             prev.setItemMeta(prevMeta);
-            inventory.setItem(45, prev);
+            inventory.setItem(45, PdaIcons.of(prev, "prev"));
         }
         if (allListings.size() > (page + 1) * 45) {
             ItemStack next = new ItemStack(Material.ARROW);
             ItemMeta nextMeta = next.getItemMeta();
             nextMeta.displayName(Component.text("次のページ", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
             next.setItemMeta(nextMeta);
-            inventory.setItem(53, next);
+            inventory.setItem(53, PdaIcons.of(next, "next"));
         }
     }
 

@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
@@ -57,17 +58,17 @@ public class MarketPriceGUI implements Listener {
         updateDisplay();
 
         // 操作ボタン
-        inventory.setItem(10, createButton(Material.RED_TERRACOTTA, "§c-10,000", "§7価格を10,000₽減らす"));
-        inventory.setItem(11, createButton(Material.ORANGE_TERRACOTTA, "§6-1,000", "§7価格を1,000₽減らす"));
-        inventory.setItem(12, createButton(Material.YELLOW_TERRACOTTA, "§e-100", "§7価格を100₽減らす"));
+        inventory.setItem(10, PdaIcons.of(createButton(Material.RED_TERRACOTTA, "§c-10,000", "§7価格を10,000₽減らす"), "minus3"));
+        inventory.setItem(11, PdaIcons.of(createButton(Material.ORANGE_TERRACOTTA, "§6-1,000", "§7価格を1,000₽減らす"), "minus2"));
+        inventory.setItem(12, PdaIcons.of(createButton(Material.YELLOW_TERRACOTTA, "§e-100", "§7価格を100₽減らす"), "minus1"));
         
-        inventory.setItem(14, createButton(Material.LIME_TERRACOTTA, "§a+100", "§7価格を100₽増やす"));
-        inventory.setItem(15, createButton(Material.GREEN_TERRACOTTA, "§2+1,000", "§7価格を1,000₽増やす"));
-        inventory.setItem(16, createButton(Material.BLUE_TERRACOTTA, "§b+10,000", "§7価格を10,000₽増やす"));
+        inventory.setItem(14, PdaIcons.of(createButton(Material.LIME_TERRACOTTA, "§a+100", "§7価格を100₽増やす"), "plus1"));
+        inventory.setItem(15, PdaIcons.of(createButton(Material.GREEN_TERRACOTTA, "§2+1,000", "§7価格を1,000₽増やす"), "plus2"));
+        inventory.setItem(16, PdaIcons.of(createButton(Material.BLUE_TERRACOTTA, "§b+10,000", "§7価格を10,000₽増やす"), "plus3"));
 
         // 決定・キャンセル
-        inventory.setItem(22, createButton(Material.EMERALD_BLOCK, "§a§l出品を確定", "§7出品価格: " + price + "₽"));
-        inventory.setItem(18, createButton(Material.BARRIER, "§cキャンセル", "§7出品をやめて戻ります"));
+        inventory.setItem(22, PdaIcons.of(createButton(Material.EMERALD_BLOCK, "§a§l出品を確定", "§7出品価格: " + price + "₽"), "confirm"));
+        inventory.setItem(18, PdaIcons.of(createButton(Material.BARRIER, "§cキャンセル", "§7出品をやめて戻ります"), "cancel"));
     }
 
     private void updateDisplay() {

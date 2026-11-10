@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import net.kyori.adventure.text.Component;
@@ -85,7 +86,7 @@ public class MarketSellGUI implements Listener {
         ItemMeta backMeta = back.getItemMeta();
         backMeta.displayName(Component.text("戻る", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         back.setItemMeta(backMeta);
-        inventory.setItem(40, back);
+        inventory.setItem(40, PdaIcons.of(back, "cancel"));
     }
 
     @EventHandler

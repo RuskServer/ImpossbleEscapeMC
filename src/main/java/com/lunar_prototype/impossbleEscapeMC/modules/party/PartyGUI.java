@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
@@ -75,14 +76,14 @@ public class PartyGUI implements Listener {
         } else {
             setupParty(party);
         }
-        inventory.setItem(BACK_SLOT, item(Material.ARROW, text("PDAに戻る", NamedTextColor.WHITE)));
+        inventory.setItem(BACK_SLOT, PdaIcons.of(item(Material.ARROW, text("PDAに戻る", NamedTextColor.WHITE)), "back"));
     }
 
     private void setupNoParty() {
-        inventory.setItem(CREATE_SLOT, item(Material.WHITE_BANNER, text("パーティーを作成", NamedTextColor.GREEN),
+        inventory.setItem(CREATE_SLOT, PdaIcons.of(item(Material.WHITE_BANNER, text("パーティーを作成", NamedTextColor.GREEN),
                 text("自分がリーダーのパーティーを作ります。", NamedTextColor.GRAY),
                 Component.empty(),
-                text("クリックで作成", NamedTextColor.AQUA)));
+                text("クリックで作成", NamedTextColor.AQUA)), "create"));
 
         UUID inviterId = manager.getPendingInviter(player.getUniqueId());
         Player inviter = inviterId != null ? Bukkit.getPlayer(inviterId) : null;
@@ -93,14 +94,14 @@ public class PartyGUI implements Listener {
                     text("左クリック: 参加する", NamedTextColor.GREEN),
                     text("右クリック: 拒否する", NamedTextColor.RED)));
         } else {
-            inventory.setItem(PENDING_INVITE_SLOT, item(Material.PAPER, text("招待は届いていません", NamedTextColor.GRAY)));
+            inventory.setItem(PENDING_INVITE_SLOT, PdaIcons.of(item(Material.PAPER, text("招待は届いていません", NamedTextColor.GRAY)), "invite_none"));
         }
 
-        inventory.setItem(INVITE_SLOT_SOLO, item(Material.WRITABLE_BOOK, text("プレイヤーを招待", NamedTextColor.AQUA),
+        inventory.setItem(INVITE_SLOT_SOLO, PdaIcons.of(item(Material.WRITABLE_BOOK, text("プレイヤーを招待", NamedTextColor.AQUA),
                 text("招待するとパーティーが作られ、", NamedTextColor.GRAY),
                 text("あなたがリーダーになります。", NamedTextColor.GRAY),
                 Component.empty(),
-                text("クリックで招待する相手を選ぶ", NamedTextColor.AQUA)));
+                text("クリックで招待する相手を選ぶ", NamedTextColor.AQUA)), "invite"));
     }
 
     private void setupParty(Party party) {
@@ -116,26 +117,26 @@ public class PartyGUI implements Listener {
             inventory.setItem(MEMBER_SLOTS[i], memberHead(party, memberId, isLeader));
         }
         if (members.size() > MEMBER_SLOTS.length) {
-            inventory.setItem(4, item(Material.PAPER, text("ほか " + (members.size() - MEMBER_SLOTS.length) + " 人", NamedTextColor.GRAY)));
+            inventory.setItem(4, PdaIcons.of(item(Material.PAPER, text("ほか " + (members.size() - MEMBER_SLOTS.length) + " 人", NamedTextColor.GRAY)), "more"));
         }
 
         if (isLeader) {
-            inventory.setItem(INVITE_SLOT, item(Material.WRITABLE_BOOK, text("プレイヤーを招待", NamedTextColor.AQUA),
-                    text("クリックで招待する相手を選ぶ", NamedTextColor.AQUA)));
+            inventory.setItem(INVITE_SLOT, PdaIcons.of(item(Material.WRITABLE_BOOK, text("プレイヤーを招待", NamedTextColor.AQUA),
+                    text("クリックで招待する相手を選ぶ", NamedTextColor.AQUA)), "invite"));
         } else {
-            inventory.setItem(INVITE_SLOT, item(Material.BOOK, text("プレイヤーを招待", NamedTextColor.GRAY),
-                    text("リーダーのみが招待できます。", NamedTextColor.RED)));
+            inventory.setItem(INVITE_SLOT, PdaIcons.off(item(Material.BOOK, text("プレイヤーを招待", NamedTextColor.GRAY),
+                    text("リーダーのみが招待できます。", NamedTextColor.RED)), "invite"));
         }
 
         boolean confirming = System.currentTimeMillis() < leaveConfirmUntil;
         String action = isLeader ? "パーティーを解散" : "パーティーを脱退";
-        inventory.setItem(LEAVE_SLOT, item(confirming ? Material.RED_CONCRETE : Material.IRON_DOOR,
+        inventory.setItem(LEAVE_SLOT, PdaIcons.of(item(confirming ? Material.RED_CONCRETE : Material.IRON_DOOR,
                 text(action, NamedTextColor.RED),
                 confirming
                         ? text("もう一度クリックで確定", NamedTextColor.YELLOW)
                         : text(isLeader ? "全員のパーティーがなくなります。" : "パーティーから抜けます。", NamedTextColor.GRAY),
                 Component.empty(),
-                text(confirming ? "クリックで確定" : "クリックして確認", NamedTextColor.AQUA)));
+                text(confirming ? "クリックで確定" : "クリックして確認", NamedTextColor.AQUA)), confirming ? "leave_confirm" : "leave"));
     }
 
     private ItemStack memberHead(Party party, UUID memberId, boolean viewerIsLeader) {

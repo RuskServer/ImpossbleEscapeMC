@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
@@ -84,15 +85,15 @@ public class PartyInviteGUI implements Listener {
                     text("クリックで招待を送る", NamedTextColor.AQUA)));
         }
         if (candidates.isEmpty()) {
-            inventory.setItem(22, item(Material.PAPER, text("招待できるプレイヤーがいません", NamedTextColor.GRAY),
+            inventory.setItem(22, PdaIcons.of(item(Material.PAPER, text("招待できるプレイヤーがいません", NamedTextColor.GRAY),
                     text("オンラインで、パーティーに入っていない", NamedTextColor.GRAY),
-                    text("プレイヤーを招待できます。", NamedTextColor.GRAY)));
+                    text("プレイヤーを招待できます。", NamedTextColor.GRAY)), "empty"));
         }
 
-        if (page > 0) inventory.setItem(PREV_SLOT, item(Material.ARROW, text("前のページ", NamedTextColor.WHITE)));
-        if (page < pageCount - 1) inventory.setItem(NEXT_SLOT, item(Material.ARROW, text("次のページ", NamedTextColor.WHITE)));
-        inventory.setItem(BACK_SLOT, item(Material.BARRIER, text("パーティー画面に戻る", NamedTextColor.RED),
-                text((page + 1) + " / " + pageCount + " ページ", NamedTextColor.GRAY)));
+        if (page > 0) inventory.setItem(PREV_SLOT, PdaIcons.of(item(Material.ARROW, text("前のページ", NamedTextColor.WHITE)), "prev"));
+        if (page < pageCount - 1) inventory.setItem(NEXT_SLOT, PdaIcons.of(item(Material.ARROW, text("次のページ", NamedTextColor.WHITE)), "next"));
+        inventory.setItem(BACK_SLOT, PdaIcons.of(item(Material.BARRIER, text("パーティー画面に戻る", NamedTextColor.RED),
+                text((page + 1) + " / " + pageCount + " ページ", NamedTextColor.GRAY)), "cancel"));
     }
 
     private void updatePages(List<Player> candidates) {

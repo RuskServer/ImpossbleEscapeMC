@@ -65,10 +65,10 @@ public class TraderSelectionGUI implements Listener {
         buttons.clear();
         int pages = Math.max(1, (traderList.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         page = Math.max(0, Math.min(page, pages - 1));
-        inventory.setItem(4, item(Material.WRITABLE_BOOK, "取引先", AMBER,
+        inventory.setItem(4, PdaIcons.of(item(Material.WRITABLE_BOOK, "取引先", AMBER,
                 List.of(text("連絡先  " + traderList.size() + "人", NOTE),
                         text("ページ  " + (page + 1) + " / " + pages, NOTE),
-                        text("顔にカーソルを合わせて詳細を確認", NOTE))));
+                        text("顔にカーソルを合わせて詳細を確認", NOTE))), "contacts"));
         int start = page * PAGE_SIZE;
         int count = Math.min(PAGE_SIZE, traderList.size() - start);
         for (int i = 0; i < count; i++) {
@@ -93,10 +93,10 @@ public class TraderSelectionGUI implements Listener {
             buttons.put(slot, trader);
         }
         if (traderList.isEmpty()) inventory.setItem(13,
-                item(Material.PAPER, "取引先がありません", NOTE, List.of()));
-        inventory.setItem(BACK, item(Material.ARROW, "PDAへ戻る", AMBER, List.of()));
-        if (page > 0) inventory.setItem(PREVIOUS, item(Material.ARROW, "前のページ", AMBER, List.of()));
-        if (page + 1 < pages) inventory.setItem(NEXT, item(Material.ARROW, "次のページ", AMBER, List.of()));
+                PdaIcons.of(item(Material.PAPER, "取引先がありません", NOTE, List.of()), "empty"));
+        inventory.setItem(BACK, PdaIcons.of(item(Material.ARROW, "PDAへ戻る", AMBER, List.of()), "back"));
+        if (page > 0) inventory.setItem(PREVIOUS, PdaIcons.of(item(Material.ARROW, "前のページ", AMBER, List.of()), "prev"));
+        if (page + 1 < pages) inventory.setItem(NEXT, PdaIcons.of(item(Material.ARROW, "次のページ", AMBER, List.of()), "next"));
     }
 
     static String name(TraderDefinition trader) {
