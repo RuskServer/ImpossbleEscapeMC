@@ -1,0 +1,2497 @@
+{
+  "iem.minigame.minigamemanager.splitteams.notice_001": {
+    "category": "MINIGAME",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.startgame.notice_001": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.run.notice_001": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "TITLE"
+  },
+  "iem.minigame.minigamemanager.beginactualround.notice_001": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "TITLE"
+  },
+  "iem.minigame.minigamemanager.beginactualround.notice_002": {
+    "category": "MINIGAME",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.endround.notice_001": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.checkspecialachievements.notice_001": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "TITLE"
+  },
+  "iem.minigame.minigamemanager.checkspecialachievements.notice_002": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.checkspecialachievements.notice_003": {
+    "category": "MINIGAME",
+    "level": "WARNING",
+    "channel": "TITLE"
+  },
+  "iem.minigame.minigamemanager.checkspecialachievements.notice_004": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.showrankings.notice_001": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.showrankings.notice_002": {
+    "category": "MINIGAME",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.showrankings.notice_003": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.showrankings.notice_004": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.broadcastfinalresult.notice_001": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "TITLE"
+  },
+  "iem.minigame.minigamemanager.broadcastfinalresult.notice_002": {
+    "category": "MINIGAME",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.setloadout.notice_001": {
+    "category": "MINIGAME",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamemanager.onplayerdeath.notice_001": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_001": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_002": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_003": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_004": {
+    "category": "MINIGAME",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_005": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_006": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_007": {
+    "category": "MINIGAME",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_008": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_009": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.minigame.minigamecommand.execute.notice_010": {
+    "category": "MINIGAME",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.raidmapmanager.togglezoom.notice_001": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.searchgui.oncontaineropen.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.loot.searchgui.oninventoryclick.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.loot.lootegglistener.oninteract.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.oninteract.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.oninteract.notice_003": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.oninteract.notice_004": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.oninteract.notice_005": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.placegroundloot.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.placegroundloot.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.placegroundloot.notice_003": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.placegroundloot.notice_004": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.placegroundloot.notice_005": {
+    "category": "LOOT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.placegroundloot.notice_006": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.remove.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.remove.notice_002": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.remove.notice_003": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.remove.notice_004": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootegglistener.remove.notice_005": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_002": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_003": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_004": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_005": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_006": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_007": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_008": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.execute.notice_009": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelocker.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelocker.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelocker.notice_003": {
+    "category": "LOOT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelocker.notice_004": {
+    "category": "LOOT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelocker.notice_005": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelocker.notice_006": {
+    "category": "LOOT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelockeregg.notice_001": {
+    "category": "LOOT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelockeregg.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelockeregg.notice_003": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlelockeregg.notice_004": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_002": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_003": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_004": {
+    "category": "LOOT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_005": {
+    "category": "LOOT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_006": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledrawer.notice_007": {
+    "category": "LOOT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_003": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_004": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_005": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_006": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlecontainer.notice_007": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handleegg.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handleegg.notice_002": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledraweregg.notice_001": {
+    "category": "LOOT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledraweregg.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledraweregg.notice_003": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handledraweregg.notice_004": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlegroundegg.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lootcommand.handlegroundegg.notice_002": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lockerlootmodule.placeegg.notice_001": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lockerlootmodule.placeegg.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.lockerlootmodule.place.notice_001": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lockerlootmodule.interactlocker.notice_001": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.lockerlootmodule.interactlocker.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.loot.drawerlootmodule.place.notice_001": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.drawerlootmodule.interactdrawer.notice_001": {
+    "category": "LOOT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.loot.drawerlootmodule.interactdrawer.notice_002": {
+    "category": "LOOT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.combat.inventorylistener.openattachmentgui.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.combat.datapackammotracker.update.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.datapackammotracker.update.notice_002": {
+    "category": "COMBAT",
+    "level": "INFO",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.datapackammotracker.maintaincocking.notice_001": {
+    "category": "COMBAT",
+    "level": "SUCCESS",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.datapackammotracker.reloadpressed.notice_001": {
+    "category": "COMBAT",
+    "level": "INFO",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.costcapacitylistener.onclick.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.costcapacitylistener.onclick.notice_002": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.costcapacitylistener.onrighotswap.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.costcapacitylistener.onrighotswap.notice_002": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.costcapacitylistener.reject.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.inventory.flashlight.oninteract.notice_001": {
+    "category": "INVENTORY",
+    "level": "WARNING",
+    "channel": "ACTION_BAR"
+  },
+  "iem.system.pdahomescreen.unavailable.notice_001": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.pdahomescreen.denied.notice_001": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002": {
+    "category": "INVENTORY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.inventory.helmetattachmentguilistener.attach.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.helmetattachmentguilistener.attach.notice_002": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.helmetattachmentguilistener.attach.notice_003": {
+    "category": "INVENTORY",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.gunsettingsdialog.open.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_002": {
+    "category": "INVENTORY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentguilistener.attach.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentguilistener.attach.notice_002": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentguilistener.attach.notice_003": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentguilistener.attach.notice_004": {
+    "category": "INVENTORY",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.inventory.datapackattachmentgui.open.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.tick.notice_001": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.tick.notice_002": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.finish.notice_001": {
+    "category": "SYSTEM",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.report.notice_001": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.report.notice_002": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.report.notice_003": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.report.notice_004": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.shaderwarmdiagnostic.report.notice_005": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_001": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_002": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_003": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_004": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_005": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_006": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_007": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_008": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_009": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_010": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.execute.notice_011": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.toggledatatest.notice_001": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.shaderdebugcommand.toggledatatest.notice_002": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_001": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_002": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_003": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_004": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_005": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_006": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_007": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_008": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_009": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_010": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_011": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_012": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_013": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_014": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_015": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavcommand.execute.notice_016": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.questcommand.execute.notice_001": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.questcommand.execute.notice_002": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.questcommand.execute.notice_003": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.questcommand.execute.notice_004": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.questcommand.execute.notice_005": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.itemreloadcommand.execute.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.itemreloadcommand.execute.notice_002": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.getitemcommand.execute.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.getitemcommand.execute.notice_002": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.getitemcommand.execute.notice_003": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.getitemcommand.execute.notice_004": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.getitemcommand.execute.notice_005": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.getitemcommand.execute.notice_006": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_002": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_003": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_004": {
+    "category": "SYSTEM",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_005": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_006": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_007": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_008": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_009": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_010": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_011": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.execute.notice_012": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.sendhelp.notice_001": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.sendhelp.notice_002": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.datapacktestcommand.sendhelp.notice_003": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.attachmentcommand.execute.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.attachmentcommand.execute.notice_002": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavspawner.onscavdeath.notice_001": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.scavspawner.onscavdeath.notice_002": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.inventory.weightmodule.onplayeruseexcitant.notice_001": {
+    "category": "INVENTORY",
+    "level": "WARNING",
+    "channel": "ACTION_BAR"
+  },
+  "iem.inventory.weightmodule.onplayeruseexcitant.notice_002": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "ACTION_BAR"
+  },
+  "iem.inventory.weightmodule.sendstagenotification.notice_001": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "ACTION_BAR"
+  },
+  "iem.trader.traderquantitygui.open.notice_001": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradergui.oninventoryclick.notice_001": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradergui.handlebulksell.notice_001": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradergui.handlebulksell.notice_002": {
+    "category": "TRADER",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradergui.handlebulksell.notice_003": {
+    "category": "TRADER",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradergui.forwarded_notice": {
+    "category": "TRADER",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.trader.traderdialog.forwarded_notice": {
+    "category": "TRADER",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradercommand.execute.notice_001": {
+    "category": "TRADER",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradercommand.execute.notice_002": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradercommand.execute.notice_003": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradercommand.execute.notice_004": {
+    "category": "TRADER",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradercommand.execute.notice_005": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.tradercommand.execute.notice_006": {
+    "category": "TRADER",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.trader.repairdialog.repair.notice_001": {
+    "category": "TRADER",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.supplyloadoutgui.handle.notice_001": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.stashmodule.openstash.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.stashmodule.openstash.notice_002": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.starterkit.ondataloaded.notice_001": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.inventory.riglistener.showarmorconflict.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.admin.spawndiagnostics.say.notice_001": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.notice_001": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.notice_002": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.notice_003": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.notice_004": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidradio.tick.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidradio.play.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidradio.preview.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.sendcapacitywarning.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.notifyqueuedplayers.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.onmapcycleend.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.joinqueue.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.joinqueue.notice_002": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.joinqueue.notice_003": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.joinqueue.notice_004": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.joinqueue.notice_005": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.automatch.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.automatch.notice_002": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidmodule.forfeitafterdisconnect.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.showstarttitle.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "TITLE"
+  },
+  "iem.raid.raidinstance.applyspawnprotection.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.run.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.showextractions.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.showextractions.notice_002": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.forfeitloadout.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.handleextraction.notice_001": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "ACTION_BAR"
+  },
+  "iem.raid.raidinstance.spawngroup.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.spawngroup.notice_002": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidinstance.onparticipantjoin.notice_001": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidendsequence.sendwarning.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidendsequence.startprecursor.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidendsequence.launchmissiles.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidendsequence.detonate.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidendsequence.detonate.notice_002": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.execute.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.execute.notice_002": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.execute.notice_003": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.execute.notice_004": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.execute.notice_005": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlejoin.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlemap.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlemap.notice_002": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlemap.notice_003": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_002": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_003": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_004": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_005": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_006": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_007": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_008": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_009": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_010": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlespawn.notice_011": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_002": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_003": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_004": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_005": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_006": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_007": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_008": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_009": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_010": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_011": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_012": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_013": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleboss.notice_014": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_002": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_003": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_004": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_005": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_006": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_007": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_008": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_009": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_010": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_011": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_012": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_013": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handledanger.notice_014": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_001": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_002": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_003": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_004": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_005": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_006": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handleextract.notice_007": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlescavspawn.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlescavspawn.notice_002": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlescavspawn.notice_003": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlescavspawn.notice_004": {
+    "category": "RAID",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.handlescavspawn.notice_005": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_001": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_002": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_003": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_004": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_005": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_006": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_007": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_008": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_009": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_010": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_011": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_012": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidcommand.sendhelp.notice_013": {
+    "category": "RAID",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.quest.questmodule.checkplayerlocations.notice_001": {
+    "category": "QUEST",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.quest.questmodule.notifycompletion.notice_001": {
+    "category": "QUEST",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.quest.questmodule.notifyquestavailability.notice_001": {
+    "category": "QUEST",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.quest.questmodule.notifyquestavailability.notice_002": {
+    "category": "QUEST",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.quest.questmodule.notifyquestavailability.notice_003": {
+    "category": "QUEST",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.quest.questhandindialog.handle.notice_001": {
+    "category": "QUEST",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.quest.questhandindialog.handle.notice_002": {
+    "category": "QUEST",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.quest.questdialog.handle.notice_001": {
+    "category": "QUEST",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.quest.questdeliveryaccess.requireoutsideraid.notice_001": {
+    "category": "QUEST",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.createparty.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.createparty.notice_002": {
+    "category": "PARTY",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.inviteplayer.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.inviteplayer.notice_002": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.inviteplayer.notice_003": {
+    "category": "PARTY",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.inviteplayer.notice_004": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.acceptinvite.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.acceptinvite.notice_002": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.acceptinvite.notice_003": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.acceptinvite.notice_004": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.declineinvite.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.declineinvite.notice_002": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.declineinvite.notice_003": {
+    "category": "PARTY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.kickmember.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.kickmember.notice_002": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.kickmember.notice_003": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.transferleader.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.transferleader.notice_002": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.leaveparty.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.leaveparty.notice_002": {
+    "category": "PARTY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.party.partymodule.broadcast.notice_001": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partyinvitegui.oninventoryclick.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_002": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_003": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_004": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_005": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_006": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.execute.notice_007": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.handlechat.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendinfo.notice_001": {
+    "category": "PARTY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendinfo.notice_002": {
+    "category": "PARTY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendinfo.notice_003": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendinfo.notice_004": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendinfo.notice_005": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_001": {
+    "category": "PARTY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_002": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_003": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_004": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_005": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_006": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_007": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_008": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_009": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.party.partycommand.sendhelp.notice_010": {
+    "category": "PARTY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.combat.statuseffectmanager.handlebleeding.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.statuseffectmanager.handlefractureeffects.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.statuseffectmanager.handlepainkillerexpiry.notice_001": {
+    "category": "COMBAT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.combat.statuseffectmanager.onbullethit.notice_001": {
+    "category": "COMBAT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.combat.statuseffectmanager.applyinjurychance.notice_001": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.combat.statuseffectmanager.applyinjurychance.notice_002": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.combat.statuseffectmanager.applyinjurychance.notice_003": {
+    "category": "COMBAT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.combat.medicalmodule.startonetimeusing.notice_001": {
+    "category": "COMBAT",
+    "level": "WARNING",
+    "channel": "ACTION_BAR"
+  },
+  "iem.combat.medicalmodule.finishonetimeusing.notice_001": {
+    "category": "COMBAT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.market.marketsellgui.oninventoryclick.notice_001": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketpricegui.handleconfirm.notice_001": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketpricegui.handleconfirm.notice_002": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketpricegui.handleconfirm.notice_003": {
+    "category": "MARKET",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.market.marketpricegui.handleconfirm.notice_004": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.oninventoryclick.notice_001": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_001": {
+    "category": "MARKET",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_002": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_003": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_004": {
+    "category": "MARKET",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_005": {
+    "category": "MARKET",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_006": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_007": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketmaingui.handlelistinginteraction.notice_008": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.marketcommand.execute.notice_001": {
+    "category": "MARKET",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.market.marketcommand.execute.notice_002": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.progression.levelmodule.checklevelup.notice_001": {
+    "category": "PROGRESSION",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.inventory.capacitygauge.refreshlobbystatus.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.inventory.capacitygauge.refreshlobbystatus.notice_002": {
+    "category": "INVENTORY",
+    "level": "SUCCESS",
+    "channel": "ACTION_BAR"
+  },
+  "iem.inventory.capacitygauge.printbreakdown.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.capacitygauge.printbreakdown.notice_002": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.capacitygauge.printbreakdown.notice_003": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.capacitygauge.printbreakdown.notice_004": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.capacitygauge.printbreakdown.notice_005": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutmodule.visit.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutmodule.visit.notice_002": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutmodule.visit.notice_003": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutmodule.returntolobby.notice_001": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutlistener.onsigninteract.notice_001": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutdialog.openfor.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.execute.notice_001": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlebase.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlebase.notice_002": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlebase.notice_003": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlebase.notice_004": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleedit.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleedit.notice_002": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleedit.notice_003": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleedit.notice_004": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleedit.notice_005": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlereset.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlereset.notice_002": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleinspect.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleinspect.notice_002": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleinspect.notice_003": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleinspect.notice_004": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handleinspect.notice_005": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlecamera.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlecamera.notice_002": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlecamera.notice_003": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlecamera.notice_004": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlesave.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlesave.notice_002": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlesave.notice_003": {
+    "category": "HIDEOUT",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.handlesave.notice_004": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.target.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.fail.notice_001": {
+    "category": "HIDEOUT",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_001": {
+    "category": "HIDEOUT",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_002": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_003": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_004": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_005": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_006": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.hideout.hideoutcommand.sendhelp.notice_007": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.system.grounditemservice.pickup.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.system.recongrenade.sendcarrylimitwarning.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.recongrenade.oninteract.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.system.recongrenade.scan.notice_001": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.system.recongrenade.scan.notice_002": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "ACTION_BAR"
+  },
+  "iem.system.settingscommand.execute.notice_001": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_002": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_003": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_004": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_005": {
+    "category": "SYSTEM",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_006": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_007": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_008": {
+    "category": "SYSTEM",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.execute.notice_009": {
+    "category": "SYSTEM",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.sendhelp.notice_001": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.sendhelp.notice_002": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.system.settingscommand.sendhelp.notice_003": {
+    "category": "SYSTEM",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpackmodule.openbackpackfromslot.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpackmodule.openbackpack.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpackmodule.saveinventorytobackpack.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpacklistener.oninventoryclick.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpacklistener.oninventoryclick.notice_002": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpacklistener.oninventoryclick.notice_003": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpacklistener.oninventoryclick.notice_004": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpacklistener.oninventorydrag.notice_001": {
+    "category": "INVENTORY",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_001": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_002": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_003": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_004": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_005": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_006": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_007": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_008": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_009": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.acousticscommand.execute.notice_010": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidresults.show.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.raid.raidresults.open.notice_001": {
+    "category": "RAID",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.messages.usage": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.messages.reloaded": {
+    "category": "ADMIN",
+    "level": "SUCCESS",
+    "channel": "CHAT"
+  },
+  "iem.admin.messages.reload_failed": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.request.support_001": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.request.support_002": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.request.support_003": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.request.support_004": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.request.support_005": {
+    "category": "ADMIN",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.request.support_006": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.support_003": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.support_004": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.support_005": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.print.support_017": {
+    "category": "ADMIN",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.admin.spawndiagnostics.message.support_001": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.admin.messages.busy": {
+    "category": "ADMIN",
+    "level": "WARNING",
+    "channel": "CHAT"
+  }
+}

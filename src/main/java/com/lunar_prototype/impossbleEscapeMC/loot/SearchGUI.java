@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -127,7 +130,7 @@ public class SearchGUI implements Listener {
         if (raidModule == null || !raidModule.isInRaid(player)) return;
 
         event.setCancelled(true);
-        player.sendActionBar(Component.text("レイド中はこのコンテナは漁れません", NamedTextColor.RED));
+        Messages.actionBar(player, "iem.loot.searchgui.oncontaineropen.notice_001", MessageText.of("iem.loot.searchgui.oncontaineropen.notice_001", MessageText.payload(MessageText.of("iem.loot.searchgui.oncontaineropen.notice_001.text_01").color(NamedTextColor.RED))));
     }
 
     /**
@@ -356,9 +359,7 @@ public class SearchGUI implements Listener {
                 ItemStack notTaken = overlay.addToHotbar(player, rest);
                 leftover = notTaken == null ? Map.of() : Map.of(0, notTaken);
                 if (notTaken != null) {
-                    player.sendActionBar(net.kyori.adventure.text.Component.text(
-                            "バックパックがいっぱいです。コンパスで通常インベントリの表示に切り替えると、持ち物に入れられます",
-                            net.kyori.adventure.text.format.NamedTextColor.RED));
+                    Messages.actionBar(player, "iem.loot.searchgui.oninventoryclick.notice_001", MessageText.of("iem.loot.searchgui.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.loot.searchgui.oninventoryclick.notice_001.text_01").color(net.kyori.adventure.text.format.NamedTextColor.RED))));
                 }
             } else {
                 leftover = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.addItem(player, rest);

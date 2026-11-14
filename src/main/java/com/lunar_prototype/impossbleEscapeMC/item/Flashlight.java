@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.item;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -72,6 +75,6 @@ public final class Flashlight implements Listener {
         boolean on = SWITCHED_OFF.remove(player.getUniqueId());
         if (!on) SWITCHED_OFF.add(player.getUniqueId());
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, SoundCategory.PLAYERS, 0.5f, on ? 1.8f : 1.3f);
-        player.sendActionBar(Component.text(on ? "フラッシュライト: ON" : "フラッシュライト: OFF", on ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
+        Messages.actionBar(player, "iem.inventory.flashlight.oninteract.notice_001", MessageText.of("iem.inventory.flashlight.oninteract.notice_001", MessageText.payload(MessageText.of("iem.inventory.flashlight.oninteract.notice_001.text_01", on ? MessageText.of("iem.inventory.flashlight.state.1") : MessageText.of("iem.inventory.flashlight.state.2")).color(on ? NamedTextColor.YELLOW : NamedTextColor.GRAY))));
     }
 }

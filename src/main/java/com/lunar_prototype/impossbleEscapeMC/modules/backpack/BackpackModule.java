@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -62,7 +65,7 @@ public class BackpackModule implements IModule {
     public boolean openBackpackFromSlot(Player player, int slot) {
         ItemStack item = player.getInventory().getItem(slot);
         if (!isBackpackItem(item)) {
-            player.sendMessage("§cそのスロットにバックパックがありません。");
+            Messages.chat(player, "iem.inventory.backpackmodule.openbackpackfromslot.notice_001", MessageText.of("iem.inventory.backpackmodule.openbackpackfromslot.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpackmodule.openbackpackfromslot.notice_001.text_01"))));
             return false;
         }
         openBackpack(player, item);
@@ -79,7 +82,7 @@ public class BackpackModule implements IModule {
 
         LoadInventoryResult loadResult = loadInventory(backpackItem, size);
         if (loadResult.hasOverflowItems) {
-            player.sendMessage("§cこのバックパックは容量縮小により溢れたアイテムがあります。設定を戻すか中身を整理してください。");
+            Messages.chat(player, "iem.inventory.backpackmodule.openbackpack.notice_001", MessageText.of("iem.inventory.backpackmodule.openbackpack.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpackmodule.openbackpack.notice_001.text_01"))));
             return;
         }
 
@@ -223,7 +226,7 @@ public class BackpackModule implements IModule {
         // 開いている間に別のスロットへ移しても保存できるよう、UID で持ち物から探し直す
         ItemStack backpack = findBackpackByUid(player, session.backpackUid);
         if (backpack == null) {
-            player.sendMessage("§cバックパックが見つからないため保存できませんでした。");
+            Messages.chat(player, "iem.inventory.backpackmodule.saveinventorytobackpack.notice_001", MessageText.of("iem.inventory.backpackmodule.saveinventorytobackpack.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpackmodule.saveinventorytobackpack.notice_001.text_01"))));
             return;
         }
 

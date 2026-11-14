@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import net.kyori.adventure.text.Component;
@@ -51,7 +54,7 @@ public class DatapackAttachmentGUI implements InventoryHolder {
         if (gunId == null) return false;
         DatapackAttachmentGUI gui = new DatapackAttachmentGUI(player, player.getInventory().getHeldItemSlot(), gunId, held);
         if (!gui.refresh()) {
-            player.sendMessage(Component.text("この銃に付けられるアタッチメントはありません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.datapackattachmentgui.open.notice_001", MessageText.of("iem.inventory.datapackattachmentgui.open.notice_001", MessageText.payload(MessageText.of("iem.inventory.datapackattachmentgui.open.notice_001.text_01").color(NamedTextColor.RED))));
             return true;
         }
         player.openInventory(gui.inventory);

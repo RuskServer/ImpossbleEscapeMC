@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -106,7 +109,7 @@ public class HideoutModule implements IModule {
     /** 隠れ家へ移す (初めてなら場所を割り当てて建てる)。パーティーのメンバーはリーダーの隠れ家に集まる。移せなかった時は、その理由をプレイヤーに伝えて false */
     public boolean visit(Player player) {
         if (layout.base() == null) {
-            player.sendMessage(Component.text("隠れ家はまだ準備中です。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutmodule.visit.notice_001", MessageText.of("iem.hideout.hideoutmodule.visit.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutmodule.visit.notice_001.text_01").color(NamedTextColor.RED))));
             return false;
         }
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
@@ -118,15 +121,14 @@ public class HideoutModule implements IModule {
             ensureBuilt(target);
         } catch (IOException e) {
             plugin.getLogger().log(Level.WARNING, "隠れ家を建てられませんでした", e);
-            player.sendMessage(Component.text("隠れ家を建てられませんでした: " + e.getMessage(), NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutmodule.visit.notice_002", MessageText.of("iem.hideout.hideoutmodule.visit.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutmodule.visit.notice_002.text_01", e.getMessage()).color(NamedTextColor.RED))));
             return false;
         }
         dataModule.saveAsync(target.getUuid());
         Location spawn = spawn(target.getHideoutIndex());
         if (spawn == null) return false;
         player.teleport(spawn);
-        player.sendMessage(Component.text(host != null ? "パーティーリーダーの隠れ家に移動しました。" : "自分の隠れ家に移動しました。",
-                NamedTextColor.GREEN));
+        Messages.chat(player, "iem.hideout.hideoutmodule.visit.notice_003", MessageText.of("iem.hideout.hideoutmodule.visit.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutmodule.visit.notice_003.text_01", host != null ? MessageText.of("iem.hideout.hideoutmodule.destination.1") : MessageText.of("iem.hideout.hideoutmodule.destination.2")).color(NamedTextColor.GREEN))));
         return true;
     }
 
@@ -163,7 +165,7 @@ public class HideoutModule implements IModule {
     /** ロビー (メインのワールドのスポーン。レイドから戻る所と同じ) へ戻す */
     public void returnToLobby(Player player) {
         player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
-        player.sendMessage(Component.text("ロビーに戻りました。", NamedTextColor.GREEN));
+        Messages.chat(player, "iem.hideout.hideoutmodule.returntolobby.notice_001", MessageText.of("iem.hideout.hideoutmodule.returntolobby.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutmodule.returntolobby.notice_001.text_01").color(NamedTextColor.GREEN))));
     }
 
     /**

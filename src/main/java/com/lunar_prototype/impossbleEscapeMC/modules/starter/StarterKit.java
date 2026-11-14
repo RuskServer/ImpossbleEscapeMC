@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.starter;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
@@ -120,8 +123,7 @@ public final class StarterKit implements Listener {
         economy.deposit(player.getUniqueId(), MONEY);
         data.setStarterKitPending(false);
         dataModule.saveAsync(player.getUniqueId());
-        player.sendMessage(Component.text(String.format("初期物資をスタッシュに入れました。所持金 +%,.0f₽", MONEY),
-                NamedTextColor.GREEN));
+        Messages.chat(player, "iem.system.starterkit.ondataloaded.notice_001", MessageText.of("iem.system.starterkit.ondataloaded.notice_001", MessageText.payload(MessageText.of("iem.system.starterkit.ondataloaded.notice_001.text_01", MessageText.of("iem.system.starterkit.granted", String.format("%,.0f", MONEY))).color(NamedTextColor.GREEN))));
     }
 
     /** 中身を作る。作れなかった品物は飛ばす (記録は残す) */

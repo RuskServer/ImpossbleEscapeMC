@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.minigame;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
@@ -153,7 +156,7 @@ public class MinigameManager {
                 mgTeam2.addEntry(p.getName());
             }
         }
-        Bukkit.broadcast(Component.text("チームを分けました。 Team1: " + team1.size() + "人, Team2: " + team2.size() + "人", NamedTextColor.YELLOW));
+        Messages.broadcast("iem.minigame.minigamemanager.splitteams.notice_001", MessageText.of("iem.minigame.minigamemanager.splitteams.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.splitteams.notice_001.text_01", team1.size(), team2.size()).color(NamedTextColor.YELLOW))));
     }
 
     private void clearMinecraftTeams() {
@@ -167,7 +170,7 @@ public class MinigameManager {
         if (currentMap == null) return;
         // 出現地点の無いチームがあると、持ち物を預かった後に出せずに止まる (持ち物が空のまま)
         if (currentMap.getSpawns(1).isEmpty() || currentMap.getSpawns(2).isEmpty()) {
-            Bukkit.broadcast(Component.text("マップ " + mapName + " にチームの出現地点がありません。開始できません。", NamedTextColor.RED));
+            Messages.broadcast("iem.minigame.minigamemanager.startgame.notice_001", MessageText.of("iem.minigame.minigamemanager.startgame.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.startgame.notice_001.text_01", mapName).color(NamedTextColor.RED))));
             currentMap = null;
             return;
         }
@@ -245,12 +248,12 @@ public class MinigameManager {
                 NamedTextColor color = count <= 3 ? NamedTextColor.RED : NamedTextColor.YELLOW;
                 Title title = Title.title(
                         Component.text(count, color, TextDecoration.BOLD),
-                        Component.text("準備してください...", NamedTextColor.GRAY),
+                        MessageText.of("iem.minigame.minigamemanager.run.support_001").color(NamedTextColor.GRAY),
                         Title.Times.times(Duration.ZERO, Duration.ofMillis(800), Duration.ofMillis(200))
                 );
                 
                 Bukkit.getOnlinePlayers().forEach(p -> {
-                    p.showTitle(title);
+                    Messages.title(p, "iem.minigame.minigamemanager.run.notice_001", title);
                     p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
                 });
 
@@ -264,7 +267,7 @@ public class MinigameManager {
         
         if (bossBar != null) Bukkit.getOnlinePlayers().forEach(p -> p.hideBossBar(bossBar));
         bossBar = BossBar.bossBar(
-                Component.text("Round " + currentRound + " / " + maxRounds),
+                MessageText.of("iem.minigame.minigamemanager.beginactualround.support_001", currentRound, maxRounds),
                 1.0f,
                 BossBar.Color.RED,
                 BossBar.Overlay.PROGRESS
@@ -272,12 +275,12 @@ public class MinigameManager {
         Bukkit.getOnlinePlayers().forEach(p -> p.showBossBar(bossBar));
 
         Title startTitle = Title.title(
-                Component.text("START!", NamedTextColor.GREEN, TextDecoration.BOLD),
-                Component.text("殲滅せよ", NamedTextColor.WHITE),
+                MessageText.of("iem.minigame.minigamemanager.beginactualround.support_002").color(NamedTextColor.GREEN).decorate(TextDecoration.BOLD),
+                MessageText.of("iem.minigame.minigamemanager.beginactualround.support_003").color(NamedTextColor.WHITE),
                 Title.Times.times(Duration.ofMillis(250), Duration.ofMillis(1500), Duration.ofMillis(500))
         );
         Bukkit.getOnlinePlayers().forEach(p -> {
-            p.showTitle(startTitle);
+            Messages.title(p, "iem.minigame.minigamemanager.beginactualround.notice_001", startTitle);
             p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
         });
 
@@ -297,7 +300,7 @@ public class MinigameManager {
         };
         gameTask.runTaskTimer(plugin, 0, 20);
         
-        Bukkit.broadcast(Component.text("ラウンド " + currentRound + " 開始！", NamedTextColor.GREEN, TextDecoration.BOLD));
+        Messages.broadcast("iem.minigame.minigamemanager.beginactualround.notice_002", MessageText.of("iem.minigame.minigamemanager.beginactualround.notice_002", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.beginactualround.notice_002.text_01", currentRound).color(NamedTextColor.GREEN).decorate(TextDecoration.BOLD))));
     }
 private void spawnPlayers() {
     List<Location> s1 = currentMap.getSpawns(1);
@@ -363,8 +366,8 @@ private void spawnPlayers() {
         if (winnerTeam == 1) team1Wins++;
         else if (winnerTeam == 2) team2Wins++;
 
-        String winMsg = (winnerTeam == 1) ? "Team1 の勝利！" : (winnerTeam == 2 ? "Team2 の勝利！" : "引き分け！");
-        Bukkit.broadcast(Component.text("ラウンド終了: " + winMsg, NamedTextColor.GOLD, TextDecoration.BOLD));
+        Component winMsg = (winnerTeam == 1) ? MessageText.of("iem.minigame.team1_wins") : (winnerTeam == 2 ? MessageText.of("iem.minigame.team2_wins") : MessageText.of("iem.minigame.draw"));
+        Messages.broadcast("iem.minigame.minigamemanager.endround.notice_001", MessageText.of("iem.minigame.minigamemanager.endround.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.endround.notice_001.text_01", winMsg).color(NamedTextColor.GOLD).decorate(TextDecoration.BOLD))));
 
         // ACE / Clutch Check
         checkSpecialAchievements(winnerTeam);
@@ -404,11 +407,11 @@ private void spawnPlayers() {
         if (winnersAlive.size() == 1) {
             Player clutcher = Bukkit.getPlayer(winnersAlive.get(0));
             if (clutcher != null && initialLoserParticipants.size() >= 2) {
-                clutcher.showTitle(Title.title(
-                        Component.text("CLUTCH", NamedTextColor.RED, TextDecoration.BOLD),
-                        Component.text("不屈の精神で逆転勝利！", NamedTextColor.YELLOW)
+                Messages.title(clutcher, "iem.minigame.minigamemanager.checkspecialachievements.notice_001", Title.title(
+                        MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_001.text_01").color(NamedTextColor.RED).decorate(TextDecoration.BOLD),
+                        MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_001.text_02").color(NamedTextColor.YELLOW)
                 ));
-                Bukkit.broadcast(Component.text(clutcher.getName() + " が CLUTCH を決めました！", NamedTextColor.RED, TextDecoration.ITALIC));
+                Messages.broadcast("iem.minigame.minigamemanager.checkspecialachievements.notice_002", MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_002", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_002.text_01", clutcher.getName()).color(NamedTextColor.RED).decorate(TextDecoration.ITALIC))));
             }
         }
 
@@ -420,20 +423,20 @@ private void spawnPlayers() {
             if (victimsInRound.containsAll(initialLoserParticipants)) {
                 Player acer = Bukkit.getPlayer(killerId);
                 if (acer != null) {
-                    acer.showTitle(Title.title(
-                            Component.text("ACE", NamedTextColor.GOLD, TextDecoration.BOLD),
-                            Component.text("敵チームを全滅させた！", NamedTextColor.YELLOW)
+                    Messages.title(acer, "iem.minigame.minigamemanager.checkspecialachievements.notice_003", Title.title(
+                            MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_003.text_01").color(NamedTextColor.GOLD).decorate(TextDecoration.BOLD),
+                            MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_003.text_02").color(NamedTextColor.YELLOW)
                     ));
-                    Bukkit.broadcast(Component.text(acer.getName() + " が ACE を達成しました！", NamedTextColor.GOLD, TextDecoration.ITALIC));
+                    Messages.broadcast("iem.minigame.minigamemanager.checkspecialachievements.notice_004", MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_004", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.checkspecialachievements.notice_004.text_01", acer.getName()).color(NamedTextColor.GOLD).decorate(TextDecoration.ITALIC))));
                 }
             }
         }
     }
 
     private void showRankings(boolean isFinal) {
-        Bukkit.broadcast(Component.text("--------------------------------", NamedTextColor.GRAY));
-        String title = isFinal ? "   最終 KD ランキング" : "   累計ダメージランキング";
-        Bukkit.broadcast(Component.text(title, NamedTextColor.YELLOW, TextDecoration.BOLD));
+        Messages.broadcast("iem.minigame.minigamemanager.showrankings.notice_001", MessageText.of("iem.minigame.minigamemanager.showrankings.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.showrankings.notice_001.text_01").color(NamedTextColor.GRAY))));
+        Component title = MessageText.of("iem.minigame.minigamemanager.showrankings.support_001", isFinal ? MessageText.of("iem.minigame.minigamemanager.ranking_title.1") : MessageText.of("iem.minigame.minigamemanager.ranking_title.2"));
+        Messages.broadcast("iem.minigame.minigamemanager.showrankings.notice_002", MessageText.of("iem.minigame.minigamemanager.showrankings.notice_002", MessageText.payload(title.color(NamedTextColor.YELLOW).decorate(TextDecoration.BOLD))));
         
         damageDealt.keySet().stream()
                 .sorted((u1, u2) -> {
@@ -452,9 +455,9 @@ private void spawnPlayers() {
                     int d = deaths.getOrDefault(uuid, 0);
                     int a = assists.getOrDefault(uuid, 0);
                     double kd = getKDRatio(uuid);
-                    Bukkit.broadcast(Component.text(String.format(" %s: %.1f / %.1f [K:%d D:%d A:%d KD:%.2f]", name, dealt, taken, k, d, a, kd), NamedTextColor.WHITE));
+                    Messages.broadcast("iem.minigame.minigamemanager.showrankings.notice_003", MessageText.of("iem.minigame.minigamemanager.showrankings.notice_003", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.showrankings.notice_003.text_01", String.format(" %s: %.1f / %.1f [K:%d D:%d A:%d KD:%.2f]", name, dealt, taken, k, d, a, kd)).color(NamedTextColor.WHITE))));
                 });
-        Bukkit.broadcast(Component.text("--------------------------------", NamedTextColor.GRAY));
+        Messages.broadcast("iem.minigame.minigamemanager.showrankings.notice_004", MessageText.of("iem.minigame.minigamemanager.showrankings.notice_004", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.showrankings.notice_004.text_01").color(NamedTextColor.GRAY))));
     }
 
     private double getKDRatio(UUID uuid) {
@@ -475,14 +478,14 @@ private void spawnPlayers() {
     }
 
     private void broadcastFinalResult(int winnerTeam) {
-        Component victoryTitle = Component.text("VICTORY", NamedTextColor.GOLD, TextDecoration.BOLD);
-        Component defeatTitle = Component.text("DEFEAT", NamedTextColor.RED, TextDecoration.BOLD);
-        Component drawTitle = Component.text("DRAW", NamedTextColor.GRAY, TextDecoration.BOLD);
+        Component victoryTitle = MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.support_001").color(NamedTextColor.GOLD).decorate(TextDecoration.BOLD);
+        Component defeatTitle = MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.support_002").color(NamedTextColor.RED).decorate(TextDecoration.BOLD);
+        Component drawTitle = MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.support_003").color(NamedTextColor.GRAY).decorate(TextDecoration.BOLD);
 
         String scoreStr = "(" + team1Wins + " - " + team2Wins + ")";
-        Component subText1 = Component.text("Team1 の総合優勝！ " + scoreStr, NamedTextColor.YELLOW);
-        Component subText2 = Component.text("Team2 の総合優勝！ " + scoreStr, NamedTextColor.YELLOW);
-        Component subTextDraw = Component.text("同点！ " + scoreStr, NamedTextColor.WHITE);
+        Component subText1 = MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.support_004", scoreStr).color(NamedTextColor.YELLOW);
+        Component subText2 = MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.support_005", scoreStr).color(NamedTextColor.YELLOW);
+        Component subTextDraw = MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.support_006", scoreStr).color(NamedTextColor.WHITE);
 
         Bukkit.getOnlinePlayers().forEach(p -> {
             Title title;
@@ -500,12 +503,12 @@ private void spawnPlayers() {
                     sound = Sound.ENTITY_WITHER_SPAWN;
                 }
             }
-            p.showTitle(title);
+            Messages.title(p, "iem.minigame.minigamemanager.broadcastfinalresult.notice_001", title);
             p.playSound(p.getLocation(), sound, 1.0f, 1.0f);
         });
 
         NamedTextColor broadcastColor = (winnerTeam == 1 || winnerTeam == 2) ? NamedTextColor.GOLD : NamedTextColor.GRAY;
-        Bukkit.broadcast(Component.text("ゲーム終了！ 最終結果: Team1 [" + team1Wins + "] - [" + team2Wins + "] Team2", broadcastColor, TextDecoration.BOLD));
+        Messages.broadcast("iem.minigame.minigamemanager.broadcastfinalresult.notice_002", MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.notice_002", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.broadcastfinalresult.notice_002.text_01", team1Wins, team2Wins).color(broadcastColor).decorate(TextDecoration.BOLD))));
     }
     public void stopGame() {
         stopGame(false);
@@ -543,7 +546,7 @@ private void spawnPlayers() {
     public void setLoadout(Player player, String loadout) {
         chosenLoadout.put(player.getUniqueId(), loadout.toLowerCase());
         saveLoadouts();
-        player.sendMessage(Component.text("ロードアウトを " + loadout.toUpperCase() + " に設定しました。", NamedTextColor.GREEN));
+        Messages.chat(player, "iem.minigame.minigamemanager.setloadout.notice_001", MessageText.of("iem.minigame.minigamemanager.setloadout.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.setloadout.notice_001.text_01", loadout.toUpperCase()).color(NamedTextColor.GREEN))));
     }
 
     private void giveLoadout(Player player) {
@@ -666,7 +669,7 @@ private void spawnPlayers() {
         alivePlayers.remove(player.getUniqueId());
         player.setGameMode(GameMode.SPECTATOR);
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
-        Bukkit.broadcast(Component.text(player.getName() + " が脱落しました！ 残り: " + alivePlayers.size() + "人", NamedTextColor.RED));
+        Messages.broadcast("iem.minigame.minigamemanager.onplayerdeath.notice_001", MessageText.of("iem.minigame.minigamemanager.onplayerdeath.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamemanager.onplayerdeath.notice_001.text_01", player.getName(), alivePlayers.size()).color(NamedTextColor.RED))));
         checkWinCondition();
     }
 

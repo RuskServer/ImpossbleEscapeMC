@@ -51,6 +51,7 @@ public final class QuestRaidDeliveryTest {
         Method target=owner.getDeclaredMethod(method,types);target.setAccessible(true);target.invoke(receiver,args);
     }
     @SuppressWarnings("unchecked") public static void main(String[] args)throws Exception {
+        var messageScope=com.lunar_prototype.impossbleEscapeMC.api.message.MessageTestSupport.forwarding();
         UUID id=UUID.randomUUID();
         Player player=proxy(Player.class,(p,m,a)->switch(m.getName()) {
             case "getUniqueId"->id;
@@ -114,6 +115,7 @@ public final class QuestRaidDeliveryTest {
         } finally {
             sessions(QuestHandInDialog.class).remove(id);sessions(QuestDialog.class).remove(id);
             singleton.set(null,before);
+            messageScope.close();
         }
         System.out.println("QuestRaidDeliveryTest passed: command/dialog/objective/event/result guards, stale sessions, no raid reward and normal kill/exploration/post-raid delivery");
     }

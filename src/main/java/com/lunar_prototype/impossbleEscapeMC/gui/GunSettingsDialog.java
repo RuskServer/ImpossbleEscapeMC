@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
@@ -117,7 +120,7 @@ public final class GunSettingsDialog implements Listener {
     /** 銃の設定の画面を開く (データパックが読み込まれていなければ、そう伝える) */
     public static void open(Player player) {
         if (objective(Setting.KEYBIND_SWAP.id) == null) {
-            player.sendMessage(Component.text("銃の設定を開けません (Toi's Armory データパックが読み込まれていません)", NamedTextColor.RED));
+            Messages.chat(player, "iem.system.gunsettingsdialog.open.notice_001", MessageText.of("iem.system.gunsettingsdialog.open.notice_001", MessageText.payload(MessageText.of("iem.system.gunsettingsdialog.open.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         show(player);

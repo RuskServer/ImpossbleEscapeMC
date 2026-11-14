@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -41,19 +44,19 @@ public class PartyCommand implements BasicCommand {
                 break;
             case "invite":
                 if (args.length < 2) {
-                    player.sendMessage(Component.text("使用法: /party invite <player>", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_001", MessageText.of("iem.party.partycommand.execute.notice_001", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_001.text_01").color(NamedTextColor.RED))));
                     return;
                 }
                 Player target = Bukkit.getPlayer(args[1]);
                 if (target == null) {
-                    player.sendMessage(Component.text("プレイヤーが見つかりません。", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_002", MessageText.of("iem.party.partycommand.execute.notice_002", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_002.text_01").color(NamedTextColor.RED))));
                     return;
                 }
                 manager.invitePlayer(player, target);
                 break;
             case "accept":
                 if (args.length < 2) {
-                    player.sendMessage(Component.text("使用法: /party accept <player>", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_003", MessageText.of("iem.party.partycommand.execute.notice_003", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_003.text_01").color(NamedTextColor.RED))));
                     return;
                 }
                 manager.acceptInvite(player, args[1]);
@@ -64,12 +67,12 @@ public class PartyCommand implements BasicCommand {
             case "kick":
             case "leader": {
                 if (args.length < 2) {
-                    player.sendMessage(Component.text("使用法: /party " + args[0].toLowerCase() + " <player>", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_004", MessageText.of("iem.party.partycommand.execute.notice_004", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_004.text_01", args[0].toLowerCase()).color(NamedTextColor.RED))));
                     return;
                 }
                 Player member = Bukkit.getPlayer(args[1]);
                 if (member == null) {
-                    player.sendMessage(Component.text("プレイヤーが見つかりません。", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_005", MessageText.of("iem.party.partycommand.execute.notice_005", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_005.text_01").color(NamedTextColor.RED))));
                     return;
                 }
                 if (args[0].equalsIgnoreCase("kick")) {
@@ -87,7 +90,7 @@ public class PartyCommand implements BasicCommand {
                 if (party != null && party.isLeader(player.getUniqueId())) {
                     manager.disbandParty(party);
                 } else {
-                    player.sendMessage(Component.text("リーダーのみが解散できます。", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_006", MessageText.of("iem.party.partycommand.execute.notice_006", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_006.text_01").color(NamedTextColor.RED))));
                 }
                 break;
             case "info":
@@ -95,7 +98,7 @@ public class PartyCommand implements BasicCommand {
                 break;
             case "chat":
                 if (args.length < 2) {
-                    player.sendMessage(Component.text("使用法: /party chat <message>", NamedTextColor.RED));
+                    Messages.chat(player, "iem.party.partycommand.execute.notice_007", MessageText.of("iem.party.partycommand.execute.notice_007", MessageText.payload(MessageText.of("iem.party.partycommand.execute.notice_007.text_01").color(NamedTextColor.RED))));
                     return;
                 }
                 handleChat(player, args);
@@ -111,7 +114,7 @@ public class PartyCommand implements BasicCommand {
     private void handleChat(Player player, String[] args) {
         Party party = manager.getParty(player.getUniqueId());
         if (party == null) {
-            player.sendMessage(Component.text("パーティーに所属していません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partycommand.handlechat.notice_001", MessageText.of("iem.party.partycommand.handlechat.notice_001", MessageText.payload(MessageText.of("iem.party.partycommand.handlechat.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         String message = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
@@ -123,29 +126,29 @@ public class PartyCommand implements BasicCommand {
     private void sendInfo(Player player) {
         Party party = manager.getParty(player.getUniqueId());
         if (party == null) {
-            player.sendMessage(Component.text("パーティーに所属していません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partycommand.sendinfo.notice_001", MessageText.of("iem.party.partycommand.sendinfo.notice_001", MessageText.payload(MessageText.of("iem.party.partycommand.sendinfo.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
-        player.sendMessage(Component.text("--- Party Info ---", NamedTextColor.YELLOW));
-        player.sendMessage(Component.text("Leader: ", NamedTextColor.GRAY).append(Component.text(Bukkit.getOfflinePlayer(party.getLeader()).getName() != null ? Bukkit.getOfflinePlayer(party.getLeader()).getName() : "Unknown", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("Members:", NamedTextColor.GRAY));
+        Messages.chat(player, "iem.party.partycommand.sendinfo.notice_002", MessageText.of("iem.party.partycommand.sendinfo.notice_002", MessageText.payload(MessageText.of("iem.party.partycommand.sendinfo.notice_002.text_01").color(NamedTextColor.YELLOW))));
+        Messages.chat(player, "iem.party.partycommand.sendinfo.notice_003", MessageText.of("iem.party.partycommand.sendinfo.notice_003", MessageText.payload(MessageText.of("iem.party.partycommand.sendinfo.notice_003.text_01").color(NamedTextColor.GRAY).append(MessageText.of("iem.party.partycommand.sendinfo.notice_003.text_02", Bukkit.getOfflinePlayer(party.getLeader()).getName() != null ? Bukkit.getOfflinePlayer(party.getLeader()).getName() : "Unknown").color(NamedTextColor.WHITE)))));
+        Messages.chat(player, "iem.party.partycommand.sendinfo.notice_004", MessageText.of("iem.party.partycommand.sendinfo.notice_004", MessageText.payload(MessageText.of("iem.party.partycommand.sendinfo.notice_004.text_01").color(NamedTextColor.GRAY))));
         for (UUID uuid : party.getMembers()) {
-            player.sendMessage(Component.text("- " + (Bukkit.getOfflinePlayer(uuid).getName() != null ? Bukkit.getOfflinePlayer(uuid).getName() : "Unknown"), NamedTextColor.WHITE));
+            Messages.chat(player, "iem.party.partycommand.sendinfo.notice_005", MessageText.of("iem.party.partycommand.sendinfo.notice_005", MessageText.payload(MessageText.of("iem.party.partycommand.sendinfo.notice_005.text_01", (Bukkit.getOfflinePlayer(uuid).getName() != null ? Bukkit.getOfflinePlayer(uuid).getName() : "Unknown")).color(NamedTextColor.WHITE))));
         }
     }
 
     private void sendHelp(Player player) {
-        player.sendMessage(Component.text("--- Party Commands ---", NamedTextColor.YELLOW));
-        player.sendMessage(Component.text("/party create", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party invite <player>", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party accept <player>", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party decline", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party kick <player>", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party leader <player>", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party leave", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party info", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/party chat <message>", NamedTextColor.WHITE));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_001", MessageText.of("iem.party.partycommand.sendhelp.notice_001", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_001.text_01").color(NamedTextColor.YELLOW))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_002", MessageText.of("iem.party.partycommand.sendhelp.notice_002", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_002.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_003", MessageText.of("iem.party.partycommand.sendhelp.notice_003", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_003.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_004", MessageText.of("iem.party.partycommand.sendhelp.notice_004", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_004.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_005", MessageText.of("iem.party.partycommand.sendhelp.notice_005", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_005.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_006", MessageText.of("iem.party.partycommand.sendhelp.notice_006", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_006.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_007", MessageText.of("iem.party.partycommand.sendhelp.notice_007", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_007.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_008", MessageText.of("iem.party.partycommand.sendhelp.notice_008", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_008.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_009", MessageText.of("iem.party.partycommand.sendhelp.notice_009", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_009.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.party.partycommand.sendhelp.notice_010", MessageText.of("iem.party.partycommand.sendhelp.notice_010", MessageText.payload(MessageText.of("iem.party.partycommand.sendhelp.notice_010.text_01").color(NamedTextColor.WHITE))));
     }
 
     @Override

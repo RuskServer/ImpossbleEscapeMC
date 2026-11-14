@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
@@ -45,14 +48,14 @@ public final class RaidResults {
     public static void show(Player player, RaidReport report) {
         UUID id = player.getUniqueId();
         REPORTS.put(id, report);
-        Component open = Component.text("[結果を見る]", NamedTextColor.YELLOW)
+        Component open = MessageText.of("iem.raid.raidresults.view").color(NamedTextColor.YELLOW)
                 .clickEvent(ClickEvent.callback(audience -> {
                     if (audience instanceof Player p) open(p);
                 }, ClickCallback.Options.builder().uses(ClickCallback.UNLIMITED_USES).lifetime(Duration.ofHours(6)).build()));
-        player.sendMessage(Component.text("レイド結果: ", NamedTextColor.GRAY)
+        Messages.chat(player, "iem.raid.raidresults.show.notice_001", MessageText.of("iem.raid.raidresults.show.notice_001", MessageText.payload(MessageText.of("iem.raid.raidresults.show.notice_001.text_01").color(NamedTextColor.GRAY)
                 .append(Component.text(report.outcome(), report.survived() ? NamedTextColor.GREEN : NamedTextColor.RED))
-                .append(Component.text(" · " + report.mapName() + " · ランク " + report.rank() + "  ", NamedTextColor.GRAY))
-                .append(open));
+                .append(MessageText.of("iem.raid.raidresults.show.notice_001.text_02", report.mapName(), report.rank()).color(NamedTextColor.GRAY))
+                .append(open))));
 
         new BukkitRunnable() {
             int waited;
@@ -77,7 +80,7 @@ public final class RaidResults {
     public static void open(Player player) {
         RaidReport report = REPORTS.get(player.getUniqueId());
         if (report == null) {
-            player.sendMessage(Component.text("表示できるレイド結果がありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidresults.open.notice_001", MessageText.of("iem.raid.raidresults.open.notice_001", MessageText.payload(MessageText.of("iem.raid.raidresults.open.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         RaidResultDialog.open(player, report);

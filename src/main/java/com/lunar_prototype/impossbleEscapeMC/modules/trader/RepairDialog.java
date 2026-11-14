@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
@@ -334,7 +337,7 @@ public final class RepairDialog implements Listener {
         HandInPlaces.Store store = new HandInPlaces.Store(player, data);
         for (Row row : chosen) store.set(row.source(), Repairs.repair(store.get(row.source())));
         store.save();
-        player.sendMessage(Component.text(chosen.size() + " 個を修理し、" + price(total) + " を支払いました。", OK));
+        Messages.chat(player, "iem.trader.repairdialog.repair.notice_001", MessageText.of("iem.trader.repairdialog.repair.notice_001", MessageText.payload(MessageText.of("iem.trader.repairdialog.repair.notice_001.text_01", chosen.size(), price(total)).color(OK))));
         return chosen.size();
     }
 

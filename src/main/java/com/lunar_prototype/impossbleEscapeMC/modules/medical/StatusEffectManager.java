@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.medical;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -67,7 +70,7 @@ public class StatusEffectManager implements Listener {
         player.getWorld().spawnParticle(Particle.DUST, player.getLocation().add(0, 1, 0), 5, 0.2, 0.5, 0.2, 
             new Particle.DustOptions(org.bukkit.Color.fromRGB(150, 0, 0), 1.0f));
         
-        player.sendActionBar(Component.text("出血中...", NamedTextColor.RED));
+        Messages.actionBar(player, "iem.combat.statuseffectmanager.handlebleeding.notice_001", MessageText.of("iem.combat.statuseffectmanager.handlebleeding.notice_001", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.handlebleeding.notice_001.text_01").color(NamedTextColor.RED))));
     }
 
     private void handleFractureEffects(Player player, PlayerData data) {
@@ -76,7 +79,7 @@ public class StatusEffectManager implements Listener {
             double damage = Math.max(0, 0.5 + SkillModule.value(player, SkillStat.FRACTURE_SPRINT_DAMAGE));
             if (damage > 0) player.damage(damage);
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_HURT, 0.5f, 0.8f);
-            player.sendActionBar(Component.text("足の骨折: 走るとダメージを受けます！", NamedTextColor.RED));
+            Messages.actionBar(player, "iem.combat.statuseffectmanager.handlefractureeffects.notice_001", MessageText.of("iem.combat.statuseffectmanager.handlefractureeffects.notice_001", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.handlefractureeffects.notice_001.text_01").color(NamedTextColor.RED))));
         }
     }
 
@@ -85,7 +88,7 @@ public class StatusEffectManager implements Listener {
             long expiredAt = data.getPainkillerUntil();
             Long automatic = adrenalineExpiries.remove(player.getUniqueId());
             data.setPainkillerUntil(0);
-            player.sendMessage(Component.text("鎮痛効果が切れました。", NamedTextColor.YELLOW));
+            Messages.chat(player, "iem.combat.statuseffectmanager.handlepainkillerexpiry.notice_001", MessageText.of("iem.combat.statuseffectmanager.handlepainkillerexpiry.notice_001", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.handlepainkillerexpiry.notice_001.text_01").color(NamedTextColor.YELLOW))));
             // アドレナリンは画面演出の自然終了から心音を減速させる。通常の薬の音は維持。
             if (automatic == null || automatic.longValue() != expiredAt)
                 player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.5f, 1.5f);
@@ -128,7 +131,7 @@ public class StatusEffectManager implements Listener {
             data.setPainkillerUntil(now + duration);
             adrenalineExpiries.put(victim.getUniqueId(),now+duration);
             data.setLastPainkillerTrigger(now);
-            victim.sendMessage(Component.text("アドレナリン放出！ (" + duration / 1000 + "秒間の鎮痛効果)", NamedTextColor.AQUA));
+            Messages.chat(victim, "iem.combat.statuseffectmanager.onbullethit.notice_001", MessageText.of("iem.combat.statuseffectmanager.onbullethit.notice_001", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.onbullethit.notice_001.text_01", duration / 1000).color(NamedTextColor.AQUA))));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1.0f, 0.5f);
             com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.playAdrenaline(victim, duration);
         }
@@ -155,7 +158,7 @@ public class StatusEffectManager implements Listener {
         if ("legs".equals(hitLocation) && roll < legChance) {
             if (!data.hasLegFracture()) {
                 data.setLegFracture(true);
-                victim.sendMessage(Component.text("足に重傷を負いました！ (骨折)", NamedTextColor.RED));
+                Messages.chat(victim, "iem.combat.statuseffectmanager.applyinjurychance.notice_001", MessageText.of("iem.combat.statuseffectmanager.applyinjurychance.notice_001", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.applyinjurychance.notice_001.text_01").color(NamedTextColor.RED))));
                 victim.playSound(victim.getLocation(), Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 0.8f, 0.8f);
             }
         } 
@@ -163,7 +166,7 @@ public class StatusEffectManager implements Listener {
         else if ("arms".equals(hitLocation) && roll < armChance) {
             if (!data.hasArmFracture()) {
                 data.setArmFracture(true);
-                victim.sendMessage(Component.text("腕に重傷を負いました！ (骨折)", NamedTextColor.RED));
+                Messages.chat(victim, "iem.combat.statuseffectmanager.applyinjurychance.notice_002", MessageText.of("iem.combat.statuseffectmanager.applyinjurychance.notice_002", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.applyinjurychance.notice_002.text_01").color(NamedTextColor.RED))));
                 victim.playSound(victim.getLocation(), Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 0.8f, 1.2f);
             }
         }
@@ -172,7 +175,7 @@ public class StatusEffectManager implements Listener {
         boolean unarmoredHit = "legs".equals(hitLocation);
         if ((penetrated || unarmoredHit) && roll < bleedChance) {
             data.setBleedingLevel(data.getBleedingLevel() + 1);
-            victim.sendMessage(Component.text("出血しています！", NamedTextColor.RED));
+            Messages.chat(victim, "iem.combat.statuseffectmanager.applyinjurychance.notice_003", MessageText.of("iem.combat.statuseffectmanager.applyinjurychance.notice_003", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.applyinjurychance.notice_003.text_01").color(NamedTextColor.RED))));
             victim.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_HURT_SWEET_BERRY_BUSH, 1.0f, 1.0f);
         }
     }

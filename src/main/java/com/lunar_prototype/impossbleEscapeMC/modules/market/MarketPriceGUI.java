@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
@@ -123,14 +126,14 @@ public class MarketPriceGUI implements Listener {
 
     private void handleConfirm() {
         if (price <= 0) {
-            player.sendMessage(Component.text("価格は0₽より大きく設定してください。", NamedTextColor.RED));
+            Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_001", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_001", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         // プレイヤーのインベントリからアイテムを削除
         ItemStack inInv = player.getInventory().getItem(originalSlot);
         if (inInv == null || !inInv.isSimilar(itemToSell)) {
-            player.sendMessage(Component.text("出品しようとしたアイテムがインベントリに見つかりません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_002", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_002", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_002.text_01").color(NamedTextColor.RED))));
             player.closeInventory();
             return;
         }
@@ -148,12 +151,12 @@ public class MarketPriceGUI implements Listener {
                     System.currentTimeMillis()
             );
             marketModule.addListing(listing);
-            player.sendMessage(Component.text("アイテムを " + price + "₽ でマーケットに出品しました。", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_003", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_003", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_003.text_01", price).color(NamedTextColor.GREEN))));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 2f);
             player.closeInventory();
             new MarketMainGUI(player, marketModule).open();
         } catch (IOException e) {
-            player.sendMessage(Component.text("出品中にエラーが発生しました。", NamedTextColor.RED));
+            Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_004", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_004", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_004.text_01").color(NamedTextColor.RED))));
             player.getInventory().setItem(originalSlot, itemToSell); // 戻す
             e.printStackTrace();
         }

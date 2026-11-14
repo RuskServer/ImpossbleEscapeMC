@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.grounditem;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
@@ -297,7 +300,7 @@ public final class GroundItemService implements Listener {
         ItemStack stack = item.getItemStack();
         int left = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.addItem(player, stack.clone()).values().stream().mapToInt(ItemStack::getAmount).sum();
         if (left >= stack.getAmount()) {
-            player.sendActionBar(Component.text("持ち物に空きがありません", NamedTextColor.RED));
+            Messages.actionBar(player, "iem.system.grounditemservice.pickup.notice_001", MessageText.of("iem.system.grounditemservice.pickup.notice_001", MessageText.payload(MessageText.of("iem.system.grounditemservice.pickup.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         if (left > 0) {

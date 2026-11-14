@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.grenade;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
@@ -103,7 +106,7 @@ public final class ReconGrenade implements Listener {
 
     /** 持ち込みの上限を超えている時の知らせ */
     public static void sendCarryLimitWarning(Player player) {
-        player.sendMessage(Component.text("UNRG-7K \"Ekho\" は 1 回のレイドに " + MAX_CARRY + " 個までしか持ち込めません。", NamedTextColor.RED));
+        Messages.chat(player, "iem.system.recongrenade.sendcarrylimitwarning.notice_001", MessageText.of("iem.system.recongrenade.sendcarrylimitwarning.notice_001", MessageText.payload(MessageText.of("iem.system.recongrenade.sendcarrylimitwarning.notice_001.text_01", MAX_CARRY).color(NamedTextColor.RED))));
     }
 
     // ---- 投げる ----
@@ -118,7 +121,7 @@ public final class ReconGrenade implements Listener {
         event.setCancelled(true);
         RaidModule raids = plugin.getRaidModule();
         if (raids == null || !raids.isInRaid(player)) {
-            player.sendActionBar(Component.text("レイドの中でだけ使えます", NamedTextColor.RED));
+            Messages.actionBar(player, "iem.system.recongrenade.oninteract.notice_001", MessageText.of("iem.system.recongrenade.oninteract.notice_001", MessageText.payload(MessageText.of("iem.system.recongrenade.oninteract.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         int now = Bukkit.getCurrentTick();
@@ -201,13 +204,12 @@ public final class ReconGrenade implements Listener {
             found++;
             for (Player viewer : viewers) ScanReveal.reveal(viewer, target, REVEAL_TICKS);
             if (target instanceof Player revealed) {
-                revealed.sendActionBar(Component.text("スキャンされた", NamedTextColor.RED));
+                Messages.actionBar(revealed, "iem.system.recongrenade.scan.notice_001", MessageText.of("iem.system.recongrenade.scan.notice_001", MessageText.payload(MessageText.of("iem.system.recongrenade.scan.notice_001.text_01").color(NamedTextColor.RED))));
                 revealed.playSound(revealed, Sound.BLOCK_NOTE_BLOCK_BASS, SoundCategory.MASTER, 1.0f, 0.5f);
             }
         }
         for (Player viewer : viewers) {
-            viewer.sendActionBar(Component.text(found > 0 ? "探知: " + found + " 体" : "探知: 反応なし",
-                    found > 0 ? NamedTextColor.RED : NamedTextColor.GRAY));
+            Messages.actionBar(viewer, "iem.system.recongrenade.scan.notice_002", MessageText.of("iem.system.recongrenade.scan.notice_002", MessageText.payload(MessageText.of("iem.system.recongrenade.scan.notice_002.text_01", found > 0 ? MessageText.of("iem.system.recongrenade.detected", found) : MessageText.of("iem.system.recongrenade.no_signal")).color(found > 0 ? NamedTextColor.RED : NamedTextColor.GRAY))));
         }
     }
 

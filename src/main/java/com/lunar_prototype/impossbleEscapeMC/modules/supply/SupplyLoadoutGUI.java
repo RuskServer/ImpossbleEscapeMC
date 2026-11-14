@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -193,7 +196,7 @@ public final class SupplyLoadoutGUI implements Listener {
             }
             if (dataModule != null) dataModule.saveAsync(player.getUniqueId());
             player.playSound(player, Sound.ITEM_ARMOR_EQUIP_GENERIC, 1.0f, 1.0f);
-            player.sendMessage(Component.text("無料装備 (" + selection.weapon().label + ") を受け取りました", OK));
+            Messages.chat(player, "iem.inventory.supplyloadoutgui.handle.notice_001", MessageText.of("iem.inventory.supplyloadoutgui.handle.notice_001", MessageText.payload(MessageText.of("iem.inventory.supplyloadoutgui.handle.notice_001.text_01", selection.weapon().label).color(OK))));
             returnToCaller();
         }
     }

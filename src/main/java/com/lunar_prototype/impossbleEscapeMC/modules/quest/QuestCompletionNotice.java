@@ -1,4 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.*;
 import net.kyori.adventure.text.Component;
@@ -17,7 +18,7 @@ final class QuestCompletionNotice {
 
     static List<Component> lines(QuestDefinition quest,Function<String,String> itemName,Function<String,String> traderName) {
         List<Component> lines=new ArrayList<>();
-        lines.add(Component.text("依頼完了",AMBER).append(Component.text("  "+quest.getDisplayName(),NAME)));
+        lines.add(MessageText.of("iem.quest.questcompletionnotice.lines.support_001").color(AMBER).append(MessageText.of("iem.quest.questcompletionnotice.lines.support_002", quest.getDisplayName()).color(NAME)));
         double money=0;long exp=0;
         Set<Unlock> unlocks=new LinkedHashSet<>();
         List<String> other=new ArrayList<>();
@@ -29,28 +30,29 @@ final class QuestCompletionNotice {
         }
         var format=new DecimalFormat("#,##0.##",DecimalFormatSymbols.getInstance(Locale.ROOT));
         if(money!=0||exp!=0) {
-            Component receipt=Component.text("  受取  ",NOTE);
-            if(money!=0)receipt=receipt.append(Component.text((money>0?"+":"")+format.format(money)+" ₽",AMBER));
-            if(money!=0&&exp!=0)receipt=receipt.append(Component.text("  /  ",DIM));
-            if(exp!=0)receipt=receipt.append(Component.text((exp>0?"+":"")+format.format(exp)+" EXP",OK));
+            Component receipt=MessageText.of("iem.quest.questcompletionnotice.lines.support_003").color(NOTE);
+            if(money!=0)receipt=receipt.append(MessageText.of("iem.quest.questcompletionnotice.lines.support_004", (money>0?"+":""), format.format(money)).color(AMBER));
+            if(money!=0&&exp!=0)receipt=receipt.append(MessageText.of("iem.quest.questcompletionnotice.lines.support_005").color(DIM));
+            if(exp!=0)receipt=receipt.append(MessageText.of("iem.quest.questcompletionnotice.lines.support_006", (exp>0?"+":""), format.format(exp)).color(OK));
             lines.add(receipt);
         }
         if(!unlocks.isEmpty()) {
             List<String> names=new ArrayList<>();
-            Component details=Component.text("取引解放",AMBER);
+            Component details=MessageText.of("iem.quest.questcompletionnotice.lines.support_007").color(AMBER);
             for(Unlock unlock:unlocks) {
                 String item=name(unlock.item,itemName);names.add(item);
-                details=details.append(Component.newline()).append(Component.text(name(unlock.trader,traderName)+" / ",NOTE))
+                details=details.append(Component.newline()).append(MessageText.of("iem.quest.questcompletionnotice.lines.support_008", name(unlock.trader,traderName)).color(NOTE))
                         .append(Component.text(item,NAME));
             }
-            details=details.append(Component.newline()).append(Component.text("必要レベル・購入上限は各取引条件に従います。",DIM));
-            String summary=String.join("、",names);
-            if(names.size()>2||summary.codePointCount(0,summary.length())>28)
-                summary=names.size()+"件（ホバーで詳細）";
-            lines.add(Component.text("  取引解放  ",NOTE).append(Component.text(summary,INK))
+            details=details.append(Component.newline()).append(MessageText.of("iem.quest.questcompletionnotice.lines.support_009").color(DIM));
+            String joined=String.join("、",names);
+            Component summary=Component.text(joined,INK);
+            if(names.size()>2||joined.codePointCount(0,joined.length())>28)
+                summary=MessageText.of("iem.quest.questcompletionnotice.unlock_count", names.size());
+            lines.add(MessageText.of("iem.quest.questcompletionnotice.lines.support_010").color(NOTE).append(summary.color(INK))
                     .hoverEvent(HoverEvent.showText(details.decoration(TextDecoration.ITALIC,false))));
         }
-        for(String description:other)lines.add(Component.text("  "+description,INK));
+        for(String description:other)lines.add(MessageText.of("iem.quest.questcompletionnotice.lines.support_011", description).color(INK));
         return lines.stream().map(line->line.decoration(TextDecoration.ITALIC,false)).toList();
     }
 

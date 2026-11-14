@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -48,7 +51,7 @@ public class HideoutCommand implements BasicCommand {
     public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("このコマンドはプレイヤーのみ実行可能です。");
+            Messages.chat(sender, "iem.hideout.hideoutcommand.execute.notice_001", MessageText.of("iem.hideout.hideoutcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.execute.notice_001.text_01"))));
             return;
         }
 
@@ -76,19 +79,18 @@ public class HideoutCommand implements BasicCommand {
 
     private void handleBase(Player player, String[] args) {
         if (!player.isOp()) {
-            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlebase.notice_001", MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         if (args.length < 2 || !args[1].equalsIgnoreCase("save")) {
-            player.sendMessage(Component.text("使用法: /hideout base save (WorldEdit で範囲を選んでから。立っている所が隠れ家に入った時の位置)", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlebase.notice_002", MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
         try {
             HideoutLayout.Base base = module.getBuilder().saveBase(player);
-            player.sendMessage(Component.text("ベースを保存しました (" + base.sizeX + "x" + base.sizeY + "x" + base.sizeZ
-                    + "、エンティティ " + base.entities.size() + ")。編集中の区画は reset で作り直してください。", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlebase.notice_003", MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_003.text_01", base.sizeX, base.sizeY, base.sizeZ, base.entities.size()).color(NamedTextColor.GREEN))));
         } catch (com.sk89q.worldedit.IncompleteRegionException e) {
-            player.sendMessage(Component.text("WorldEdit で範囲を選んでください (//wand)。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlebase.notice_004", MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_004", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlebase.notice_004.text_01").color(NamedTextColor.RED))));
         } catch (Exception e) {
             fail(player, "ベースを保存できませんでした", e);
         }
@@ -96,7 +98,7 @@ public class HideoutCommand implements BasicCommand {
 
     private void handleEdit(Player player, String[] args) {
         if (!player.isOp()) {
-            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handleedit.notice_001", MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         Target target = target(player, args, "/hideout edit <設備> <レベル> [reset]");
@@ -105,7 +107,7 @@ public class HideoutCommand implements BasicCommand {
         HideoutLayout.Base base = layout.base();
         World world = module.getWorldManager().getEditorWorld();
         if (base == null || world == null) {
-            player.sendMessage(Component.text("先に /hideout base save でベースを保存してください。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handleedit.notice_002", MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
         boolean reset = args.length > 3 && args[3].equalsIgnoreCase("reset");
@@ -118,15 +120,12 @@ public class HideoutCommand implements BasicCommand {
                 return;
             }
             if (HideoutBuilder.isBaseItself(target.facility, target.level)) {
-                player.sendMessage(Component.text("建物の初期状態 (ベース) の区画を用意しました。直したら /hideout save base 0"
-                        + " (ベースの範囲の外は保存されません。広げる時は /hideout base save)", NamedTextColor.YELLOW));
+                Messages.chat(player, "iem.hideout.hideoutcommand.handleedit.notice_003", MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_003.text_01").color(NamedTextColor.YELLOW))));
             } else {
-                player.sendMessage(Component.text(target.facility.label + " Lv." + target.level
-                        + " の区画を用意しました。建て終えたら /hideout save " + target.facility.id + " " + target.level, NamedTextColor.YELLOW));
+                Messages.chat(player, "iem.hideout.hideoutcommand.handleedit.notice_004", MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_004", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_004.text_01", target.facility.label, target.level, target.facility.id, target.level).color(NamedTextColor.YELLOW))));
             }
         } else if (reference.version != layout.version()) {
-            player.sendMessage(Component.text("編集を始めた後にベースかほかの差分が保存されています。今の状態に合わせるなら "
-                    + "/hideout edit " + target.facility.id + " " + target.level + " reset (この区画の編集は消えます)", NamedTextColor.GOLD));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handleedit.notice_005", MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_005", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleedit.notice_005.text_01", target.facility.id, target.level).color(NamedTextColor.GOLD))));
         }
         BlockVector3 origin = HideoutBuilder.editorOrigin(target.facility, target.level);
         player.teleport(new Location(world, origin.x() + base.spawnX, origin.y() + base.spawnY, origin.z() + base.spawnZ,
@@ -135,7 +134,7 @@ public class HideoutCommand implements BasicCommand {
 
     private void handleReset(Player player) {
         if (!player.isOp()) {
-            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlereset.notice_001", MessageText.of("iem.hideout.hideoutcommand.handlereset.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlereset.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
@@ -151,7 +150,7 @@ public class HideoutCommand implements BasicCommand {
             Location spawn = module.spawn(data.getHideoutIndex());
             if (spawn != null) player.teleport(spawn);
         }
-        player.sendMessage(Component.text("自分の隠れ家をリセットしました (設備と建物はすべて Lv.0)。", NamedTextColor.GREEN));
+        Messages.chat(player, "iem.hideout.hideoutcommand.handlereset.notice_002", MessageText.of("iem.hideout.hideoutcommand.handlereset.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlereset.notice_002.text_01").color(NamedTextColor.GREEN))));
     }
 
     /** (確認用・一時的) 見ているブロックが、どの設備の差分で置かれた物と判定されるか */
@@ -159,21 +158,18 @@ public class HideoutCommand implements BasicCommand {
         if (!player.isOp()) return;
         org.bukkit.block.Block block = player.getTargetBlockExact(8);
         if (block == null) {
-            player.sendMessage(Component.text("見ているブロックがありません", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handleinspect.notice_001", MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
         HideoutWorldManager worlds = module.getWorldManager();
         World hideoutWorld = worlds.getPlayerWorld();
-        player.sendMessage(Component.text("ワールド: " + block.getWorld().getName() + " / 隠れ家のワールド: "
-                + (hideoutWorld != null ? hideoutWorld.getName() : "null") + " / 一致: " + worlds.isPlayerWorld(block.getWorld()), NamedTextColor.GOLD));
+        Messages.chat(player, "iem.hideout.hideoutcommand.handleinspect.notice_002", MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_002.text_01", block.getWorld().getName(), (hideoutWorld != null ? hideoutWorld.getName() : "null"), worlds.isPlayerWorld(block.getWorld())).color(NamedTextColor.GOLD))));
         int slot = HideoutModule.slotAt(block.getX());
         BlockVector3 origin = module.origin(slot);
         int x = block.getX() - origin.x(), y = block.getY() - origin.y(), z = block.getZ() - origin.z();
-        player.sendMessage(Component.text("隠れ家の番号: " + slot + " / 原点: " + origin + " / ブロック: "
-                + block.getType() + " at (" + x + ", " + y + ", " + z + ")", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("持ち主の判定: " + module.facilityAt(player, block) + " / 建てた時の版: "
-                + data.getHideoutBuiltVersion() + " / 今の版: " + module.getLayout().version(), NamedTextColor.GOLD));
+        Messages.chat(player, "iem.hideout.hideoutcommand.handleinspect.notice_003", MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_003.text_01", slot, origin, block.getType(), x, y, z).color(NamedTextColor.GOLD))));
+        Messages.chat(player, "iem.hideout.hideoutcommand.handleinspect.notice_004", MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_004", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_004.text_01", module.facilityAt(player, block), data.getHideoutBuiltVersion(), module.getLayout().version()).color(NamedTextColor.GOLD))));
         BlockVector3 rel = BlockVector3.at(x, y, z);
         for (HideoutFacility facility : HideoutFacility.values()) {
             int level = data.getHideoutLevel(facility.id);
@@ -181,27 +177,25 @@ public class HideoutCommand implements BasicCommand {
             if (level == 0 && highest == 0) continue;
             var built = module.getBuilder().placedBlocks(facility, level);
             var all = module.getBuilder().placedBlocks(facility, highest);
-            player.sendMessage(Component.text("  " + facility.id + ": Lv." + level + " / 作ってある Lv." + highest
-                    + " / 置いたマス " + built.size() + " (全レベル " + all.size() + ") / このマス: "
-                    + (built.contains(rel) ? "今のレベルまでに含む" : all.contains(rel) ? "上のレベルだけに含む" : "含まない"), NamedTextColor.YELLOW));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handleinspect.notice_005", MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_005", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handleinspect.notice_005.text_01", facility.id, level, highest, built.size(), all.size(), (built.contains(rel) ? MessageText.of("iem.hideout.hideoutcommand.block_current") : all.contains(rel) ? MessageText.of("iem.hideout.hideoutcommand.block_higher") : MessageText.of("iem.hideout.hideoutcommand.block_absent"))).color(NamedTextColor.YELLOW))));
         }
     }
 
     private void handleCamera(Player player, String[] args) {
         if (!player.isOp()) {
-            player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlecamera.notice_001", MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         HideoutFacility facility = args.length > 1 ? HideoutFacility.byId(args[1]) : null;
         if (facility == null) {
-            player.sendMessage(Component.text("使用法: /hideout camera <設備> (" + Arrays.stream(HideoutFacility.values())
-                    .map(f -> f.id).collect(Collectors.joining(", ")) + ")", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlecamera.notice_002", MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_002.text_01", Arrays.stream(HideoutFacility.values())
+                    .map(f -> f.id).collect(Collectors.joining(", "))).color(NamedTextColor.RED))));
             return;
         }
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
         BlockVector3 origin = module.originAt(player);
         if (origin == null) {
-            player.sendMessage(Component.text("エディターの区画か、隠れ家の中で実行してください。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlecamera.notice_003", MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_003.text_01").color(NamedTextColor.RED))));
             return;
         }
         Location eye = player.getEyeLocation();
@@ -217,8 +211,7 @@ public class HideoutCommand implements BasicCommand {
             fail(player, "カメラを記録できませんでした", e);
             return;
         }
-        player.sendMessage(Component.text(facility.label + " を映すカメラを、今の目の位置と向きで記録しました"
-                + " (画面の左側はパネルで隠れるので、設備は右寄りに)。", NamedTextColor.GREEN));
+        Messages.chat(player, "iem.hideout.hideoutcommand.handlecamera.notice_004", MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_004", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlecamera.notice_004.text_01", facility.label).color(NamedTextColor.GREEN))));
     }
 
     private void handleSave(Player player, String[] args) {
@@ -229,13 +222,12 @@ public class HideoutCommand implements BasicCommand {
         if (HideoutBuilder.isBaseItself(target.facility, target.level)) {
             // 用意していない区画 (空) をベースにしてしまわないよう、edit base 0 で用意した後だけ
             if (module.getLayout().reference(target.facility, target.level) == null) {
-                player.sendMessage(Component.text("先に /hideout edit base 0 で区画を用意してください。", NamedTextColor.RED));
+                Messages.chat(player, "iem.hideout.hideoutcommand.handlesave.notice_001", MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_001.text_01").color(NamedTextColor.RED))));
                 return;
             }
             try {
                 HideoutLayout.Base base = module.getBuilder().saveBaseFromEditor(world);
-                player.sendMessage(Component.text("ベース (建物の初期状態) を更新しました (エンティティ " + base.entities.size()
-                        + ")。隠れ家は次に入った時に建て直されます。", NamedTextColor.GREEN));
+                Messages.chat(player, "iem.hideout.hideoutcommand.handlesave.notice_002", MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_002.text_01", base.entities.size()).color(NamedTextColor.GREEN))));
             } catch (IOException e) {
                 fail(player, "ベースを保存できませんでした", e);
             }
@@ -244,12 +236,9 @@ public class HideoutCommand implements BasicCommand {
         try {
             boolean force = args.length > 3 && args[3].equalsIgnoreCase("force");
             HideoutBuilder.SaveResult result = module.getBuilder().saveLayer(world, target.facility, target.level, force);
-            player.sendMessage(Component.text(target.facility.label + " Lv." + target.level + " の差分を保存しました (ブロック "
-                    + result.blocks() + "、エンティティ +" + result.addedEntities() + " / -" + result.removedEntities() + ")",
-                    NamedTextColor.GREEN));
+            Messages.chat(player, "iem.hideout.hideoutcommand.handlesave.notice_003", MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_003.text_01", target.facility.label, target.level, result.blocks(), result.addedEntities(), result.removedEntities()).color(NamedTextColor.GREEN))));
             if (target.level > 1 && !module.getLayout().hasLayer(target.facility, target.level - 1)) {
-                player.sendMessage(Component.text("Lv." + (target.level - 1) + " がまだ無いので、このレベルは Lv."
-                        + (target.level - 1) + " を保存するまで使われません。", NamedTextColor.GOLD));
+                Messages.chat(player, "iem.hideout.hideoutcommand.handlesave.notice_004", MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_004", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.handlesave.notice_004.text_01", (target.level - 1), (target.level - 1)).color(NamedTextColor.GOLD))));
             }
         } catch (IOException e) {
             fail(player, "差分を保存できませんでした", e);
@@ -270,9 +259,8 @@ public class HideoutCommand implements BasicCommand {
             }
         }
         if (facility == null || level < facility.minEditLevel() || level > facility.editLimit()) {
-            player.sendMessage(Component.text("使用法: " + usage + " (設備: " + Arrays.stream(HideoutFacility.values())
-                    .map(f -> f.id + " " + f.minEditLevel() + "-" + f.editLimit()).collect(Collectors.joining(", "))
-                    + "。base 0 は建物の初期状態)", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutcommand.target.notice_001", MessageText.of("iem.hideout.hideoutcommand.target.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.target.notice_001.text_01", usage, Arrays.stream(HideoutFacility.values())
+                    .map(f -> f.id + " " + f.minEditLevel() + "-" + f.editLimit()).collect(Collectors.joining(", "))).color(NamedTextColor.RED))));
             return null;
         }
         return new Target(facility, level);
@@ -280,18 +268,18 @@ public class HideoutCommand implements BasicCommand {
 
     private void fail(Player player, String what, Exception e) {
         module.getPlugin().getLogger().log(Level.WARNING, what, e);
-        player.sendMessage(Component.text(what + ": " + e.getMessage(), NamedTextColor.RED));
+        Messages.chat(player, "iem.hideout.hideoutcommand.fail.notice_001", MessageText.of("iem.hideout.hideoutcommand.fail.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.fail.notice_001.text_01", what, e.getMessage()).color(NamedTextColor.RED))));
     }
 
     private void sendHelp(Player player) {
-        player.sendMessage(Component.text("--- Hideout Commands ---", NamedTextColor.GOLD));
-        player.sendMessage(Component.text("/hideout visit - 隠れ家へ移動 (パーティー所属時はリーダーの隠れ家)", NamedTextColor.YELLOW));
+        Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_001", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_001.text_01").color(NamedTextColor.GOLD))));
+        Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_002", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_002", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_002.text_01").color(NamedTextColor.YELLOW))));
         if (player.isOp()) {
-            player.sendMessage(Component.text("/hideout base save - WorldEdit で選んだ範囲をベースとして保存", NamedTextColor.YELLOW));
-            player.sendMessage(Component.text("/hideout edit <設備> <レベル> [reset] - そのレベルの建築を作る区画へ", NamedTextColor.YELLOW));
-            player.sendMessage(Component.text("/hideout save <設備> <レベル> - 区画の変更を差分として保存", NamedTextColor.YELLOW));
-            player.sendMessage(Component.text("/hideout reset - 自分の隠れ家を Lv.0 に戻して建て直す", NamedTextColor.YELLOW));
-            player.sendMessage(Component.text("/hideout camera <設備> - 今の視点を、隠れ家の画面でその設備を映すカメラにする", NamedTextColor.YELLOW));
+            Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_003", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_003", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_003.text_01").color(NamedTextColor.YELLOW))));
+            Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_004", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_004", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_004.text_01").color(NamedTextColor.YELLOW))));
+            Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_005", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_005", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_005.text_01").color(NamedTextColor.YELLOW))));
+            Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_006", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_006", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_006.text_01").color(NamedTextColor.YELLOW))));
+            Messages.chat(player, "iem.hideout.hideoutcommand.sendhelp.notice_007", MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_007", MessageText.payload(MessageText.of("iem.hideout.hideoutcommand.sendhelp.notice_007.text_01").color(NamedTextColor.YELLOW))));
         }
     }
 

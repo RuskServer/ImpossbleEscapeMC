@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.level;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -104,7 +107,7 @@ public class LevelModule implements IModule {
             // メッセージ表示などの通知 (Playerがオンラインの場合)
             Player player = Bukkit.getPlayer(data.getUuid());
             if (player != null) {
-                player.sendMessage("§a§lLEVEL UP! §f" + currentLevel + " -> §e" + (currentLevel + 1));
+                Messages.chat(player, "iem.progression.levelmodule.checklevelup.notice_001", MessageText.of("iem.progression.levelmodule.checklevelup.notice_001", MessageText.payload(MessageText.of("iem.progression.levelmodule.checklevelup.notice_001.text_01", currentLevel, (currentLevel + 1)))));
                 // TODO: 必要に応じてLevelUpEventを配布
             }
 

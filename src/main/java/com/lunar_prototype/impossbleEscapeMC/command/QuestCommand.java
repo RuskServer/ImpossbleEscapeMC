@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -37,7 +40,7 @@ public class QuestCommand implements BasicCommand {
         if (!(sender instanceof Player)) {
             if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
                 questModule.loadQuests();
-                sender.sendMessage("§aQuests reloaded.");
+                Messages.chat(sender, "iem.system.questcommand.execute.notice_001", MessageText.of("iem.system.questcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.system.questcommand.execute.notice_001.text_01"))));
             }
             return;
         }
@@ -47,7 +50,7 @@ public class QuestCommand implements BasicCommand {
         if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
             if (!sender.hasPermission("impossbleescape.admin")) return;
             questModule.loadQuests();
-            sender.sendMessage("§aQuests reloaded.");
+            Messages.chat(sender, "iem.system.questcommand.execute.notice_002", MessageText.of("iem.system.questcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.system.questcommand.execute.notice_002.text_01"))));
             return;
         }
 
@@ -55,13 +58,13 @@ public class QuestCommand implements BasicCommand {
             if (!QuestDeliveryAccess.requireOutsideRaid(player)) return;
             ItemStack item = player.getInventory().getItemInMainHand();
             if (item == null || item.getType().isAir()) {
-                player.sendMessage("§c手にアイテムを持っていません。");
+                Messages.chat(player, "iem.system.questcommand.execute.notice_003", MessageText.of("iem.system.questcommand.execute.notice_003", MessageText.payload(MessageText.of("iem.system.questcommand.execute.notice_003.text_01"))));
                 return;
             }
 
             ItemMeta meta = item.getItemMeta();
             if (meta == null || !meta.getPersistentDataContainer().has(PDCKeys.ITEM_ID, org.bukkit.persistence.PersistentDataType.STRING)) {
-                player.sendMessage("§cこれは納品可能なカスタムアイテムではありません。");
+                Messages.chat(player, "iem.system.questcommand.execute.notice_004", MessageText.of("iem.system.questcommand.execute.notice_004", MessageText.payload(MessageText.of("iem.system.questcommand.execute.notice_004.text_01"))));
                 return;
             }
 
@@ -84,7 +87,7 @@ public class QuestCommand implements BasicCommand {
             
             // アイテムを消費
             player.getInventory().setItemInMainHand(null);
-            player.sendMessage("§aアイテムを納品しました: " + def.displayName + " x" + item.getAmount());
+            Messages.chat(player, "iem.system.questcommand.execute.notice_005", MessageText.of("iem.system.questcommand.execute.notice_005", MessageText.payload(MessageText.of("iem.system.questcommand.execute.notice_005.text_01", def.displayName, item.getAmount()))));
             return;
         }
 

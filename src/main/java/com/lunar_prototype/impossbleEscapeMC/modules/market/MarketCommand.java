@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
@@ -25,13 +28,13 @@ public class MarketCommand implements BasicCommand {
     public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("このコマンドはプレイヤーのみ実行可能です。");
+            Messages.chat(sender, "iem.market.marketcommand.execute.notice_001", MessageText.of("iem.market.marketcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.market.marketcommand.execute.notice_001.text_01"))));
             return;
         }
 
         int level = levelModule.getLevel(player.getUniqueId());
         if (level < 10) {
-            player.sendMessage(Component.text("グローバルマーケットはレベル10から利用可能です。(現在のレベル: " + level + ")", NamedTextColor.RED));
+            Messages.chat(player, "iem.market.marketcommand.execute.notice_002", MessageText.of("iem.market.marketcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.market.marketcommand.execute.notice_002.text_01", level).color(NamedTextColor.RED))));
             return;
         }
 

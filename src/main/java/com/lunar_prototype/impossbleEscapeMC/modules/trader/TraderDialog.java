@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
@@ -890,7 +893,7 @@ public final class TraderDialog implements Listener {
                 }
                 session.pendingQuantity = 0;
                 TraderModule.Purchase result = module.purchase(player, trader, trader.items.get(index), quantity);
-                result.messages().forEach(player::sendMessage);
+                result.messages().forEach(notice -> Messages.chat(player, "iem.trader.traderdialog.forwarded_notice", MessageText.of("iem.trader.traderdialog.forwarded_notice", MessageText.payload(notice))));
                 session.notice = result.notice();
                 session.noticeUntil = Bukkit.getCurrentTick() + NOTICE_TICKS;
                 if (result.bought() > 0) {

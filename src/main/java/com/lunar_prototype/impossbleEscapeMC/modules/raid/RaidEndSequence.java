@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
@@ -186,8 +189,8 @@ public final class RaidEndSequence {
     }
 
     private void sendWarning(Player player) {
-        player.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
-                .append(Component.text("いいか、監視網の妨害がもうすぐ切れる。回収したものを持って撤収しろ。", NamedTextColor.WHITE)));
+        Messages.chat(player, "iem.raid.raidendsequence.sendwarning.notice_001", MessageText.of("iem.raid.raidendsequence.sendwarning.notice_001", MessageText.payload(MessageText.of("iem.raid.raidendsequence.sendwarning.notice_001.text_01").color(NamedTextColor.GRAY)
+                .append(MessageText.of("iem.raid.raidendsequence.sendwarning.notice_001.text_02").color(NamedTextColor.WHITE)))));
         if(radio!=null)radio.urgent(player,200);
         player.playSound(player, VOICE_CLIENT_WARNING, SoundCategory.MASTER, 1.0f, 1.0f);
         audible.add(player.getUniqueId());
@@ -208,9 +211,8 @@ public final class RaidEndSequence {
             p.stopSound(SOUND_SIREN);
             p.stopSound(SOUND_HUM);
             p.playSound(p, VOICE_UN_BROADCAST, SoundCategory.MASTER, 1.0f, 1.0f);
-            p.sendMessage(Component.text("[国連軍 放送] ", NamedTextColor.GOLD)
-                    .append(Component.text("当該セクターで未登録の活動を検知した。監視網の復旧後、区域内の全熱源を敵性と判定する。直ちに退去せよ。",
-                            NamedTextColor.YELLOW)));
+            Messages.chat(p, "iem.raid.raidendsequence.startprecursor.notice_001", MessageText.of("iem.raid.raidendsequence.startprecursor.notice_001", MessageText.payload(MessageText.of("iem.raid.raidendsequence.startprecursor.notice_001.text_01").color(NamedTextColor.GOLD)
+                    .append(MessageText.of("iem.raid.raidendsequence.startprecursor.notice_001.text_02").color(NamedTextColor.YELLOW)))));
         });
         later(player, UN_BROADCAST_DELAY_TICKS + UN_BROADCAST_TICKS, p -> {
             if (!detonated) p.playSound(siren, SOUND_SIREN, SoundCategory.MASTER, SIREN_VOLUME, 1.0f);
@@ -223,8 +225,8 @@ public final class RaidEndSequence {
         audible.add(player.getUniqueId());
         player.playSound(player, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, SoundCategory.MASTER, 0.8f, 0.5f);
         player.playSound(player, VOICE_UN_MISSILE_LAUNCH, SoundCategory.MASTER, 1.0f, 1.0f);
-        player.sendMessage(Component.text("[国連軍 無線・傍受] ", NamedTextColor.GOLD)
-                .append(Component.text("発射! ミサイル2発、上昇中!", NamedTextColor.YELLOW)));
+        Messages.chat(player, "iem.raid.raidendsequence.launchmissiles.notice_001", MessageText.of("iem.raid.raidendsequence.launchmissiles.notice_001", MessageText.payload(MessageText.of("iem.raid.raidendsequence.launchmissiles.notice_001.text_01").color(NamedTextColor.GOLD)
+                .append(MessageText.of("iem.raid.raidendsequence.launchmissiles.notice_001.text_02").color(NamedTextColor.YELLOW)))));
         later(player, MISSILE_FLIGHT_TICKS, this::detonate);
     }
 
@@ -241,13 +243,13 @@ public final class RaidEndSequence {
         later(player, EMP_VOICE_DELAY_TICKS, p -> {
             if(radio!=null)radio.urgent(p,140);
             p.playSound(p, VOICE_CLIENT_EMP_CUT, SoundCategory.MASTER, 1.0f, 1.0f);
-            p.sendMessage(Component.text("[クライアント] ", NamedTextColor.GRAY)
-                    .append(Component.text("上空で閃光。EMPだ、急いで脱出し――", NamedTextColor.WHITE)));
+            Messages.chat(p, "iem.raid.raidendsequence.detonate.notice_001", MessageText.of("iem.raid.raidendsequence.detonate.notice_001", MessageText.payload(MessageText.of("iem.raid.raidendsequence.detonate.notice_001.text_01").color(NamedTextColor.GRAY)
+                    .append(MessageText.of("iem.raid.raidendsequence.detonate.notice_001.text_02").color(NamedTextColor.WHITE)))));
         });
         later(player, ELECTRIC_SHORT_DELAY_TICKS,
                 p -> p.playSound(p, SOUND_ELECTRIC_SHORT, SoundCategory.MASTER, 0.8f, 1.0f));
         later(player, STATIC_MESSAGE_DELAY_TICKS,
-                p -> p.sendMessage(Component.text("[無線] ……ザザッ……", NamedTextColor.DARK_GRAY)));
+                p -> Messages.chat(p, "iem.raid.raidendsequence.detonate.notice_002", MessageText.of("iem.raid.raidendsequence.detonate.notice_002", MessageText.payload(MessageText.of("iem.raid.raidendsequence.detonate.notice_002.text_01").color(NamedTextColor.DARK_GRAY)))));
         later(player, AMBIENCE_DELAY_TICKS,
                 p -> p.playSound(p, SOUND_AMBIENCE, SoundCategory.AMBIENT, 1.0f, 1.0f));
     }

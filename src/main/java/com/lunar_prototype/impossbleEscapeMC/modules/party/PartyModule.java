@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -56,8 +59,7 @@ public class PartyModule implements IModule, Listener {
         // リーダーのログアウトでは解散しない (メンバーはリーダーの隠れ家に集まり続けられる。戻ればそのままリーダー)。
         // 解散するのは明示的な抜け方 (/party leave と /party disband) の時だけ
         if (party != null && party.isLeader(event.getPlayer().getUniqueId())) {
-            broadcast(party, Component.text(event.getPlayer().getName() + " がオフラインになりました。パーティーは維持されます。",
-                    NamedTextColor.YELLOW));
+            broadcast(party, MessageText.of("iem.party.partymodule.member_offline", event.getPlayer().getName()).color(NamedTextColor.YELLOW));
             return;
         }
         leaveParty(event.getPlayer());
@@ -69,12 +71,12 @@ public class PartyModule implements IModule, Listener {
 
     public void createParty(Player leader) {
         if (playerPartyMap.containsKey(leader.getUniqueId())) {
-            leader.sendMessage(Component.text("あなたは既にパーティーに所属しています。", NamedTextColor.RED));
+            Messages.chat(leader, "iem.party.partymodule.createparty.notice_001", MessageText.of("iem.party.partymodule.createparty.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.createparty.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         Party party = new Party(leader.getUniqueId());
         playerPartyMap.put(leader.getUniqueId(), party);
-        leader.sendMessage(Component.text("パーティーを作成しました。", NamedTextColor.GREEN));
+        Messages.chat(leader, "iem.party.partymodule.createparty.notice_002", MessageText.of("iem.party.partymodule.createparty.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.createparty.notice_002.text_01").color(NamedTextColor.GREEN))));
     }
 
     public void invitePlayer(Player inviter, Player invited) {
@@ -85,24 +87,24 @@ public class PartyModule implements IModule, Listener {
         }
 
         if (!party.isLeader(inviter.getUniqueId())) {
-            inviter.sendMessage(Component.text("リーダーのみが招待を送信できます。", NamedTextColor.RED));
+            Messages.chat(inviter, "iem.party.partymodule.inviteplayer.notice_001", MessageText.of("iem.party.partymodule.inviteplayer.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.inviteplayer.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         if (playerPartyMap.containsKey(invited.getUniqueId())) {
-            inviter.sendMessage(Component.text(invited.getName() + " は既にパーティーに所属しています。", NamedTextColor.RED));
+            Messages.chat(inviter, "iem.party.partymodule.inviteplayer.notice_002", MessageText.of("iem.party.partymodule.inviteplayer.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.inviteplayer.notice_002.text_01", invited.getName()).color(NamedTextColor.RED))));
             return;
         }
 
         pendingInvites.put(invited.getUniqueId(), inviter.getUniqueId());
-        inviter.sendMessage(Component.text(invited.getName() + " に招待を送信しました。", NamedTextColor.GREEN));
-        invited.sendMessage(Component.text(inviter.getName() + " からパーティーへの招待が届きました。", NamedTextColor.YELLOW)
-                .append(Component.text(" [参加する]", NamedTextColor.GREEN, TextDecoration.BOLD)
+        Messages.chat(inviter, "iem.party.partymodule.inviteplayer.notice_003", MessageText.of("iem.party.partymodule.inviteplayer.notice_003", MessageText.payload(MessageText.of("iem.party.partymodule.inviteplayer.notice_003.text_01", invited.getName()).color(NamedTextColor.GREEN))));
+        Messages.chat(invited, "iem.party.partymodule.inviteplayer.notice_004", MessageText.of("iem.party.partymodule.inviteplayer.notice_004", MessageText.payload(MessageText.of("iem.party.partymodule.inviteplayer.notice_004.text_01", inviter.getName()).color(NamedTextColor.YELLOW)
+                .append(MessageText.of("iem.party.partymodule.inviteplayer.notice_004.text_02").color(NamedTextColor.GREEN).decorate(TextDecoration.BOLD)
                         .clickEvent(ClickEvent.runCommand("/party accept " + inviter.getName()))
-                        .hoverEvent(HoverEvent.showText(Component.text("クリックでパーティーに参加", NamedTextColor.GREEN))))
-                .append(Component.text(" [拒否する]", NamedTextColor.RED, TextDecoration.BOLD)
+                        .hoverEvent(HoverEvent.showText(MessageText.of("iem.party.partymodule.inviteplayer.notice_004.text_03").color(NamedTextColor.GREEN))))
+                .append(MessageText.of("iem.party.partymodule.inviteplayer.notice_004.text_04").color(NamedTextColor.RED).decorate(TextDecoration.BOLD)
                         .clickEvent(ClickEvent.runCommand("/party decline"))
-                        .hoverEvent(HoverEvent.showText(Component.text("クリックで招待を拒否", NamedTextColor.RED)))));
+                        .hoverEvent(HoverEvent.showText(MessageText.of("iem.party.partymodule.inviteplayer.notice_004.text_05").color(NamedTextColor.RED)))))));
 
         // 60秒後に招待を無効化
         Bukkit.getScheduler().runTaskLater(plugin, () -> pendingInvites.remove(invited.getUniqueId(), inviter.getUniqueId()), 1200L);
@@ -111,25 +113,25 @@ public class PartyModule implements IModule, Listener {
     public void acceptInvite(Player player, String inviterName) {
         Player inviter = Bukkit.getPlayer(inviterName);
         if (inviter == null) {
-            player.sendMessage(Component.text("招待したプレイヤーがオフラインです。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partymodule.acceptinvite.notice_001", MessageText.of("iem.party.partymodule.acceptinvite.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.acceptinvite.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         UUID inviterUUID = pendingInvites.get(player.getUniqueId());
         if (inviterUUID == null || !inviterUUID.equals(inviter.getUniqueId())) {
-            player.sendMessage(Component.text("有効な招待が見つかりません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partymodule.acceptinvite.notice_002", MessageText.of("iem.party.partymodule.acceptinvite.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.acceptinvite.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         // 招待を受けてから受け入れるまでに、別のパーティーに入った・作った (2 つのパーティーに入らない)
         if (getParty(player.getUniqueId()) != null) {
-            player.sendMessage(Component.text("すでにパーティーに参加しています。先に今のパーティーから抜けてください。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partymodule.acceptinvite.notice_003", MessageText.of("iem.party.partymodule.acceptinvite.notice_003", MessageText.payload(MessageText.of("iem.party.partymodule.acceptinvite.notice_003.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         Party party = getParty(inviter.getUniqueId());
         if (party == null) {
-            player.sendMessage(Component.text("パーティーが既に解散されています。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partymodule.acceptinvite.notice_004", MessageText.of("iem.party.partymodule.acceptinvite.notice_004", MessageText.payload(MessageText.of("iem.party.partymodule.acceptinvite.notice_004.text_01").color(NamedTextColor.RED))));
             pendingInvites.remove(player.getUniqueId());
             return;
         }
@@ -146,13 +148,13 @@ public class PartyModule implements IModule, Listener {
     public void declineInvite(Player player) {
         UUID inviterUUID = pendingInvites.remove(player.getUniqueId());
         if (inviterUUID == null) {
-            player.sendMessage(Component.text("有効な招待が見つかりません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partymodule.declineinvite.notice_001", MessageText.of("iem.party.partymodule.declineinvite.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.declineinvite.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
-        player.sendMessage(Component.text("招待を拒否しました。", NamedTextColor.GRAY));
+        Messages.chat(player, "iem.party.partymodule.declineinvite.notice_002", MessageText.of("iem.party.partymodule.declineinvite.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.declineinvite.notice_002.text_01").color(NamedTextColor.GRAY))));
         Player inviter = Bukkit.getPlayer(inviterUUID);
         if (inviter != null) {
-            inviter.sendMessage(Component.text(player.getName() + " が招待を拒否しました。", NamedTextColor.YELLOW));
+            Messages.chat(inviter, "iem.party.partymodule.declineinvite.notice_003", MessageText.of("iem.party.partymodule.declineinvite.notice_003", MessageText.payload(MessageText.of("iem.party.partymodule.declineinvite.notice_003.text_01", player.getName()).color(NamedTextColor.YELLOW))));
         }
     }
 
@@ -160,21 +162,21 @@ public class PartyModule implements IModule, Listener {
     public void kickMember(Player leader, UUID targetUUID) {
         Party party = getParty(leader.getUniqueId());
         if (party == null || !party.isLeader(leader.getUniqueId())) {
-            leader.sendMessage(Component.text("リーダーのみがメンバーを外せます。", NamedTextColor.RED));
+            Messages.chat(leader, "iem.party.partymodule.kickmember.notice_001", MessageText.of("iem.party.partymodule.kickmember.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.kickmember.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         if (targetUUID.equals(leader.getUniqueId()) || !party.isMember(targetUUID)) {
-            leader.sendMessage(Component.text("そのプレイヤーはパーティーのメンバーではありません。", NamedTextColor.RED));
+            Messages.chat(leader, "iem.party.partymodule.kickmember.notice_002", MessageText.of("iem.party.partymodule.kickmember.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.kickmember.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         String name = nameOf(targetUUID);
         party.removeMember(targetUUID);
         playerPartyMap.remove(targetUUID);
-        broadcast(party, Component.text(name + " をパーティーから外しました。", NamedTextColor.YELLOW));
+        broadcast(party, MessageText.of("iem.party.partymodule.member_removed", name).color(NamedTextColor.YELLOW));
         Player target = Bukkit.getPlayer(targetUUID);
         if (target != null) {
-            target.sendMessage(Component.text("パーティーから外されました。", NamedTextColor.RED));
+            Messages.chat(target, "iem.party.partymodule.kickmember.notice_003", MessageText.of("iem.party.partymodule.kickmember.notice_003", MessageText.payload(MessageText.of("iem.party.partymodule.kickmember.notice_003.text_01").color(NamedTextColor.RED))));
         }
     }
 
@@ -182,16 +184,16 @@ public class PartyModule implements IModule, Listener {
     public void transferLeader(Player leader, UUID targetUUID) {
         Party party = getParty(leader.getUniqueId());
         if (party == null || !party.isLeader(leader.getUniqueId())) {
-            leader.sendMessage(Component.text("リーダーのみがリーダーを渡せます。", NamedTextColor.RED));
+            Messages.chat(leader, "iem.party.partymodule.transferleader.notice_001", MessageText.of("iem.party.partymodule.transferleader.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.transferleader.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         if (targetUUID.equals(leader.getUniqueId()) || !party.isMember(targetUUID)) {
-            leader.sendMessage(Component.text("そのプレイヤーはパーティーのメンバーではありません。", NamedTextColor.RED));
+            Messages.chat(leader, "iem.party.partymodule.transferleader.notice_002", MessageText.of("iem.party.partymodule.transferleader.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.transferleader.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         party.setLeader(targetUUID);
-        broadcast(party, Component.text(nameOf(targetUUID) + " が新しいリーダーになりました。", NamedTextColor.GREEN));
+        broadcast(party, MessageText.of("iem.party.partymodule.leader_changed", nameOf(targetUUID)).color(NamedTextColor.GREEN));
     }
 
     private static String nameOf(UUID uuid) {
@@ -203,14 +205,14 @@ public class PartyModule implements IModule, Listener {
         party.addMember(player.getUniqueId());
         playerPartyMap.put(player.getUniqueId(), party);
 
-        broadcast(party, Component.text(player.getName() + " がパーティーに参加しました。", NamedTextColor.GREEN));
+        broadcast(party, MessageText.of("iem.party.partymodule.member_joined", player.getName()).color(NamedTextColor.GREEN));
     }
 
     /** 抜ける。リーダーが抜けると解散する (リーダーのログアウトは {@link #onQuit} が維持するので、ここに来るのは明示的な抜け方) */
     public void leaveParty(Player player) {
         Party party = getParty(player.getUniqueId());
         if (party == null) {
-            player.sendMessage(Component.text("パーティーに所属していません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.party.partymodule.leaveparty.notice_001", MessageText.of("iem.party.partymodule.leaveparty.notice_001", MessageText.payload(MessageText.of("iem.party.partymodule.leaveparty.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
@@ -219,24 +221,21 @@ public class PartyModule implements IModule, Listener {
         } else {
             party.removeMember(player.getUniqueId());
             playerPartyMap.remove(player.getUniqueId());
-            player.sendMessage(Component.text("パーティーを脱退しました。", NamedTextColor.YELLOW));
-            broadcast(party, Component.text(player.getName() + " がパーティーを脱退しました。", NamedTextColor.YELLOW));
+            Messages.chat(player, "iem.party.partymodule.leaveparty.notice_002", MessageText.of("iem.party.partymodule.leaveparty.notice_002", MessageText.payload(MessageText.of("iem.party.partymodule.leaveparty.notice_002.text_01").color(NamedTextColor.YELLOW))));
+            broadcast(party, MessageText.of("iem.party.partymodule.member_left", player.getName()).color(NamedTextColor.YELLOW));
         }
     }
 
     public void disbandParty(Party party) {
-        broadcast(party, Component.text("パーティーが解散されました。", NamedTextColor.RED));
+        broadcast(party, MessageText.of("iem.party.partymodule.disbanded").color(NamedTextColor.RED));
         for (UUID uuid : party.getMembers()) {
             playerPartyMap.remove(uuid);
         }
     }
 
     public void broadcast(Party party, Component message) {
-        for (UUID uuid : party.getMembers()) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                p.sendMessage(message);
-            }
-        }
+        java.util.List<Player> recipients=new java.util.ArrayList<>();
+        for(UUID uuid:party.getMembers()) { Player p=Bukkit.getPlayer(uuid);if(p!=null)recipients.add(p); }
+        Messages.group(recipients,"iem.party.partymodule.broadcast.notice_001",MessageText.of("iem.party.partymodule.broadcast.notice_001",message));
     }
 }

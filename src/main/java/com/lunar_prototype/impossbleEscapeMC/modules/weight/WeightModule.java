@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.weight;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.destroystokyo.paper.event.player.PlayerJumpEvent;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
@@ -121,13 +124,13 @@ public class WeightModule implements IModule, Listener {
             PlayerData data = dataModule.getPlayerData(player.getUniqueId());
             if (data != null) {
                 if (data.isExcitantActive()) {
-                    player.sendActionBar(Component.text("興奮剤はすでに効果を発揮しています！", NamedTextColor.YELLOW));
+                    Messages.actionBar(player, "iem.inventory.weightmodule.onplayeruseexcitant.notice_001", MessageText.of("iem.inventory.weightmodule.onplayeruseexcitant.notice_001", MessageText.payload(MessageText.of("iem.inventory.weightmodule.onplayeruseexcitant.notice_001.text_01").color(NamedTextColor.YELLOW))));
                     event.setCancelled(true);
                     return;
                 }
                 data.activateExcitant(60 * 1000L); // 60秒間効果持続
                 item.subtract(1); // アイテムを1つ消費
-                player.sendActionBar(Component.text("興奮剤を摂取しました！重量許容量が一時的に増加 (-15kg)", NamedTextColor.BLUE));
+                Messages.actionBar(player, "iem.inventory.weightmodule.onplayeruseexcitant.notice_002", MessageText.of("iem.inventory.weightmodule.onplayeruseexcitant.notice_002", MessageText.payload(MessageText.of("iem.inventory.weightmodule.onplayeruseexcitant.notice_002.text_01").color(NamedTextColor.BLUE))));
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
                 // 即座に重量を更新してフィードバック
                 updatePlayerWeight(player);
@@ -160,8 +163,8 @@ public class WeightModule implements IModule, Listener {
     private void sendStageNotification(Player player, WeightStage stage) {
         if (stage == WeightStage.NORMAL && lastStages.get(player.getUniqueId()) == null) return;
 
-        player.sendActionBar(net.kyori.adventure.text.Component.text("Weight Stage: ", net.kyori.adventure.text.format.NamedTextColor.GRAY)
-                .append(net.kyori.adventure.text.Component.text(stage.getDisplayName(), stage.getColor())));
+        Messages.actionBar(player, "iem.inventory.weightmodule.sendstagenotification.notice_001", MessageText.of("iem.inventory.weightmodule.sendstagenotification.notice_001", MessageText.payload(MessageText.of("iem.inventory.weightmodule.sendstagenotification.notice_001.text_01").color(net.kyori.adventure.text.format.NamedTextColor.GRAY)
+                .append(net.kyori.adventure.text.Component.text(stage.getDisplayName(), stage.getColor())))));
     }
 
     private int calculateTotalWeight(Player player) {

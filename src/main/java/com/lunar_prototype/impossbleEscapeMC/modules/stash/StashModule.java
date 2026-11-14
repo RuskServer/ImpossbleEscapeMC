@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stash;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
@@ -30,7 +33,7 @@ public class StashModule implements IModule {
         int rows = getRows(data.getStashLevel(), page);
         
         if (rows == 0) {
-            player.sendMessage(Component.text("§cこのページはまだアンロックされていません。"));
+            Messages.chat(player, "iem.inventory.stashmodule.openstash.notice_001", MessageText.of("iem.inventory.stashmodule.openstash.notice_001", MessageText.payload(MessageText.of("iem.inventory.stashmodule.openstash.notice_001.text_01"))));
             return;
         }
 
@@ -66,9 +69,7 @@ public class StashModule implements IModule {
             // 読めないページは開かない (空のページを開くと、閉じた時に空で上書きして中身が消える)。データはそのまま残す
             org.bukkit.Bukkit.getLogger().log(java.util.logging.Level.WARNING,
                     "スタッシュのページを読めませんでした: " + player.getName() + " ページ " + page, e);
-            player.sendMessage(net.kyori.adventure.text.Component.text(
-                    "スタッシュのページ " + page + " を読めませんでした (中身は消していません。運営に連絡してください)",
-                    net.kyori.adventure.text.format.NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.stashmodule.openstash.notice_002", MessageText.of("iem.inventory.stashmodule.openstash.notice_002", MessageText.payload(MessageText.of("iem.inventory.stashmodule.openstash.notice_002.text_01", page).color(net.kyori.adventure.text.format.NamedTextColor.RED))));
             return;
         }
 

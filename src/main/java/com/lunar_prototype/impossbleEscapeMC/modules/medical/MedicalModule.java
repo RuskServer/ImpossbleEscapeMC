@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.medical;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -136,8 +139,7 @@ public class MedicalModule implements IModule, Listener {
 
                 // 残り時間をアクションバーに表示 (撃ち合いの中で「あと何秒で動けるか」が分かるように)
                 double remainingSeconds = Math.max(0, duration - current) / 20.0;
-                player.sendActionBar(net.kyori.adventure.text.Component.text(
-                        String.format("使用中… %.1fs", remainingSeconds), net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+                Messages.actionBar(player, "iem.combat.medicalmodule.startonetimeusing.notice_001", MessageText.of("iem.combat.medicalmodule.startonetimeusing.notice_001", MessageText.payload(MessageText.of("iem.combat.medicalmodule.startonetimeusing.notice_001.text_01", MessageText.of("iem.combat.medicalmodule.using", String.format("%.1f", remainingSeconds))).color(net.kyori.adventure.text.format.NamedTextColor.YELLOW))));
 
                 if (current >= duration) {
                     finishOneTimeUsing(player, def);
@@ -171,7 +173,7 @@ public class MedicalModule implements IModule, Listener {
             if (def.medStats.cureArmFracture) data.setArmFracture(false);
             StatusEffectIcons.sync(player, data);
             
-            player.sendMessage(net.kyori.adventure.text.Component.text(def.displayName + " を使用して手当を行いました。", net.kyori.adventure.text.format.NamedTextColor.GREEN));
+            Messages.chat(player, "iem.combat.medicalmodule.finishonetimeusing.notice_001", MessageText.of("iem.combat.medicalmodule.finishonetimeusing.notice_001", MessageText.payload(MessageText.of("iem.combat.medicalmodule.finishonetimeusing.notice_001.text_01", def.displayName).color(net.kyori.adventure.text.format.NamedTextColor.GREEN))));
             // CAT は留め具の音で終わる
             if (!CAT_ID.equals(def.id)) {
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);

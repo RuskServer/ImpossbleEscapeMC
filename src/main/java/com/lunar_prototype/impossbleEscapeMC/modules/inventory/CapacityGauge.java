@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.inventory;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.listener.CraftingGridButtons;
@@ -86,9 +89,9 @@ public final class CapacityGauge {
         Integer previous = lobbyOverages.put(player.getUniqueId(), over);
         if (previous != null && previous == over) return;
         if (over > 0) {
-            player.sendActionBar(text("出撃準備: " + over + " マス超過。整理後に出撃できます", NamedTextColor.RED));
+            Messages.actionBar(player, "iem.inventory.capacitygauge.refreshlobbystatus.notice_001", MessageText.of("iem.inventory.capacitygauge.refreshlobbystatus.notice_001", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.refreshlobbystatus.support_001", over), NamedTextColor.RED))));
         } else if (previous != null && previous > 0) {
-            player.sendActionBar(text("容量内です。出撃できます", NamedTextColor.GREEN));
+            Messages.actionBar(player, "iem.inventory.capacitygauge.refreshlobbystatus.notice_002", MessageText.of("iem.inventory.capacitygauge.refreshlobbystatus.notice_002", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.refreshlobbystatus.support_002"), NamedTextColor.GREEN))));
         }
     }
 
@@ -170,6 +173,15 @@ public final class CapacityGauge {
         return "ホットバー " + hotbar + " + " + rigName + " " + rig + " マス";
     }
 
+    /** 通知用の内訳。GUIの既存表示とは分離して受信者ごとに翻訳する。 */
+    private static Component capacityBreakdownText(Player player, int capacity) {
+        RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        int rig = rigModule != null ? rigModule.getEnabledMainInventorySlots(player) : 0;
+        int hotbar = capacity - rig;
+        if (rig <= 0) return MessageText.of("iem.inventory.capacitygauge.hotbar_only", hotbar);
+        return MessageText.of("iem.inventory.capacitygauge.with_rig", hotbar, rigModule.getEquippedRig(player).effectiveName(), rig);
+    }
+
     private static List<Big> bigItems(Player player) {
         PlayerInventory inventory = player.getInventory();
         List<Big> big = new ArrayList<>();
@@ -190,10 +202,10 @@ public final class CapacityGauge {
         int used = CostSlotManager.usedCost(player, inventory);
         int over = Math.max(0, used - capacity);
         boolean preparing = isPreparing(player);
-        player.sendMessage(text((preparing ? "出撃容量 " : "容量 ") + used + " / " + capacity + " マス (" + capacityBreakdown(player, capacity) + ")",
-                used > capacity ? NamedTextColor.RED : NamedTextColor.GREEN));
+        Messages.chat(player, "iem.inventory.capacitygauge.printbreakdown.notice_001", MessageText.of("iem.inventory.capacitygauge.printbreakdown.notice_001", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.printbreakdown.support_001", (preparing ? MessageText.of("iem.inventory.capacitygauge.label.1") : MessageText.of("iem.inventory.capacitygauge.label.2")), used, capacity, capacityBreakdownText(player, capacity)),
+                used > capacity ? NamedTextColor.RED : NamedTextColor.GREEN))));
         if (over > 0 && preparing) {
-            player.sendMessage(text("ロビーでは装備を追加・整理できます。出撃前に " + over + " マス分減らしてください。", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.capacitygauge.printbreakdown.notice_002", MessageText.of("iem.inventory.capacitygauge.printbreakdown.notice_002", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.printbreakdown.support_002", over), NamedTextColor.RED))));
         }
         int small = 0;
         for (int slot = 0; slot <= RigModule.MAIN_INVENTORY_END; slot++) {
@@ -201,14 +213,18 @@ public final class CapacityGauge {
             if (CostSlotManager.stackCost(inventory.getItem(slot)) == 1) small++;
         }
         for (Big item : bigItems(player)) {
-            player.sendMessage(text(" " + item.name() + "  " + item.cost() + " マス", NamedTextColor.GRAY));
+            Messages.chat(player, "iem.inventory.capacitygauge.printbreakdown.notice_003", MessageText.of("iem.inventory.capacitygauge.printbreakdown.notice_003", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.printbreakdown.support_003", item.name(), item.cost()), NamedTextColor.GRAY))));
         }
-        if (small > 0) player.sendMessage(text(" 1 マスの物  " + small + " 個", NamedTextColor.GRAY));
-        player.sendMessage(text("大きい物は近くの空きマスも使います (斜線のマス。ホットバーの物の分は右下)", NamedTextColor.DARK_GRAY));
+        if (small > 0) Messages.chat(player, "iem.inventory.capacitygauge.printbreakdown.notice_004", MessageText.of("iem.inventory.capacitygauge.printbreakdown.notice_004", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.printbreakdown.support_004", small), NamedTextColor.GRAY))));
+        Messages.chat(player, "iem.inventory.capacitygauge.printbreakdown.notice_005", MessageText.of("iem.inventory.capacitygauge.printbreakdown.notice_005", MessageText.payload(text(MessageText.of("iem.inventory.capacitygauge.printbreakdown.support_005"), NamedTextColor.DARK_GRAY))));
     }
 
     private static Component text(String content, NamedTextColor color) {
-        return Component.text(content, color).decoration(TextDecoration.ITALIC, false);
+        return text(Component.text(content), color);
+    }
+
+    private static Component text(Component content, NamedTextColor color) {
+        return content.color(color).decoration(TextDecoration.ITALIC, false);
     }
 
     private static boolean isPreparing(Player player) {

@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
@@ -109,7 +112,7 @@ public class QuestModule implements IModule {
                                 Map<String, Object> params = new HashMap<>();
                                 params.put("locationName", reach.getLocationName());
                                 eventBus.fire(player, data, QuestTrigger.LOCATION_REACHED, params);
-                                player.sendMessage(net.kyori.adventure.text.Component.text("地点に到達しました: " + name, net.kyori.adventure.text.format.NamedTextColor.GREEN));
+                                Messages.chat(player, "iem.quest.questmodule.checkplayerlocations.notice_001", MessageText.of("iem.quest.questmodule.checkplayerlocations.notice_001", MessageText.payload(MessageText.of("iem.quest.questmodule.checkplayerlocations.notice_001.text_01", name).color(net.kyori.adventure.text.format.NamedTextColor.GREEN))));
                                 player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.2f);
                             }
                         }
@@ -179,7 +182,7 @@ public class QuestModule implements IModule {
     /** 報酬付与・完了記録の後だけ、受取内容を通知する。 */
     void notifyCompletion(Player player, QuestDefinition quest) {
         for(Component line:QuestCompletionNotice.lines(quest,this::completionItemName,this::completionTraderName))
-            player.sendMessage(line);
+            Messages.chat(player, "iem.quest.questmodule.notifycompletion.notice_001", MessageText.of("iem.quest.questmodule.notifycompletion.notice_001", MessageText.payload(line)));
         player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
     }
 
@@ -339,48 +342,40 @@ public class QuestModule implements IModule {
         List<QuestDefinition> reportable = getReportableQuests(data);
         if (startable.isEmpty() && reportable.isEmpty()) return;
 
-        String header;
+        Component header;
         NamedTextColor headerColor;
         switch (source) {
             case PLAYER_JOIN -> {
-                header = "クエスト状況を確認しました。";
+                header = MessageText.of("iem.quest.questmodule.notifyquestavailability.support_001");
                 headerColor = NamedTextColor.AQUA;
             }
             case RAID_EXTRACT -> {
-                header = "レイド帰還後、クエストに進展があります。";
+                header = MessageText.of("iem.quest.questmodule.notifyquestavailability.support_002");
                 headerColor = NamedTextColor.GOLD;
             }
             case RAID_MIA -> {
-                header = "レイド終了後、クエストに報告可能なものがあります。";
+                header = MessageText.of("iem.quest.questmodule.notifyquestavailability.support_003");
                 headerColor = NamedTextColor.RED;
             }
             case RAID_DEATH_FAILURE -> {
-                header = "死亡後の復帰中、クエストに報告可能なものがあります。";
+                header = MessageText.of("iem.quest.questmodule.notifyquestavailability.support_004");
                 headerColor = NamedTextColor.RED;
             }
             default -> {
-                header = "クエスト情報";
+                header = MessageText.of("iem.quest.questmodule.notifyquestavailability.support_005");
                 headerColor = NamedTextColor.GRAY;
             }
         }
 
-        player.sendMessage(Component.text(header, headerColor));
+        Messages.chat(player, "iem.quest.questmodule.notifyquestavailability.notice_001", MessageText.of("iem.quest.questmodule.notifyquestavailability.notice_001", MessageText.payload(header.color(headerColor))));
 
         if (!startable.isEmpty()) {
-            player.sendMessage(Component.text(
-                    "受領できるクエストがあります: " + formatQuestTitles(startable) +
-                            "。PDAのトレーダー一覧→クエスト一覧で確認してください。",
-                    NamedTextColor.GREEN
-            ));
+            Messages.chat(player, "iem.quest.questmodule.notifyquestavailability.notice_002", MessageText.of("iem.quest.questmodule.notifyquestavailability.notice_002", MessageText.payload(MessageText.of("iem.quest.questmodule.notifyquestavailability.notice_002.text_01", formatQuestTitles(startable)).color(NamedTextColor.GREEN))));
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
         }
 
         if (!reportable.isEmpty()) {
-            player.sendMessage(Component.text(
-                    "報酬を受け取れる（報告可能）クエストがあります: " + formatQuestTitles(reportable) +
-                            "。クエストの画面の「報告」で完了できます。",
-                    NamedTextColor.YELLOW
-            ));
+            Messages.chat(player, "iem.quest.questmodule.notifyquestavailability.notice_003", MessageText.of("iem.quest.questmodule.notifyquestavailability.notice_003", MessageText.payload(MessageText.of("iem.quest.questmodule.notifyquestavailability.notice_003.text_01", formatQuestTitles(reportable)).color(NamedTextColor.YELLOW))));
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
         }
     }

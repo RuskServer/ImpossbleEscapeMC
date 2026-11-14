@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -64,7 +67,7 @@ public final class DrawerLootModule implements IModule, Listener {
         var spec=new RaidMap.LootDrawer(UUID.randomUUID().toString(),crateId,target.getX(),target.getY(),target.getZ(),DrawerModel.facing(player.getYaw()));
         map.getLootDrawers().add(spec);plugin.getRaidModule().saveMap(map);
         target.setType(Material.BARRIER,false);ensure(map,spec,target.getWorld());
-        player.sendMessage(Component.text("2段引き出しを設置しました: "+crateId+" ("+mapId+")",NamedTextColor.GREEN));
+        Messages.chat(player, "iem.loot.drawerlootmodule.place.notice_001", MessageText.of("iem.loot.drawerlootmodule.place.notice_001", MessageText.payload(MessageText.of("iem.loot.drawerlootmodule.place.notice_001.text_01", crateId, mapId).color(NamedTextColor.GREEN))));
     }
     public boolean removeAt(Block block) {
         Placement placement=at(block);if(placement==null)return false;
@@ -191,12 +194,12 @@ public final class DrawerLootModule implements IModule, Listener {
         if(player.getLocation().distanceSquared(cabinet.anchor)>36)return;
         var held=player.getInventory().getItemInMainHand();
         if(player.isOp()&&held.hasItemMeta()&&held.getItemMeta().getPersistentDataContainer().has(removerKey,PDCKeys.BOOLEAN)) {
-            removeAt(cabinet.anchor.getBlock());player.sendMessage(Component.text("引き出しを削除しました。",NamedTextColor.GREEN));return;
+            removeAt(cabinet.anchor.getBlock());Messages.chat(player, "iem.loot.drawerlootmodule.interactdrawer.notice_001", MessageText.of("iem.loot.drawerlootmodule.interactdrawer.notice_001", MessageText.payload(MessageText.of("iem.loot.drawerlootmodule.interactdrawer.notice_001.text_01").color(NamedTextColor.GREEN))));return;
         }
         Integer slot=data.get(slotKey,PersistentDataType.INTEGER);if(slot==null||slot<0||slot>=2)return;
         Source source=cabinet.sources[slot];
         if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder holder&&holder.getSource()==source)return;
-        if(!source.available){player.sendMessage(Component.text("この引き出しのデータを確認できません。管理者に連絡してください。",NamedTextColor.RED));return;}
+        if(!source.available){Messages.chat(player, "iem.loot.drawerlootmodule.interactdrawer.notice_002", MessageText.of("iem.loot.drawerlootmodule.interactdrawer.notice_002", MessageText.payload(MessageText.of("iem.loot.drawerlootmodule.interactdrawer.notice_002.text_01").color(NamedTextColor.RED))));return;}
         plugin.getSearchGUI().open(player,source);
     }
     @EventHandler public void opened(LootSessionStartEvent event) {

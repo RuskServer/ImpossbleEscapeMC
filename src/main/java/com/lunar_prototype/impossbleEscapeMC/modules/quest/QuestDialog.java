@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
@@ -959,7 +962,7 @@ public final class QuestDialog implements Listener {
                     data.getActiveQuests().put(quest.getId(), new ActiveQuest(quest.getId()));
                     data.setDirty(true);
                     notice(session, "受領しました: " + quest.getDisplayName());
-                    player.sendMessage(Component.text("クエストを受領しました: " + quest.getDisplayName(), NamedTextColor.GREEN));
+                    Messages.chat(player, "iem.quest.questdialog.handle.notice_001", MessageText.of("iem.quest.questdialog.handle.notice_001", MessageText.payload(MessageText.of("iem.quest.questdialog.handle.notice_001.text_01", quest.getDisplayName()).color(NamedTextColor.GREEN))));
                     player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.8f, 1.2f);
                     show(player, session);
                     return;

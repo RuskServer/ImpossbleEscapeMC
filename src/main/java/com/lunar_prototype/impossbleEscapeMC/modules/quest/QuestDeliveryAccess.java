@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
 import net.kyori.adventure.text.Component;
@@ -22,7 +25,7 @@ public final class QuestDeliveryAccess {
 
     public static boolean requireOutsideRaid(Player player) {
         if (!blocked(player)) return true;
-        player.sendMessage(Component.text("レイド中はタスクの納品・報告はできません。レイド終了後に行ってください。", NG));
+        Messages.chat(player, "iem.quest.questdeliveryaccess.requireoutsideraid.notice_001", MessageText.of("iem.quest.questdeliveryaccess.requireoutsideraid.notice_001", MessageText.payload(MessageText.of("iem.quest.questdeliveryaccess.requireoutsideraid.notice_001.text_01").color(NG))));
         return false;
     }
 }

@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.rig;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
@@ -272,7 +275,7 @@ public class RigListener implements Listener {
     }
 
     private void showArmorConflict(Player player) {
-        player.sendActionBar(Component.text("装甲リグは胸防具や他のリグと同時に装備できません", NamedTextColor.RED));
+        Messages.actionBar(player, "iem.inventory.riglistener.showarmorconflict.notice_001", MessageText.of("iem.inventory.riglistener.showarmorconflict.notice_001", MessageText.payload(MessageText.of("iem.inventory.riglistener.showarmorconflict.notice_001.text_01").color(NamedTextColor.RED))));
     }
 
     private void scheduleSync(Player player) {

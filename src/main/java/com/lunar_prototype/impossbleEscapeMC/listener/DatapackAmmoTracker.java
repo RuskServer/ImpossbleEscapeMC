@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
@@ -134,12 +137,9 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
             player.getInventory().setItemInMainHand(gun);
             if (!wasJammed && DatapackGunCondition.isJammed(gun)) {
                 gun = beginCocking(player, gun);
-                player.sendActionBar(Component.text("銃がジャムしました（耐久 "
-                        + DatapackGunCondition.durability(gun) + "/" + DatapackGunCondition.MAX_DURABILITY
-                        + "）。自動コッキング中", NamedTextColor.RED));
+                Messages.actionBar(player, "iem.combat.datapackammotracker.update.notice_001", MessageText.of("iem.combat.datapackammotracker.update.notice_001", MessageText.payload(MessageText.of("iem.combat.datapackammotracker.update.notice_001.text_01", DatapackGunCondition.durability(gun), DatapackGunCondition.MAX_DURABILITY).color(NamedTextColor.RED))));
             } else if (DatapackGunCondition.durability(gun) != beforeDurability) {
-                player.sendActionBar(Component.text("銃の耐久: " + DatapackGunCondition.durability(gun)
-                        + " / " + DatapackGunCondition.MAX_DURABILITY, NamedTextColor.GRAY));
+                Messages.actionBar(player, "iem.combat.datapackammotracker.update.notice_002", MessageText.of("iem.combat.datapackammotracker.update.notice_002", MessageText.payload(MessageText.of("iem.combat.datapackammotracker.update.notice_002.text_01", DatapackGunCondition.durability(gun), DatapackGunCondition.MAX_DURABILITY).color(NamedTextColor.GRAY))));
             }
         }
         if (DatapackGunCondition.isJammed(gun)) {
@@ -175,7 +175,7 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
         if (bolt < 0 && chamber == 1 && DatapackAmmo.chambered(gun)) {
             ItemStack cleared = DatapackGunCondition.clearJam(gun);
             player.getInventory().setItemInMainHand(cleared);
-            player.sendActionBar(Component.text("コッキング完了。ジャムを解除しました", NamedTextColor.GREEN));
+            Messages.actionBar(player, "iem.combat.datapackammotracker.maintaincocking.notice_001", MessageText.of("iem.combat.datapackammotracker.maintaincocking.notice_001", MessageText.payload(MessageText.of("iem.combat.datapackammotracker.maintaincocking.notice_001.text_01").color(NamedTextColor.GREEN))));
             return cleared;
         }
         setScore(player, "toisarm.shootable", 0);
@@ -315,7 +315,7 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
 
     private static void reloadPressed(Player player, ItemStack gun) {
         Component message = reloadPressMessage(player, gun);
-        if (message != null) player.sendActionBar(message);
+        if (message != null) Messages.actionBar(player, "iem.combat.datapackammotracker.reloadpressed.notice_001", MessageText.of("iem.combat.datapackammotracker.reloadpressed.notice_001", MessageText.payload(message)));
     }
 
     /**
@@ -323,7 +323,7 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
      */
     static Component reloadPressMessage(Player player, ItemStack gun) {
         if (DatapackGunCondition.isJammed(gun)) {
-            return Component.text("ジャム中: 弾があれば自動コッキングで解除", NamedTextColor.RED);
+            return MessageText.of("iem.combat.datapackammotracker.reloadpressmessage.support_001").color(NamedTextColor.RED);
         }
         String caliber = DatapackAmmo.caliberOf(DatapackGunCatalog.gunIdOf(gun));
         int magazine = DatapackAmmo.magazine(gun);
@@ -341,14 +341,12 @@ public final class DatapackAmmoTracker implements Runnable, Listener {
                 default -> NamedTextColor.WHITE;
             };
             String count = magazine + (chambered ? "+1" : "");
-            return Component.text("装填中: ", NamedTextColor.GRAY)
+            return MessageText.of("iem.combat.datapackammotracker.reloadpressmessage.support_002").color(NamedTextColor.GRAY)
                     .append(Component.text(name, nameColor))
-                    .append(Component.text(" (" + count + ") 耐久 "
-                            + DatapackGunCondition.durability(gun) + "/" + DatapackGunCondition.MAX_DURABILITY,
-                            NamedTextColor.GRAY));
+                    .append(MessageText.of("iem.combat.datapackammotracker.reloadpressmessage.support_003", count, DatapackGunCondition.durability(gun), DatapackGunCondition.MAX_DURABILITY).color(NamedTextColor.GRAY));
         }
         if (DatapackAmmo.hasAmmoFor(caliber) && DatapackAmmo.findAmmo(player, caliber).isEmpty()) {
-            return Component.text("弾がありません (" + caliber + ")", NamedTextColor.RED);
+            return MessageText.of("iem.combat.datapackammotracker.reloadpressmessage.support_004", caliber).color(NamedTextColor.RED);
         }
         return null;
     }

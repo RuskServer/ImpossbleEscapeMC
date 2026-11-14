@@ -69,6 +69,7 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | :--- | :--- | :--- |
 | `/getitem <itemId> [amount]` | Acquire specific custom items. | `impossbleescapemc.getitem` |
 | `/attachment` | Open attachments editor GUI for the held gun. | *None (All Players)* |
+| `/iemmessages reload` | Validate and reload server-side message translations. | `iem.messages.admin` (op) |
 | `/itemreload` | Reload custom items, configurations, and trader files. | `op` |
 | `/scavspawn [low\|mid\|high] [x y z]` | Spawn a SCAV with an explicit AI level; omission retains the LOW/MID roll. Legacy coordinates and trailing level are supported. Use `heatmap` to toggle spawn map; `corpsecheck` reports nearby corpse interaction state without bypassing protection. `inspect` reports the aimed SCAV’s actual role, rank, alertness and equipment. | `op` |
 | `/raid <join\|leave\|start\|extract\|scavspawn>` | Complete raid queueing and map interactions. | `op` |
@@ -85,6 +86,8 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | `/mg <create\|setspawn\|split\|start\|stop\|loadout>` | Manage active minigame lobby parameters. | `op` |
 
 ---
+
+`messages.default-language` selects the fallback message language (default: `ja_jp`). Notifications use the shared API and server-side `lang/*.json`; see [MESSAGE_API.md](docs/MESSAGE_API.md) for events, translation keys and reload behavior.
 
 `raid-radio.enabled` in `config.yml` enables threat-entry and quest-item discovery radio (default: `true`). See [RAID_RADIO.md](docs/RAID_RADIO.md) for selection, cooldowns and resource-pack requirements.
 

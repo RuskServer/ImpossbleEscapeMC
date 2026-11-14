@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
@@ -64,7 +67,7 @@ public class ShaderDebugCommand implements BasicCommand {
     public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("プレイヤーだけが使えます");
+            Messages.chat(sender, "iem.admin.shaderdebugcommand.execute.notice_001", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_001.text_01"))));
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("data")) {
@@ -74,7 +77,7 @@ public class ShaderDebugCommand implements BasicCommand {
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("warm")) {
             if (args.length > 1 && args[1].equalsIgnoreCase("stop")) {
-                player.sendMessage(Component.text(ShaderWarmDiagnostic.stop(player) ? "測定を止めます" : "測定していません", NamedTextColor.AQUA));
+                Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_002", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_002.text_01", ShaderWarmDiagnostic.stop(player) ? MessageText.of("iem.admin.shaderdebugcommand.measurement.1") : MessageText.of("iem.admin.shaderdebugcommand.measurement.2")).color(NamedTextColor.AQUA))));
                 return;
             }
             int passes = 2;
@@ -86,15 +89,15 @@ public class ShaderDebugCommand implements BasicCommand {
                 else only.add(args[i]);
             }
             String error = ShaderWarmDiagnostic.start(ImpossbleEscapeMC.getInstance(), player, passes, window, only);
-            if (error != null) player.sendMessage(Component.text(error, NamedTextColor.RED));
+            if (error != null) Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_003", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_003", MessageText.payload(Component.text(error, NamedTextColor.RED))));
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("lore")) {
             if (!com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.play(player)) {
-                player.sendMessage(Component.text("ロアのムービーを見ている途中です", NamedTextColor.RED));
+                Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_004", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_004", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_004.text_01").color(NamedTextColor.RED))));
                 return;
             }
-            player.sendMessage(Component.text("ロアのムービーを流します (" + ScreenEffectService.LORE_INTRO_TICKS / 20 + " 秒。見ている間はスペクテイター)", NamedTextColor.AQUA));
+            Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_005", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_005", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_005.text_01", ScreenEffectService.LORE_INTRO_TICKS / 20).color(NamedTextColor.AQUA))));
             return;
         }
         if (args.length > 0 && args[0].equalsIgnoreCase("sun")) {
@@ -102,31 +105,31 @@ public class ShaderDebugCommand implements BasicCommand {
                 if (args.length == 3 && (args[2].equalsIgnoreCase("on") || args[2].equalsIgnoreCase("off"))) {
                     SunShadowService.setCompressionEnabled(player, args[2].equalsIgnoreCase("on"));
                 } else if (args.length != 2 && !(args.length == 3 && args[2].equalsIgnoreCase("status"))) {
-                    player.sendMessage(Component.text("/shaderdebug sun compression on|off|status", NamedTextColor.RED));
+                    Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_006", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_006", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_006.text_01").color(NamedTextColor.RED))));
                     return;
                 }
-                player.sendMessage(Component.text(SunShadowService.compressionStatus(player), NamedTextColor.AQUA));
-                player.sendMessage(Component.text("新しいパックが必要です。光が停止中なら /shaderdebug sun。更新後に status で容量を確認できます", NamedTextColor.GRAY));
+                Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_007", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_007", MessageText.payload(Component.text(SunShadowService.compressionStatus(player), NamedTextColor.AQUA))));
+                Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_008", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_008", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_008.text_01").color(NamedTextColor.GRAY))));
                 return;
             }
             if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {
                 SunShadowService.clearOverride(player);
-                player.sendMessage(Component.text("サーバーの太陽の影をレイド中だけ自動で送るのに戻しました", NamedTextColor.AQUA));
+                Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_009", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_009", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_009.text_01").color(NamedTextColor.AQUA))));
                 return;
             }
             TextDisplay test = dataTests.remove(player.getUniqueId());
             if (test != null) test.remove();
             boolean on = SunShadowService.toggle(player);
-            player.sendMessage(Component.text(on
+            Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_010", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_010", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_010.text_01", on
                     ? "サーバーの光を送ります (周り " + SunShadowService.W + "x" + SunShadowService.H + "x" + SunShadowService.D
                     + " ブロックまで、圧縮OFF時は48x16x48。/shaderdebug sun auto でレイド中だけに戻す)"
-                    : "サーバーの光を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)", NamedTextColor.AQUA));
+                    : "サーバーの光を止めました (/shaderdebug sun auto でレイド中だけ自動に戻す)").color(NamedTextColor.AQUA))));
             return;
         }
         boolean enabled = ScreenEffectService.toggleControlDebug(player);
-        player.sendMessage(Component.text(enabled
+        Messages.chat(player, "iem.admin.shaderdebugcommand.execute.notice_011", MessageText.of("iem.admin.shaderdebugcommand.execute.notice_011", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.execute.notice_011.text_01", enabled
                 ? "数値の画素の確認を表示 (左下: 緑 = 空と太陽の数値あり / 黄 = 空だけ / 赤 = 無し)"
-                : "数値の画素の確認を消しました", NamedTextColor.AQUA));
+                : "数値の画素の確認を消しました").color(NamedTextColor.AQUA))));
         return;
     }
 
@@ -139,7 +142,7 @@ public class ShaderDebugCommand implements BasicCommand {
         TextDisplay old = dataTests.remove(player.getUniqueId());
         if (old != null) {
             old.remove();
-            player.sendMessage(Component.text("データの画素のテストを消しました", NamedTextColor.AQUA));
+            Messages.chat(player, "iem.admin.shaderdebugcommand.toggledatatest.notice_001", MessageText.of("iem.admin.shaderdebugcommand.toggledatatest.notice_001", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.toggledatatest.notice_001.text_01").color(NamedTextColor.AQUA))));
             return;
         }
         StringBuilder text = new StringBuilder(DATA_TEST_COUNT * 2);
@@ -164,7 +167,6 @@ public class ShaderDebugCommand implements BasicCommand {
         });
         player.showEntity(ImpossbleEscapeMC.getInstance(), display);
         dataTests.put(player.getUniqueId(), display);
-        player.sendMessage(Component.text("データの画素のテストを出しました (x = " + (int) anchor.getX()
-                + ")。/shaderdebug の左下の帯: 緑 = 正しい、黄 = 逆順、青 = ずれ、赤 = 違う値、灰 = 届いていない", NamedTextColor.AQUA));
+        Messages.chat(player, "iem.admin.shaderdebugcommand.toggledatatest.notice_002", MessageText.of("iem.admin.shaderdebugcommand.toggledatatest.notice_002", MessageText.payload(MessageText.of("iem.admin.shaderdebugcommand.toggledatatest.notice_002.text_01", (int) anchor.getX()).color(NamedTextColor.AQUA))));
     }
 }

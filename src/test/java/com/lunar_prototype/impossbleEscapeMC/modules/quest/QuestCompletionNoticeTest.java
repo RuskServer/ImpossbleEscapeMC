@@ -11,7 +11,7 @@ import java.util.*;
 /** 受取通知と、実完了処理での付与・通知の順序および再操作を確認する。 */
 public final class QuestCompletionNoticeTest {
     private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
-    private static String text(Component value){return PlainTextComponentSerializer.plainText().serialize(value);}
+    private static String text(Component value){return PlainTextComponentSerializer.plainText().serialize(com.lunar_prototype.impossbleEscapeMC.api.message.MessageTestSupport.japanese(value));}
     public static void main(String[] args) throws Exception {
         var quest=new QuestBuilder(null,"notice_test").trader("kovacs").name("工具の調達")
                 .handInFir("bolts",1).money(8000).exp(950).unlockTrade("kovacs","uzi").build();

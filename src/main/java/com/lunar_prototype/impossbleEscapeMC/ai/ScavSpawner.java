@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 
@@ -630,13 +633,13 @@ public class ScavSpawner implements Listener {
 
                 if (isRaidScav && killerInRaid) {
                     plugin.getRaidModule().onScavKilledByPlayer(raidMapId, uuid, killerPlayer.getUniqueId(), controller.getBrain().getBrainLevel());
-                    killerPlayer.sendMessage(Component.text("§a+EXP Kill ※レイド終了時に付与"));
+                    Messages.chat(killerPlayer, "iem.admin.scavspawner.onscavdeath.notice_001", MessageText.of("iem.admin.scavspawner.onscavdeath.notice_001", MessageText.payload(MessageText.of("iem.admin.scavspawner.onscavdeath.notice_001.text_01"))));
                 } else {
                     com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
                             plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
                     if (levelModule != null) {
                         levelModule.addExperience(killerPlayer.getUniqueId(), 50);
-                        killerPlayer.sendMessage(Component.text("§a+50 EXP (SCAV Kill)"));
+                        Messages.chat(killerPlayer, "iem.admin.scavspawner.onscavdeath.notice_002", MessageText.of("iem.admin.scavspawner.onscavdeath.notice_002", MessageText.payload(MessageText.of("iem.admin.scavspawner.onscavdeath.notice_002.text_01"))));
                     }
                 }
             }

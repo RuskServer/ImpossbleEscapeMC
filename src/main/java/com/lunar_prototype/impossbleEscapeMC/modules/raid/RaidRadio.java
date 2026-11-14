@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn;
@@ -36,7 +39,7 @@ final class RaidRadio {
         if(zone==null)for(var candidate:zones)if(candidate.contains(at.getX(),at.getY(),at.getZ(),0)){zone=candidate;break;}
         if(state.observeZone(zone==null?null:zone.id(),now)) {
             zoneNames.put(p.getUniqueId(),zone.name());
-            p.sendMessage(Component.text("[区域情報] "+zone.name()+" — 高脅威区域",NamedTextColor.GOLD));
+            Messages.chat(p, "iem.raid.raidradio.tick.notice_001", MessageText.of("iem.raid.raidradio.tick.notice_001", MessageText.payload(MessageText.of("iem.raid.raidradio.tick.notice_001.text_01", zone.name()).color(NamedTextColor.GOLD))));
         }
         if(state.takeZone(now))play(p,ZONE,"そこは交戦報告の多い区域だ。周囲をよく確認しろ。");
         else if(state.takeItem(now))play(p,ITEM,"それが探してたものだ。なくさずに持って帰ってくれ。");
@@ -54,7 +57,7 @@ final class RaidRadio {
     }
     private void play(Player p,String sound,String subtitle) {
         p.playSound(p,sound,SoundCategory.MASTER,0.9f,1.0f);
-        p.sendMessage(Component.text("[クライアント] ",NamedTextColor.GRAY).append(Component.text(subtitle,NamedTextColor.WHITE)));
+        Messages.chat(p, "iem.raid.raidradio.play.notice_001", MessageText.of("iem.raid.raidradio.play.notice_001", MessageText.payload(MessageText.of("iem.raid.raidradio.play.notice_001.text_01").color(NamedTextColor.GRAY).append(Component.text(subtitle,NamedTextColor.WHITE)))));
     }
     void urgent(Player p,int duration) {
         if(!enabled)return;
@@ -64,7 +67,7 @@ final class RaidRadio {
     int frame(Player p){if(!enabled)return -1;var state=states.get(p.getUniqueId());return state==null?-1:state.frame(Bukkit.getCurrentTick());}
     String zoneName(Player p){return zoneNames.get(p.getUniqueId());}
     void preview(Player p,String kind) {
-        if(!enabled){p.sendMessage(Component.text("追加無線は無効になっています（raid-radio.enabled）。",NamedTextColor.YELLOW));return;}
+        if(!enabled){Messages.chat(p, "iem.raid.raidradio.preview.notice_001", MessageText.of("iem.raid.raidradio.preview.notice_001", MessageText.payload(MessageText.of("iem.raid.raidradio.preview.notice_001.text_01").color(NamedTextColor.YELLOW))));return;}
         if(kind.equals("zone")){zoneNames.put(p.getUniqueId(),"区域表示テスト");state(p).previewZone(Bukkit.getCurrentTick());}
         else state(p).discover("preview-"+Bukkit.getCurrentTick(),Bukkit.getCurrentTick());
     }

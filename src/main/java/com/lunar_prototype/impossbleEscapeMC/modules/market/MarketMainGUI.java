@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
@@ -166,7 +169,7 @@ public class MarketMainGUI implements Listener {
             MarketListing listing = marketModule.getListing(shown[slot]);
             if (listing == null) {
                 // 開いている間に売れた・取り消された
-                player.sendMessage(Component.text("この出品はもうありません。", NamedTextColor.RED));
+                Messages.chat(player, "iem.market.marketmaingui.oninventoryclick.notice_001", MessageText.of("iem.market.marketmaingui.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.market.marketmaingui.oninventoryclick.notice_001.text_01").color(NamedTextColor.RED))));
                 setupGUI();
                 return;
             }
@@ -181,14 +184,14 @@ public class MarketMainGUI implements Listener {
                 ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());
                 if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.tryAddAll(player,item)) {
                     marketModule.removeListing(listing.getId());
-                    player.sendMessage(Component.text("出品を取り消しました。", NamedTextColor.GREEN));
+                    Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_001", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_001", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_001.text_01").color(NamedTextColor.GREEN))));
                     player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
                     setupGUI();
                 } else {
-                    player.sendMessage(Component.text("インベントリに空きがありません。", NamedTextColor.RED));
+                    Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_002", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_002", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_002.text_01").color(NamedTextColor.RED))));
                 }
             } catch (Exception e) {
-                player.sendMessage(Component.text("エラーが発生しました。", NamedTextColor.RED));
+                Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_003", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_003", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_003.text_01").color(NamedTextColor.RED))));
                 e.printStackTrace();
             }
         } else {
@@ -201,28 +204,28 @@ public class MarketMainGUI implements Listener {
                         marketModule.removeListing(listing.getId());
                         economy.deposit(listing.getSellerUuid(), listing.getPrice());
                         
-                        player.sendMessage(Component.text(listing.getPrice() + "₽ でアイテムを購入しました。", NamedTextColor.GREEN));
+                        Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_004", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_004", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_004.text_01", listing.getPrice()).color(NamedTextColor.GREEN))));
                         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 
                         // 出品者に通知（オンラインなら）
                         Player seller = Bukkit.getPlayer(listing.getSellerUuid());
                         if (seller != null) {
-                            seller.sendMessage(Component.text("マーケットに出品していたアイテムが " + listing.getPrice() + "₽ で売れました！", NamedTextColor.GOLD));
+                            Messages.chat(seller, "iem.market.marketmaingui.handlelistinginteraction.notice_005", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_005", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_005.text_01", listing.getPrice()).color(NamedTextColor.GOLD))));
                         }
                         
                         setupGUI();
                     } else {
                         // 返金
                         economy.deposit(player.getUniqueId(), listing.getPrice());
-                        player.sendMessage(Component.text("インベントリに空きがありません。", NamedTextColor.RED));
+                        Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_006", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_006", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_006.text_01").color(NamedTextColor.RED))));
                     }
                 } catch (Exception e) {
                     economy.deposit(player.getUniqueId(), listing.getPrice());
-                    player.sendMessage(Component.text("エラーが発生しました。", NamedTextColor.RED));
+                    Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_007", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_007", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_007.text_01").color(NamedTextColor.RED))));
                     e.printStackTrace();
                 }
             } else {
-                player.sendMessage(Component.text("所持金が足りません。", NamedTextColor.RED));
+                Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_008", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_008", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_008.text_01").color(NamedTextColor.RED))));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
             }
         }

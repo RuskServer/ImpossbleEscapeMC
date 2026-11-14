@@ -93,8 +93,10 @@ CompletableFuture.runAsync(() -> {
 `ChatColor` や `§` は新規コードで使わず、Adventure API を使ってください。
 
 ```java
-player.sendMessage(Component.text("Raid started.", NamedTextColor.GREEN));
+Messages.chat(player, "iem.raid.started", MessageText.of("iem.raid.started"));
 ```
+
+通知は `api.message.Messages` を使い、キーをdefinitions・arguments・lang辞書へ登録する。上記は新規キーの例。直接送信はアーキテクチャテストで禁止している。分類・イベント・運用は [MESSAGE_API.md](docs/MESSAGE_API.md) を参照。
 
 ### Naming
 

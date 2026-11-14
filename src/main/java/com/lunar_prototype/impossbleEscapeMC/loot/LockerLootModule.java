@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -65,10 +68,10 @@ public final class LockerLootModule implements IModule, Listener {
         event.setCancelled(true);
         if(event.getHand()!=EquipmentSlot.HAND||event.getAction()!=org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK||event.getClickedBlock()==null)return;
         Player player=event.getPlayer();
-        if(!player.isOp()){player.sendMessage(Component.text("ロッカーの設置はOP専用です。",NamedTextColor.RED));return;}
+        if(!player.isOp()){Messages.chat(player, "iem.loot.lockerlootmodule.placeegg.notice_001", MessageText.of("iem.loot.lockerlootmodule.placeegg.notice_001", MessageText.payload(MessageText.of("iem.loot.lockerlootmodule.placeegg.notice_001.text_01").color(NamedTextColor.RED))));return;}
         try {place(player,event.getItem().getItemMeta().getPersistentDataContainer().get(eggKey,PersistentDataType.STRING),
                 event.getClickedBlock().getRelative(event.getBlockFace()));}
-        catch(IllegalArgumentException ex){player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+        catch(IllegalArgumentException ex){Messages.chat(player, "iem.loot.lockerlootmodule.placeegg.notice_002", MessageText.of("iem.loot.lockerlootmodule.placeegg.notice_002", MessageText.payload(Component.text(ex.getMessage(),NamedTextColor.RED))));}
     }
     @EventHandler public void eggEntity(PlayerInteractEntityEvent event) {
         var inventory=event.getPlayer().getInventory();
@@ -92,7 +95,7 @@ public final class LockerLootModule implements IModule, Listener {
         var spec=new RaidMap.LootLocker(UUID.randomUUID().toString(),target.getX(),target.getY(),target.getZ(),LockerModel.facing(player.getYaw()));
         map.getLootLockers().add(spec);plugin.getRaidModule().saveMap(map);
         target.setType(Material.BARRIER,false);target.getRelative(0,1,0).setType(Material.BARRIER,false);ensure(map,spec,target.getWorld());
-        player.sendMessage(Component.text("ロッカーを設置しました ("+mapId+")",NamedTextColor.GREEN));
+        Messages.chat(player, "iem.loot.lockerlootmodule.place.notice_001", MessageText.of("iem.loot.lockerlootmodule.place.notice_001", MessageText.payload(MessageText.of("iem.loot.lockerlootmodule.place.notice_001.text_01", mapId).color(NamedTextColor.GREEN))));
     }
     public boolean removeAt(Block block) {
         Placement placement=at(block);if(placement==null)return false;
@@ -224,12 +227,12 @@ public final class LockerLootModule implements IModule, Listener {
         if(player.getLocation().distanceSquared(cabinet.anchor)>36)return;
         var held=player.getInventory().getItemInMainHand();
         if(player.isOp()&&held.hasItemMeta()&&held.getItemMeta().getPersistentDataContainer().has(removerKey,PDCKeys.BOOLEAN)) {
-            removeAt(cabinet.anchor.getBlock());player.sendMessage(Component.text("ロッカーを削除しました。",NamedTextColor.GREEN));return;
+            removeAt(cabinet.anchor.getBlock());Messages.chat(player, "iem.loot.lockerlootmodule.interactlocker.notice_001", MessageText.of("iem.loot.lockerlootmodule.interactlocker.notice_001", MessageText.payload(MessageText.of("iem.loot.lockerlootmodule.interactlocker.notice_001.text_01").color(NamedTextColor.GREEN))));return;
         }
         Integer slot=data.get(slotKey,PersistentDataType.INTEGER);if(slot==null||slot<0||slot>=1)return;
         Source source=cabinet.sources[slot];
         if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder holder&&holder.getSource()==source)return;
-        if(!source.available){player.sendMessage(Component.text("このロッカーのデータを確認できません。管理者に連絡してください。",NamedTextColor.RED));return;}
+        if(!source.available){Messages.chat(player, "iem.loot.lockerlootmodule.interactlocker.notice_002", MessageText.of("iem.loot.lockerlootmodule.interactlocker.notice_002", MessageText.payload(MessageText.of("iem.loot.lockerlootmodule.interactlocker.notice_002.text_01").color(NamedTextColor.RED))));return;}
         plugin.getSearchGUI().open(player,source);
     }
     @EventHandler public void opened(LootSessionStartEvent event) {

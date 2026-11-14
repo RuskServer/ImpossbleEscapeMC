@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -126,13 +129,13 @@ public class LootEggListener implements Listener {
             if(event.getAction()!=Action.RIGHT_CLICK_BLOCK||event.getClickedBlock()==null
                     ||event.getHand()!=org.bukkit.inventory.EquipmentSlot.HAND)return;
             Player player=event.getPlayer();
-            if(!player.isOp()){player.sendMessage(Component.text("引き出しの設置はOP専用です。",NamedTextColor.RED));return;}
+            if(!player.isOp()){Messages.chat(player, "iem.loot.lootegglistener.oninteract.notice_001", MessageText.of("iem.loot.lootegglistener.oninteract.notice_001", MessageText.payload(MessageText.of("iem.loot.lootegglistener.oninteract.notice_001.text_01").color(NamedTextColor.RED))));return;}
             var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
             if(drawers==null)return;
             var tags=held.getItemMeta().getPersistentDataContainer();
             try {drawers.place(player,tags.get(DRAWER_EGG_MAP_KEY,PDCKeys.STRING),tags.get(DRAWER_EGG_CRATE_KEY,PDCKeys.STRING),
                     event.getClickedBlock().getRelative(event.getBlockFace()));}
-            catch(IllegalArgumentException ex){player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+            catch(IllegalArgumentException ex){Messages.chat(player, "iem.loot.lootegglistener.oninteract.notice_002", MessageText.of("iem.loot.lootegglistener.oninteract.notice_002", MessageText.payload(Component.text(ex.getMessage(),NamedTextColor.RED))));}
             return;
         }
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
@@ -164,14 +167,14 @@ public class LootEggListener implements Listener {
 
         Block target = event.getClickedBlock().getRelative(event.getBlockFace());
         if (!target.getType().isAir()) {
-            player.sendMessage(Component.text("設置場所が空気ではありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.loot.lootegglistener.oninteract.notice_003", MessageText.of("iem.loot.lootegglistener.oninteract.notice_003", MessageText.payload(MessageText.of("iem.loot.lootegglistener.oninteract.notice_003.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         // マップの存在確認
         RaidMap map = plugin.getRaidModule().getMap(mapId);
         if (map == null) {
-            player.sendMessage(Component.text("エラー: 指定されたマップ " + mapId + " が見つかりません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.loot.lootegglistener.oninteract.notice_004", MessageText.of("iem.loot.lootegglistener.oninteract.notice_004", MessageText.payload(MessageText.of("iem.loot.lootegglistener.oninteract.notice_004.text_01", mapId).color(NamedTextColor.RED))));
             return;
         }
 
@@ -196,7 +199,7 @@ public class LootEggListener implements Listener {
             // 補充を即座に行う
             plugin.getLootManager().refillContainer(container, crateId);
             
-            player.sendMessage(Component.text("ルートコンテナを設置・登録しました: " + crateId + " (" + mapId + ")", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.loot.lootegglistener.oninteract.notice_005", MessageText.of("iem.loot.lootegglistener.oninteract.notice_005", MessageText.payload(MessageText.of("iem.loot.lootegglistener.oninteract.notice_005.text_01", crateId, mapId).color(NamedTextColor.GREEN))));
         }
     }
 
@@ -219,46 +222,46 @@ public class LootEggListener implements Listener {
 
     private void placeGroundLoot(Player player, Block target, String mapId, String crateId) {
         if (target.getType().isSolid()) {
-            player.sendMessage(Component.text("置く所がふさがっています (床の上の空いたブロックを選んでください)。", NamedTextColor.RED));
+            Messages.chat(player, "iem.loot.lootegglistener.placegroundloot.notice_001", MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_001", MessageText.payload(MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         RaidMap map = plugin.getRaidModule().getMap(mapId);
         if (map == null) {
-            player.sendMessage(Component.text("エラー: 指定されたマップ " + mapId + " が見つかりません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.loot.lootegglistener.placegroundloot.notice_002", MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_002", MessageText.payload(MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_002.text_01", mapId).color(NamedTextColor.RED))));
             return;
         }
         if (plugin.getLootManager().getCrate(crateId) == null) {
-            player.sendMessage(Component.text("エラー: クレートの種類 " + crateId + " がありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.loot.lootegglistener.placegroundloot.notice_003", MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_003", MessageText.payload(MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_003.text_01", crateId).color(NamedTextColor.RED))));
             return;
         }
         if (!map.isWorld(target.getWorld())) {
-            player.sendMessage(Component.text("エラー: マップ " + mapId + " のワールドではありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.loot.lootegglistener.placegroundloot.notice_004", MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_004", MessageText.payload(MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_004.text_01", mapId).color(NamedTextColor.RED))));
             return;
         }
         if (map.getGroundLoot().stream().anyMatch(p -> p.getLocation(map.getWorldName()).getBlock().equals(target))) {
-            player.sendMessage(Component.text("ここはもう地面ルートの地点です。", NamedTextColor.YELLOW));
+            Messages.chat(player, "iem.loot.lootegglistener.placegroundloot.notice_005", MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_005", MessageText.payload(MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_005.text_01").color(NamedTextColor.YELLOW))));
             return;
         }
         map.addGroundLoot(target.getLocation(), crateId);
         plugin.getRaidModule().saveMap(map);
-        player.sendMessage(Component.text("地面ルートの地点を登録しました: " + crateId + " (" + mapId + "、" + map.getGroundLoot().size() + " 個目)", NamedTextColor.GREEN));
+        Messages.chat(player, "iem.loot.lootegglistener.placegroundloot.notice_006", MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_006", MessageText.payload(MessageText.of("iem.loot.lootegglistener.placegroundloot.notice_006.text_01", crateId, mapId, map.getGroundLoot().size()).color(NamedTextColor.GREEN))));
     }
 
     /** ルートコンテナを消すか、地面ルートの地点を外す */
     private void remove(Player player, Block clicked, Block front) {
         var lockers=plugin.getServiceContainer().get(LockerLootModule.class);
         if(lockers!=null&&lockers.isLocker(clicked)) {
-            if(!player.isOp()){player.sendMessage(Component.text("ロッカーの削除はOP専用です。",NamedTextColor.RED));return;}
+            if(!player.isOp()){Messages.chat(player, "iem.loot.lootegglistener.remove.notice_001", MessageText.of("iem.loot.lootegglistener.remove.notice_001", MessageText.payload(MessageText.of("iem.loot.lootegglistener.remove.notice_001.text_01").color(NamedTextColor.RED))));return;}
             lockers.removeAt(clicked);
-            player.sendMessage(Component.text("ロッカーを削除しました。",NamedTextColor.GREEN));return;
+            Messages.chat(player, "iem.loot.lootegglistener.remove.notice_002", MessageText.of("iem.loot.lootegglistener.remove.notice_002", MessageText.payload(MessageText.of("iem.loot.lootegglistener.remove.notice_002.text_01").color(NamedTextColor.GREEN))));return;
         }
         var drawers=plugin.getServiceContainer().get(DrawerLootModule.class);
         if(drawers!=null&&drawers.removeAt(clicked)) {
-            player.sendMessage(Component.text("引き出しを削除しました。",NamedTextColor.GREEN));return;
+            Messages.chat(player, "iem.loot.lootegglistener.remove.notice_003", MessageText.of("iem.loot.lootegglistener.remove.notice_003", MessageText.payload(MessageText.of("iem.loot.lootegglistener.remove.notice_003.text_01").color(NamedTextColor.GREEN))));return;
         }
         java.util.List<String> containers = plugin.getLootManager().removeLootContainer(clicked);
         if (!containers.isEmpty()) {
-            player.sendMessage(Component.text("ルートコンテナの登録を外し、ブロックを消しました (" + String.join(", ", containers) + ")", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.loot.lootegglistener.remove.notice_004", MessageText.of("iem.loot.lootegglistener.remove.notice_004", MessageText.payload(MessageText.of("iem.loot.lootegglistener.remove.notice_004.text_01", String.join(", ", containers)).color(NamedTextColor.GREEN))));
             return;
         }
         int removed = 0;
@@ -269,9 +272,9 @@ public class LootEggListener implements Listener {
                 removed += n;
             }
         }
-        player.sendMessage(removed > 0
-                ? Component.text("地面ルートの地点を外しました (" + removed + " 個)", NamedTextColor.GREEN)
-                : Component.text("ここには登録されたルートコンテナも地面ルートの地点もありません。", NamedTextColor.RED));
+        Messages.chat(player, "iem.loot.lootegglistener.remove.notice_005", MessageText.of("iem.loot.lootegglistener.remove.notice_005", MessageText.payload(removed > 0
+                ? MessageText.of("iem.loot.lootegglistener.remove.notice_005.text_01", removed).color(NamedTextColor.GREEN)
+                : MessageText.of("iem.loot.lootegglistener.remove.notice_005.text_02").color(NamedTextColor.RED))));
     }
 
     /** 地面ルートのエッグか削除ツールを持っている OP に、近くの地点を粒子で示す */

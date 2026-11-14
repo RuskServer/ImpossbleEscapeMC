@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -44,7 +47,7 @@ public class TraderQuantityGUI implements Listener {
     public void open() {
         PlayerData data = traderModule.getDataModule().getPlayerData(player.getUniqueId());
         if (!traderModule.isUnlocked(data, traderItem)) {
-            player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(data, traderItem), NamedTextColor.RED));
+            Messages.chat(player, "iem.trader.traderquantitygui.open.notice_001", MessageText.of("iem.trader.traderquantitygui.open.notice_001", MessageText.payload(MessageText.of("iem.trader.traderquantitygui.open.notice_001.text_01", traderModule.getUnlockRequirements(data, traderItem)).color(NamedTextColor.RED))));
             return;
         }
         setupGUI();

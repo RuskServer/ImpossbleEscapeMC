@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.craft.CraftDialog;
 import com.lunar_prototype.impossbleEscapeMC.modules.craft.CraftRecipes;
 import com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule;
@@ -110,7 +113,7 @@ public class HideoutListener implements Listener {
 
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (line1.contains("generator")) {
-            event.getPlayer().sendMessage("発電機の燃料メニュー（未実装）を開きます。");
+            Messages.chat(event.getPlayer(), "iem.hideout.hideoutlistener.onsigninteract.notice_001", MessageText.of("iem.hideout.hideoutlistener.onsigninteract.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutlistener.onsigninteract.notice_001.text_01"))));
             // new GeneratorGUI(module, event.getPlayer()).open();
         }
     }

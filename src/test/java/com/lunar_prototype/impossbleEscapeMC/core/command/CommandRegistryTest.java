@@ -28,7 +28,7 @@ public final class CommandRegistryTest {
             Map.entry("mg", "op"), Map.entry("itemreload", "op"), Map.entry("acoustics", "op"), Map.entry("shaderdebug", "op"),
             Map.entry("raid", "op"), Map.entry("party", ""), Map.entry("loot", "op"), Map.entry("trader", "op"),
             Map.entry("market", ""), Map.entry("quest", "op"), Map.entry("settings", ""), Map.entry("hideout", ""),
-            Map.entry("datapacktest", "op"));
+            Map.entry("datapacktest", "op"), Map.entry("iemmessages", "iem.messages.admin"));
 
     @Command(name = "dummy", permission = "test.perm")
     private static final class Dummy implements BasicCommand {

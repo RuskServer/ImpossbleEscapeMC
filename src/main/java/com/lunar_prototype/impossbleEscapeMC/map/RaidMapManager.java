@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.map;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidInstance;
 import net.kyori.adventure.text.Component;
@@ -155,7 +158,7 @@ public class RaidMapManager {
         meta.lore(createMapLore(nextZoom));
         item.setItemMeta(meta);
         
-        player.sendMessage(Component.text("マップ倍率を " + getScaleName(nextZoom) + " に変更しました。", NamedTextColor.GREEN));
+        Messages.chat(player, "iem.system.raidmapmanager.togglezoom.notice_001", MessageText.of("iem.system.raidmapmanager.togglezoom.notice_001", MessageText.payload(MessageText.of("iem.system.raidmapmanager.togglezoom.notice_001.text_01", getScaleName(nextZoom)).color(NamedTextColor.GREEN))));
     }
 
     private MapView.Scale getVanillaScale(int zoomIndex) {

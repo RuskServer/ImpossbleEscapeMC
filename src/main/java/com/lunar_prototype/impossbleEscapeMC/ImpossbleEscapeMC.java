@@ -94,9 +94,13 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 基盤の初期化
         serviceContainer = new ServiceContainer();
         moduleBootstrap = new ModuleBootstrap(this, serviceContainer);
+        // 全通知の基盤。ゲームのモジュールより先に有効化する。
+        try { com.lunar_prototype.impossbleEscapeMC.api.message.Messages.init(this); }
+        catch (java.io.IOException | RuntimeException e) { throw new IllegalStateException("Message catalog could not be loaded", e); }
         // コマンドの登録簿 (モジュールが onEnable で自分のコマンドを入れる。Paper のコマンドとして登録するのは install)
         com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry commands = new com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry();
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class, commands);
+        commands.register(new com.lunar_prototype.impossbleEscapeMC.api.message.MessageCommand(this));
 
         // ヒートマップ読み込み
         com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.load(new java.io.File(getDataFolder(), "heatmap.yml"));
@@ -245,54 +249,58 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI.shutdown();
-        if (operationHintHud != null) operationHintHud.stop();
-        // 開いている画面を閉じる。納品・売却・修理の欄に入れていたアイテムは、各画面の閉じる処理が持ち主に返す
-        // (リスナーが外れる前に閉じないと、欄の中身が消える)
-        for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
-            player.closeInventory();
-        }
+        try {
+            com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI.shutdown();
+            if (operationHintHud != null) operationHintHud.stop();
+            // 開いている画面を閉じる。納品・売却・修理の欄に入れていたアイテムは、各画面の閉じる処理が持ち主に返す
+            // (リスナーが外れる前に閉じないと、欄の中身が消える)
+            for (org.bukkit.entity.Player player : getServer().getOnlinePlayers()) {
+                player.closeInventory();
+            }
 
-        // モジュールの無効化
-        if (moduleBootstrap != null) {
-            moduleBootstrap.disableModules();
-        }
+            // モジュールの無効化
+            if (moduleBootstrap != null) {
+                moduleBootstrap.disableModules();
+            }
 
-        // ヒートマップ保存
-        com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.save(new java.io.File(getDataFolder(), "heatmap.yml"));
+            // ヒートマップ保存
+            com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager.save(new java.io.File(getDataFolder(), "heatmap.yml"));
 
-        // Plugin shutdown logic
-        // SCAVのデータパック銃用FakePlayerは、サーバー停止時の退出・保存処理に乗らないよう先に取り除く
-        com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmDiagnostic.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmup.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.diag.GunTrace.stop();
-        com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.listener.ItemSizeTooltip.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.shutdown();
-        com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.shutdown();
-        if (scavSpawner != null) {
-            scavSpawner.cleanup();
-        }
-        if (minigameManager != null) {
-            minigameManager.stopGame();
-        }
-        if (raidModule != null) {
-            raidModule.suspendAllRaids();
-        }
-        if (corpseManager != null) {
-            corpseManager.cleanup();
-        }
-        if (aiRaidLogger != null) {
-            aiRaidLogger.forceFlushAll("plugin_disable");
+            // Plugin shutdown logic
+            // SCAVのデータパック銃用FakePlayerは、サーバー停止時の退出・保存処理に乗らないよう先に取り除く
+            com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmDiagnostic.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.ShaderWarmup.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.FlashlightDazzle.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.diag.GunTrace.stop();
+            com.lunar_prototype.impossbleEscapeMC.listener.DatapackWorkEntityGuard.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.listener.ItemSizeTooltip.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.effect.EmpSkySignal.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidDebugInfo.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.modules.grounditem.GroundItemService.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.modules.party.PartyGlow.shutdown();
+            com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.shutdown();
+            if (scavSpawner != null) {
+                scavSpawner.cleanup();
+            }
+            if (minigameManager != null) {
+                minigameManager.stopGame();
+            }
+            if (raidModule != null) {
+                raidModule.suspendAllRaids();
+            }
+            if (corpseManager != null) {
+                corpseManager.cleanup();
+            }
+            if (aiRaidLogger != null) {
+                aiRaidLogger.forceFlushAll("plugin_disable");
+            }
+        } finally {
+            com.lunar_prototype.impossbleEscapeMC.api.message.Messages.shutdown();
         }
     }
 }

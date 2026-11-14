@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
@@ -511,14 +514,11 @@ public final class QuestHandInDialog implements Listener {
                 }
                 PlayerData data = dataModule().getPlayerData(player.getUniqueId());
                 QuestModule quests = questModule();
-                done.forEach((objective, amount) -> player.sendMessage(Component.text("納品しました: "
-                        + (session.bulk ? "[" + objective.quest().getDisplayName() + "] " : "") + objective.handIn().getDescription()
-                        + " +" + amount, OK)));
+                done.forEach((objective, amount) -> Messages.chat(player, "iem.quest.questhandindialog.handle.notice_001", MessageText.of("iem.quest.questhandindialog.handle.notice_001", MessageText.payload(MessageText.of("iem.quest.questhandindialog.handle.notice_001.text_01", (session.bulk ? "[" + objective.quest().getDisplayName() + "] " : ""), objective.handIn().getDescription(), amount).color(OK)))));
                 done.keySet().stream().map(Objective::quest).distinct().forEach(quest -> {
                     ActiveQuest active = data.getActiveQuests().get(quest.getId());
                     if (active != null && quests.isAllObjectivesMet(quest, active)) {
-                        player.sendMessage(Component.text((session.bulk ? "「" + quest.getDisplayName() + "」の" : "")
-                                + "すべての目標を達成しました。クエスト一覧で報告できます。", AMBER));
+                        Messages.chat(player, "iem.quest.questhandindialog.handle.notice_002", MessageText.of("iem.quest.questhandindialog.handle.notice_002", MessageText.payload(MessageText.of("iem.quest.questhandindialog.handle.notice_002.text_01", (session.bulk ? MessageText.of("iem.quest.questhandindialog.task_prefix", quest.getDisplayName()) : "")).color(AMBER))));
                     }
                 });
                 player.playSound(player, Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.5f);

@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -71,12 +74,12 @@ final class SpawnDiagnostics implements Listener {
     void request(Player player,RaidMap map,int page,boolean fresh) {
         List<RaidMap.SpawnEntry> entries=map.spawnEntries();
         if (page<0 || page>Math.max(1,(entries.size()+11)/12)) {
-            say(player,"ページ番号が範囲外です。",NamedTextColor.RED); return;
+            Messages.chat(player, "iem.admin.spawndiagnostics.request.support_001", MessageText.of("iem.admin.spawndiagnostics.request.support_001.body").color(NamedTextColor.RED)); return;
         }
         World world=map.getWorldName()==null?null:Bukkit.getWorld(map.getWorldName());
         Settings settings=settings();
         if (world==null || entries.size()>64) {
-            say(player,world==null?"ワールド未読込：座標だけ表示します。":"地点数が64を超えるため診断できません。座標だけ表示します。",NamedTextColor.YELLOW);
+            Messages.chat(player, "iem.admin.spawndiagnostics.request.support_002", MessageText.of("iem.admin.spawndiagnostics.request.support_002.body", world==null?"ワールド未読込：座標だけ表示します。":"地点数が64を超えるため診断できません。座標だけ表示します。").color(NamedTextColor.YELLOW));
             print(player,map.getMapId(),new Report(entries,null,settings,List.of(),List.of(),System.currentTimeMillis()),page); return;
         }
         Report prior=cache.get(map.getMapId());
@@ -87,50 +90,45 @@ final class SpawnDiagnostics implements Listener {
         Job running=jobs.get(map.getMapId());
         if (running!=null && !fresh && running.entries.equals(entries) && running.settings.equals(settings)) {
             running.viewers.put(player.getUniqueId(),page);
-            say(player,"診断中です。完了すると一覧を表示します。",NamedTextColor.YELLOW); return;
+            Messages.chat(player, "iem.admin.spawndiagnostics.request.support_003", MessageText.of("iem.admin.spawndiagnostics.request.support_003.body").color(NamedTextColor.YELLOW)); return;
         }
         if (!jobs.containsKey(map.getMapId()) && jobs.size()>=2) {
-            say(player,"診断は同時2マップまでです。完了後に再実行してください。",NamedTextColor.YELLOW);return;
+            Messages.chat(player, "iem.admin.spawndiagnostics.request.support_004", MessageText.of("iem.admin.spawndiagnostics.request.support_004.body").color(NamedTextColor.YELLOW));return;
         }
         invalidate(map);
         Job job;
         try {job=new Job(map,world,entries,settings);}
         catch(IllegalArgumentException ex) {
-            say(player,ex.getMessage(),NamedTextColor.RED);
+            Messages.chat(player, "iem.admin.spawndiagnostics.request.support_005", MessageText.of("iem.admin.spawndiagnostics.request.support_005.body", ex.getMessage()).color(NamedTextColor.RED));
             print(player,map.getMapId(),new Report(entries,null,settings,List.of(),List.of(),System.currentTimeMillis()),page);return;
         }
         job.viewers.put(player.getUniqueId(),page); jobs.put(map.getMapId(),job);
-        say(player,"診断範囲のチャンクを非同期読込中。既存地形のみ読み込み、診断終了後に保持を解除します。",NamedTextColor.YELLOW);
+        Messages.chat(player, "iem.admin.spawndiagnostics.request.support_006", MessageText.of("iem.admin.spawndiagnostics.request.support_006.body").color(NamedTextColor.YELLOW));
         job.runTaskTimer(plugin,1,1);
     }
-    private static void say(Player p,String text,NamedTextColor color) { p.sendMessage(Component.text(text,color)); }
+    private static void say(Player p,String text,NamedTextColor color) { Messages.chat(p, "iem.admin.spawndiagnostics.say.notice_001", MessageText.of("iem.admin.spawndiagnostics.say.notice_001", MessageText.payload(Component.text(text,color)))); }
     private static String f(double n) { return String.format(Locale.ROOT,"%.1f",n); }
     private void print(Player p,String map,Report r,int page) {
         int count=r.entries.size(), pages=Math.max(1,(count+11)/12);
-        p.sendMessage(Component.text("スポーン配置  ",NamedTextColor.GOLD)
-                .append(Component.text(map+"  |  "+count+"地点  |  "+(page==0?"全地点":page+" / "+pages),NamedTextColor.WHITE))
-                .append(Component.text("  [再計算]",NamedTextColor.AQUA)
+        Messages.chat(p, "iem.admin.spawndiagnostics.print.notice_001", MessageText.of("iem.admin.spawndiagnostics.print.notice_001", MessageText.payload(MessageText.of("iem.admin.spawndiagnostics.print.notice_001.text_01").color(NamedTextColor.GOLD)
+                .append(MessageText.of("iem.admin.spawndiagnostics.print.notice_001.text_02", map, count, (page==0?"全地点":page+" / "+pages)).color(NamedTextColor.WHITE))
+                .append(MessageText.of("iem.admin.spawndiagnostics.print.notice_001.text_03").color(NamedTextColor.AQUA)
                         .clickEvent(ClickEvent.runCommand("/raid spawn analyze "+map))
-                        .hoverEvent(Component.text("地形・遮蔽物の変更後に再計算"))));
+                        .hoverEvent(MessageText.of("iem.admin.spawndiagnostics.print.notice_001.text_04"))))));
         var travel=r.settings.travel();
-        Component conditions=Component.text("目標 "+f(r.settings.targetMin)+"〜"+f(r.settings.targetMax)+"秒  |  両者接近・スタミナ込み  ⓘ",NamedTextColor.GRAY)
-                .hoverEvent(Component.text("基準 "+f(r.settings.weight/1000.0)+"kg / 満腹度 "+r.settings.food+" / 満タン開始・スキルなし\n"
-                        +"走行 "+f(travel.sprintSpeed())+" / 歩行 "+f(travel.walkSpeed())+"m/s\n"
-                        +"消費 "+f(travel.drainPerSecond())+"/秒 / 回復 "+f(travel.recoveryPerSecond())+"/秒 / 待ち "+f(travel.recoveryDelay())+"秒\n"
-                        +"予備 "+f(r.settings.reserve)+"で歩行、満回復して再走行。重量によりダッシュ不可の場合あり。\n"
-                        +"診断結果："+Math.max(0,(System.currentTimeMillis()-r.created)/1000)+"秒前"));
-        p.sendMessage(conditions);
+        Component conditions=MessageText.of("iem.admin.spawndiagnostics.print.support_001", f(r.settings.targetMin), f(r.settings.targetMax)).color(NamedTextColor.GRAY)
+                .hoverEvent(MessageText.of("iem.admin.spawndiagnostics.print.support_002", f(r.settings.weight/1000.0), r.settings.food, f(travel.sprintSpeed()), f(travel.walkSpeed()), f(travel.drainPerSecond()), f(travel.recoveryPerSecond()), f(travel.recoveryDelay()), f(r.settings.reserve), Math.max(0,(System.currentTimeMillis()-r.created)/1000)));
+        Messages.chat(p, "iem.admin.spawndiagnostics.print.notice_002", MessageText.of("iem.admin.spawndiagnostics.print.notice_002", MessageText.payload(conditions)));
         Pair fastest=r.pairs.stream().filter(pair->pair.seconds()!=null)
                 .min(Comparator.comparingDouble(pair->pair.seconds())).orElse(null);
         long complete=r.pairs.stream().filter(pair->pair.seconds()!=null&&pair.note().isEmpty()).count();
         long unknown=Math.max(0,(long)count*(count-1)/2-complete);
-        say(p,"全体の推定最速"+(unknown>0&&fastest!=null&&fastest.seconds()>0?"（暫定）":"")+": "+(fastest==null?(count<2?"比較対象なし":"未確定"):
-                f(fastest.seconds())+"秒  #"+fastest.a()+" ↔ #"+fastest.b())
-                +"  |  未確定 "+unknown+"組",NamedTextColor.YELLOW);
+        Messages.chat(p, "iem.admin.spawndiagnostics.print.support_003", MessageText.of("iem.admin.spawndiagnostics.print.support_003.body", (unknown>0&&fastest!=null&&fastest.seconds()>0?"（暫定）":""), (fastest==null?(count<2?"比較対象なし":"未確定"):
+                f(fastest.seconds())+"秒  #"+fastest.a()+" ↔ #"+fastest.b()), unknown).color(NamedTextColor.YELLOW));
         var reasons=unknownReasons(count,r.pairs);
         reasons.entrySet().stream().limit(6).forEach(reason->
-                say(p,"  未確定の理由："+reason.getKey()+" ×"+reason.getValue()+"組",NamedTextColor.GRAY));
-        if(count==0) say(p,"スポーン地点はありません。",NamedTextColor.GRAY);
+                Messages.chat(p, "iem.admin.spawndiagnostics.print.support_004", MessageText.of("iem.admin.spawndiagnostics.print.support_004.body", reason.getKey(), reason.getValue()).color(NamedTextColor.GRAY)));
+        if(count==0) Messages.chat(p, "iem.admin.spawndiagnostics.print.support_005", MessageText.of("iem.admin.spawndiagnostics.print.support_005.body").color(NamedTextColor.GRAY));
         int from=page==0?0:(page-1)*12, to=page==0?count:Math.min(count,page*12);
         for(int i=from;i<to;i++) {
             RaidMap.SpawnEntry e=r.entries.get(i);
@@ -158,30 +156,28 @@ final class SpawnDiagnostics implements Listener {
             if(site.unknown()>0 && (earliest==null||earliest.seconds()>=r.settings.targetMin))color=NamedTextColor.YELLOW;
             if(local!=null&&local.unsafe&&!local.unknown)color=NamedTextColor.RED;
             String time=earliest==null?(count<2?"—":"未確定"):f(earliest.seconds())+"秒 → #"+site.opponent();
-            Component detail=Component.text("#"+e.id()+"  ("+f(e.x())+", "+f(e.y())+", "+f(e.z())+")",NamedTextColor.WHITE)
-                    .append(Component.text("\n推定最速接敵: "+time+"\n判定: "+rating, color))
-                    .append(Component.text("\n最寄り: "+(nearestId<0?"なし":"#"+nearestId+" / "+f(nearest)+"m")+" / 100m内 "+near+"地点"
-                            +"\n開始時射線: "+site.direct()+"組 / 未確定: "+site.unknown()+"組",NamedTextColor.GRAY));
-            if(local!=null)detail=detail.append(Component.text("\n遮蔽(8m): "+local.cover+"/8 / 退避(4m): "+local.exits+"/8"
-                    +(local.unsafe?"\n足場または頭上空間に問題":"")+(local.unknown?"\n周辺読込失敗／範囲外あり":""),NamedTextColor.GRAY));
-            if(upper!=null)detail=detail.append(Component.text("\n地下・立体通路候補: #"+upper.id()+"より"+f(upper.y()-e.y())+"m低い。\n退避0は水平検査の結果。階段・曲がった出口を確認。",NamedTextColor.AQUA));
+            Component detail=MessageText.of("iem.admin.spawndiagnostics.print.support_006", e.id(), f(e.x()), f(e.y()), f(e.z())).color(NamedTextColor.WHITE)
+                    .append(MessageText.of("iem.admin.spawndiagnostics.print.support_007", time, rating).color(color))
+                    .append(MessageText.of("iem.admin.spawndiagnostics.print.support_008", (nearestId<0?"なし":"#"+nearestId+" / "+f(nearest)+"m"), near, site.direct(), site.unknown()).color(NamedTextColor.GRAY));
+            if(local!=null)detail=detail.append(MessageText.of("iem.admin.spawndiagnostics.print.support_009", local.cover, local.exits, (local.unsafe?"\n足場または頭上空間に問題":""), (local.unknown?"\n周辺読込失敗／範囲外あり":"")).color(NamedTextColor.GRAY));
+            if(upper!=null)detail=detail.append(MessageText.of("iem.admin.spawndiagnostics.print.support_010", upper.id(), f(upper.y()-e.y())).color(NamedTextColor.AQUA));
             List<Pair> notes=r.pairs.stream().filter(pair->(pair.a()==e.id()||pair.b()==e.id())&&!pair.note().isEmpty()).toList();
-            for(Pair pair:notes.stream().limit(8).toList()) detail=detail.append(Component.text("\n相手 #"+(pair.a()==e.id()?pair.b():pair.a())+": "+pair.note(),NamedTextColor.DARK_GRAY));
-            if(notes.size()>8)detail=detail.append(Component.text("\nほか "+(notes.size()-8)+"組も未確定",NamedTextColor.DARK_GRAY));
-            if(site.unknown()>0)detail=detail.append(Component.text("\n未確定の相手を含むため、表示時間より早い接敵の可能性あり。",NamedTextColor.YELLOW));
-            p.sendMessage(Component.text(String.format(Locale.ROOT,"#%-3d  ",e.id()),NamedTextColor.WHITE)
+            for(Pair pair:notes.stream().limit(8).toList()) detail=detail.append(MessageText.of("iem.admin.spawndiagnostics.print.support_011", (pair.a()==e.id()?pair.b():pair.a()), pair.note()).color(NamedTextColor.DARK_GRAY));
+            if(notes.size()>8)detail=detail.append(MessageText.of("iem.admin.spawndiagnostics.print.support_012", (notes.size()-8)).color(NamedTextColor.DARK_GRAY));
+            if(site.unknown()>0)detail=detail.append(MessageText.of("iem.admin.spawndiagnostics.print.support_013").color(NamedTextColor.YELLOW));
+            Messages.chat(p, "iem.admin.spawndiagnostics.print.notice_003", MessageText.of("iem.admin.spawndiagnostics.print.notice_003", MessageText.payload(MessageText.of("iem.admin.spawndiagnostics.print.notice_003.text_01", String.format(Locale.ROOT,"#%-3d  ",e.id())).color(NamedTextColor.WHITE)
                     .append(Component.text(time,color))
-                    .append(Component.text("  ["+rating.replace("（経路近似）","")+"]",color))
-                    .append(site.unknown()>0?Component.text("  未確定"+site.unknown(),NamedTextColor.DARK_GRAY):Component.empty())
-                    .hoverEvent(detail));
+                    .append(MessageText.of("iem.admin.spawndiagnostics.print.notice_003.text_02", rating.replace("（経路近似）","")).color(color))
+                    .append(site.unknown()>0?MessageText.of("iem.admin.spawndiagnostics.print.notice_003.text_03", site.unknown()).color(NamedTextColor.DARK_GRAY):Component.empty())
+                    .hoverEvent(detail))));
         }
         if(page>0) {
-            Component navigation=Component.text("[全地点]",NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map));
-            if(page>1)navigation=navigation.append(Component.text("  [前へ]",NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map+" "+(page-1))));
-            if(page<pages)navigation=navigation.append(Component.text("  [次へ]",NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map+" "+(page+1))));
-            p.sendMessage(navigation);
+            Component navigation=MessageText.of("iem.admin.spawndiagnostics.print.support_014").color(NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map));
+            if(page>1)navigation=navigation.append(MessageText.of("iem.admin.spawndiagnostics.print.support_015").color(NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map+" "+(page-1))));
+            if(page<pages)navigation=navigation.append(MessageText.of("iem.admin.spawndiagnostics.print.support_016").color(NamedTextColor.AQUA).clickEvent(ClickEvent.runCommand("/raid spawn list "+map+" "+(page+1))));
+            Messages.chat(p, "iem.admin.spawndiagnostics.print.notice_004", MessageText.of("iem.admin.spawndiagnostics.print.notice_004", MessageText.payload(navigation)));
         }
-        say(p,"各行にホバーで詳細。推定最速は一経路上の近似（射線が通るまで）。未確定・40秒超も安全保証なし。",NamedTextColor.DARK_GRAY);
+        Messages.chat(p, "iem.admin.spawndiagnostics.print.support_017", MessageText.of("iem.admin.spawndiagnostics.print.support_017.body").color(NamedTextColor.DARK_GRAY));
     }
     private static Point point(RaidMap.SpawnEntry e) { return new Point(e.x(),e.y(),e.z()); }
 
@@ -207,7 +203,7 @@ final class SpawnDiagnostics implements Listener {
         @Override public synchronized void cancel() {
             try {super.cancel();} finally {loader.close();}
         }
-        void message(String text) { for (UUID id:viewers.keySet()) {Player p=Bukkit.getPlayer(id);if(p!=null)say(p,text,NamedTextColor.YELLOW);} }
+        void message(String text) { for (UUID id:viewers.keySet()) {Player p=Bukkit.getPlayer(id);if(p!=null)Messages.chat(p, "iem.admin.spawndiagnostics.message.support_001", MessageText.of("iem.admin.spawndiagnostics.message.support_001.body", text).color(NamedTextColor.YELLOW));} }
         @Override public void run() {
             if (Bukkit.getWorld(world.getUID())!=world || manager.getMap(map.getMapId())!=map || !entries.equals(map.spawnEntries())) {
                 jobs.remove(map.getMapId(),this); cancel(); message("ワールドまたは配置が変わったため診断を中断しました。"); return;

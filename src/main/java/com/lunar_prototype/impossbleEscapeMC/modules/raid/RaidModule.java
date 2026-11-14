@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
@@ -240,8 +243,7 @@ public class RaidModule implements IModule {
     private static void sendCapacityWarning(Player player) {
         int used = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.usedCost(player, player.getInventory());
         int capacity = com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.capacity(player, player.getInventory());
-        player.sendMessage(Component.text("持ち物が容量を超えています (" + used + " / " + capacity + " マス、あと "
-                + Math.max(0, used - capacity) + " マス整理が必要です)。整理してから再度出撃してください。", NamedTextColor.RED));
+        Messages.chat(player, "iem.raid.raidmodule.sendcapacitywarning.notice_001", MessageText.of("iem.raid.raidmodule.sendcapacitywarning.notice_001", MessageText.payload(MessageText.of("iem.raid.raidmodule.sendcapacitywarning.notice_001.text_01", used, capacity, Math.max(0, used - capacity)).color(NamedTextColor.RED))));
     }
 
     private void saveState() {
@@ -372,11 +374,11 @@ public class RaidModule implements IModule {
             Set<UUID> queue = raidQueues.get(mapId);
             if (queue == null) return;
 
-            String message = "§e[RAID] §f" + mapId + " 出撃まであと §b" + timeLeft + "秒";
+            Component message = MessageText.of("iem.raid.raidmodule.notifyqueuedplayers.support_001", mapId, timeLeft);
             for (UUID uuid : queue) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null) {
-                    p.sendMessage(message);
+                    Messages.chat(p, "iem.raid.raidmodule.notifyqueuedplayers.notice_001", MessageText.of("iem.raid.raidmodule.notifyqueuedplayers.notice_001", MessageText.payload(message)));
                     p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.0f);
                 }
             }
@@ -409,7 +411,7 @@ public class RaidModule implements IModule {
             createRaid(mapId, participants);
         }
 
-        Bukkit.broadcast(Component.text(mapId + " の新たなレイドサイクルが開始されました。", NamedTextColor.AQUA));
+        Messages.broadcast("iem.raid.raidmodule.onmapcycleend.notice_001", MessageText.of("iem.raid.raidmodule.onmapcycleend.notice_001", MessageText.payload(MessageText.of("iem.raid.raidmodule.onmapcycleend.notice_001.text_01", mapId).color(NamedTextColor.AQUA))));
     }
 
     /**
@@ -433,7 +435,7 @@ public class RaidModule implements IModule {
             // すでにどこかのレイドに参加中かチェック
             for (RaidInstance raid : activeRaids.values()) {
                 if (raid.isParticipant(player.getUniqueId())) {
-                    player.sendMessage(Component.text("すでにレイドに参加中です。", NamedTextColor.RED));
+                    Messages.chat(player, "iem.raid.raidmodule.joinqueue.notice_001", MessageText.of("iem.raid.raidmodule.joinqueue.notice_001", MessageText.payload(MessageText.of("iem.raid.raidmodule.joinqueue.notice_001.text_01").color(NamedTextColor.RED))));
                     return false;
                 }
             }
@@ -450,7 +452,7 @@ public class RaidModule implements IModule {
             // 進行中のレイドに、この周期ですでに死亡・脱出した人は途中参加できない
             // (マップが空いていれば新しいセッションを始めるので制限しない)
             if (active != null && lateJoin && finishedThisCycle(mapId, player)) {
-                player.sendMessage(Component.text("このレイドセッションではすでに死亡・脱出しているため、再参加はできません。", NamedTextColor.RED));
+                Messages.chat(player, "iem.raid.raidmodule.joinqueue.notice_002", MessageText.of("iem.raid.raidmodule.joinqueue.notice_002", MessageText.payload(MessageText.of("iem.raid.raidmodule.joinqueue.notice_002.text_01").color(NamedTextColor.RED))));
                 return false;
             }
         }
@@ -458,7 +460,7 @@ public class RaidModule implements IModule {
         // マップが空いていれば、周期を待たずに今すぐ開始する (虚無時間の解消)。中でリセットも行う。
         if (active == null) {
             startRaidOnDemand(mapId, group);
-            group.forEach(p -> p.sendMessage(Component.text(mapId + " のレイドを開始しました。", NamedTextColor.GREEN)));
+            group.forEach(p -> Messages.chat(p, "iem.raid.raidmodule.joinqueue.notice_003", MessageText.of("iem.raid.raidmodule.joinqueue.notice_003", MessageText.payload(MessageText.of("iem.raid.raidmodule.joinqueue.notice_003.text_01", mapId).color(NamedTextColor.GREEN)))));
             return true;
         }
 
@@ -466,7 +468,7 @@ public class RaidModule implements IModule {
         if (lateJoin) {
             group.forEach(this::leaveQueue);
             active.joinInProgress(group);
-            group.forEach(p -> p.sendMessage(Component.text(mapId + " のレイドに途中参加しました。", NamedTextColor.GREEN)));
+            group.forEach(p -> Messages.chat(p, "iem.raid.raidmodule.joinqueue.notice_004", MessageText.of("iem.raid.raidmodule.joinqueue.notice_004", MessageText.payload(MessageText.of("iem.raid.raidmodule.joinqueue.notice_004.text_01", mapId).color(NamedTextColor.GREEN)))));
             return true;
         }
 
@@ -476,7 +478,7 @@ public class RaidModule implements IModule {
             // すでに別のキューにいる場合は削除
             leaveQueue(player);
             raidQueues.computeIfAbsent(mapId, k -> new HashSet<>()).add(player.getUniqueId());
-            player.sendMessage(Component.text(mapId + " の出撃待機列に参加しました。出撃まであと " + formatTime(timeLeft), NamedTextColor.GREEN));
+            Messages.chat(player, "iem.raid.raidmodule.joinqueue.notice_005", MessageText.of("iem.raid.raidmodule.joinqueue.notice_005", MessageText.payload(MessageText.of("iem.raid.raidmodule.joinqueue.notice_005.text_01", mapId, formatTime(timeLeft)).color(NamedTextColor.GREEN))));
             if (bar != null) player.showBossBar(bar);
         }
         return true;
@@ -488,13 +490,13 @@ public class RaidModule implements IModule {
     public void autoMatch(Player player) {
         // すでにレイド中なら中断
         if (isInRaid(player)) {
-            player.sendMessage(Component.text("すでにレイドに参加中です。", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidmodule.automatch.notice_001", MessageText.of("iem.raid.raidmodule.automatch.notice_001", MessageText.payload(MessageText.of("iem.raid.raidmodule.automatch.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         com.lunar_prototype.impossbleEscapeMC.modules.party.Party party = com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.get().getParty(player.getUniqueId());
         if (party != null && !party.isLeader(player.getUniqueId())) {
-            player.sendMessage(Component.text("パーティリーダーのみがマッチングを開始できます。", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidmodule.automatch.notice_002", MessageText.of("iem.raid.raidmodule.automatch.notice_002", MessageText.payload(MessageText.of("iem.raid.raidmodule.automatch.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
 
@@ -749,7 +751,7 @@ public class RaidModule implements IModule {
         player.setItemOnCursor(null);
         player.setGameMode(GameMode.ADVENTURE);
         player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
-        player.sendMessage(Component.text("MIA: レイド中に切断したまま時間切れになったため、装備をすべて失いました", NamedTextColor.RED));
+        Messages.chat(player, "iem.raid.raidmodule.forfeitafterdisconnect.notice_001", MessageText.of("iem.raid.raidmodule.forfeitafterdisconnect.notice_001", MessageText.payload(MessageText.of("iem.raid.raidmodule.forfeitafterdisconnect.notice_001.text_01").color(NamedTextColor.RED))));
         applyFailureEffect(player);
         plugin.getRaidMapManager().updateMapSlot(player);
     }

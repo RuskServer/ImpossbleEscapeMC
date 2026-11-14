@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
@@ -225,31 +228,31 @@ public class RaidInstance {
     /** レイド開始の音とタイトル (出撃時の PDA の演出が終わってから) */
     private void showStartTitle(Player p) {
         p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.2f);
-        p.showTitle(net.kyori.adventure.title.Title.title(
-                Component.text("RAID START", NamedTextColor.RED, net.kyori.adventure.text.format.TextDecoration.BOLD),
-                Component.text(map.getMapId() + " へ出撃しました", NamedTextColor.YELLOW),
+        Messages.title(p, "iem.raid.raidinstance.showstarttitle.notice_001", net.kyori.adventure.title.Title.title(
+                MessageText.of("iem.raid.raidinstance.showstarttitle.notice_001.text_01").color(NamedTextColor.RED).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD),
+                MessageText.of("iem.raid.raidinstance.showstarttitle.notice_001.text_02", map.getMapId()).color(NamedTextColor.YELLOW),
                 net.kyori.adventure.title.Title.Times.times(java.time.Duration.ofMillis(500), java.time.Duration.ofSeconds(2), java.time.Duration.ofMillis(500))
         ));
     }
 
     private void applySpawnProtection(Player p) {
         p.setInvulnerable(true);
-        p.sendMessage(Component.text("スポーン保護が3秒間有効です。", NamedTextColor.AQUA));
+        Messages.chat(p, "iem.raid.raidinstance.applyspawnprotection.notice_001", MessageText.of("iem.raid.raidinstance.applyspawnprotection.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.applyspawnprotection.notice_001.text_01").color(NamedTextColor.AQUA))));
         new BukkitRunnable() {
             @Override
             public void run() {
                 if (p.isOnline()) {
                     p.setInvulnerable(false);
-                    p.sendMessage(Component.text("スポーン保護が終了しました。", NamedTextColor.RED));
+                    Messages.chat(p, "iem.raid.raidinstance.run.notice_001", MessageText.of("iem.raid.raidinstance.run.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.run.notice_001.text_01").color(NamedTextColor.RED))));
                 }
             }
         }.runTaskLater(plugin, 60); // 3 seconds (20 ticks * 3)
     }
 
     private void showExtractions(Player p) {
-        p.sendMessage(Component.text("利用可能な脱出地点:", NamedTextColor.YELLOW));
+        Messages.chat(p, "iem.raid.raidinstance.showextractions.notice_001", MessageText.of("iem.raid.raidinstance.showextractions.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.showextractions.notice_001.text_01").color(NamedTextColor.YELLOW))));
         for (RaidMap.ExtractionPoint ep : activeExtractions) {
-            p.sendMessage(Component.text("- " + ep.getName(), NamedTextColor.WHITE));
+            Messages.chat(p, "iem.raid.raidinstance.showextractions.notice_002", MessageText.of("iem.raid.raidinstance.showextractions.notice_002", MessageText.payload(MessageText.of("iem.raid.raidinstance.showextractions.notice_002.text_01", ep.getName()).color(NamedTextColor.WHITE))));
         }
     }
 
@@ -404,7 +407,7 @@ public class RaidInstance {
         p.closeInventory();   // 開いているバッグ・クラフト欄の中身を持ち物に戻してから消す
         p.getInventory().clear();
         p.setItemOnCursor(null);
-        p.sendMessage(Component.text("MIA: 時間内に脱出できなかったため、装備をすべて失いました", NamedTextColor.RED));
+        Messages.chat(p, "iem.raid.raidinstance.forfeitloadout.notice_001", MessageText.of("iem.raid.raidinstance.forfeitloadout.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.forfeitloadout.notice_001.text_01").color(NamedTextColor.RED))));
     }
 
     public void resetCycle() {
@@ -597,7 +600,7 @@ public class RaidInstance {
         // 脱出にかかる時間 10 秒 (スキルで縮む)
         int remaining = Math.max(1, 10 + (int) SkillModule.value(p, SkillStat.EXTRACT_SECONDS)) - count;
         if (remaining > 0) {
-            p.sendActionBar(Component.text("脱出中... " + remaining + "s (" + ep.getName() + ")", NamedTextColor.GREEN));
+            Messages.actionBar(p, "iem.raid.raidinstance.handleextraction.notice_001", MessageText.of("iem.raid.raidinstance.handleextraction.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.handleextraction.notice_001.text_01", remaining, ep.getName()).color(NamedTextColor.GREEN))));
             // カウントダウン音 (1秒ごと)
             p.playSound(p.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, 0.8f, 1.5f);
         } else {
@@ -897,10 +900,10 @@ public class RaidInstance {
                 if (joined == null || !players.contains(playerId)) return;
                 hud.show(joined);
                 showStartTitle(joined);
-                joined.sendMessage(Component.text("レイド開始: " + map.getMapId(), NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
+                Messages.chat(joined, "iem.raid.raidinstance.spawngroup.notice_001", MessageText.of("iem.raid.raidinstance.spawngroup.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.spawngroup.notice_001.text_01", map.getMapId()).color(NamedTextColor.GOLD).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD))));
                 RaidConditions conditions = plugin.getRaidModule() != null ? plugin.getRaidModule().getConditions(map.getMapId()) : null;
                 if (conditions != null) {
-                    joined.sendMessage(Component.text("[RAID] 現地: " + conditions.describe(), NamedTextColor.GRAY));
+                    Messages.chat(joined, "iem.raid.raidinstance.spawngroup.notice_002", MessageText.of("iem.raid.raidinstance.spawngroup.notice_002", MessageText.payload(MessageText.of("iem.raid.raidinstance.spawngroup.notice_002.text_01", conditions.describe()).color(NamedTextColor.GRAY))));
                 }
                 showExtractions(joined);
                 if (protect) applySpawnProtection(joined);
@@ -975,7 +978,7 @@ public class RaidInstance {
         p.setGameMode(org.bukkit.GameMode.ADVENTURE);
         hud.show(p);
         setRaidCameraDistance(p);
-        p.sendMessage(Component.text("レイドへ再復帰しました。", NamedTextColor.GREEN));
+        Messages.chat(p, "iem.raid.raidinstance.onparticipantjoin.notice_001", MessageText.of("iem.raid.raidinstance.onparticipantjoin.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.onparticipantjoin.notice_001.text_01").color(NamedTextColor.GREEN))));
     }
 
     /**

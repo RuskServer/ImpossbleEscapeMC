@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -23,19 +26,19 @@ public class GetItemCommand implements BasicCommand {
         CommandSender sender = stack.getSender();
         // プレイヤーチェック
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cThis command can only be used by players.");
+            Messages.chat(sender, "iem.system.getitemcommand.execute.notice_001", MessageText.of("iem.system.getitemcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.system.getitemcommand.execute.notice_001.text_01"))));
             return;
         }
 
         // 権限チェック
         if (!player.hasPermission("impossibleescape.getitem")) {
-            player.sendMessage("§cYou don't have permission.");
+            Messages.chat(player, "iem.system.getitemcommand.execute.notice_002", MessageText.of("iem.system.getitemcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.system.getitemcommand.execute.notice_002.text_01"))));
             return;
         }
 
         // 引数チェック
         if (args.length < 1) {
-            player.sendMessage("§7Usage: /getitem <itemId> [amount]");
+            Messages.chat(player, "iem.system.getitemcommand.execute.notice_003", MessageText.of("iem.system.getitemcommand.execute.notice_003", MessageText.payload(MessageText.of("iem.system.getitemcommand.execute.notice_003.text_01"))));
             return;
         }
 
@@ -48,7 +51,7 @@ public class GetItemCommand implements BasicCommand {
                 if (amount < 1) amount = 1;
                 if (amount > 64) amount = 64; // スタック制限（必要に応じて調整）
             } catch (NumberFormatException e) {
-                player.sendMessage("§cInvalid amount: " + args[1]);
+                Messages.chat(player, "iem.system.getitemcommand.execute.notice_004", MessageText.of("iem.system.getitemcommand.execute.notice_004", MessageText.payload(MessageText.of("iem.system.getitemcommand.execute.notice_004.text_01", args[1]))));
                 return;
             }
         }
@@ -57,7 +60,7 @@ public class GetItemCommand implements BasicCommand {
         ItemStack item = ItemFactory.create(itemId);
 
         if (item == null) {
-            player.sendMessage("§cItem not found: §f" + itemId);
+            Messages.chat(player, "iem.system.getitemcommand.execute.notice_005", MessageText.of("iem.system.getitemcommand.execute.notice_005", MessageText.payload(MessageText.of("iem.system.getitemcommand.execute.notice_005.text_01", itemId))));
             return;
         }
 
@@ -65,7 +68,7 @@ public class GetItemCommand implements BasicCommand {
 
         // インベントリに追加
         player.getInventory().addItem(item);
-        player.sendMessage("§aYou received " + amount + "x item: §f" + itemId);
+        Messages.chat(player, "iem.system.getitemcommand.execute.notice_006", MessageText.of("iem.system.getitemcommand.execute.notice_006", MessageText.payload(MessageText.of("iem.system.getitemcommand.execute.notice_006.text_01", amount, itemId))));
 
         return;
     }

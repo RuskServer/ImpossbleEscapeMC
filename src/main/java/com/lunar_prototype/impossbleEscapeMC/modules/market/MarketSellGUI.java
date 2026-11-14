@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
@@ -110,7 +113,7 @@ public class MarketSellGUI implements Listener {
             if (original == null || original.getType() == Material.AIR) return;
 
             if (!marketModule.canSellOnMarket(original)) {
-                player.sendMessage(Component.text("出品するにはFIRステータス、または弾薬である必要があります。", NamedTextColor.RED));
+                Messages.chat(player, "iem.market.marketsellgui.oninventoryclick.notice_001", MessageText.of("iem.market.marketsellgui.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.market.marketsellgui.oninventoryclick.notice_001.text_01").color(NamedTextColor.RED))));
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
                 return;
             }

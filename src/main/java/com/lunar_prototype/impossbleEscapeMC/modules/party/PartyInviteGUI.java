@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
@@ -118,7 +121,7 @@ public class PartyInviteGUI implements Listener {
         } else if (targetBySlot.containsKey(slot)) {
             Player target = Bukkit.getPlayer(targetBySlot.get(slot));
             if (target == null) {
-                player.sendMessage(Component.text("そのプレイヤーはオフラインです。", NamedTextColor.RED));
+                Messages.chat(player, "iem.party.partyinvitegui.oninventoryclick.notice_001", MessageText.of("iem.party.partyinvitegui.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.party.partyinvitegui.oninventoryclick.notice_001.text_01").color(NamedTextColor.RED))));
                 setupGUI();
                 return;
             }

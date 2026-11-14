@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
@@ -239,8 +242,7 @@ public final class ShaderWarmDiagnostic {
             int t = tick++;
             int effectsStart = BASELINE_TICKS + BASELINE_WAIT_TICKS;
             if (t == 0) {
-                player.sendMessage(Component.text("シェーダーの初回の停止時間を測ります (" + effects.size() + " 個 x " + passes + " 回、約 "
-                        + (effectsStart + slots * slotTicks) / 20 + " 秒。画面が点滅します。止めるには /shaderdebug warm stop)", NamedTextColor.AQUA));
+                Messages.chat(player, "iem.system.shaderwarmdiagnostic.tick.notice_001", MessageText.of("iem.system.shaderwarmdiagnostic.tick.notice_001", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.tick.notice_001.text_01", effects.size(), passes, (effectsStart + slots * slotTicks) / 20).color(NamedTextColor.AQUA))));
             }
             if (t < BASELINE_TICKS) {
                 sendPing(player, -1, t);
@@ -252,7 +254,7 @@ public final class ShaderWarmDiagnostic {
                     baselineMedian = median(baseline);
                 }
                 if (Double.isNaN(baselineMedian)) {
-                    player.sendMessage(Component.text("クライアントから返事が来ません。測れません", NamedTextColor.RED));
+                    Messages.chat(player, "iem.system.shaderwarmdiagnostic.tick.notice_002", MessageText.of("iem.system.shaderwarmdiagnostic.tick.notice_002", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.tick.notice_002.text_01").color(NamedTextColor.RED))));
                     finish(false);
                     return;
                 }
@@ -287,7 +289,7 @@ public final class ShaderWarmDiagnostic {
             if (player != null) ScreenEffectService.setProbe(player, null);
             if (player == null) return;
             if (!completed) {
-                player.sendMessage(Component.text("測定を止めました", NamedTextColor.YELLOW));
+                Messages.chat(player, "iem.system.shaderwarmdiagnostic.finish.notice_001", MessageText.of("iem.system.shaderwarmdiagnostic.finish.notice_001", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.finish.notice_001.text_01").color(NamedTextColor.YELLOW))));
                 return;
             }
             report(player);
@@ -306,7 +308,7 @@ public final class ShaderWarmDiagnostic {
                 csv.add((s / n + 1) + "," + effects.get(s % n).value() + "," + fmt(r.maxRttMs()) + "," + fmt(r.excessMs()) + "," + (r.lastBadOffset() + 1) + "," + r.missing());
             }
             String file = writeCsv(csv);
-            player.sendMessage(Component.text("基準の返事の遅れ: 中央値 " + fmt(baselineMedian) + " ms", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.system.shaderwarmdiagnostic.report.notice_001", MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_001", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_001.text_01", fmt(baselineMedian)).color(NamedTextColor.GREEN))));
             for (int p = 0; p < passes; p++) {
                 double sum = 0;
                 int visible = 0;
@@ -316,20 +318,18 @@ public final class ShaderWarmDiagnostic {
                     sum += ex;
                     if (ex >= VISIBLE_MS) visible++;
                 }
-                player.sendMessage(Component.text((p + 1) + " 回目" + (p == 0 ? " (初めて)" : p == 1 ? " (2 回目)" : "") + ": 停止の合計 " + fmt(sum) + " ms / "
-                        + (int) VISIBLE_MS + " ms 以上止まったエフェクト " + visible + " 個", NamedTextColor.GREEN));
+                Messages.chat(player, "iem.system.shaderwarmdiagnostic.report.notice_002", MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_002", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_002.text_01", (p + 1), (p == 0 ? MessageText.of("iem.system.shaderwarmdiagnostic.first_pass") : p == 1 ? MessageText.of("iem.system.shaderwarmdiagnostic.second_pass") : ""), fmt(sum), (int) VISIBLE_MS, visible).color(NamedTextColor.GREEN))));
             }
             Integer[] order = new Integer[n];
             for (int i = 0; i < n; i++) order[i] = i;
             Arrays.sort(order, Comparator.comparingDouble((Integer i) -> -nz(results[i].excessMs())));
-            player.sendMessage(Component.text("1 回目に長く止まった順 (後ろの数字 = 2 回目):", NamedTextColor.GRAY));
+            Messages.chat(player, "iem.system.shaderwarmdiagnostic.report.notice_003", MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_003", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_003.text_01").color(NamedTextColor.GRAY))));
             for (int k = 0; k < Math.min(12, n); k++) {
                 int i = order[k];
                 String second = passes > 1 ? " → " + fmt(results[n + i].excessMs()) + " ms" : "";
-                player.sendMessage(Component.text("  " + effects.get(i).value() + ": " + fmt(results[i].excessMs()) + " ms" + second
-                        + (results[i].missing() > 0 ? " (返事なし " + results[i].missing() + ")" : ""), NamedTextColor.WHITE));
+                Messages.chat(player, "iem.system.shaderwarmdiagnostic.report.notice_004", MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_004", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_004.text_01", effects.get(i).value(), fmt(results[i].excessMs()), second, (results[i].missing() > 0 ? MessageText.of("iem.system.shaderwarmdiagnostic.no_reply", results[i].missing()) : "")).color(NamedTextColor.WHITE))));
             }
-            if (file != null) player.sendMessage(Component.text("全部の結果: " + file, NamedTextColor.GRAY));
+            if (file != null) Messages.chat(player, "iem.system.shaderwarmdiagnostic.report.notice_005", MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_005", MessageText.payload(MessageText.of("iem.system.shaderwarmdiagnostic.report.notice_005.text_01", file).color(NamedTextColor.GRAY))));
         }
 
         private String writeCsv(List<String> lines) {

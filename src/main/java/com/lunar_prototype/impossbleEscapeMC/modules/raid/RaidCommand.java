@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -44,16 +47,16 @@ public class RaidCommand implements BasicCommand {
                 break;
             case "leave":
                 manager.leaveQueue(player);
-                player.sendMessage(Component.text("出撃待機列から離脱しました。", NamedTextColor.YELLOW));
+                Messages.chat(player, "iem.raid.raidcommand.execute.notice_001", MessageText.of("iem.raid.raidcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.raid.raidcommand.execute.notice_001.text_01").color(NamedTextColor.YELLOW))));
                 break;
             case "start":
                 if (player.isOp()) {
                     String targetMap = args.length >= 2 ? args[1] : null;
                     manager.forceStartCycle(targetMap);
                     if (targetMap != null) {
-                        player.sendMessage(Component.text("マップ " + targetMap + " のレイドサイクルを強制終了し、出撃を開始しました。", NamedTextColor.GREEN));
+                        Messages.chat(player, "iem.raid.raidcommand.execute.notice_002", MessageText.of("iem.raid.raidcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.execute.notice_002.text_01", targetMap).color(NamedTextColor.GREEN))));
                     } else {
-                        player.sendMessage(Component.text("全マップのレイドサイクルを強制終了し、出撃を開始しました。", NamedTextColor.GREEN));
+                        Messages.chat(player, "iem.raid.raidcommand.execute.notice_003", MessageText.of("iem.raid.raidcommand.execute.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.execute.notice_003.text_01").color(NamedTextColor.GREEN))));
                     }
                 }
                 break;
@@ -73,8 +76,8 @@ public class RaidCommand implements BasicCommand {
                 if(player.isOp()) {
                     RaidInstance raid=manager.getRaidOf(player);
                     if(args.length!=3||!args[1].equalsIgnoreCase("preview")||!List.of("zone","item").contains(args[2]))
-                        player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.YELLOW));
-                    else if(raid==null)player.sendMessage(Component.text("レイド参加中に実行してください。",NamedTextColor.YELLOW));
+                        Messages.chat(player, "iem.raid.raidcommand.execute.notice_004", MessageText.of("iem.raid.raidcommand.execute.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.execute.notice_004.text_01").color(NamedTextColor.YELLOW))));
+                    else if(raid==null)Messages.chat(player, "iem.raid.raidcommand.execute.notice_005", MessageText.of("iem.raid.raidcommand.execute.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.execute.notice_005.text_01").color(NamedTextColor.YELLOW))));
                     else raid.radio().preview(player,args[2]);
                 }
                 break;
@@ -94,7 +97,7 @@ public class RaidCommand implements BasicCommand {
 
     private void handleJoin(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(Component.text("/raid join <mapID>", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handlejoin.notice_001", MessageText.of("iem.raid.raidcommand.handlejoin.notice_001", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlejoin.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         String mapId = args[1];
@@ -103,7 +106,7 @@ public class RaidCommand implements BasicCommand {
 
     private void handleMap(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handlemap.notice_001", MessageText.of("iem.raid.raidcommand.handlemap.notice_001", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlemap.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         String action = args[1].toLowerCase();
@@ -111,130 +114,128 @@ public class RaidCommand implements BasicCommand {
 
         if (action.equals("create")) {
             manager.createMap(mapId);
-            player.sendMessage(Component.text("Map '" + mapId + "' created.", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.raid.raidcommand.handlemap.notice_002", MessageText.of("iem.raid.raidcommand.handlemap.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlemap.notice_002.text_01", mapId).color(NamedTextColor.GREEN))));
         } else if (action.equals("delete")) {
             manager.deleteMap(mapId);
-            player.sendMessage(Component.text("Map '" + mapId + "' deleted.", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handlemap.notice_003", MessageText.of("iem.raid.raidcommand.handlemap.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlemap.notice_003.text_01", mapId).color(NamedTextColor.RED))));
         }
     }
 
     private void handleSpawn(Player player, String[] args) {
-        String usage = "/raid spawn <add|remove|list|analyze|clear> <mapID> [地点ID / ページ]";
-        if (args.length < 3) { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
+        Component usage = MessageText.of("iem.admin.raidcommand.handlespawn.support_001");
+        if (args.length < 3) { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_001", MessageText.of("iem.raid.raidcommand.handlespawn.notice_001", MessageText.payload(usage.color(NamedTextColor.RED)))); return; }
         String action = args[1].toLowerCase(java.util.Locale.ROOT);
         RaidMap map = manager.getMap(args[2]);
-        if (map == null) { player.sendMessage(Component.text("Map not found.", NamedTextColor.RED)); return; }
+        if (map == null) { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_002", MessageText.of("iem.raid.raidcommand.handlespawn.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_002.text_01").color(NamedTextColor.RED)))); return; }
         if (action.equals("list") || action.equals("analyze")) {
             int page = 0;
             try { if (args.length >= 4) { page = Integer.parseInt(args[3]); if (page < 1) throw new NumberFormatException(); } }
-            catch (NumberFormatException ex) { player.sendMessage(Component.text("ページは1以上の整数です。", NamedTextColor.RED)); return; }
+            catch (NumberFormatException ex) { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_003", MessageText.of("iem.raid.raidcommand.handlespawn.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_003.text_01").color(NamedTextColor.RED)))); return; }
             spawnDiagnostics.request(player, map, page, action.equals("analyze")); return;
         }
         if (action.equals("add")) {
             if (map.getWorldName() != null && !map.isWorld(player.getWorld())) {
-                player.sendMessage(Component.text("マップと異なるワールドには追加できません。", NamedTextColor.RED)); return;
+                Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_004", MessageText.of("iem.raid.raidcommand.handlespawn.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_004.text_01").color(NamedTextColor.RED)))); return;
             }
             map.addSpawnPoint(player.getLocation());
             int id = map.spawnEntries().getLast().id();
-            player.sendMessage(Component.text("スポーン #" + id + " を追加しました。", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_005", MessageText.of("iem.raid.raidcommand.handlespawn.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_005.text_01", id).color(NamedTextColor.GREEN))));
         } else if (action.equals("remove")) {
-            if (args.length != 4) { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
+            if (args.length != 4) { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_006", MessageText.of("iem.raid.raidcommand.handlespawn.notice_006", MessageText.payload(usage.color(NamedTextColor.RED)))); return; }
             int id;
             try { id = Integer.parseInt(args[3]); }
-            catch (NumberFormatException ex) { player.sendMessage(Component.text("地点IDは整数です。", NamedTextColor.RED)); return; }
-            if (!map.removeSpawnPoint(id)) { player.sendMessage(Component.text("地点 #" + id + " はありません。listで確認してください。", NamedTextColor.RED)); return; }
-            player.sendMessage(Component.text("スポーン #" + id + " を削除しました。他の地点IDは変わりません。", NamedTextColor.GREEN));
+            catch (NumberFormatException ex) { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_007", MessageText.of("iem.raid.raidcommand.handlespawn.notice_007", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_007.text_01").color(NamedTextColor.RED)))); return; }
+            if (!map.removeSpawnPoint(id)) { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_008", MessageText.of("iem.raid.raidcommand.handlespawn.notice_008", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_008.text_01", id).color(NamedTextColor.RED)))); return; }
+            Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_009", MessageText.of("iem.raid.raidcommand.handlespawn.notice_009", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_009.text_01", id).color(NamedTextColor.GREEN))));
         } else if (action.equals("clear")) {
             map.clearSpawnPoints();
-            player.sendMessage(Component.text("全スポーン地点を削除しました。", NamedTextColor.YELLOW));
-        } else { player.sendMessage(Component.text(usage, NamedTextColor.RED)); return; }
+            Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_010", MessageText.of("iem.raid.raidcommand.handlespawn.notice_010", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlespawn.notice_010.text_01").color(NamedTextColor.YELLOW))));
+        } else { Messages.chat(player, "iem.raid.raidcommand.handlespawn.notice_011", MessageText.of("iem.raid.raidcommand.handlespawn.notice_011", MessageText.payload(usage.color(NamedTextColor.RED)))); return; }
         spawnDiagnostics.invalidate(map);
         manager.saveMap(map);
         spawnDiagnostics.request(player, map, 0, true);
     }
 
     private void handleBoss(Player player,String[] args) {
-        String usage="/raid boss <set|list|remove> <mapID> [区域ID] [boss|guard1|guard2]";
-        if(args.length<3){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
-        RaidMap map=manager.getMap(args[2]);if(map==null){player.sendMessage(Component.text("マップがありません。",NamedTextColor.RED));return;}
+        Component usage=MessageText.of("iem.admin.raidcommand.handleboss.support_001");
+        if(args.length<3){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_001", MessageText.of("iem.raid.raidcommand.handleboss.notice_001", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+        RaidMap map=manager.getMap(args[2]);if(map==null){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_002", MessageText.of("iem.raid.raidcommand.handleboss.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_002.text_01").color(NamedTextColor.RED))));return;}
         switch(args[1].toLowerCase(java.util.Locale.ROOT)) {
             case "set" -> {
-                if(args.length!=5||!RaidBossGroup.ROLES.contains(args[4])){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
-                if(!map.isWorld(player.getWorld())){player.sendMessage(Component.text("対象マップのワールドで実行してください。",NamedTextColor.RED));return;}
-                if(!RaidBossEncounter.safePosition(player.getLocation())){player.sendMessage(Component.text("足場と頭上に余裕がある、安全な地点に立って登録してください。",NamedTextColor.RED));return;}
+                if(args.length!=5||!RaidBossGroup.ROLES.contains(args[4])){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_003", MessageText.of("iem.raid.raidcommand.handleboss.notice_003", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+                if(!map.isWorld(player.getWorld())){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_004", MessageText.of("iem.raid.raidcommand.handleboss.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_004.text_01").color(NamedTextColor.RED))));return;}
+                if(!RaidBossEncounter.safePosition(player.getLocation())){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_005", MessageText.of("iem.raid.raidcommand.handleboss.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_005.text_01").color(NamedTextColor.RED))));return;}
                 try {
                     map.setBossPosition(args[3],args[4],player.getLocation());manager.saveMap(map);
-                    player.sendMessage(Component.text(args[3]+" / "+args[4]+" を登録しました。3地点が揃った次のレイドから抽選対象です。",NamedTextColor.GREEN));
-                }catch(IllegalArgumentException ex){player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+                    Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_006", MessageText.of("iem.raid.raidcommand.handleboss.notice_006", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_006.text_01", args[3], args[4]).color(NamedTextColor.GREEN))));
+                }catch(IllegalArgumentException ex){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_007", MessageText.of("iem.raid.raidcommand.handleboss.notice_007", MessageText.payload(Component.text(ex.getMessage(),NamedTextColor.RED))));}
             }
             case "remove" -> {
-                if(args.length!=4){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
-                if(!map.removeBossGroup(args[3])){player.sendMessage(Component.text("その区域にボス地点はありません。",NamedTextColor.RED));return;}
-                manager.saveMap(map);player.sendMessage(Component.text("ボス部隊の地点を削除しました。高脅威区域は残ります。",NamedTextColor.GREEN));
+                if(args.length!=4){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_008", MessageText.of("iem.raid.raidcommand.handleboss.notice_008", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+                if(!map.removeBossGroup(args[3])){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_009", MessageText.of("iem.raid.raidcommand.handleboss.notice_009", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_009.text_01").color(NamedTextColor.RED))));return;}
+                manager.saveMap(map);Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_010", MessageText.of("iem.raid.raidcommand.handleboss.notice_010", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_010.text_01").color(NamedTextColor.GREEN))));
             }
             case "list" -> {
-                player.sendMessage(Component.text("ボス部隊: "+map.getMapId()+" / "+map.bossGroups().size()+"区域",NamedTextColor.GOLD));
+                Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_011", MessageText.of("iem.raid.raidcommand.handleboss.notice_011", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_011.text_01", map.getMapId(), map.bossGroups().size()).color(NamedTextColor.GOLD))));
                 for(var group:map.bossGroups()) {
                     var zone=map.highThreatZones().stream().filter(z->z.id().equals(group.zoneId())).findFirst().orElse(null);
                     String problem=group.problem(zone);
-                    player.sendMessage(Component.text(group.zoneId()+" — "+(problem==null?"登録完了":problem),problem==null?NamedTextColor.GREEN:NamedTextColor.YELLOW));
+                    Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_012", MessageText.of("iem.raid.raidcommand.handleboss.notice_012", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_012.text_01", group.zoneId(), (problem==null?MessageText.of("iem.raid.raidcommand.registered"):problem)).color(problem==null?NamedTextColor.GREEN:NamedTextColor.YELLOW))));
                     for(String role:RaidBossGroup.ROLES) {
                         double[] p=group.position(role);
-                        player.sendMessage(Component.text("  "+role+": "+(p==null?"未登録":String.format(java.util.Locale.ROOT,"%.1f %.1f %.1f",p[0],p[1],p[2])),NamedTextColor.GRAY));
+                        Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_013", MessageText.of("iem.raid.raidcommand.handleboss.notice_013", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_013.text_01", role, (p==null?MessageText.of("iem.raid.raidcommand.unregistered"):String.format(java.util.Locale.ROOT,"%.1f %.1f %.1f",p[0],p[1],p[2]))).color(NamedTextColor.GRAY))));
                     }
                 }
             }
-            default -> player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));
+            default -> Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_014", MessageText.of("iem.raid.raidcommand.handleboss.notice_014", MessageText.payload(usage.color(NamedTextColor.YELLOW))));
         }
     }
 
     private void handleDanger(Player player,String[] args) {
-        String usage="/raid danger <add|list|remove> <mapID> [区域ID] [表示名]";
-        if(args.length<3){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
+        Component usage=MessageText.of("iem.admin.raidcommand.handledanger.support_001");
+        if(args.length<3){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_001", MessageText.of("iem.raid.raidcommand.handledanger.notice_001", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
         RaidMap map=manager.getMap(args[2]);
-        if(map==null){player.sendMessage(Component.text("マップがありません。",NamedTextColor.RED));return;}
+        if(map==null){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_002", MessageText.of("iem.raid.raidcommand.handledanger.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_002.text_01").color(NamedTextColor.RED))));return;}
         switch(args[1].toLowerCase(java.util.Locale.ROOT)) {
             case "list" -> {
-                player.sendMessage(Component.text("高脅威区域: "+map.getMapId()+" / "+map.highThreatZones().size()+"件",NamedTextColor.GOLD));
-                for(var zone:map.highThreatZones())player.sendMessage(Component.text(zone.id()+" — "+zone.name()+"  ("
-                        +(int)zone.minX()+", "+(int)zone.minY()+", "+(int)zone.minZ()+") ～ ("
-                        +(int)(zone.maxX()-1)+", "+(int)(zone.maxY()-1)+", "+(int)(zone.maxZ()-1)+")",NamedTextColor.WHITE));
+                Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_003", MessageText.of("iem.raid.raidcommand.handledanger.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_003.text_01", map.getMapId(), map.highThreatZones().size()).color(NamedTextColor.GOLD))));
+                for(var zone:map.highThreatZones())Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_004", MessageText.of("iem.raid.raidcommand.handledanger.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_004.text_01", zone.id(), zone.name(), (int)zone.minX(), (int)zone.minY(), (int)zone.minZ(), (int)(zone.maxX()-1), (int)(zone.maxY()-1), (int)(zone.maxZ()-1)).color(NamedTextColor.WHITE))));
             }
             case "remove" -> {
-                if(args.length!=4){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
-                if(!map.removeHighThreatZone(args[3])){player.sendMessage(Component.text("その区域IDはありません。",NamedTextColor.RED));return;}
+                if(args.length!=4){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_005", MessageText.of("iem.raid.raidcommand.handledanger.notice_005", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+                if(!map.removeHighThreatZone(args[3])){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_006", MessageText.of("iem.raid.raidcommand.handledanger.notice_006", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_006.text_01").color(NamedTextColor.RED))));return;}
                 manager.saveMap(map);
-                player.sendMessage(Component.text("区域 "+args[3]+" を削除しました。",NamedTextColor.GREEN));
+                Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_007", MessageText.of("iem.raid.raidcommand.handledanger.notice_007", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_007.text_01", args[3]).color(NamedTextColor.GREEN))));
             }
             case "add" -> {
-                if(args.length<4){player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));return;}
-                if(!map.isWorld(player.getWorld())){player.sendMessage(Component.text("対象マップのワールドで選択してください。",NamedTextColor.RED));return;}
+                if(args.length<4){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_008", MessageText.of("iem.raid.raidcommand.handledanger.notice_008", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+                if(!map.isWorld(player.getWorld())){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_009", MessageText.of("iem.raid.raidcommand.handledanger.notice_009", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_009.text_01").color(NamedTextColor.RED))));return;}
                 if(!org.bukkit.Bukkit.getPluginManager().isPluginEnabled("WorldEdit")
                         &&!org.bukkit.Bukkit.getPluginManager().isPluginEnabled("FastAsyncWorldEdit")) {
-                    player.sendMessage(Component.text("WorldEdit または FAWE が必要です。",NamedTextColor.RED));return;
+                    Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_010", MessageText.of("iem.raid.raidcommand.handledanger.notice_010", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_010.text_01").color(NamedTextColor.RED))));return;
                 }
                 String name=args.length>4?String.join(" ",Arrays.copyOfRange(args,4,args.length)):args[3];
                 try {
                     var zone=RaidWorldEditSelection.zone(player,map.getMapId(),args[3],name);
-                    if(!map.addHighThreatZone(zone)){player.sendMessage(Component.text("同じ区域IDがあります。listで確認してください。",NamedTextColor.RED));return;}
+                    if(!map.addHighThreatZone(zone)){Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_011", MessageText.of("iem.raid.raidcommand.handledanger.notice_011", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_011.text_01").color(NamedTextColor.RED))));return;}
                     manager.saveMap(map);
-                    player.sendMessage(Component.text("選択範囲を高脅威区域「"+name+"」として保存しました。",NamedTextColor.GREEN));
-                } catch(IllegalArgumentException ex) {player.sendMessage(Component.text(ex.getMessage(),NamedTextColor.RED));}
+                    Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_012", MessageText.of("iem.raid.raidcommand.handledanger.notice_012", MessageText.payload(MessageText.of("iem.raid.raidcommand.handledanger.notice_012.text_01", name).color(NamedTextColor.GREEN))));
+                } catch(IllegalArgumentException ex) {Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_013", MessageText.of("iem.raid.raidcommand.handledanger.notice_013", MessageText.payload(Component.text(ex.getMessage(),NamedTextColor.RED))));}
             }
-            default -> player.sendMessage(Component.text(usage,NamedTextColor.YELLOW));
+            default -> Messages.chat(player, "iem.raid.raidcommand.handledanger.notice_014", MessageText.of("iem.raid.raidcommand.handledanger.notice_014", MessageText.payload(usage.color(NamedTextColor.YELLOW))));
         }
     }
 
     private void handleExtract(Player player, String[] args) {
         if (args.length < 4 || !args[1].equalsIgnoreCase("add")) {
-            player.sendMessage(Component.text("/raid danger <add|list|remove> <mapID> [区域ID] [表示名] (WorldEdit選択)",NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_001", MessageText.of("iem.raid.raidcommand.handleextract.notice_001", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_001.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_002", MessageText.of("iem.raid.raidcommand.handleextract.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_002.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_003", MessageText.of("iem.raid.raidcommand.handleextract.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_003.text_01").color(NamedTextColor.RED))));
             return;
         }
         RaidMap map = manager.getMap(args[2]);
         if (map == null) {
-            player.sendMessage(Component.text("Map not found.", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_004", MessageText.of("iem.raid.raidcommand.handleextract.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_004.text_01").color(NamedTextColor.RED))));
             return;
         }
         String name = args[3];
@@ -243,28 +244,28 @@ public class RaidCommand implements BasicCommand {
             try {
                 radius = Double.parseDouble(args[4]);
             } catch (NumberFormatException ignored) {
-                player.sendMessage(Component.text("Radius must be a number greater than 0.", NamedTextColor.RED));
+                Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_005", MessageText.of("iem.raid.raidcommand.handleextract.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_005.text_01").color(NamedTextColor.RED))));
                 return;
             }
             if (radius <= 0) {
-                player.sendMessage(Component.text("Radius must be greater than 0.", NamedTextColor.RED));
+                Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_006", MessageText.of("iem.raid.raidcommand.handleextract.notice_006", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_006.text_01").color(NamedTextColor.RED))));
                 return;
             }
         }
         map.addExtractionPoint(player.getLocation(), name, radius);
         manager.saveMap(map);
-        player.sendMessage(Component.text("Extraction point '" + name + "' added to " + args[2], NamedTextColor.GREEN));
+        Messages.chat(player, "iem.raid.raidcommand.handleextract.notice_007", MessageText.of("iem.raid.raidcommand.handleextract.notice_007", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleextract.notice_007.text_01", name, args[2]).color(NamedTextColor.GREEN))));
     }
 
     private void handleScavSpawn(Player player, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(Component.text("使用法: /raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handlescavspawn.notice_001", MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_001", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         String action = args[1].toLowerCase();
         RaidMap map = manager.getMap(args[2]);
         if (map == null) {
-            player.sendMessage(Component.text("Map not found.", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handlescavspawn.notice_002", MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
 
@@ -275,32 +276,32 @@ public class RaidCommand implements BasicCommand {
             }
             map.addScavSpawnPoint(player.getLocation(), permanent);
             manager.saveMap(map);
-            player.sendMessage(Component.text("SCAV spawn point added to " + args[2] + (permanent ? " (Permanent)" : ""), NamedTextColor.GREEN));
+            Messages.chat(player, "iem.raid.raidcommand.handlescavspawn.notice_003", MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_003.text_01", args[2], (permanent ? " (Permanent)" : "")).color(NamedTextColor.GREEN))));
         } else if (action.equals("clear")) {
             map.clearScavSpawnPoints();
             manager.saveMap(map);
-            player.sendMessage(Component.text("Map '" + args[2] + "' のSCAVスポーン地点を全て削除しました。", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.raid.raidcommand.handlescavspawn.notice_004", MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_004.text_01", args[2]).color(NamedTextColor.GREEN))));
         } else {
-            player.sendMessage(Component.text("使用法: /raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.RED));
+            Messages.chat(player, "iem.raid.raidcommand.handlescavspawn.notice_005", MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.handlescavspawn.notice_005.text_01").color(NamedTextColor.RED))));
         }
     }
 
     private void sendHelp(Player player) {
-        player.sendMessage(Component.text("--- Raid System Commands ---", NamedTextColor.YELLOW));
-        player.sendMessage(Component.text("/raid open - レイド選択GUIを開く", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/raid join <mapID> - 出撃待機列に参加", NamedTextColor.WHITE));
-        player.sendMessage(Component.text("/raid leave - 出撃待機列から離脱", NamedTextColor.WHITE));
+        Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_001", MessageText.of("iem.raid.raidcommand.sendhelp.notice_001", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_001.text_01").color(NamedTextColor.YELLOW))));
+        Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_002", MessageText.of("iem.raid.raidcommand.sendhelp.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_002.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_003", MessageText.of("iem.raid.raidcommand.sendhelp.notice_003", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_003.text_01").color(NamedTextColor.WHITE))));
+        Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_004", MessageText.of("iem.raid.raidcommand.sendhelp.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_004.text_01").color(NamedTextColor.WHITE))));
         
         if (player.isOp()) {
-            player.sendMessage(Component.text("--- Admin Commands ---", NamedTextColor.RED));
-            player.sendMessage(Component.text("/raid map <create/delete> <id>", NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid start - レイドを強制開始 (デバッグ用)", NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid spawn <add|remove|list|analyze|clear> <mapID> [地点ID / ページ]", NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid danger <add|list|remove> <mapID> [区域ID] [表示名] (WorldEdit選択)",NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid boss <set|list|remove> <mapID> [区域ID] [boss|guard1|guard2]",NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid radio preview <zone|item>",NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid extract add <mapID> <name> [radius]", NamedTextColor.WHITE));
-            player.sendMessage(Component.text("/raid scavspawn <add/clear> <mapID> [permanent]", NamedTextColor.WHITE));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_005", MessageText.of("iem.raid.raidcommand.sendhelp.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_005.text_01").color(NamedTextColor.RED))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_006", MessageText.of("iem.raid.raidcommand.sendhelp.notice_006", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_006.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_007", MessageText.of("iem.raid.raidcommand.sendhelp.notice_007", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_007.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_008", MessageText.of("iem.raid.raidcommand.sendhelp.notice_008", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_008.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_009", MessageText.of("iem.raid.raidcommand.sendhelp.notice_009", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_009.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_010", MessageText.of("iem.raid.raidcommand.sendhelp.notice_010", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_010.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_011", MessageText.of("iem.raid.raidcommand.sendhelp.notice_011", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_011.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_012", MessageText.of("iem.raid.raidcommand.sendhelp.notice_012", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_012.text_01").color(NamedTextColor.WHITE))));
+            Messages.chat(player, "iem.raid.raidcommand.sendhelp.notice_013", MessageText.of("iem.raid.raidcommand.sendhelp.notice_013", MessageText.payload(MessageText.of("iem.raid.raidcommand.sendhelp.notice_013.text_01").color(NamedTextColor.WHITE))));
         }
     }
 

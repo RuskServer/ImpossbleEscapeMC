@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -140,7 +143,7 @@ public final class HideoutDialog implements Listener {
         player.closeInventory();
         PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
         if (!inHideout(player, data)) {
-            player.sendMessage(Component.text("隠れ家の中で開いてください。", NamedTextColor.RED));
+            Messages.chat(player, "iem.hideout.hideoutdialog.openfor.notice_001", MessageText.of("iem.hideout.hideoutdialog.openfor.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutdialog.openfor.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
         Session session = sessions.computeIfAbsent(player.getUniqueId(), id -> new Session());

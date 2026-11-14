@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
@@ -120,7 +123,7 @@ public class BackpackListener implements Listener {
                 if (backpackModule.isBackpackItem(cursor)) {
                     event.setCancelled(true);
                     if (event.getWhoClicked() instanceof Player player) {
-                        player.sendMessage("§cバックパックの中にバックパックは入れられません。");
+                        Messages.chat(player, "iem.inventory.backpacklistener.oninventoryclick.notice_001", MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_001.text_01"))));
                     }
                     return;
                 }
@@ -132,7 +135,7 @@ public class BackpackListener implements Listener {
                     && backpackModule.isBackpackItem(event.getCurrentItem())) {
                 event.setCancelled(true);
                 if (event.getWhoClicked() instanceof Player player) {
-                    player.sendMessage("§cバックパックの中にバックパックは入れられません。");
+                    Messages.chat(player, "iem.inventory.backpacklistener.oninventoryclick.notice_002", MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_002", MessageText.payload(MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_002.text_01"))));
                 }
             }
             // hotbar number key move into backpack
@@ -142,7 +145,7 @@ public class BackpackListener implements Listener {
                 if (backpackModule.isBackpackItem(hotbarItem)) {
                     event.setCancelled(true);
                     if (event.getWhoClicked() instanceof Player player) {
-                        player.sendMessage("§cバックパックの中にバックパックは入れられません。");
+                        Messages.chat(player, "iem.inventory.backpacklistener.oninventoryclick.notice_003", MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_003", MessageText.payload(MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_003.text_01"))));
                     }
                     return;
                 }
@@ -155,7 +158,7 @@ public class BackpackListener implements Listener {
                 if (backpackModule.isBackpackItem(offhandItem)) {
                     event.setCancelled(true);
                     if (event.getWhoClicked() instanceof Player player) {
-                        player.sendMessage("§cバックパックの中にバックパックは入れられません。");
+                        Messages.chat(player, "iem.inventory.backpacklistener.oninventoryclick.notice_004", MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_004", MessageText.payload(MessageText.of("iem.inventory.backpacklistener.oninventoryclick.notice_004.text_01"))));
                     }
                     return;
                 }
@@ -192,7 +195,7 @@ public class BackpackListener implements Listener {
                     if (rawSlot < event.getView().getTopInventory().getSize()) {
                         event.setCancelled(true);
                         if (event.getWhoClicked() instanceof Player player) {
-                            player.sendMessage("§cバックパックの中にバックパックは入れられません。");
+                            Messages.chat(player, "iem.inventory.backpacklistener.oninventorydrag.notice_001", MessageText.of("iem.inventory.backpacklistener.oninventorydrag.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpacklistener.oninventorydrag.notice_001.text_01"))));
                         }
                         return;
                     }

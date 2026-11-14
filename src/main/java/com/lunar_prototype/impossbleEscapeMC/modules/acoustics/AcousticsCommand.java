@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.acoustics;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -30,12 +33,12 @@ public class AcousticsCommand implements BasicCommand {
     public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("プレイヤーだけが使えます");
+            Messages.chat(sender, "iem.admin.acousticscommand.execute.notice_001", MessageText.of("iem.admin.acousticscommand.execute.notice_001", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_001.text_01"))));
             return;
         }
         AcousticMap map = AcousticMap.get();
         if (map == null) {
-            player.sendMessage(Component.text("音響の地図が読み込まれていません", NamedTextColor.RED));
+            Messages.chat(player, "iem.admin.acousticscommand.execute.notice_002", MessageText.of("iem.admin.acousticscommand.execute.notice_002", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
         String sub = args.length > 0 ? args[0].toLowerCase() : "here";
@@ -45,42 +48,37 @@ public class AcousticsCommand implements BasicCommand {
                 var override = map.overrideAt(location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
                 AcousticZone detected = map.detectNow(location);
                 AcousticZone current = map.zone(location);
-                player.sendMessage(Component.text("場所: " + current.label + " (" + current.id + ")"
-                        + (override != null ? " ← 上書き。自動の判定は " + detected.label : " ← 自動の判定")
-                        + " / 足元の材質: " + FootstepSounds.materialAt(player), NamedTextColor.AQUA));
+                Messages.chat(player, "iem.admin.acousticscommand.execute.notice_003", MessageText.of("iem.admin.acousticscommand.execute.notice_003", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_003.text_01", MessageText.of("iem.admin.acoustics.zone." + current.id), current.id, (override != null ? MessageText.of("iem.admin.acousticscommand.overridden", MessageText.of("iem.admin.acoustics.zone." + detected.id)) : MessageText.of("iem.admin.acousticscommand.detected")), FootstepSounds.materialAt(player)).color(NamedTextColor.AQUA))));
             }
             case "clear" -> {
                 int radius = args.length > 1 ? parseInt(args[1], -1) : -1;
                 int count = map.forget(player.getWorld(), player.getLocation(), radius);
-                player.sendMessage(Component.text((radius < 0 ? "このワールド" : "半径 " + radius + " ブロック") + "の判定を " + count
-                        + " マス捨てました。次に音が鳴った時に判定し直します", NamedTextColor.GREEN));
+                Messages.chat(player, "iem.admin.acousticscommand.execute.notice_004", MessageText.of("iem.admin.acousticscommand.execute.notice_004", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_004.text_01", (radius < 0 ? MessageText.of("iem.admin.acousticscommand.world") : MessageText.of("iem.admin.acousticscommand.radius", radius)), count).color(NamedTextColor.GREEN))));
             }
             case "override" -> {
                 if (args.length > 1 && args[1].equalsIgnoreCase("remove")) {
                     int count = map.removeOverridesAt(player.getLocation());
-                    player.sendMessage(Component.text("上書きを " + count + " 個消しました", NamedTextColor.GREEN));
+                    Messages.chat(player, "iem.admin.acousticscommand.execute.notice_005", MessageText.of("iem.admin.acousticscommand.execute.notice_005", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_005.text_01", count).color(NamedTextColor.GREEN))));
                     return;
                 }
                 AcousticZone zone = args.length > 1 ? AcousticZone.byId(args[1]) : null;
                 int radius = args.length > 2 ? parseInt(args[2], -1) : -1;
                 if (zone == null || radius < 0) {
-                    player.sendMessage(Component.text("/acoustics override <outdoor|indoor|hall|underground> <半径> | remove", NamedTextColor.RED));
+                    Messages.chat(player, "iem.admin.acousticscommand.execute.notice_006", MessageText.of("iem.admin.acousticscommand.execute.notice_006", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_006.text_01").color(NamedTextColor.RED))));
                     return;
                 }
                 var override = map.addOverride(player.getLocation(), radius, zone);
-                player.sendMessage(Component.text("上書きしました: " + zone.label + " (" + override.minX() + ", " + override.minY() + ", " + override.minZ()
-                        + ") 〜 (" + override.maxX() + ", " + override.maxY() + ", " + override.maxZ() + ")", NamedTextColor.GREEN));
+                Messages.chat(player, "iem.admin.acousticscommand.execute.notice_007", MessageText.of("iem.admin.acousticscommand.execute.notice_007", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_007.text_01", MessageText.of("iem.admin.acoustics.zone." + zone.id), override.minX(), override.minY(), override.minZ(), override.maxX(), override.maxY(), override.maxZ()).color(NamedTextColor.GREEN))));
             }
             case "overrides" -> {
                 var list = map.overrides(player.getWorld().getName());
-                player.sendMessage(Component.text("上書き " + list.size() + " 個", NamedTextColor.AQUA));
+                Messages.chat(player, "iem.admin.acousticscommand.execute.notice_008", MessageText.of("iem.admin.acousticscommand.execute.notice_008", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_008.text_01", list.size()).color(NamedTextColor.AQUA))));
                 for (var o : list) {
                     AcousticZone zone = AcousticZone.byId(o.zone());
-                    player.sendMessage(Component.text(" " + (zone != null ? zone.label : o.zone()) + ": (" + o.minX() + ", " + o.minY() + ", " + o.minZ()
-                            + ") 〜 (" + o.maxX() + ", " + o.maxY() + ", " + o.maxZ() + ")", NamedTextColor.GRAY));
+                    Messages.chat(player, "iem.admin.acousticscommand.execute.notice_009", MessageText.of("iem.admin.acousticscommand.execute.notice_009", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_009.text_01", (zone != null ? MessageText.of("iem.admin.acoustics.zone." + zone.id) : o.zone()), o.minX(), o.minY(), o.minZ(), o.maxX(), o.maxY(), o.maxZ()).color(NamedTextColor.GRAY))));
                 }
             }
-            default -> player.sendMessage(Component.text("/acoustics <here|clear [半径]|override <場所> <半径>|override remove|overrides>", NamedTextColor.RED));
+            default -> Messages.chat(player, "iem.admin.acousticscommand.execute.notice_010", MessageText.of("iem.admin.acousticscommand.execute.notice_010", MessageText.payload(MessageText.of("iem.admin.acousticscommand.execute.notice_010.text_01").color(NamedTextColor.RED))));
         }
         return;
     }

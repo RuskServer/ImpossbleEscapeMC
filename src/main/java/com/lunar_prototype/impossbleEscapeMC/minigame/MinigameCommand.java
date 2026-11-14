@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.minigame;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -28,47 +31,47 @@ public class MinigameCommand implements BasicCommand {
         if (!player.isOp()) return;
 
         if (args.length == 0) {
-            player.sendMessage("§c/mg <create/setspawn/split/start/stop/loadout>");
+            Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_001", MessageText.of("iem.minigame.minigamecommand.execute.notice_001", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_001.text_01"))));
             return;
         }
 
         switch (args[0].toLowerCase()) {
             case "loadout":
                 if (args.length < 2) {
-                    player.sendMessage("§c/mg loadout <m4a1/ak74/m700>");
+                    Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_002", MessageText.of("iem.minigame.minigamecommand.execute.notice_002", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_002.text_01"))));
                     return;
                 }
                 manager.setLoadout(player, args[1]);
                 break;
             case "create":
                 if (args.length < 2) {
-                    player.sendMessage("§c/mg create <name>");
+                    Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_003", MessageText.of("iem.minigame.minigamecommand.execute.notice_003", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_003.text_01"))));
                     return;
                 }
                 manager.createMap(args[1]);
-                player.sendMessage("§aMap '" + args[1] + "' created.");
+                Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_004", MessageText.of("iem.minigame.minigamecommand.execute.notice_004", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_004.text_01", args[1]))));
                 break;
             case "setspawn":
                 if (args.length < 3) {
-                    player.sendMessage("§c/mg setspawn <name> <1/2>");
+                    Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_005", MessageText.of("iem.minigame.minigamecommand.execute.notice_005", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_005.text_01"))));
                     return;
                 }
                 MinigameMap map = manager.getMap(args[1]);
                 if (map == null) {
-                    player.sendMessage("§cMap not found.");
+                    Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_006", MessageText.of("iem.minigame.minigamecommand.execute.notice_006", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_006.text_01"))));
                     return;
                 }
                 int team = Integer.parseInt(args[2]);
                 map.addSpawn(team, player.getLocation());
                 manager.saveMaps();
-                player.sendMessage("§aSpawn added for Team " + team + " in map " + args[1]);
+                Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_007", MessageText.of("iem.minigame.minigamecommand.execute.notice_007", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_007.text_01", team, args[1]))));
                 break;
             case "split":
                 manager.splitTeams();
                 break;
             case "start":
                 if (args.length < 2) {
-                    player.sendMessage("§c/mg start <name> [rounds]");
+                    Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_008", MessageText.of("iem.minigame.minigamecommand.execute.notice_008", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_008.text_01"))));
                     return;
                 }
                 int rounds = 2;
@@ -76,7 +79,7 @@ public class MinigameCommand implements BasicCommand {
                     try {
                         rounds = Integer.parseInt(args[2]);
                     } catch (NumberFormatException e) {
-                        player.sendMessage("§cInvalid rounds number.");
+                        Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_009", MessageText.of("iem.minigame.minigamecommand.execute.notice_009", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_009.text_01"))));
                         return;
                     }
                 }
@@ -84,7 +87,7 @@ public class MinigameCommand implements BasicCommand {
                 break;
             case "stop":
                 manager.stopGame(true);
-                player.sendMessage("§cGame stopped.");
+                Messages.chat(player, "iem.minigame.minigamecommand.execute.notice_010", MessageText.of("iem.minigame.minigamecommand.execute.notice_010", MessageText.payload(MessageText.of("iem.minigame.minigamecommand.execute.notice_010.text_01"))));
                 break;
         }
 

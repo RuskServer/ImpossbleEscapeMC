@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.modules.inventory.CapacityGauge;
@@ -105,15 +108,14 @@ public class CostCapacityListener implements Listener {
             if (rigModule != null && rigModule.isRigItem(current)
                     && locksOccupiedSlots(player, rigModule, nextRigForClick(player, event))) {
                 event.setCancelled(true);
-                player.sendActionBar(Component.text("このリグを替える前に、閉じるスロットの荷物を移してください", NamedTextColor.RED));
+                Messages.actionBar(player, "iem.combat.costcapacitylistener.onclick.notice_001", MessageText.of("iem.combat.costcapacitylistener.onclick.notice_001", MessageText.payload(MessageText.of("iem.combat.costcapacitylistener.onclick.notice_001.text_01").color(NamedTextColor.RED))));
                 CapacityGauge.flash(player);
                 return;
             }
             Overflow rig = isRaidCapacityEnforced(player) ? rigChange(player, event, current) : null;
             if (rig != null) {
                 event.setCancelled(true);
-                player.sendActionBar(Component.text("リグを替えると持ち物が入りきりません (" + rig.used() + " / " + rig.capacity() + " マス)",
-                        NamedTextColor.RED));
+                Messages.actionBar(player, "iem.combat.costcapacitylistener.onclick.notice_002", MessageText.of("iem.combat.costcapacitylistener.onclick.notice_002", MessageText.payload(MessageText.of("iem.combat.costcapacitylistener.onclick.notice_002.text_01", rig.used(), rig.capacity()).color(NamedTextColor.RED))));
                 CapacityGauge.flash(player);
                 return;
             }
@@ -189,7 +191,7 @@ public class CostCapacityListener implements Listener {
         if (rigModule == null || !rigModule.isRigItem(hand) || isEmpty(worn)) return;
         if (locksOccupiedSlots(player, rigModule, hand)) {
             event.setCancelled(true);
-            player.sendActionBar(Component.text("このリグに替える前に、閉じるスロットの荷物を移してください", NamedTextColor.RED));
+            Messages.actionBar(player, "iem.combat.costcapacitylistener.onrighotswap.notice_001", MessageText.of("iem.combat.costcapacitylistener.onrighotswap.notice_001", MessageText.payload(MessageText.of("iem.combat.costcapacitylistener.onrighotswap.notice_001.text_01").color(NamedTextColor.RED))));
             CapacityGauge.flash(player);
             return;
         }
@@ -198,8 +200,7 @@ public class CostCapacityListener implements Listener {
         Overflow overflow = afterRigChange(player, rigModule, worn, hand, swapDelta(player, handSlot, worn, hand));
         if (overflow == null) return;
         event.setCancelled(true);
-        player.sendActionBar(Component.text("このリグに替えると持ち物が入りきりません (" + overflow.used() + " / " + overflow.capacity() + " マス)",
-                NamedTextColor.RED));
+        Messages.actionBar(player, "iem.combat.costcapacitylistener.onrighotswap.notice_002", MessageText.of("iem.combat.costcapacitylistener.onrighotswap.notice_002", MessageText.payload(MessageText.of("iem.combat.costcapacitylistener.onrighotswap.notice_002.text_01", overflow.used(), overflow.capacity()).color(NamedTextColor.RED))));
         CapacityGauge.flash(player);
     }
 
@@ -285,8 +286,7 @@ public class CostCapacityListener implements Listener {
     private static void reject(Overflow overflow, Player player, Runnable cancel) {
         if (overflow == null) return;
         cancel.run();
-        player.sendActionBar(Component.text("容量が足りません (入れると " + overflow.used() + " / " + overflow.capacity() + " マス)",
-                NamedTextColor.RED));
+        Messages.actionBar(player, "iem.combat.costcapacitylistener.reject.notice_001", MessageText.of("iem.combat.costcapacitylistener.reject.notice_001", MessageText.payload(MessageText.of("iem.combat.costcapacitylistener.reject.notice_001.text_01", overflow.used(), overflow.capacity()).color(NamedTextColor.RED))));
         CapacityGauge.flash(player);
     }
 

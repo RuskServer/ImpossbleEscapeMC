@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.item.factory.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -356,7 +359,7 @@ public class TraderGUI implements Listener {
                         TraderItem ti = tradeOf(clicked);
                         if (ti != null) {
                             if (!traderModule.isUnlocked(data, ti)) {
-                                player.sendMessage(Component.text("この取引の解放条件: " + traderModule.getUnlockRequirements(data, ti), NamedTextColor.RED));
+                                Messages.chat(player, "iem.trader.tradergui.oninventoryclick.notice_001", MessageText.of("iem.trader.tradergui.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.trader.tradergui.oninventoryclick.notice_001.text_01", traderModule.getUnlockRequirements(data, ti)).color(NamedTextColor.RED))));
                                 return;
                             }
                             new TraderQuantityGUI(traderModule, trader, ti, player, this).open();
@@ -433,7 +436,7 @@ public class TraderGUI implements Listener {
     public void handleBuy(TraderItem ti, PlayerData data, int quantity) {
         if (ti == null) return;
         TraderModule.Purchase result = traderModule.purchase(player, trader, ti, quantity);
-        result.messages().forEach(player::sendMessage);
+        result.messages().forEach(notice -> Messages.chat(player, "iem.trader.tradergui.forwarded_notice", MessageText.of("iem.trader.tradergui.forwarded_notice", MessageText.payload(notice))));
         if (result.bought() > 0) setupBuyGUI();
     }
 
@@ -475,7 +478,7 @@ public class TraderGUI implements Listener {
         double total = calculateTotalSellValue();
         int supplied = countSupplied();
         if (total <= 0 && supplied == 0) {
-            player.sendMessage(Component.text("売却可能なアイテムがありません。", NamedTextColor.RED));
+            Messages.chat(player, "iem.trader.tradergui.handlebulksell.notice_001", MessageText.of("iem.trader.tradergui.handlebulksell.notice_001", MessageText.payload(MessageText.of("iem.trader.tradergui.handlebulksell.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
@@ -497,10 +500,10 @@ public class TraderGUI implements Listener {
         }
 
         if (total > 0) {
-            player.sendMessage(Component.text("アイテムを売却し、" + total + "₽ を受け取りました。", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.trader.tradergui.handlebulksell.notice_002", MessageText.of("iem.trader.tradergui.handlebulksell.notice_002", MessageText.payload(MessageText.of("iem.trader.tradergui.handlebulksell.notice_002.text_01", total).color(NamedTextColor.GREEN))));
         }
         if (supplied > 0) {
-            player.sendMessage(Component.text("支給品 " + supplied + " 点を 0₽ で処分しました。", NamedTextColor.GRAY));
+            Messages.chat(player, "iem.trader.tradergui.handlebulksell.notice_003", MessageText.of("iem.trader.tradergui.handlebulksell.notice_003", MessageText.payload(MessageText.of("iem.trader.tradergui.handlebulksell.notice_003.text_01", supplied).color(NamedTextColor.GRAY))));
         }
         updateSellButton();
     }

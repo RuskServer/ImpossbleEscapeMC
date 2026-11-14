@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -26,34 +29,34 @@ public class TraderCommand implements BasicCommand {
     public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("このコマンドはプレイヤーのみ実行可能です。");
+            Messages.chat(sender, "iem.trader.tradercommand.execute.notice_001", MessageText.of("iem.trader.tradercommand.execute.notice_001", MessageText.payload(MessageText.of("iem.trader.tradercommand.execute.notice_001.text_01"))));
             return;
         }
 
         if (args.length < 1) {
-            player.sendMessage(Component.text("使用法: /trader <open|reload> [traderId]", NamedTextColor.RED));
+            Messages.chat(player, "iem.trader.tradercommand.execute.notice_002", MessageText.of("iem.trader.tradercommand.execute.notice_002", MessageText.payload(MessageText.of("iem.trader.tradercommand.execute.notice_002.text_01").color(NamedTextColor.RED))));
             return;
         }
 
         if (args[0].equalsIgnoreCase("reload")) {
             if (!player.hasPermission("impossbleescape.admin")) {
-                player.sendMessage(Component.text("権限がありません。", NamedTextColor.RED));
+                Messages.chat(player, "iem.trader.tradercommand.execute.notice_003", MessageText.of("iem.trader.tradercommand.execute.notice_003", MessageText.payload(MessageText.of("iem.trader.tradercommand.execute.notice_003.text_01").color(NamedTextColor.RED))));
                 return;
             }
             traderModule.loadTraders();
-            player.sendMessage(Component.text("トレーダー設定をリロードしました。", NamedTextColor.GREEN));
+            Messages.chat(player, "iem.trader.tradercommand.execute.notice_004", MessageText.of("iem.trader.tradercommand.execute.notice_004", MessageText.payload(MessageText.of("iem.trader.tradercommand.execute.notice_004.text_01").color(NamedTextColor.GREEN))));
             return;
         }
 
         if (args[0].equalsIgnoreCase("open")) {
             if (args.length < 2) {
-                player.sendMessage(Component.text("トレーダーIDを指定してください。", NamedTextColor.RED));
+                Messages.chat(player, "iem.trader.tradercommand.execute.notice_005", MessageText.of("iem.trader.tradercommand.execute.notice_005", MessageText.payload(MessageText.of("iem.trader.tradercommand.execute.notice_005.text_01").color(NamedTextColor.RED))));
                 return;
             }
 
             TraderDefinition trader = traderModule.getTrader(args[1]);
             if (trader == null) {
-                player.sendMessage(Component.text("指定されたトレーダーが見つかりません。", NamedTextColor.RED));
+                Messages.chat(player, "iem.trader.tradercommand.execute.notice_006", MessageText.of("iem.trader.tradercommand.execute.notice_006", MessageText.payload(MessageText.of("iem.trader.tradercommand.execute.notice_006.text_01").color(NamedTextColor.RED))));
                 return;
             }
 

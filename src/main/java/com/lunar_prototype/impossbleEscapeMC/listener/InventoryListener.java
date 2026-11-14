@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
@@ -51,7 +54,7 @@ public class InventoryListener implements Listener {
 
         if (!com.lunar_prototype.impossbleEscapeMC.gui.HelmetAttachmentGUI.open(player)) {
             // 手に持ったヘルメット、無ければかぶっているヘルメットのバイザー
-            player.sendMessage("§cメインハンドに銃かヘルメットを持つか、バイザーを付けられるヘルメットをかぶってください");
+            Messages.chat(player, "iem.combat.inventorylistener.openattachmentgui.notice_001", MessageText.of("iem.combat.inventorylistener.openattachmentgui.notice_001", MessageText.payload(MessageText.of("iem.combat.inventorylistener.openattachmentgui.notice_001.text_01"))));
         }
     }
 

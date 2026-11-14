@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -36,7 +39,7 @@ public class DatapackAttachmentGUIListener implements Listener {
         if (gun == null) {
             event.setCancelled(true);
             player.closeInventory();
-            player.sendMessage(Component.text("編集中の銃が見つかりません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_001", MessageText.of("iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
@@ -76,8 +79,8 @@ public class DatapackAttachmentGUIListener implements Listener {
         gui.setGun(DatapackAttachments.withoutAttachment(gun, slot));
         give(player, current);
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 0.8f, 0.8f);
-        player.sendMessage(DatapackAttachmentGUI.name(DatapackAttachments.attachmentIdOf(current))
-                .append(Component.text(" を取り外しました", NamedTextColor.YELLOW)));
+        Messages.chat(player, "iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_002", MessageText.of("iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_002", MessageText.payload(DatapackAttachmentGUI.name(DatapackAttachments.attachmentIdOf(current))
+                .append(MessageText.of("iem.inventory.datapackattachmentguilistener.oninventoryclick.notice_002.text_01").color(NamedTextColor.YELLOW)))));
         gui.refresh();
     }
 
@@ -103,25 +106,25 @@ public class DatapackAttachmentGUIListener implements Listener {
         Player player = gui.player();
         String attachmentId = DatapackAttachments.attachmentIdOf(attachment);
         if (attachmentId == null) {
-            player.sendMessage(Component.text("この銃に付けられるアタッチメントではありません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.datapackattachmentguilistener.attach.notice_001", MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_001", MessageText.payload(MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_001.text_01").color(NamedTextColor.RED))));
             return false;
         }
         String attachmentSlot = DatapackAttachments.slotOf(attachment);
         if (!slot.equals(attachmentSlot)) {
-            player.sendMessage(Component.text("このアタッチメントは " + DatapackAttachmentGUI.slotLabel(attachmentSlot) + " 用です", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.datapackattachmentguilistener.attach.notice_002", MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_002", MessageText.payload(MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_002.text_01", DatapackAttachmentGUI.slotLabel(attachmentSlot)).color(NamedTextColor.RED))));
             return false;
         }
         DatapackAttachments.SlotDef slotDef = DatapackAttachments.slotsOf(gui.gunId()).stream()
                 .filter(s -> s.slot().equals(slot)).findFirst().orElse(null);
         if (slotDef == null || slotDef.option(attachmentId) == null) {
-            player.sendMessage(Component.text("このアタッチメントはこの銃には付けられません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.datapackattachmentguilistener.attach.notice_003", MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_003", MessageText.payload(MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_003.text_01").color(NamedTextColor.RED))));
             return false;
         }
         ItemStack previous = DatapackAttachments.attached(gun).get(slot);
         gui.setGun(DatapackAttachments.withAttachment(gun, attachment));
         if (previous != null) give(player, previous);
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_IRON, 0.8f, 1.2f);
-        player.sendMessage(DatapackAttachmentGUI.name(attachmentId).append(Component.text(" を装着しました", NamedTextColor.GREEN)));
+        Messages.chat(player, "iem.inventory.datapackattachmentguilistener.attach.notice_004", MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_004", MessageText.payload(DatapackAttachmentGUI.name(attachmentId).append(MessageText.of("iem.inventory.datapackattachmentguilistener.attach.notice_004.text_01").color(NamedTextColor.GREEN)))));
         return true;
     }
 

@@ -11,3 +11,8 @@ softdepend: [Citizens, WorldEdit, FastAsyncWorldEdit]
 # /scavspawn corpsecheck reports corpse interaction diagnostics through ScavCommand.
 
 # /scavspawn inspect reports actual SCAV role, AI, alertness and equipment (OP only).
+
+permissions:
+  iem.messages.admin:
+    description: メッセージ辞書の検証・再読み込み
+    default: op

@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.util.DatapackFunctionUtil;
 import io.papermc.paper.command.brigadier.BasicCommand;
@@ -20,12 +23,12 @@ public class DatapackTestCommand implements BasicCommand {
     public void execute(@NotNull CommandSourceStack stack, @NotNull String[] args) {
         CommandSender sender = stack.getSender();
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cThis command can only be used by players.");
+            Messages.chat(sender, "iem.system.datapacktestcommand.execute.notice_001", MessageText.of("iem.system.datapacktestcommand.execute.notice_001", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_001.text_01"))));
             return;
         }
 
         if (!player.hasPermission("op")) {
-            player.sendMessage("§cYou must be an OP to run this test command.");
+            Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_002", MessageText.of("iem.system.datapacktestcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_002.text_01"))));
             return;
         }
 
@@ -38,26 +41,26 @@ public class DatapackTestCommand implements BasicCommand {
 
         if (subMode.equals("func")) {
             String functionPath = args[1];
-            player.sendMessage("§aExecuting function and capturing items: §f" + functionPath);
+            Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_003", MessageText.of("iem.system.datapacktestcommand.execute.notice_003", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_003.text_01", functionPath))));
 
             try {
                 List<ItemStack> items = DatapackFunctionUtil.captureItemsFromFunction(player.getWorld(), functionPath);
                 if (items.isEmpty()) {
-                    player.sendMessage("§eNo items were captured from function execution.");
+                    Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_004", MessageText.of("iem.system.datapacktestcommand.execute.notice_004", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_004.text_01"))));
                 } else {
-                    player.sendMessage("§aCaptured §f" + items.size() + "§a item(s):");
+                    Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_005", MessageText.of("iem.system.datapacktestcommand.execute.notice_005", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_005.text_01", items.size()))));
                     for (ItemStack item : items) {
-                        player.sendMessage("§7- §f" + item.getType() + " x" + item.getAmount());
+                        Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_006", MessageText.of("iem.system.datapacktestcommand.execute.notice_006", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_006.text_01", item.getType(), item.getAmount()))));
                         player.getInventory().addItem(item);
                     }
                 }
             } catch (Exception e) {
-                player.sendMessage("§cAn error occurred: " + e.getMessage());
+                Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_007", MessageText.of("iem.system.datapacktestcommand.execute.notice_007", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_007.text_01", e.getMessage()))));
                 e.printStackTrace();
             }
         } else if (subMode.equals("gun")) {
             if (args.length < 3) {
-                player.sendMessage("§cUsage: /datapacktest gun <gunId> <displayName>");
+                Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_008", MessageText.of("iem.system.datapacktestcommand.execute.notice_008", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_008.text_01"))));
                 return;
             }
 
@@ -70,18 +73,18 @@ public class DatapackTestCommand implements BasicCommand {
             }
             String displayName = displayNameBuilder.toString();
 
-            player.sendMessage("§aGenerating gun item: §f" + gunId + " (" + displayName + ")");
+            Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_009", MessageText.of("iem.system.datapacktestcommand.execute.notice_009", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_009.text_01", gunId, displayName))));
 
             try {
                 ItemStack gun = DatapackFunctionUtil.generateGunItem(player.getWorld(), gunId, displayName);
                 if (gun == null) {
-                    player.sendMessage("§cFailed to generate the gun item. See console for details.");
+                    Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_010", MessageText.of("iem.system.datapacktestcommand.execute.notice_010", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_010.text_01"))));
                 } else {
                     player.getInventory().addItem(gun);
-                    player.sendMessage("§aSuccessfully generated and gave you: §f" + gun.getType() + " (Custom model/NBT applied)");
+                    Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_011", MessageText.of("iem.system.datapacktestcommand.execute.notice_011", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_011.text_01", gun.getType()))));
                 }
             } catch (Exception e) {
-                player.sendMessage("§cAn error occurred: " + e.getMessage());
+                Messages.chat(player, "iem.system.datapacktestcommand.execute.notice_012", MessageText.of("iem.system.datapacktestcommand.execute.notice_012", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.execute.notice_012.text_01", e.getMessage()))));
                 e.printStackTrace();
             }
         } else {
@@ -92,9 +95,9 @@ public class DatapackTestCommand implements BasicCommand {
     }
 
     private void sendHelp(Player player) {
-        player.sendMessage("§7=== Datapack Test Command Help ===");
-        player.sendMessage("§f/datapacktest func <namespace:path> §7- Capture items from datapack function");
-        player.sendMessage("§f/datapacktest gun <gunId> <displayName> §7- Generate custom gun item stack");
+        Messages.chat(player, "iem.system.datapacktestcommand.sendhelp.notice_001", MessageText.of("iem.system.datapacktestcommand.sendhelp.notice_001", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.sendhelp.notice_001.text_01"))));
+        Messages.chat(player, "iem.system.datapacktestcommand.sendhelp.notice_002", MessageText.of("iem.system.datapacktestcommand.sendhelp.notice_002", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.sendhelp.notice_002.text_01"))));
+        Messages.chat(player, "iem.system.datapacktestcommand.sendhelp.notice_003", MessageText.of("iem.system.datapacktestcommand.sendhelp.notice_003", MessageText.payload(MessageText.of("iem.system.datapacktestcommand.sendhelp.notice_003.text_01"))));
     }
 
     @Override

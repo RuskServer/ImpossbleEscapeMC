@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
@@ -213,10 +216,10 @@ final class PdaHomeScreen implements Listener, PdaHomeController.Port {
     }
 
     @Override public void unavailable(Player player) {
-        player.sendMessage(Component.text("端末情報を読み込めません。少し待ってから開き直してください。", NG));
+        Messages.chat(player, "iem.system.pdahomescreen.unavailable.notice_001", MessageText.of("iem.system.pdahomescreen.unavailable.notice_001", MessageText.payload(MessageText.of("iem.system.pdahomescreen.unavailable.notice_001.text_01").color(NG))));
     }
     @Override public void denied(Player player, String reason) {
-        player.sendMessage(Component.text("この機能は今は使えません：" + reason, NG));
+        Messages.chat(player, "iem.system.pdahomescreen.denied.notice_001", MessageText.of("iem.system.pdahomescreen.denied.notice_001", MessageText.payload(MessageText.of("iem.system.pdahomescreen.denied.notice_001.text_01", reason).color(NG))));
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
     }
     @Override public void close(Player player) {

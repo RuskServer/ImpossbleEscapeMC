@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
+import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
+
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -38,7 +41,7 @@ public class HelmetAttachmentGUIListener implements Listener {
         if (helmet == null) {
             event.setCancelled(true);
             player.closeInventory();
-            player.sendMessage(Component.text("編集中のヘルメットが見つかりません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_001", MessageText.of("iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_001", MessageText.payload(MessageText.of("iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_001.text_01").color(NamedTextColor.RED))));
             return;
         }
 
@@ -78,7 +81,7 @@ public class HelmetAttachmentGUIListener implements Listener {
         gui.setHelmet(HelmetVisors.withoutVisor(helmet));
         if (visor != null) give(player, visor);
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 0.8f, 0.8f);
-        player.sendMessage(displayName(visorId) + " §eを取り外しました");
+        Messages.chat(player, "iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002", MessageText.of("iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002", MessageText.payload(MessageText.of("iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002.text_01", displayName(visorId)))));
         gui.refresh();
     }
 
@@ -104,11 +107,11 @@ public class HelmetAttachmentGUIListener implements Listener {
         Player player = gui.player();
         ItemDefinition visor = HelmetVisors.visorDef(item);
         if (visor == null) {
-            player.sendMessage(Component.text("ヘルメットに付けられるアタッチメントではありません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.helmetattachmentguilistener.attach.notice_001", MessageText.of("iem.inventory.helmetattachmentguilistener.attach.notice_001", MessageText.payload(MessageText.of("iem.inventory.helmetattachmentguilistener.attach.notice_001.text_01").color(NamedTextColor.RED))));
             return false;
         }
         if (!HelmetVisors.fits(gui.helmetDef(), visor.id)) {
-            player.sendMessage(Component.text("この装着品はこのヘルメットには付けられません", NamedTextColor.RED));
+            Messages.chat(player, "iem.inventory.helmetattachmentguilistener.attach.notice_002", MessageText.of("iem.inventory.helmetattachmentguilistener.attach.notice_002", MessageText.payload(MessageText.of("iem.inventory.helmetattachmentguilistener.attach.notice_002.text_01").color(NamedTextColor.RED))));
             return false;
         }
         String previous = HelmetVisors.visorOf(helmet);
@@ -119,7 +122,7 @@ public class HelmetAttachmentGUIListener implements Listener {
             if (old != null) give(player, old);
         }
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_IRON, 0.8f, 1.2f);
-        player.sendMessage(visor.displayName + " §aを装着しました");
+        Messages.chat(player, "iem.inventory.helmetattachmentguilistener.attach.notice_003", MessageText.of("iem.inventory.helmetattachmentguilistener.attach.notice_003", MessageText.payload(MessageText.of("iem.inventory.helmetattachmentguilistener.attach.notice_003.text_01", visor.displayName))));
         return true;
     }
 
