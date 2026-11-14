@@ -20,17 +20,23 @@ import java.util.UUID;
 /**
  * スコアボード表示を管理するモジュール
  */
+@com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service
 public class ScoreboardModule implements IModule, Listener {
-    private ImpossbleEscapeMC plugin;
-    private PlayerDataModule dataModule;
-    private RaidModule raidModule;
+    private final ImpossbleEscapeMC plugin;
+    private final PlayerDataModule dataModule;
+    private final java.util.function.Supplier<RaidModule> raids;
+
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
+    public ScoreboardModule(ImpossbleEscapeMC plugin, PlayerDataModule dataModule,
+                            java.util.function.Supplier<RaidModule> raids) {
+        this.plugin = plugin;
+        this.dataModule = dataModule;
+        this.raids = raids;
+    }
     private final Map<UUID, ScoreboardHandler> handlers = new HashMap<>();
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.plugin = ImpossbleEscapeMC.getInstance();
-        this.dataModule = container.get(PlayerDataModule.class);
-        this.raidModule = container.get(RaidModule.class);
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
 
@@ -53,6 +59,7 @@ public class ScoreboardModule implements IModule, Listener {
     }
 
     private void tick() {
+        RaidModule raidModule = raids.get();
         for (Map.Entry<UUID, ScoreboardHandler> entry : handlers.entrySet()) {
             Player player = Bukkit.getPlayer(entry.getKey());
             if (player == null) continue;

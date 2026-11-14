@@ -33,6 +33,7 @@ public final class DrawerLootModule implements IModule, Listener {
     private final ImpossbleEscapeMC plugin;
     private final NamespacedKey ownerKey,slotKey,inventoryKey,generationKey,searchedKey,removerKey;
     private final Map<String,Cabinet> loaded=new HashMap<>();
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public DrawerLootModule(ImpossbleEscapeMC plugin) {
         this.plugin=plugin;
         ownerKey=new NamespacedKey(plugin,"loot_drawer_owner");slotKey=new NamespacedKey(plugin,"loot_drawer_slot");

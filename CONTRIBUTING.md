@@ -40,38 +40,13 @@ PR本文には最低限、以下を記載してください。
 このプロジェクトは **Modular Monolith** です。  
 新規機能は「モジュール」として追加し、疎結合を維持してください。
 
-### ServiceContainer を優先する
+### コンストラクタDIを使う
 
-```java
-@Override
-public void onEnable(ServiceContainer container) {
-    RaidModule raidModule = container.get(RaidModule.class);
-}
-```
+新規コンポーネントは `@Service` / `@Component` / `@Repository` / `@Module` を付け、依存は `@Inject` コンストラクタで受け取る。起動・終了処理は `Startable` / `Stoppable` に置く。レイド等への実行時の参照には `Supplier<T>` を注入できる。Supplier.getは全体起動後に使う。
 
-- モジュール間連携は `ServiceContainer` 経由で行う
-- 直接シングルトン参照を増やさない
-- `ImpossbleEscapeMC.getInstance()` は必要時のみ使用
+既存の `IModule` と `ServiceContainer.get/register` は同じコンテナ上で維持する。モジュールを登録する場合は `moduleBootstrap.registerModule(Type.class)` で構築できる。状態サービスや公開インターフェースを機能ごとに増やす必要はない。
 
-### 新規機能は IModule で実装する
-
-```java
-public final class ExampleModule implements IModule {
-    @Override
-    public void onEnable(ServiceContainer container) {
-        // init
-    }
-
-    @Override
-    public void onDisable() {
-        // cleanup
-    }
-}
-```
-
-- 初期化ロジックは `IModule#onEnable` に置く
-- リソース解放は `onDisable` で必ず行う
-- `ImpossbleEscapeMC#onEnable` で `moduleBootstrap.registerModule(...)` する
+自動検出・遅延参照・起動順・コマンド登録・移行時の注意点は [DEPENDENCY_INJECTION.md](docs/DEPENDENCY_INJECTION.md) を参照。直接のシングルトン参照を新たに増やさない。
 
 ## Threading & I/O
 

@@ -36,6 +36,7 @@ public final class SkillModule implements IModule, Listener {
     private final Map<UUID, EnumMap<SkillStat, Double>> totals = new ConcurrentHashMap<>();
     private final GunSkillScores gunScores = new GunSkillScores();
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public SkillModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }

@@ -51,6 +51,7 @@ public class HideoutModule implements IModule {
     private final HideoutSlots slots;
     private PlayerDataModule dataModule;
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public HideoutModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.worldManager = new HideoutWorldManager();

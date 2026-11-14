@@ -57,6 +57,7 @@ public class PlayerDataModule implements IModule, Listener {
     /** 書き出しの番号 (新しい書き出しの後に古い書き出しを書かないように) */
     private final AtomicLong snapshotCounter = new AtomicLong();
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public PlayerDataModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.storage = new PlayerDataStorage(new File(plugin.getDataFolder(), "userdata"), plugin.getLogger());

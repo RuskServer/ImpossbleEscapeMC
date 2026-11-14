@@ -43,6 +43,7 @@ public final class ScavRagdollModule implements IModule,Listener {
     private record Diagnostic(int tick,String result) {}
     private final Map<UUID,PendingOpen> pendingOpens=new HashMap<>();
     private final Map<UUID,Diagnostic> lastClicks=new HashMap<>();
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public ScavRagdollModule(ImpossbleEscapeMC plugin){this.plugin=plugin;}
     @Override public void onEnable(ServiceContainer services) {
         if(!plugin.getConfig().getBoolean("scav-ragdoll.enabled",true))return;

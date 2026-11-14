@@ -10,13 +10,18 @@ import java.util.UUID;
 /**
  * 経済システムを担当するモジュール
  */
+@com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service
 public class EconomyModule implements IModule {
-    private PlayerDataModule dataModule;
+    private final PlayerDataModule dataModule;
+
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
+    public EconomyModule(PlayerDataModule dataModule) {
+        this.dataModule = dataModule;
+    }
 
     @Override
     public void onEnable(ServiceContainer container) {
-        // DIコンテナからPlayerDataModuleを取得
-        this.dataModule = container.get(PlayerDataModule.class);
+
     }
 
     @Override

@@ -25,6 +25,7 @@ public class MarketModule implements IModule {
     private final Gson gson;
     private final Map<UUID, MarketListing> listings = new ConcurrentHashMap<>();
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public MarketModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.dataFile = new File(plugin.getDataFolder(), "market.json");

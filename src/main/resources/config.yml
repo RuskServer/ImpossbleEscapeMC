@@ -85,3 +85,7 @@ diagnostics:
 # 通知の既定言語。受信者の言語に翻訳がない場合に使う。
 messages:
   default-language: ja_jp
+
+# コンストラクタ依存・遅延依存・既存モジュール起動順をログへ表示
+di:
+  debug: false

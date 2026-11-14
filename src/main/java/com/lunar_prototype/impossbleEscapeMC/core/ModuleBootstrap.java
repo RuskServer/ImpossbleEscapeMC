@@ -1,58 +1,45 @@
 package com.lunar_prototype.impossbleEscapeMC.core;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import java.util.ArrayList;
-import java.util.List;
+import org.bukkit.plugin.java.JavaPlugin;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
-/**
- * モジュールの登録とライフサイクルの一括管理を担当
- */
+/** 既存モジュールの順序を保ち、検出・登録が揃ってからDIで構築する。 */
 public class ModuleBootstrap {
-    private final ImpossbleEscapeMC plugin;
     private final ServiceContainer container;
-    private final List<IModule> modules = new ArrayList<>();
+    private final JavaPlugin plugin;
+    private final String basePackage;
+    private final Set<Class<?>> modules = new LinkedHashSet<>();
+    private Class<?> previous;
 
-    public ModuleBootstrap(ImpossbleEscapeMC plugin, ServiceContainer container) {
-        this.plugin = plugin;
+    public ModuleBootstrap(JavaPlugin plugin, ServiceContainer container) {
+        this(plugin, container, "com.lunar_prototype.impossbleEscapeMC");
+    }
+    public ModuleBootstrap(JavaPlugin plugin, ServiceContainer container, String basePackage) {
         this.container = container;
+        this.plugin = plugin;
+        this.basePackage = basePackage;
+        container.setLogger(plugin.getLogger());
     }
-
-    /**
-     * モジュールを登録。登録順に起動される。
-     */
+    public <T extends IModule> void registerModule(Class<T> type) {
+        container.registerTypes(type);
+        orderModule(type);
+    }
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void registerModule(IModule module) {
-        modules.add(module);
+        Class<?> type = module.getClass();
+        container.register((Class) type, module);
+        orderModule(type);
     }
-
-    /**
-     * 全モジュールを有効化
-     */
+    private void orderModule(Class<?> type) {
+        if (!modules.add(type)) throw new IllegalArgumentException("Module already registered: " + type.getName());
+        if (previous != null) container.startAfter(type, previous);
+        previous = type;
+    }
     public void enableModules() {
-        for (IModule module : modules) {
-            try {
-                plugin.getLogger().info("Enabling module: " + module.getClass().getSimpleName());
-                module.onEnable(container);
-                // モジュール自身もサービスとして登録（他のモジュールから取得可能にする）
-                // Raw Typeキャストを使用してジェネリクスの不変性によるエラーを回避
-                container.register((Class) module.getClass(), module);
-            } catch (Exception e) {
-                plugin.getLogger().severe("Failed to enable module: " + module.getClass().getSimpleName());
-                e.printStackTrace();
-            }
-        }
+        container.scan(getClass().getClassLoader(), basePackage);
+        container.startAll();
+        if (plugin.getConfig().getBoolean("di.debug", false)) container.printDependencyTree();
     }
-
-    /**
-     * 全モジュールを無効化
-     */
-    public void disableModules() {
-        for (int i = modules.size() - 1; i >= 0; i--) { // 起動とは逆順に停止
-            try {
-                modules.get(i).onDisable();
-            } catch (Exception e) {
-                plugin.getLogger().severe("Failed to disable module: " + modules.get(i).getClass().getSimpleName());
-                e.printStackTrace();
-            }
-        }
-    }
+    public void disableModules() { container.stopAll(); }
 }

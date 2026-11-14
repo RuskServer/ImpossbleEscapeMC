@@ -29,6 +29,7 @@ public class TraderModule implements IModule {
     private PlayerDataModule dataModule;
     private EconomyModule economyModule;
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public TraderModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }

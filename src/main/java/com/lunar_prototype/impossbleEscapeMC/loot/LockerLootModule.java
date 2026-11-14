@@ -34,6 +34,7 @@ public final class LockerLootModule implements IModule, Listener {
     private final NamespacedKey ownerKey,slotKey,inventoryKey,generationKey,searchedKey,removerKey;
     private final NamespacedKey eggKey;
     private final Map<String,Cabinet> loaded=new HashMap<>();
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public LockerLootModule(ImpossbleEscapeMC plugin) {
         this.plugin=plugin;eggKey=new NamespacedKey(plugin,"locker_loot_egg_map");
         ownerKey=new NamespacedKey(plugin,"loot_locker_owner");slotKey=new NamespacedKey(plugin,"loot_locker_slot");

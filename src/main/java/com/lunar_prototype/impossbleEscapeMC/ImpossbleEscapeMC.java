@@ -56,7 +56,8 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     }
 
     public RaidModule getRaidModule() {
-        return raidModule;
+        // DIの構築が揃った後は、モジュールの起動中にも同じレイドを参照する。
+        return raidModule != null ? raidModule : serviceContainer == null ? null : serviceContainer.get(RaidModule.class);
     }
 
     public com.lunar_prototype.impossbleEscapeMC.loot.LootManager getLootManager() {
@@ -93,6 +94,9 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
 
         // 基盤の初期化
         serviceContainer = new ServiceContainer();
+        serviceContainer.register(ImpossbleEscapeMC.class, this);
+        serviceContainer.register(JavaPlugin.class, this);
+        serviceContainer.register(java.util.logging.Logger.class, getLogger());
         moduleBootstrap = new ModuleBootstrap(this, serviceContainer);
         // 全通知の基盤。ゲームのモジュールより先に有効化する。
         try { com.lunar_prototype.impossbleEscapeMC.api.message.Messages.init(this); }
@@ -118,7 +122,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.LoreMovie.init(this);
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.init(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
-        raidModule = new RaidModule(this);
         lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
         searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
         lootBackpackOverlayListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener(this);
@@ -129,7 +132,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 既存マネージャーをコンテナに登録
         serviceContainer.register(ScavSpawner.class, scavSpawner);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager.class, minigameManager);
-        serviceContainer.register(RaidModule.class, raidModule);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootManager.class, lootManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class, searchGUI);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class, lootBackpackOverlayListener);
@@ -139,34 +141,34 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         serviceContainer.register(AiRaidLogger.class, aiRaidLogger);
 
         // モジュールの登録
-        moduleBootstrap.registerModule(new PlayerDataModule(this));
-        moduleBootstrap.registerModule(new EconomyModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule());
-        moduleBootstrap.registerModule(raidModule); // すでにインスタンス化されているのでそのまま登録
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.loot.DrawerLootModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.loot.LockerLootModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.loot.ragdoll.ScavRagdollModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule(this));
+        moduleBootstrap.registerModule(PlayerDataModule.class);
+        moduleBootstrap.registerModule(EconomyModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        moduleBootstrap.registerModule(RaidModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.loot.DrawerLootModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.loot.LockerLootModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.loot.ragdoll.ScavRagdollModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.class);
         
-        com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule traderModule = new com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule(this);
-        moduleBootstrap.registerModule(traderModule);
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.compatibility.CitizensCompatModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.medical.MedicalModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.stamina.StaminaModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.scoreboard.ScoreboardModule());
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule(this));
-        moduleBootstrap.registerModule(new com.lunar_prototype.impossbleEscapeMC.modules.resourcepack.ResourcePackModule(this));
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.compatibility.CitizensCompatModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.medical.MedicalModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.weight.WeightModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.stamina.StaminaModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.market.MarketModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.scoreboard.ScoreboardModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule.class);
+        moduleBootstrap.registerModule(com.lunar_prototype.impossbleEscapeMC.modules.resourcepack.ResourcePackModule.class);
 
         // モジュールの有効化
         moduleBootstrap.enableModules();
+        raidModule = serviceContainer.get(RaidModule.class);
         operationHintHud = new com.lunar_prototype.impossbleEscapeMC.modules.raid.OperationHintHud(this);
 
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);

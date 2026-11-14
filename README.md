@@ -95,6 +95,9 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 
 ## 🏗️ System Architecture
 
+Constructor injection, annotated component discovery and dependency-ordered lifecycle management share the existing `ServiceContainer`. `Supplier<T>` supports runtime back-references without constructor cycles. Legacy module order is preserved; startup failures roll back started components. See [DEPENDENCY_INJECTION.md](docs/DEPENDENCY_INJECTION.md). Set `di.debug: true` to log dependency and startup-order information.
+
+
 ```mermaid
 graph TD
     A[Paper/Spigot Server] --> B(Loot Module)

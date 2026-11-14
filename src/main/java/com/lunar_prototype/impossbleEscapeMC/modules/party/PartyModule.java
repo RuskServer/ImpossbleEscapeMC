@@ -31,6 +31,7 @@ public class PartyModule implements IModule, Listener {
     private final Map<UUID, Party> playerPartyMap = new HashMap<>();
     private final Map<UUID, UUID> pendingInvites = new HashMap<>(); // Invited -> Inviter
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public PartyModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }

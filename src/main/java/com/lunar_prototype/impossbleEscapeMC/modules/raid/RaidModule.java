@@ -54,6 +54,7 @@ public class RaidModule implements IModule {
     }
     private final Map<UUID, Disconnect> disconnected = new HashMap<>();
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public RaidModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
         this.mapsFolder = new File(plugin.getDataFolder(), "raids");

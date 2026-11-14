@@ -54,6 +54,7 @@ public class QuestModule implements IModule {
         RAID_DEATH_FAILURE
     }
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public QuestModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }

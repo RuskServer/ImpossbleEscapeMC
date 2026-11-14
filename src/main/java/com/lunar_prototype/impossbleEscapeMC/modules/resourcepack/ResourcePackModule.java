@@ -26,6 +26,7 @@ public class ResourcePackModule implements IModule, Listener {
     /** パックの SHA-1 (計算が終わるまで null。別スレッドで書いてメインスレッドで読む) */
     private volatile byte[] resourcePackHash = null;
 
+    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
     public ResourcePackModule(ImpossbleEscapeMC plugin) {
         this.plugin = plugin;
     }
