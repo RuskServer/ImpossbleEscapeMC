@@ -1,5 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
+
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -23,12 +30,25 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
-public class HideoutListener implements Listener {
+@Service
+public class HideoutListener implements Listener, Startable, Stoppable {
     private final HideoutModule module;
+    private final JavaPlugin plugin;
+    private final StashModule stash;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule data;
+    private org.bukkit.scheduler.BukkitTask watcher;
 
-    public HideoutListener(HideoutModule module) {
+    @Inject
+    public HideoutListener(HideoutModule module, JavaPlugin plugin, StashModule stash,
+            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule data) {
         this.module = module;
+        this.plugin = plugin;
+        this.stash = stash;
+        this.data = data;
     }
+
+    @Override public void start() { watcher = org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, this::enforceAll, 20L, 10L); }
+    @Override public void stop() { if (watcher != null) watcher.cancel(); watcher = null; }
 
     /**
      * 隠れ家のワールドに入った時 (隠れ家の中で参加し直した時も) はアドベンチャーにする (ブロックを壊させない)。
@@ -84,8 +104,7 @@ public class HideoutListener implements Listener {
             event.setCancelled(true);
             if (event.getHand() != EquipmentSlot.HAND) return;
             if (facility == HideoutFacility.STASH) {
-                StashModule stash = module.getPlugin().getServiceContainer().get(StashModule.class);
-                if (stash != null) new StashPageSelectorGUI(event.getPlayer(), stash).open();
+                if (stash != null) new StashPageSelectorGUI(event.getPlayer(), stash, plugin, data).open();
             } else if (facility == HideoutFacility.SKILL_TREE) {
                 com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillTreeDialog.open(event.getPlayer());
             } else {

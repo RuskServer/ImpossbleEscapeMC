@@ -3,7 +3,11 @@ package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -83,7 +87,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
  * 割り当ての決まりは、クエストの順 (トレーダーのクエスト一覧と同じ)・目標の順。支給品は使わない ({@link #handInIdOf})。
  * 見た目の部品はクエストの画面と同じ (フォント iem:trader・iem:quest)
  */
-public final class QuestHandInDialog implements Listener {
+@Service
+public final class QuestHandInDialog implements Listener, Startable, Stoppable {
 
     // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int BODY_W = 340;
@@ -217,14 +222,31 @@ public final class QuestHandInDialog implements Listener {
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
     private static QuestHandInDialog instance;
 
-    private QuestHandInDialog() {
+    private final JavaPlugin plugin;
+    private final PlayerDataModule data;
+    private final QuestModule quests;
+
+    @Inject
+    public QuestHandInDialog(JavaPlugin plugin, PlayerDataModule data, QuestModule quests) {
+        this.plugin = plugin;
+        this.data = data;
+        this.quests = quests;
     }
 
-    private static void ensureRegistered() {
-        if (instance == null) {
-            instance = new QuestHandInDialog();
-            Bukkit.getPluginManager().registerEvents(instance, ImpossbleEscapeMC.getInstance());
-        }
+    @Override
+    public void start() {
+        instance = this;
+    }
+
+    @Override
+    public void stop() {
+        if (instance != this) return;
+        SESSIONS.clear();
+        instance = null;
+    }
+
+    private static void ensureStarted() {
+        if (instance == null) throw new IllegalStateException("QuestHandInDialog is not started");
     }
 
     /** 1 つのクエストの納品の画面を開く */
@@ -244,7 +266,7 @@ public final class QuestHandInDialog implements Listener {
     }
 
     private static void start(Player player, Session session) {
-        ensureRegistered();
+        ensureStarted();
         // チェストの画面 (スタッシュ・バッグ) を閉じて保存させてから読む
         player.closeInventory();
         SESSIONS.put(player.getUniqueId(), session);
@@ -472,7 +494,9 @@ public final class QuestHandInDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (instance == this) handle(player, action);
+        });
     }
 
     private void handle(Player player, String action) {
@@ -598,10 +622,10 @@ public final class QuestHandInDialog implements Listener {
     }
 
     private static PlayerDataModule dataModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        return instance.data;
     }
 
     private static QuestModule questModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(QuestModule.class);
+        return instance.quests;
     }
 }

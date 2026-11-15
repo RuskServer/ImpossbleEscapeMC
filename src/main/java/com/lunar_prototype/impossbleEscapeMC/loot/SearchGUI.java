@@ -1,5 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -57,13 +62,40 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-public class SearchGUI implements Listener {
+@Service
+public class SearchGUI implements Listener, Stoppable {
     private final ImpossbleEscapeMC plugin;
     private final NamespacedKey SEARCHED_SLOTS_KEY;
 
-    public SearchGUI(ImpossbleEscapeMC plugin) {
+    private final com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids;
+    private final java.util.function.Supplier<com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule> backpacks;
+    private final LootBackpackOverlayListener overlay;
+    private final java.util.function.Supplier<SkillModule> skills;
+    private final Set<BukkitRunnable> searches = new HashSet<>();
+
+    @Inject
+    public SearchGUI(ImpossbleEscapeMC plugin,
+            com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids,
+            java.util.function.Supplier<com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule> backpacks,
+            LootBackpackOverlayListener overlay, java.util.function.Supplier<SkillModule> skills) {
         this.plugin = plugin;
+        this.raids = raids;
+        this.backpacks = backpacks;
+        this.overlay = overlay;
+        this.skills = skills;
         this.SEARCHED_SLOTS_KEY = new NamespacedKey(plugin, "searched_slots");
+    }
+
+    @Override public void stop() {
+        for (BukkitRunnable search : Set.copyOf(searches)) search.cancel();
+        searches.clear();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchHolder)) continue;
+            onInventoryClose(new InventoryCloseEvent(player.getOpenInventory()));
+            player.closeInventory();
+        }
+        openCorpses.clear();
+        corpseViewers.clear();
     }
 
     public static class SearchHolder implements InventoryHolder {
@@ -126,7 +158,7 @@ public class SearchGUI implements Listener {
         if (container.getPersistentDataContainer().has(PDCKeys.LOOT_TABLE_ID, PDCKeys.STRING)) return;
         if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE) return;
 
-        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raidModule = plugin.getRaidModule();
+        var raidModule = raids;
         if (raidModule == null || !raidModule.isInRaid(player)) return;
 
         event.setCancelled(true);
@@ -336,7 +368,7 @@ public class SearchGUI implements Listener {
             ItemStack toMove = sourceItem.clone();
             ItemFactory.applyFIR(toMove); // FIRを適用
             // バックパックなどのコンテナ内アイテムにも適用
-            com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpackModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.class);
+            var backpackModule = backpacks.get();
             if (backpackModule != null && backpackModule.isBackpackItem(toMove)) {
                 Inventory inv = backpackModule.loadBackpackInventory(toMove);
                 for (ItemStack content : inv.getContents()) {
@@ -349,8 +381,6 @@ public class SearchGUI implements Listener {
 
             // 装備しているバックパックに先に入れ、入りきらない分を持ち物に入れる。
             // バックパックの表示中は持ち物の欄がバックパックの表示なので、本物のホットバーにだけ入れ、残りは死体・コンテナに残す
-            com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay =
-                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class);
             ItemStack rest = overlay != null ? overlay.addToBackpackFirst(player, toMove) : toMove;
             Map<Integer, ItemStack> leftover;
             if (rest == null) {
@@ -453,8 +483,8 @@ public class SearchGUI implements Listener {
         final ItemStack searchingItem = current.clone();
         final int searchRarity = revealRarity(current);
         final int searchTicks = LootSearchAnimation.durationTicks(searchRarity,
-                (int) SkillModule.value(player, SkillStat.SEARCH_TICKS));
-        new BukkitRunnable() {
+                (int) skills.get().stat(player, SkillStat.SEARCH_TICKS));
+        BukkitRunnable search = new BukkitRunnable() {
             int elapsed = 0;
             int flashFrame = -1;
 
@@ -512,7 +542,13 @@ public class SearchGUI implements Listener {
                     if (flashFrame < 0) this.cancel();
                 }
             }
-        }.runTaskTimer(plugin, 0, 1);
+            @Override public synchronized void cancel() {
+                searches.remove(this);
+                super.cancel();
+            }
+        };
+        search.runTaskTimer(plugin, 0, 1);
+        searches.add(search);
     }
 
     /** 同じ品の残数が変わるだけなら継続し、種類・メタデータの変更や消失では中断する。 */

@@ -1,6 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import net.kyori.adventure.text.Component;
@@ -30,12 +30,12 @@ public class PDASettingsGUI implements Listener {
 
     private final List<String> availableKeys = Arrays.asList("DROP", "SWAP_HAND", "LEFT_CLICK_SNEAK", "NONE");
 
-    public PDASettingsGUI(Player player) {
+    public PDASettingsGUI(Player player, JavaPlugin plugin, PlayerDataModule dataModule) {
         this.player = player;
         this.inventory = Bukkit.createInventory(null, 27, Component.text("PDA - 操作設定").decoration(TextDecoration.ITALIC, false));
-        this.dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        this.dataModule = dataModule;
         this.data = dataModule.getPlayerData(player.getUniqueId());
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
     public void open() {

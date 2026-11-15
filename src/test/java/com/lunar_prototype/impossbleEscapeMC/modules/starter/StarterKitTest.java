@@ -15,7 +15,7 @@ public final class StarterKitTest {
         Set<String> ammo = StarterKit.CONTENTS.stream().filter(StarterKit.Entry::gun).map(StarterKit.Entry::ammoId)
                 .collect(Collectors.toSet());
         int slots = StarterKit.slotsNeeded(id -> ammo.contains(id) ? 64 : 1);
-        int capacity = new StashModule(null).getRows(1, StarterKit.PAGE) * 9;
+        int capacity = new StashModule(null, null, null).getRows(1, StarterKit.PAGE) * 9;
         check(slots == 16, "slots: " + slots);
         check(slots <= capacity, "starter kit (" + slots + ") fits the level 1 stash page (" + capacity + ")");
         // 予備の弾は銃に込める弾と同じ種類

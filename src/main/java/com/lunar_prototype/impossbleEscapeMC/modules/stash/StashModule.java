@@ -21,11 +21,16 @@ import java.io.IOException;
 @Service
 public class StashModule implements IModule {
     @Inject
-    public StashModule(PlayerDataModule dataModule) {
+    public StashModule(PlayerDataModule dataModule, org.bukkit.plugin.java.JavaPlugin plugin,
+            com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay) {
         this.dataModule = dataModule;
+        this.plugin = plugin;
+        this.overlay = overlay;
     }
 
     private final PlayerDataModule dataModule;
+    private final org.bukkit.plugin.java.JavaPlugin plugin;
+    private final com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay;
 
     @Override
     public void onEnable(ServiceContainer container) {
@@ -84,7 +89,7 @@ public class StashModule implements IModule {
         // バックパックの表示に切り替えた時のタイトル (下の欄の名前と背景だけが変わる)
         GuiBackground shown = inv.getSize() == 54 ? GuiBackground.STASH_6 : GuiBackground.STASH_3;
         String pageLabel = page + "/" + getMaxUnlockedPage(data.getStashLevel());
-        new StashGUI(player, inv, page, this, bag -> shown.title(pageLabel, bag)).open();
+        new StashGUI(player, inv, page, this, plugin, overlay, bag -> shown.title(pageLabel, bag)).open();
     }
 
     public void saveStash(Player player, int page, Inventory inventory) {

@@ -1,5 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import org.bukkit.scheduler.BukkitTask;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -56,7 +63,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
  * 本文は 1 つの要素 (幅 {@link #BODY_W}) で、行はすべて {@link #LINE_W} にそろえる (クライアントの中央揃えで位置がずれないように)。
  * 行の頭はパネルの左の 4 右、行の上端はパネルの上から 9 x 行目 - 3 (要素の上 + 4 + 9 x 行目)
  */
-public final class HideoutDialog implements Listener {
+@Service
+public final class HideoutDialog implements Listener, Startable, Stoppable {
 
     private static final String NS = "iem";
     private static final String PREFIX = "hideout/";
@@ -110,22 +118,39 @@ public final class HideoutDialog implements Listener {
 
     private final HideoutModule module;
     private final HideoutCamera camera;
+    private final JavaPlugin plugin;
+    private final EconomyModule economy;
+    private final PlayerDataModule data;
+    private BukkitTask watcher;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
 
-    private HideoutDialog(HideoutModule module) {
+    @Inject
+    public HideoutDialog(JavaPlugin plugin, HideoutModule module, EconomyModule economy, PlayerDataModule data) {
+        this.plugin = plugin;
         this.module = module;
-        this.camera = new HideoutCamera(module.getPlugin());
+        this.economy = economy;
+        this.data = data;
+        this.camera = new HideoutCamera(plugin);
     }
 
-    static void init(HideoutModule module) {
-        if (instance != null) return;
-        instance = new HideoutDialog(module);
-        Bukkit.getPluginManager().registerEvents(instance, module.getPlugin());
-        Bukkit.getScheduler().runTaskTimer(module.getPlugin(), instance::watch, WATCH_TICKS, WATCH_TICKS);
+    @Override
+    public void start() {
+        instance = this;
+        watcher = Bukkit.getScheduler().runTaskTimer(plugin, this::watch, WATCH_TICKS, WATCH_TICKS);
+    }
+
+    @Override
+    public void stop() {
+        if (instance != this) return;
+        if (watcher != null) watcher.cancel();
+        watcher = null;
+        camera.stopAll();
+        sessions.clear();
+        instance = null;
     }
 
     static void shutdown() {
-        if (instance != null) instance.camera.stopAll();
+        if (instance != null) instance.stop();
     }
 
     /** 隠れ家の画面のカメラを使っている (スペクテイターになっている) か */
@@ -184,7 +209,6 @@ public final class HideoutDialog implements Listener {
         boolean[] built = new boolean[FACILITIES.length];
         for (int i = 0; i < FACILITIES.length; i++) built[i] = data.getHideoutLevel(FACILITIES[i].id) > 0;
         int level = data.getHideoutLevel(facility.id);
-        EconomyModule economy = module.getPlugin().getServiceContainer().get(EconomyModule.class);
         long money = economy != null ? (long) economy.getBalance(player.getUniqueId()) : 0;
         List<Requirement> requirements = requirements(player, data, facility, money);
         return new PanelView(facility.label, level, facility.maxLevel(module.getLayout()), index, built, facility.description(),
@@ -382,7 +406,9 @@ public final class HideoutDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(module.getPlugin(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (instance == this) handle(player, action);
+        });
     }
 
     private void handle(Player player, String action) {
@@ -414,7 +440,6 @@ public final class HideoutDialog implements Listener {
             notice(session, Component.text("隠れ家の中で強化してください", NamedTextColor.RED));
             return;
         }
-        EconomyModule economy = module.getPlugin().getServiceContainer().get(EconomyModule.class);
         long money = economy != null ? (long) economy.getBalance(player.getUniqueId()) : 0;
         String blocking = blocking(data, facility, requirements(player, data, facility, money));
         if (blocking != null) {
@@ -454,7 +479,7 @@ public final class HideoutDialog implements Listener {
         } catch (IOException e) {
             if (cost > 0 && economy != null) economy.deposit(player.getUniqueId(), cost);
             materialSnapshot.restore(player,data);
-            module.getPlugin().getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class).saveAsync(player.getUniqueId());
+            this.data.saveAsync(player.getUniqueId());
             module.getPlugin().getLogger().log(Level.WARNING, "隠れ家の設備を建てられませんでした", e);
             notice(session, Component.text("建築に失敗したため費用を返却しました", NamedTextColor.RED));
             return;

@@ -1,6 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
@@ -32,14 +31,11 @@ public final class FreeLoadoutPresentation {
 
     private FreeLoadoutPresentation() {}
 
-    public static Status capture(Player player) {
-        var services = ImpossbleEscapeMC.getInstance().getServiceContainer();
-        PlayerDataModule module = services.get(PlayerDataModule.class);
+    public static Status capture(Player player, PlayerDataModule module, RaidModule raids) {
         PlayerData data = module != null ? module.getPlayerData(player.getUniqueId()) : null;
-        RaidModule raids = services.get(RaidModule.class);
         return status(data != null, raids != null && raids.isInRaid(player),
                 SupplyLoadout.remainingCooldown(data), SupplyLoadout.cooldownMillis(data),
-                SupplyLoadout.blockingReason(player, data));
+                SupplyLoadout.blockingReason(player, data, raids));
     }
 
     static Status status(boolean loaded, boolean inRaid, long remaining, long interval, String reason) {

@@ -3,9 +3,10 @@ package com.lunar_prototype.impossbleEscapeMC.modules.market;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.command.Command;
 import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+import org.bukkit.plugin.java.JavaPlugin;
+import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
@@ -19,8 +20,13 @@ public class MarketCommand implements BasicCommand {
     private final MarketModule marketModule;
     private final LevelModule levelModule;
 
-    public MarketCommand(MarketModule marketModule, LevelModule levelModule) {
+    private final JavaPlugin plugin;
+    private final EconomyModule economy;
+
+    public MarketCommand(MarketModule marketModule, LevelModule levelModule, JavaPlugin plugin, EconomyModule economy) {
         this.marketModule = marketModule;
+        this.plugin = plugin;
+        this.economy = economy;
         this.levelModule = levelModule;
     }
 
@@ -38,7 +44,7 @@ public class MarketCommand implements BasicCommand {
             return;
         }
 
-        new MarketMainGUI(player, marketModule).open();
+        new MarketMainGUI(player, marketModule, plugin, economy).open();
         return;
     }
 }

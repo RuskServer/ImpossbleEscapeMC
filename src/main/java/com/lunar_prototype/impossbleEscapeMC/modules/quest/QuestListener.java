@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
@@ -14,12 +18,17 @@ import java.util.Map;
 /**
  * BukkitイベントをQuestEventBusに橋渡しするリスナー
  */
+@Service
 public class QuestListener implements Listener {
     private final QuestModule questModule;
     private final PlayerDataModule dataModule;
 
-    public QuestListener(QuestModule questModule, PlayerDataModule dataModule) {
+    private final com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids;
+
+    @Inject
+    public QuestListener(QuestModule questModule, PlayerDataModule dataModule, com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids) {
         this.questModule = questModule;
+        this.raids = raids;
         this.dataModule = dataModule;
     }
 
@@ -70,8 +79,6 @@ public class QuestListener implements Listener {
             // ワールド不一致などで距離計算できない場合は距離条件を判定しない
         }
         // マップ・ヘッドショット・銃の条件 (倒した人が参加中のレイドと、倒した人が最後に当てた 1 発から)
-        com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids =
-                com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC.getInstance().getRaidModule();
         com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidInstance raid = raids != null ? raids.getRaidOf(killer) : null;
         if (raid != null) params.put("mapId", raid.getMapId());
         com.lunar_prototype.impossbleEscapeMC.modules.raid.result.RaidKillTracker.Hit hit =

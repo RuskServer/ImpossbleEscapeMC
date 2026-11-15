@@ -34,13 +34,13 @@ public class RaidCommand implements BasicCommand {
         if (!(sender instanceof Player player)) return;
 
         if (args.length == 0) {
-            new RaidSelectionGUI(manager).open(player);
+            RaidSelectionGUI.open(player);
             return;
         }
 
         switch (args[0].toLowerCase()) {
             case "open":
-                new RaidSelectionGUI(manager).open(player);
+                RaidSelectionGUI.open(player);
                 break;
             case "join":
                 handleJoin(player, args);
@@ -101,7 +101,7 @@ public class RaidCommand implements BasicCommand {
             return;
         }
         String mapId = args[1];
-        new RaidSelectionGUI(manager).confirm(player, mapId);
+        RaidSelectionGUI.confirm(player, mapId);
     }
 
     private void handleMap(Player player, String[] args) {

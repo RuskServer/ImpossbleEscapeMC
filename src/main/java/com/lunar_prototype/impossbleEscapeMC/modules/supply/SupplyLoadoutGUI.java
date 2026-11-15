@@ -3,7 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
@@ -69,26 +69,30 @@ public final class SupplyLoadoutGUI implements Listener {
         }
     }
 
+    private final JavaPlugin plugin;
+    private final RaidModule raids;
     private final Player player;
     private final PlayerDataModule dataModule;
     private final Runnable onReturn;
     private final Selection selection = new Selection();
     private String notice;
 
-    public SupplyLoadoutGUI(Player player) {this(player, null);}
+    public SupplyLoadoutGUI(Player player, JavaPlugin plugin, PlayerDataModule dataModule, RaidModule raids) {this(player, plugin, dataModule, raids, null);}
 
     /** リザルトなど、呼び出し元の画面に戻る場合。Esc も戻るボタンと同じ。 */
-    public SupplyLoadoutGUI(Player player, Runnable onReturn) {
+    public SupplyLoadoutGUI(Player player, JavaPlugin plugin, PlayerDataModule dataModule, RaidModule raids, Runnable onReturn) {
         this.player = player;
         this.onReturn = onReturn;
-        this.dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        this.dataModule = dataModule;
+        this.plugin = plugin;
+        this.raids = raids;
     }
 
     public void open() {
         if (!available()) return;
         SupplyLoadoutGUI previous = ACTIVE.put(player.getUniqueId(), this);
         if (previous != null) previous.dispose();
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
         show();
     }
 
@@ -97,12 +101,11 @@ public final class SupplyLoadoutGUI implements Listener {
     }
 
     private boolean available() {
-        RaidModule raids = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
         return player.isOnline() && !player.isDead() && (raids == null || !raids.isInRaid(player));
     }
 
     private void show() {
-        var status = FreeLoadoutPresentation.capture(player);
+        var status = FreeLoadoutPresentation.capture(player, dataModule, raids);
         SupplyLoadout.Weapon weapon = selection.weapon();
         List<DialogBody> body = new ArrayList<>();
         body.add(DialogBody.plainMessage(FreeLoadoutPresentation.buttonLabel(status), BODY_W));
@@ -167,7 +170,7 @@ public final class SupplyLoadoutGUI implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)
                 || !connection.getPlayer().getUniqueId().equals(player.getUniqueId())) return;
         String action = event.getIdentifier().value();
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(action));
+        Bukkit.getScheduler().runTask(plugin, () -> handle(action));
     }
 
     private void handle(String key) {
@@ -186,7 +189,7 @@ public final class SupplyLoadoutGUI implements Listener {
             show();
         } else if (action.equals("receive")) {
             // 画面表示時の状態に頼らず、最新の待ち時間・持ち物・レイド状態で受け取る。
-            String reason = SupplyLoadout.give(player, data(), selection.weapon());
+            String reason = SupplyLoadout.give(player, data(), selection.weapon(), raids);
             if (reason != null) {
                 selection.refresh();
                 notice = reason;
@@ -207,8 +210,7 @@ public final class SupplyLoadoutGUI implements Listener {
         player.closeDialog();
         if (onReturn != null) onReturn.run();
         else {
-            RaidModule raids = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
-            if (raids != null) new RaidSelectionGUI(raids).open(player);
+            if (raids != null) RaidSelectionGUI.open(player);
         }
     }
 

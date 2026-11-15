@@ -2,7 +2,6 @@ package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunProfile;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
@@ -118,8 +117,7 @@ public final class SupplyLoadout {
     }
 
     /** 受け取れない理由。受け取れるなら null */
-    public static String blockingReason(Player player, PlayerData data) {
-        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getRaidModule();
+    public static String blockingReason(Player player, PlayerData data, RaidModule raidModule) {
         if (raidModule != null && raidModule.isInRaid(player)) return "レイド中は受け取れません";
         if (data == null) return "プレイヤーデータを読み込み中です";
         long remaining = remainingCooldown(data);
@@ -246,8 +244,8 @@ public final class SupplyLoadout {
      * 受け取る: ヘルメットは頭、アーマーは胴、リグは脚、バッグはオフハンド、銃・弾・医療品はホットバーへ。
      * 受け取れなければ理由を返す (受け取れたら null)
      */
-    public static String give(Player player, PlayerData data, Weapon weapon) {
-        String reason = blockingReason(player, data);
+    public static String give(Player player, PlayerData data, Weapon weapon, RaidModule raids) {
+        String reason = blockingReason(player, data, raids);
         if (reason != null) return reason;
         List<ItemStack> items = contents(player.getWorld(), weapon, data);
         if (items.isEmpty() || DatapackGunCatalog.gunIdOf(items.getFirst()) == null) return "無料装備を用意できませんでした";

@@ -3,8 +3,11 @@ package com.lunar_prototype.impossbleEscapeMC.gui;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
-import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutDialog;
 import com.lunar_prototype.impossbleEscapeMC.modules.hideout.HideoutModule;
@@ -49,21 +52,46 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.*;
 import static com.lunar_prototype.impossbleEscapeMC.gui.PdaHomeModel.Action;
 
 /** 従来のPDA背景と27枠のチェスト画面を維持し、隠れ家の二つの操作を分ける。 */
-final class PdaHomeScreen implements Listener, PdaHomeController.Port {
+@Service
+final class PdaHomeScreen implements Listener, PdaHomeController.Port, Startable, Stoppable {
     private record HomeInventory(Inventory inventory, String token, PdaHomeController.Page page) {}
     private final Map<UUID, HomeInventory> inventories = new HashMap<>();
     private static PdaHomeScreen instance;
-    private final ImpossbleEscapeMC plugin;
+    private final JavaPlugin plugin;
+    private final PlayerDataModule dataModule;
+    private final LevelModule levels;
+    private final RaidModule raids;
+    private final HideoutModule hideout;
+    private final PartyModule parties;
+    private final QuestModule quests;
+    private final StashModule stash;
+    private final TraderModule traders;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks;
+    private final MarketModule market;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule economy;
+
     private final PdaHomeController controller = new PdaHomeController(this);
-    private PdaHomeScreen(ImpossbleEscapeMC plugin) {this.plugin = plugin;}
+    @Inject
+    public PdaHomeScreen(JavaPlugin plugin, PlayerDataModule dataModule, LevelModule levels, RaidModule raids, HideoutModule hideout, PartyModule parties, QuestModule quests, StashModule stash, TraderModule traders, MarketModule market, com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks, com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule economy) {
+        this.plugin = plugin;
+        this.dataModule = dataModule;
+        this.levels = levels;
+        this.raids = raids;
+        this.hideout = hideout;
+        this.parties = parties;
+        this.quests = quests;
+        this.stash = stash;
+        this.traders = traders;
+        this.market = market;
+        this.backpacks = backpacks;
+        this.economy = economy;
+    }
+
+    @Override public void start() { instance = this; }
+    @Override public void stop() { if (instance == this) shutdown(); }
 
     static void open(Player player) {
-        ImpossbleEscapeMC plugin = ImpossbleEscapeMC.getInstance();
-        if (plugin == null || !plugin.isEnabled()) return;
-        if (instance == null) {
-            instance = new PdaHomeScreen(plugin);
-            Bukkit.getPluginManager().registerEvents(instance, instance.plugin);
-        }
+        if (instance == null || !instance.plugin.isEnabled()) return;
         PdaHomeScreen screen = instance;
         // 他のインベントリのクリック処理・返却が終わってから開く。
         Bukkit.getScheduler().runTask(screen.plugin, () -> {
@@ -85,25 +113,18 @@ final class PdaHomeScreen implements Listener, PdaHomeController.Port {
         instance = null;
     }
 
-    private ServiceContainer services() {return plugin.getServiceContainer();}
-
     @Override public PdaHomeModel.View snapshot(Player player) {
-        var dataModule = services().get(PlayerDataModule.class);
-        var levels = services().get(LevelModule.class);
         if (dataModule == null || levels == null) return null;
         var data = dataModule.getPlayerData(player.getUniqueId());
         if (data == null) return null;
-        var raids = services().get(RaidModule.class);
-        var hideout = services().get(HideoutModule.class);
-        var parties = services().get(PartyModule.class);
         boolean inRaid = raids != null && raids.isInRaid(player);
         boolean inHideout = hideout != null && hideout.getWorldManager().isPlayerWorld(player.getWorld());
         var available = EnumSet.of(Action.SETTINGS, Action.REFRESH, Action.CLOSE);
         if (raids != null) available.add(Action.RAID);
-        if (services().get(QuestModule.class) != null) available.add(Action.QUESTS);
-        if (services().get(StashModule.class) != null) available.add(Action.STASH);
-        if (services().get(TraderModule.class) != null) available.add(Action.TRADERS);
-        if (services().get(MarketModule.class) != null) available.add(Action.MARKET);
+        if (quests != null) available.add(Action.QUESTS);
+        if (stash != null) available.add(Action.STASH);
+        if (traders != null) available.add(Action.TRADERS);
+        if (market != null) available.add(Action.MARKET);
         if (hideout != null) {available.add(Action.HIDEOUT_MENU);available.add(Action.HIDEOUT);available.add(Action.FACILITIES);}
         String partyText = "パーティー未所属", invitation = null;
         if (parties != null) {
@@ -230,17 +251,16 @@ final class PdaHomeScreen implements Listener, PdaHomeController.Port {
     @Override public void dispatch(Player player, Action action, PdaHomeModel.View current) {
         player.playSound(player, "iem:pda.click", SoundCategory.MASTER, 1.0f, 1.0f);
         switch (action) {
-            case RAID -> new RaidSelectionGUI(services().get(RaidModule.class)).open(player);
+            case RAID -> RaidSelectionGUI.open(player);
             case QUESTS -> QuestDialog.openPda(player);
-            case STASH -> new StashPageSelectorGUI(player, services().get(StashModule.class)).open();
-            case TRADERS -> new TraderSelectionGUI(player, services().get(TraderModule.class)).open();
+            case STASH -> new StashPageSelectorGUI(player, stash, plugin, dataModule).open();
+            case TRADERS -> new TraderSelectionGUI(player, traders, backpacks).open();
             case HIDEOUT -> {
-                var hideout = services().get(HideoutModule.class);
                 if (current.inHideout()) hideout.returnToLobby(player);else hideout.visit(player);
             }
             case FACILITIES -> HideoutDialog.open(player);
-            case MARKET -> new MarketMainGUI(player, services().get(MarketModule.class)).open();
-            case PARTY -> new PartyGUI(player).open();
+            case MARKET -> new MarketMainGUI(player, market, plugin, economy).open();
+            case PARTY -> new PartyGUI(player, parties, plugin).open();
             case SETTINGS -> GunSettingsDialog.open(player);
             default -> { }
         }

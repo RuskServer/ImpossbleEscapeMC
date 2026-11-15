@@ -3,7 +3,11 @@ package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -79,7 +83,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
  * レイドから帰った時の結果の画面からも開く ({@link #openAfterRaid})。その時は物ごとに、それを直せるトレーダー
  * (武器は Kovacs、アーマーは Bastion) の修理として出す。修理代はトレーダーで直すのと同じ
  */
-public final class RepairDialog implements Listener {
+@Service
+public final class RepairDialog implements Listener, Startable, Stoppable {
 
     // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int BODY_W = 340;
@@ -226,21 +231,36 @@ public final class RepairDialog implements Listener {
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
     private static RepairDialog instance;
 
-    private RepairDialog() {
+    private final JavaPlugin plugin;
+    private final TraderModule traders;
+
+    @Inject
+    public RepairDialog(JavaPlugin plugin, TraderModule traders) {
+        this.plugin = plugin;
+        this.traders = traders;
     }
 
-    private static void ensureRegistered() {
-        if (instance == null) {
-            instance = new RepairDialog();
-            Bukkit.getPluginManager().registerEvents(instance, ImpossbleEscapeMC.getInstance());
-        }
+    @Override
+    public void start() {
+        instance = this;
+    }
+
+    @Override
+    public void stop() {
+        if (instance != this) return;
+        SESSIONS.clear();
+        instance = null;
+    }
+
+    private static void ensureStarted() {
+        if (instance == null) throw new IllegalStateException("RepairDialog is not started");
     }
 
     /**
      * レイドから帰った時の修理の画面を開く (結果の画面の、戦利品の次)。back・next は戻る・次へのボタンで開く画面
      */
     public static void openAfterRaid(Player player, Runnable back, Runnable next) {
-        ensureRegistered();
+        ensureStarted();
         player.closeInventory();
         Session session = new Session(null);
         session.back = back;
@@ -258,7 +278,7 @@ public final class RepairDialog implements Listener {
 
     /** トレーダーの修理の画面を開く */
     public static void open(Player player, TraderDefinition trader) {
-        ensureRegistered();
+        ensureStarted();
         // チェストの画面 (バッグ) を閉じて保存させてから読む
         player.closeInventory();
         Session session = new Session(trader);
@@ -350,7 +370,9 @@ public final class RepairDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (instance == this) handle(player, action);
+        });
     }
 
     private void handle(Player player, String action) {
@@ -445,6 +467,6 @@ public final class RepairDialog implements Listener {
     }
 
     private static TraderModule traderModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
+        return instance.traders;
     }
 }

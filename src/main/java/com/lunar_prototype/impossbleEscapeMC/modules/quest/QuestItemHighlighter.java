@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
@@ -51,7 +55,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * サーバーのデータを読むので、メインスレッドで持ち物 (と開いているコンテナ) を見て先に調べておく ({@link #DATAPACK_DEFINITIONS})。
  * クリエイティブではクライアントが表示どおりのアイテムを送り返してくるので、書き換えない
  */
-public final class QuestItemHighlighter extends PacketListenerAbstract implements org.bukkit.event.Listener {
+@Service
+public final class QuestItemHighlighter extends PacketListenerAbstract implements org.bukkit.event.Listener, Startable, Stoppable {
 
     private static final int REFRESH_TICKS = 20;
 
@@ -65,28 +70,39 @@ public final class QuestItemHighlighter extends PacketListenerAbstract implement
     private final ImpossbleEscapeMC plugin;
     private final QuestModule questModule;
     private final Map<UUID, Snapshot> needs = new ConcurrentHashMap<>();
-    private final BukkitTask task;
+    private BukkitTask task;
+    private final PlayerDataModule dataModule;
+    private final HideoutModule hideout;
+    private boolean packetsRegistered;
 
-    private QuestItemHighlighter(ImpossbleEscapeMC plugin, QuestModule questModule) {
+    @Inject
+    public QuestItemHighlighter(ImpossbleEscapeMC plugin, QuestModule questModule, PlayerDataModule dataModule, HideoutModule hideout) {
         this.plugin = plugin;
         this.questModule = questModule;
-        this.task = Bukkit.getScheduler().runTaskTimer(plugin, this::refreshAll, REFRESH_TICKS, REFRESH_TICKS);
+        this.dataModule = dataModule;
+        this.hideout = hideout;
     }
 
-    public static void init(ImpossbleEscapeMC plugin, QuestModule questModule) {
-        if (instance != null || questModule == null) return;
-        instance = new QuestItemHighlighter(plugin, questModule);
-        PacketEvents.getAPI().getEventManager().registerListener(instance);
-        Bukkit.getPluginManager().registerEvents(instance,plugin);
+    @Override public void start() {
+        instance = this;
+        PacketEvents.getAPI().getEventManager().registerListener(this);
+        packetsRegistered = true;
+        task = Bukkit.getScheduler().runTaskTimer(plugin, this::refreshAll, REFRESH_TICKS, REFRESH_TICKS);
+    }
+
+    @Override public void stop() {
+        if (instance != this) return;
+        if (task != null) task.cancel();
+        task = null;
+        if (packetsRegistered) PacketEvents.getAPI().getEventManager().unregisterListener(this);
+        packetsRegistered = false;
+        needs.clear();
+        DATAPACK_DEFINITIONS.clear();
+        instance = null;
     }
 
     public static void shutdown() {
-        if (instance == null) return;
-        instance.task.cancel();
-        PacketEvents.getAPI().getEventManager().unregisterListener(instance);
-        org.bukkit.event.HandlerList.unregisterAll(instance);
-        instance.needs.clear();
-        instance = null;
+        if (instance != null) instance.stop();
     }
 
     @org.bukkit.event.EventHandler(priority=org.bukkit.event.EventPriority.MONITOR,ignoreCancelled=true)
@@ -173,7 +189,6 @@ public final class QuestItemHighlighter extends PacketListenerAbstract implement
     /** 受けているクエストの、まだ終わっていない納品の目標 */
     private Snapshot collect(Player player) {
         if (player.getGameMode() == GameMode.CREATIVE) return EMPTY;
-        PlayerDataModule dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
         PlayerData data = dataModule != null ? dataModule.getPlayerData(player.getUniqueId()) : null;
         if (data == null) return EMPTY;
         List<Need> result = new ArrayList<>();
@@ -187,7 +202,6 @@ public final class QuestItemHighlighter extends PacketListenerAbstract implement
                 result.add(new Need(quest.getDisplayName(), handIn, handIn.getTargetAmount() - active.getProgress(i)));
             }
         }
-        HideoutModule hideout = plugin.getServiceContainer().get(HideoutModule.class);
         return new Snapshot(result,hideout == null ? Map.of() : HideoutMaterialNeeds.collect(player,data,hideout));
     }
 

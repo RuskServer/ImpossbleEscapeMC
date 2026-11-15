@@ -1,9 +1,13 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderItem;
@@ -28,7 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 脱出・死亡・MIA の時に {@link #show} を呼ぶと、チャットに 1 行 (押すと開き直せる) を出し、
  * 死亡ならリスポーンして、テレポートの読み込みが落ち着いてから画面を開く
  */
-public final class RaidResults {
+@Service
+public final class RaidResults implements Startable, Stoppable {
 
     /** 生きていてから画面を開くまで (tick)。テレポート・リスポーン直後の読み込みの画面と重ならないように */
     private static final int OPEN_DELAY_TICKS = 30;
@@ -37,7 +42,18 @@ public final class RaidResults {
 
     private static final Map<UUID, RaidReport> REPORTS = new ConcurrentHashMap<>();
 
-    private RaidResults() {
+    private static RaidResults instance;
+    private final JavaPlugin plugin;
+    private final TraderModule traders;
+    private final Map<UUID, BukkitRunnable> pending = new ConcurrentHashMap<>();
+    @Inject public RaidResults(JavaPlugin plugin, TraderModule traders) { this.plugin = plugin; this.traders = traders; }
+    @Override public void start() { instance = this; }
+    @Override public void stop() {
+        if (instance != this) return;
+        pending.values().forEach(BukkitRunnable::cancel);
+        pending.clear();
+        REPORTS.clear();
+        instance = null;
     }
 
     public static RaidReport get(UUID player) {
@@ -57,23 +73,30 @@ public final class RaidResults {
                 .append(MessageText.of("iem.raid.raidresults.show.notice_001.text_02", report.mapName(), report.rank()).color(NamedTextColor.GRAY))
                 .append(open))));
 
-        new BukkitRunnable() {
+        RaidResults owner = instance;
+        BukkitRunnable previous = owner.pending.remove(id);
+        if (previous != null) previous.cancel();
+        BukkitRunnable task = new BukkitRunnable() {
             int waited;
             int alive;
 
             @Override
             public void run() {
                 Player p = Bukkit.getPlayer(id);
-                if (p == null || REPORTS.get(id) != report || (waited += 5) > OPEN_TIMEOUT_TICKS) {
+                if (instance != owner || p == null || REPORTS.get(id) != report || (waited += 5) > OPEN_TIMEOUT_TICKS) {
+                    owner.pending.remove(id, this);
                     cancel();
                     return;
                 }
                 alive = p.isDead() ? 0 : alive + 5;
                 if (alive < OPEN_DELAY_TICKS) return;
+                owner.pending.remove(id, this);
                 cancel();
                 open(p);
             }
-        }.runTaskTimer(ImpossbleEscapeMC.getInstance(), 5L, 5L);
+        };
+        task.runTaskTimer(owner.plugin, 5L, 5L);
+        owner.pending.put(id, task);
     }
 
     /** 最後のレイドの結果の画面を開く (1 ページ目から) */
@@ -95,7 +118,7 @@ public final class RaidResults {
     public static long valueOf(UUID player, ItemStack item) {
         String id = QuestAutoHandIn.itemIdOf(item);
         if (id == null) return 0;
-        TraderModule traders = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
+        TraderModule traders = instance.traders;
         if (traders == null) return 0;
         double best = 0;
         for (TraderDefinition trader : traders.getAllTraders()) {

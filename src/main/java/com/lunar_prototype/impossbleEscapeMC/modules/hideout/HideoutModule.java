@@ -85,13 +85,6 @@ public class HideoutModule implements IModule {
         // ワールドの初期化
         worldManager.initWorlds();
 
-        // リスナーの登録
-        HideoutListener listener = new HideoutListener(this);
-        Bukkit.getPluginManager().registerEvents(listener, plugin);
-        // 隠れ家にいる間はアドベンチャー (入った時だけでなく、ほかの所で戻されても)
-        Bukkit.getScheduler().runTaskTimer(plugin, listener::enforceAll, 20L, 10L);
-        HideoutDialog.init(this);
-
         Bukkit.getLogger().info("HideoutModule enabled.");
     }
 

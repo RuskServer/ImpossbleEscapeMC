@@ -84,7 +84,6 @@ public class QuestModule implements IModule {
         setupEventBus();
         
         // リスナーの登録
-        plugin.getServer().getPluginManager().registerEvents(new QuestListener(this, dataModule), plugin);
         plugin.getServer().getPluginManager().registerEvents(new PlayerDataLoadedJoinListener(), plugin);
         
         // 位置チェックタスクの開始 (20 ticks = 1秒ごと)

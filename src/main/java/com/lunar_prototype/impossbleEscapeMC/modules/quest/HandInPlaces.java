@@ -1,6 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
@@ -29,7 +33,8 @@ import java.util.logging.Level;
  * </ul>
  * 読み書きは {@link Store}: スタッシュのページとバッグの中身は読んだ物を使い回し、{@link Store#save} でバッグ・ページへ書き戻す
  */
-public final class HandInPlaces {
+@Service
+public final class HandInPlaces implements Startable, Stoppable {
 
     /** 物のある場所の種類 */
     public enum Kind { INVENTORY, OFFHAND_BAG, STASH }
@@ -48,8 +53,18 @@ public final class HandInPlaces {
     public record Entry(Source source, String place, ItemStack item) {
     }
 
-    private HandInPlaces() {
+    private static HandInPlaces instance;
+    private final JavaPlugin plugin;
+    private final BackpackModule backpacks;
+    private final com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay;
+    @Inject public HandInPlaces(JavaPlugin plugin, BackpackModule backpacks,
+            com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener overlay) {
+        this.plugin = plugin;
+        this.backpacks = backpacks;
+        this.overlay = overlay;
     }
+    @Override public void start() { instance = this; }
+    @Override public void stop() { if (instance == this) instance = null; }
 
     /** 着ている防具・オフハンドの欄 (PlayerInventory の番号) と、場所の名前 */
     private static final int[] EQUIPPED_SLOTS = {39, 38, 37, 36, 40};
@@ -70,8 +85,7 @@ public final class HandInPlaces {
 
     /** 個数の表示用。漁りオーバーレイの表示欄を所持品として二重に数えない。消費元には使わない。 */
     public static List<Entry> scanForCount(Player player, PlayerData data) {
-        var overlay = ImpossbleEscapeMC.getInstance().getServiceContainer().get(
-                com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class);
+        var overlay = instance.overlay;
         var view = overlay == null ? null : overlay.materialView(player);
         return view == null ? scan(player,data,false,true) : scan(player,data,false,true,view.storage(),view.backpack());
     }
@@ -156,7 +170,7 @@ public final class HandInPlaces {
             try {
                 pages.put(page.getKey(), SerializationUtil.deserializeInventory(page.getValue(), Component.empty()));
             } catch (Exception e) {
-                ImpossbleEscapeMC.getInstance().getLogger().log(Level.WARNING, "スタッシュのページを読めませんでした: " + page.getKey(), e);
+                instance.plugin.getLogger().log(Level.WARNING, "スタッシュのページを読めませんでした: " + page.getKey(), e);
             }
         }
         return pages;
@@ -293,7 +307,7 @@ public final class HandInPlaces {
                 try {
                     data.setStashPage(page, SerializationUtil.serializeInventory(stash.get(page)));
                 } catch (Exception e) {
-                    ImpossbleEscapeMC.getInstance().getLogger().log(Level.WARNING, "スタッシュのページを書けませんでした: " + page, e);
+                    instance.plugin.getLogger().log(Level.WARNING, "スタッシュのページを書けませんでした: " + page, e);
                 }
             }
         }
@@ -304,6 +318,6 @@ public final class HandInPlaces {
     }
 
     private static BackpackModule backpackModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(BackpackModule.class);
+        return instance.backpacks;
     }
 }

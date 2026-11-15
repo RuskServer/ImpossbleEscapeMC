@@ -46,6 +46,7 @@ public class TraderGUI implements Listener {
     /** 品物を並べられる数 (一番下の段はボタン) */
     private static final int MAX_ITEM_SLOTS = 45;
 
+    private final com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks;
     private final TraderModule traderModule;
     private final TraderDefinition trader;
     private final Player player;
@@ -53,8 +54,9 @@ public class TraderGUI implements Listener {
     /** イベントを受け取る登録をしているか (開き直しても 1 回だけ。2 回登録すると 1 回押して 2 回買う) */
     private boolean listening;
 
-    public TraderGUI(TraderModule traderModule, TraderDefinition trader, Player player) {
+    public TraderGUI(TraderModule traderModule, TraderDefinition trader, Player player, com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks) {
         this.traderModule = traderModule;
+        this.backpacks = backpacks;
         this.trader = trader;
         this.player = player;
         
@@ -288,7 +290,7 @@ public class TraderGUI implements Listener {
      * 売る物の品物ID。プラグインのアイテム・弾はアイテムのID、データパックの銃とアタッチメントはデータパックのID
      * (データパックの物にはプラグインのIDが書かれていないため)
      */
-    private static String sellableIdOf(ItemStack item) {
+    private String sellableIdOf(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
         // 中に物の入ったバッグは売らない (売ると中身ごと消える)。欄に残し、閉じた時に返す
         if (hasContents(item)) return null;
@@ -455,14 +457,12 @@ public class TraderGUI implements Listener {
         return count;
     }
 
-    private static boolean isDisposable(ItemStack item) {
+    private boolean isDisposable(ItemStack item) {
         return com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadout.isSupplied(item) && !hasContents(item);
     }
 
     /** 中に物の入ったバックパックか */
-    private static boolean hasContents(ItemStack item) {
-        var backpacks = com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC.getInstance().getServiceContainer()
-                .get(com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule.class);
+    private boolean hasContents(ItemStack item) {
         return backpacks != null && backpacks.isBackpackItem(item) && !backpacks.loadBackpackInventory(item).isEmpty();
     }
 

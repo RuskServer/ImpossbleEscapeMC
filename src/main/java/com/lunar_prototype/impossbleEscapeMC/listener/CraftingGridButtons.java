@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
@@ -39,7 +43,8 @@ import java.util.function.Predicate;
  * サーバー上のグリッドは空のままなので、インベントリを閉じた時・死亡時などにバニラがグリッドの中身を
  * 返却・ドロップしても、ボタンが落ちることはない。クリックはパケットの段階で受け取って処理する。
  */
-public final class CraftingGridButtons extends PacketListenerAbstract {
+@Service
+public final class CraftingGridButtons extends PacketListenerAbstract implements Startable, Stoppable {
 
     /** プレイヤー自身のインベントリ画面 */
     private static final int PLAYER_INVENTORY_WINDOW_ID = 0;
@@ -71,16 +76,32 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
     /** ロビーの容量表示。サーバー側スロットには置かないため、操作を塞がない */
     private final Map<UUID, Map<Integer, com.github.retrooper.packetevents.protocol.item.ItemStack>> costSlotOverlays = new ConcurrentHashMap<>();
 
-    private CraftingGridButtons(ImpossbleEscapeMC plugin) {
-        this.plugin = plugin;
+    private org.bukkit.scheduler.BukkitTask refreshTask;
+    private boolean packetsRegistered;
+    @Inject public CraftingGridButtons(ImpossbleEscapeMC plugin) { this.plugin = plugin; }
+    @Override public void start() {
+        instance = this;
         PacketEvents.getAPI().getEventManager().registerListener(this);
-        Bukkit.getScheduler().runTaskTimer(plugin, this::refreshAll, 0L, 5L);
+        packetsRegistered = true;
+        refreshTask = Bukkit.getScheduler().runTaskTimer(plugin, this::refreshAll, 0L, 5L);
+    }
+    @Override public void stop() {
+        if (instance != this) return;
+        if (refreshTask != null) refreshTask.cancel();
+        refreshTask = null;
+        if (packetsRegistered) PacketEvents.getAPI().getEventManager().unregisterListener(this);
+        packetsRegistered = false;
+        buttons.clear();
+        packetIcons.clear();
+        shown.clear();
+        playerIcons.clear();
+        playerPacketIcons.clear();
+        costSlotOverlays.clear();
+        instance = null;
     }
 
-    public static synchronized CraftingGridButtons get() {
-        if (instance == null) {
-            instance = new CraftingGridButtons(ImpossbleEscapeMC.getInstance());
-        }
+    public static CraftingGridButtons get() {
+        if (instance == null) throw new IllegalStateException("Crafting grid buttons are not started");
         return instance;
     }
 
@@ -264,6 +285,7 @@ public final class CraftingGridButtons extends PacketListenerAbstract {
         int stateId = packet.getStateId().orElse(0);
 
         Bukkit.getScheduler().runTask(plugin, () -> {
+            if (instance != this) return;
             if (!player.isOnline()) return;
             // クライアントはボタンを掴んだと予測しているので、ボタン・クラフト結果・カーソルを元に戻す
             InventoryMenu menu = ((CraftPlayer) player).getHandle().inventoryMenu;

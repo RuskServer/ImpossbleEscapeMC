@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.inventory;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -41,7 +45,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>クリックすると内訳をチャットに出す</li>
  * </ul>
  */
-public final class CapacityGauge {
+@Service
+public final class CapacityGauge implements Startable, Stoppable {
 
     /** クラフトの出力 (0)。グリッドは 1: PDA、2: アタッチメント、3・4: バックパック (横長の 1 つのボタン) */
     public static final int SLOT = 0;
@@ -57,11 +62,30 @@ public final class CapacityGauge {
     /** ロビーで通知済みの容量超過数。変化時だけ action bar を出す */
     private static final Map<UUID, Integer> lobbyOverages = new ConcurrentHashMap<>();
 
-    private CapacityGauge() {
+    private static CapacityGauge instance;
+    private final org.bukkit.plugin.java.JavaPlugin plugin;
+    private final RaidModule raids;
+    private final RigModule rigs;
+    private final CraftingGridButtons buttons;
+    private final Map<UUID, org.bukkit.scheduler.BukkitTask> flashes = new ConcurrentHashMap<>();
+    @Inject public CapacityGauge(org.bukkit.plugin.java.JavaPlugin plugin, RaidModule raids, RigModule rigs, CraftingGridButtons buttons) {
+        this.plugin = plugin;
+        this.raids = raids;
+        this.rigs = rigs;
+        this.buttons = buttons;
+    }
+    @Override public void stop() {
+        if (instance != this) return;
+        flashes.values().forEach(org.bukkit.scheduler.BukkitTask::cancel);
+        flashes.clear();
+        flashUntil.clear();
+        lobbyOverages.clear();
+        instance = null;
     }
 
-    public static void init() {
-        CraftingGridButtons.get().register(new CraftingGridButtons.Button(
+    @Override public void start() {
+        instance = this;
+        buttons.register(new CraftingGridButtons.Button(
                 SLOT, new ItemStack(Material.PAPER), CapacityGauge::isShown, CapacityGauge::printBreakdown, CapacityGauge::icon));
     }
 
@@ -69,8 +93,15 @@ public final class CapacityGauge {
     public static void flash(Player player) {
         player.playSound(player.getLocation(), Sound.ITEM_BUNDLE_INSERT_FAIL, SoundCategory.PLAYERS, 0.8f, 1.0f);
         flashUntil.put(player.getUniqueId(), Bukkit.getCurrentTick() + FLASH_TICKS);
-        CraftingGridButtons.get().refreshNow(player);
-        Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), () -> CraftingGridButtons.get().refreshNow(player), FLASH_TICKS + 1L);
+        instance.buttons.refreshNow(player);
+        CapacityGauge owner = instance;
+        var previous = owner.flashes.remove(player.getUniqueId());
+        if (previous != null) previous.cancel();
+        var task = Bukkit.getScheduler().runTaskLater(owner.plugin, () -> {
+            owner.flashes.remove(player.getUniqueId());
+            if (instance == owner) owner.buttons.refreshNow(player);
+        }, FLASH_TICKS + 1L);
+        owner.flashes.put(player.getUniqueId(), task);
     }
 
     /** ロビーの容量超過が変化した時だけ、出撃準備の状態を action bar で知らせる。 */
@@ -79,7 +110,7 @@ public final class CapacityGauge {
             lobbyOverages.remove(player.getUniqueId());
             return;
         }
-        RaidModule raid = ImpossbleEscapeMC.getInstance().getRaidModule();
+        RaidModule raid = instance.raids;
         if (raid != null && raid.isInRaid(player)) {
             lobbyOverages.remove(player.getUniqueId());
             return;
@@ -165,7 +196,7 @@ public final class CapacityGauge {
 
     /** 容量の内訳 (ホットバー + リグ) */
     private static String capacityBreakdown(Player player, int capacity) {
-        RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        RigModule rigModule = instance.rigs;
         int rig = rigModule != null ? rigModule.getEnabledMainInventorySlots(player) : 0;
         int hotbar = capacity - rig;
         if (rig <= 0) return "ホットバー " + hotbar + " マス (リグ無し)";
@@ -175,7 +206,7 @@ public final class CapacityGauge {
 
     /** 通知用の内訳。GUIの既存表示とは分離して受信者ごとに翻訳する。 */
     private static Component capacityBreakdownText(Player player, int capacity) {
-        RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        RigModule rigModule = instance.rigs;
         int rig = rigModule != null ? rigModule.getEnabledMainInventorySlots(player) : 0;
         int hotbar = capacity - rig;
         if (rig <= 0) return MessageText.of("iem.inventory.capacitygauge.hotbar_only", hotbar);
@@ -228,7 +259,7 @@ public final class CapacityGauge {
     }
 
     private static boolean isPreparing(Player player) {
-        RaidModule raid = ImpossbleEscapeMC.getInstance().getRaidModule();
+        RaidModule raid = instance.raids;
         return raid == null || !raid.isInRaid(player);
     }
 }

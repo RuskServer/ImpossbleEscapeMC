@@ -3,7 +3,6 @@ package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.GameItems;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import net.kyori.adventure.text.Component;
@@ -41,7 +40,7 @@ public class TraderQuantityGUI implements Listener {
         this.parentGUI = parentGUI;
         this.inventory = Bukkit.createInventory(null, 27, Component.text("購入個数を選択").decoration(TextDecoration.ITALIC, false));
         
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
     }
 
     public void open() {

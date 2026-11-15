@@ -1,6 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
+
+
 import com.lunar_prototype.impossbleEscapeMC.modules.supply.FreeLoadoutPresentation;
 import com.lunar_prototype.impossbleEscapeMC.modules.supply.SupplyLoadoutGUI;
 import com.lunar_prototype.impossbleEscapeMC.modules.party.Party;
@@ -53,7 +59,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  * パーティではリーダーだけが待機列を操作できる。下のボタンで無料装備の画面を開ける (受け取るか戻ると、この画面に戻る)
  */
-public class RaidSelectionGUI implements Listener {
+@Service
+public class RaidSelectionGUI implements Listener, Startable, Stoppable {
 
     private static final Key FONT = Key.key("iem", "raid_dialog");
     private static final String KEY_NAMESPACE = "iem";
@@ -112,14 +119,32 @@ public class RaidSelectionGUI implements Listener {
     }
 
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
+    private static RaidSelectionGUI instance;
     private static RaidModule module;
+    private final JavaPlugin plugin;
+    private final RaidModule raids;
+    private final PartyModule parties;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule data;
     private static BukkitTask refresher;
 
-    public RaidSelectionGUI(RaidModule manager) {
-        module = manager;
+    @Inject
+    public RaidSelectionGUI(JavaPlugin plugin, RaidModule raids, PartyModule parties,
+            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule data) {
+        this.plugin = plugin;
+        this.raids = raids;
+        this.parties = parties;
+        this.data = data;
     }
 
-    public void open(Player player) {
+    @Override public void start() { module = raids; instance = this; }
+    @Override public void stop() {
+        if (instance != this) return;
+        shutdown();
+        instance = null;
+        module = null;
+    }
+
+    public static void open(Player player) {
         if (!player.isOnline() || player.isDead() || module.isInRaid(player)) return;
         // チェスト画面 (PDA など) から開いた時は、先に閉じる (ダイアログが画面を置き換えても、サーバーは開いたままとみなすため)
         player.closeInventory();
@@ -127,7 +152,7 @@ public class RaidSelectionGUI implements Listener {
         SESSIONS.put(player.getUniqueId(), session);
         show(player, session, true);
         if (refresher == null || refresher.isCancelled()) {
-            refresher = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), RaidSelectionGUI::refreshAll, REFRESH_TICKS, REFRESH_TICKS);
+            refresher = Bukkit.getScheduler().runTaskTimer(instance.plugin, RaidSelectionGUI::refreshAll, REFRESH_TICKS, REFRESH_TICKS);
         }
     }
 
@@ -176,7 +201,7 @@ public class RaidSelectionGUI implements Listener {
         int now = Bukkit.getCurrentTick();
         String notice = session.notice != null && now < session.noticeUntilTick ? session.notice : null;
 
-        var supplyStatus = FreeLoadoutPresentation.capture(player);
+        var supplyStatus = FreeLoadoutPresentation.capture(player, instance.data, module);
         StringBuilder signature = new StringBuilder().append(queued).append('|').append(notice)
                 .append('|').append(supplyStatus.state()).append('|').append(supplyStatus.shortLabel());
         List<MapStatus> statuses = new ArrayList<>();
@@ -339,7 +364,7 @@ public class RaidSelectionGUI implements Listener {
     }
 
     /** コマンド・オートマッチも、選択した候補を確認してから参加させる。 */
-    public void confirm(Player player, String mapId) {
+    public static void confirm(Player player, String mapId) {
         open(player);
         Session session = SESSIONS.get(player.getUniqueId());
         if (session != null) prepareConfirmation(player, session, mapId, null);
@@ -347,7 +372,7 @@ public class RaidSelectionGUI implements Listener {
 
     private static RaidDeploymentApproval.Snapshot deploymentSnapshot(Player player, String mapId) {
         if (!player.isOnline() || player.isDead() || module.isInRaid(player) || module.getMap(mapId) == null) return null;
-        PartyModule parties = PartyModule.get();
+        PartyModule parties = instance.parties;
         Party party = parties != null ? parties.getParty(player.getUniqueId()) : null;
         if (party != null && !party.isLeader(player.getUniqueId())) return null;
         List<UUID> members = party == null ? List.of(player.getUniqueId()) : List.copyOf(party.getMembers());
@@ -444,7 +469,7 @@ public class RaidSelectionGUI implements Listener {
         if (module.joinQueue(members, current.mapId())) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
         } else {
-            new RaidSelectionGUI(module).open(player);
+            RaidSelectionGUI.open(player);
             Session reopened = SESSIONS.get(player.getUniqueId());
             if (reopened != null) notice(player, reopened, "出撃できません (理由はチャット)");
         }
@@ -460,7 +485,7 @@ public class RaidSelectionGUI implements Listener {
         Player player = connection.getPlayer();
         String action = id.value();
         // 届いたスレッドに関わらず、待機列の操作はメインスレッドで行う
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> { if (instance == this) handle(player, action); });
     }
 
     private void handle(Player player, String action) {
@@ -482,7 +507,7 @@ public class RaidSelectionGUI implements Listener {
             // 無料装備のダイアログに移るので、出撃画面の定期更新を止める
             SESSIONS.remove(player.getUniqueId());
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-            new SupplyLoadoutGUI(player).open();
+            new SupplyLoadoutGUI(player, instance.plugin, instance.data, module).open();
             return;
         }
         if (AUTO_MATCH.equals(action)) {
@@ -502,7 +527,7 @@ public class RaidSelectionGUI implements Listener {
         if (index < 0 || index >= session.mapIds.size()) return;
         String mapId = session.mapIds.get(index);
 
-        Party party = PartyModule.get().getParty(player.getUniqueId());
+        Party party = instance.parties.getParty(player.getUniqueId());
         if (party != null && !party.isLeader(player.getUniqueId())) {
             session.notice = "パーティリーダーのみが待機列を操作できます";
             session.noticeUntilTick = Bukkit.getCurrentTick() + NOTICE_TICKS;

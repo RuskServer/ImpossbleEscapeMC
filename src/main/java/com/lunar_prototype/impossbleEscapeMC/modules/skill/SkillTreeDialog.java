@@ -1,5 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.skill;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
+
+
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
@@ -64,7 +71,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalPalette.OK;
  * </ul>
  * 行はすべて {@link #LINE_W} にそろえる (クライアントの中央揃えで位置がずれないように)。パネルの左は行の頭の {@link #PANEL} 右、上は行 0 の上端
  */
-public final class SkillTreeDialog implements Listener {
+@Service
+public final class SkillTreeDialog implements Listener, Startable, Stoppable {
 
     private static final String NS = "iem";
     private static final String PREFIX = "skill/";
@@ -148,14 +156,16 @@ public final class SkillTreeDialog implements Listener {
     private final SkillModule module;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
 
-    private SkillTreeDialog(SkillModule module) {
+    @Inject
+    public SkillTreeDialog(SkillModule module) {
         this.module = module;
     }
 
-    static void init(SkillModule module) {
-        if (instance != null) return;
-        instance = new SkillTreeDialog(module);
-        Bukkit.getPluginManager().registerEvents(instance, module.plugin());
+    @Override public void start() { instance = this; }
+    @Override public void stop() {
+        if (instance != this) return;
+        sessions.clear();
+        instance = null;
     }
 
     /** 画面を開く (前に開いていた系統とノードのまま) */
@@ -559,7 +569,7 @@ public final class SkillTreeDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(module.plugin(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(module.plugin(), () -> { if (instance == this) handle(player, action); });
     }
 
     private void handle(Player player, String action) {

@@ -1,6 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stash;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
@@ -29,16 +29,15 @@ public class StashPageSelectorGUI implements Listener {
     private final StashModule stashModule;
     private final PlayerData data;
 
-    public StashPageSelectorGUI(Player player, StashModule stashModule) {
+    public StashPageSelectorGUI(Player player, StashModule stashModule, JavaPlugin plugin, PlayerDataModule dataModule) {
         this.player = player;
         this.stashModule = stashModule;
         this.inventory = Bukkit.createInventory(null, 27, GuiBackground.STASH_SELECT.title());
         
-        PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
         this.data = dataModule.getPlayerData(player.getUniqueId());
         
         setupGUI();
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
     public void open() {

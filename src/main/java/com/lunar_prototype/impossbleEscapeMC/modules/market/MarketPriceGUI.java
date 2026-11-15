@@ -4,7 +4,8 @@ import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
+import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
 import net.kyori.adventure.text.Component;
@@ -33,6 +34,8 @@ import java.util.UUID;
  * 出品価格を設定するGUI
  */
 public class MarketPriceGUI implements Listener {
+    private final JavaPlugin plugin;
+    private final EconomyModule economy;
     private final Player player;
     private final MarketModule marketModule;
     private final ItemStack itemToSell;
@@ -40,8 +43,10 @@ public class MarketPriceGUI implements Listener {
     private final Inventory inventory;
     private double price = 1000.0;
 
-    public MarketPriceGUI(Player player, MarketModule marketModule, ItemStack itemToSell, int originalSlot) {
+    public MarketPriceGUI(Player player, MarketModule marketModule, JavaPlugin plugin, EconomyModule economy, ItemStack itemToSell, int originalSlot) {
         this.player = player;
+        this.plugin = plugin;
+        this.economy = economy;
         this.marketModule = marketModule;
         this.itemToSell = itemToSell;
         this.originalSlot = originalSlot;
@@ -50,7 +55,7 @@ public class MarketPriceGUI implements Listener {
 
     public void open() {
         setupGUI();
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
         player.openInventory(inventory);
     }
 
@@ -118,7 +123,7 @@ public class MarketPriceGUI implements Listener {
         else if (slot == 14) { price += 100; updateDisplay(); player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f); }
         else if (slot == 15) { price += 1000; updateDisplay(); player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f); }
         else if (slot == 16) { price += 10000; updateDisplay(); player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f); }
-        else if (slot == 18) { player.closeInventory(); new MarketSellGUI(player, marketModule).open(); }
+        else if (slot == 18) { player.closeInventory(); new MarketSellGUI(player, marketModule, plugin, economy).open(); }
         else if (slot == 22) {
             handleConfirm();
         }
@@ -154,7 +159,7 @@ public class MarketPriceGUI implements Listener {
             Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_003", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_003", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_003.text_01", price).color(NamedTextColor.GREEN))));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 2f);
             player.closeInventory();
-            new MarketMainGUI(player, marketModule).open();
+            new MarketMainGUI(player, marketModule, plugin, economy).open();
         } catch (IOException e) {
             Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_004", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_004", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_004.text_01").color(NamedTextColor.RED))));
             player.getInventory().setItem(originalSlot, itemToSell); // 戻す

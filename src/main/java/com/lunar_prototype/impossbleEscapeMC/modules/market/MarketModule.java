@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MarketModule implements IModule {
     private final CommandRegistry commands;
     private final LevelModule levels;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule economy;
 
     private final ImpossbleEscapeMC plugin;
     private final File dataFile;
@@ -37,9 +38,11 @@ public class MarketModule implements IModule {
     @Inject
     public MarketModule(ImpossbleEscapeMC plugin,
             CommandRegistry commands,
-            LevelModule levels) {
+            LevelModule levels,
+            com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule economy) {
         this.commands = commands;
         this.levels = levels;
+        this.economy = economy;
         this.plugin = plugin;
         this.dataFile = new File(plugin.getDataFolder(), "market.json");
         this.gson = new GsonBuilder().setPrettyPrinting().create();
@@ -49,7 +52,7 @@ public class MarketModule implements IModule {
     public void onEnable(ServiceContainer container) {
         loadListings();
         commands.register(
-                new MarketCommand(this, levels));
+                new MarketCommand(this, levels, plugin, economy));
     }
 
     @Override

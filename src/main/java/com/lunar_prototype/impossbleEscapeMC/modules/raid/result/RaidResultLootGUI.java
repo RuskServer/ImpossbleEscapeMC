@@ -1,6 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn;
@@ -45,7 +49,7 @@ public final class RaidResultLootGUI implements InventoryHolder {
     private static final TextColor NOTE = TextColor.color(0xAAA48C);
     private static final TextColor AMBER_DIM = TextColor.color(0x96763C);
 
-    private static Listener listener;
+    private static ClickListener listener;
 
     private final RaidReport report;
     private final int page;
@@ -77,10 +81,7 @@ public final class RaidResultLootGUI implements InventoryHolder {
     }
 
     private static void open(Player player, RaidReport report, int page, boolean byType) {
-        if (listener == null) {
-            listener = new ClickListener();
-            Bukkit.getPluginManager().registerEvents(listener, ImpossbleEscapeMC.getInstance());
-        }
+        if (listener == null) throw new IllegalStateException("Raid result listener is not started");
         // 脱出できて直す物がある時は、戦利品の次に修理 (トレーダーと同じ修理代) を挟む
         boolean repairNext = report.survived() && com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.hasRepairsAfterRaid(player);
         player.openInventory(new RaidResultLootGUI(report, page, byType, repairNext).inventory);
@@ -161,7 +162,12 @@ public final class RaidResultLootGUI implements InventoryHolder {
     }
 
     /** 品物は動かせない。ボタンでページ・並び・前後のページへ */
-    private static final class ClickListener implements Listener {
+    @Service
+    private static final class ClickListener implements Listener, Startable, Stoppable {
+        private final JavaPlugin plugin;
+        @Inject public ClickListener(JavaPlugin plugin) { this.plugin = plugin; }
+        @Override public void start() { listener = this; }
+        @Override public void stop() { if (listener == this) listener = null; }
         @EventHandler
         public void onClick(InventoryClickEvent event) {
             if (!(event.getInventory().getHolder() instanceof RaidResultLootGUI gui)) return;
@@ -185,7 +191,7 @@ public final class RaidResultLootGUI implements InventoryHolder {
             if (slot == BACK_SLOT || slot == NEXT_SLOT) {
                 // ダイアログはチェストの画面を閉じてから出す (開いたままだとサーバーは画面が開いているとみなす)
                 player.closeInventory();
-                Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), next);
+                Bukkit.getScheduler().runTask(plugin, () -> { if (listener == this) next.run(); });
             } else {
                 next.run();
             }

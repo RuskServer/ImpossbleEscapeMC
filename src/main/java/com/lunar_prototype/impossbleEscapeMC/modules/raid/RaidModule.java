@@ -601,7 +601,7 @@ public class RaidModule implements IModule {
         }
 
         if (bestMapId != null) {
-            new RaidSelectionGUI(this).confirm(player, bestMapId);
+            RaidSelectionGUI.confirm(player, bestMapId);
         }
     }
 

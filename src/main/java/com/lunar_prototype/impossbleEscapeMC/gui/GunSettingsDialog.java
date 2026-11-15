@@ -1,9 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
+
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.event.player.PlayerCustomClickEvent;
@@ -35,7 +41,8 @@ import java.util.function.IntUnaryOperator;
  * 移動補完 ({@link #LOCKED}) は画面に出さず、サーバーが既定値に固定する。データパックのメニュー (クイックアクション) や
  * /trigger で変えられても、{@link #LOCK_TICKS} ごとに戻す
  */
-public final class GunSettingsDialog implements Listener {
+@Service
+public final class GunSettingsDialog implements Listener, Startable, Stoppable {
 
     private static final String NS = "iem";
     private static final String PREFIX = "gun_settings/";
@@ -107,14 +114,21 @@ public final class GunSettingsDialog implements Listener {
 
     private static GunSettingsDialog instance;
 
-    private GunSettingsDialog() {
-    }
+    private final JavaPlugin plugin;
+    private org.bukkit.scheduler.BukkitTask lockTask;
 
-    public static void init(ImpossbleEscapeMC plugin) {
-        if (instance != null) return;
-        instance = new GunSettingsDialog();
-        Bukkit.getPluginManager().registerEvents(instance, plugin);
-        Bukkit.getScheduler().runTaskTimer(plugin, GunSettingsDialog::enforceLocked, LOCK_TICKS, LOCK_TICKS);
+    @Inject
+    public GunSettingsDialog(JavaPlugin plugin) { this.plugin = plugin; }
+
+    @Override public void start() {
+        instance = this;
+        lockTask = Bukkit.getScheduler().runTaskTimer(plugin, GunSettingsDialog::enforceLocked, LOCK_TICKS, LOCK_TICKS);
+    }
+    @Override public void stop() {
+        if (instance != this) return;
+        if (lockTask != null) lockTask.cancel();
+        lockTask = null;
+        instance = null;
     }
 
     /** 銃の設定の画面を開く (データパックが読み込まれていなければ、そう伝える) */
@@ -157,7 +171,7 @@ public final class GunSettingsDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> { if (instance == this) handle(player, action); });
     }
 
     private static void handle(Player player, String action) {

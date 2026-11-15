@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -105,7 +109,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
  * バニラの字の幅は {@link FontWidths}、絵の字は「幅 + 1」進む。絵の大きさ・字の番号・縦の位置は IEM_shader/tools/trader_font.py と同じにする。
  * 売る (broker) トレーダーと修理は、物を入れる欄が要るのでチェストの画面 ({@link TraderGUI}) のまま
  */
-public final class TraderDialog implements Listener {
+@Service
+public final class TraderDialog implements Listener, Startable, Stoppable {
 
     // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     // 本文の文字は、行の途中で一度でも折り返し幅 (要素の幅 - 余白 8) を超えるとそこで改行される。
@@ -208,27 +213,40 @@ public final class TraderDialog implements Listener {
     /** 品物の見本 (データパックの銃は作るのに手間がかかるので覚えておく) */
     private static final Map<String, ItemStack> ICONS = new ConcurrentHashMap<>();
 
-    private static TraderModule module;
+    private final TraderModule traderModule;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks;
+    private final QuestModule quests;
     private static TraderDialog instance;
 
-    private TraderDialog() {
+    @Inject
+    public TraderDialog(TraderModule traderModule, QuestModule quests, com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks) {
+        this.traderModule = traderModule;
+        this.backpacks = backpacks;
+        this.quests = quests;
     }
 
-    public static void init(TraderModule traderModule) {
-        module = traderModule;
-        if (instance == null) {
-            instance = new TraderDialog();
-            Bukkit.getPluginManager().registerEvents(instance, traderModule.getPlugin());
-        }
+    @Override
+    public void start() {
+        instance = this;
+    }
+
+    @Override
+    public void stop() {
+        if (instance != this) return;
+        SESSIONS.clear();
+        HIDE_LOCKED.clear();
+        ICONS.clear();
+        CALIBER_RANK.clear();
+        instance = null;
     }
 
     /** トレーダーの画面を開く: 買うトレーダーはこのダイアログ、売るトレーダーはチェストの画面 */
     public static void open(TraderModule traderModule, TraderDefinition trader, Player player) {
         if (trader.type != TraderType.BUY) {
-            new TraderGUI(traderModule, trader, player).open();
+            new TraderGUI(traderModule, trader, player, instance.backpacks).open();
             return;
         }
-        init(traderModule);
+        if (instance == null) throw new IllegalStateException("TraderDialog is not started");
         player.closeInventory();
         Session session = new Session(trader.id);
         SESSIONS.put(player.getUniqueId(), session);
@@ -238,13 +256,13 @@ public final class TraderDialog implements Listener {
     // ---- 画面 ----
 
     private static void show(Player player, Session session) {
-        TraderDefinition trader = module.getTrader(session.traderId);
+        TraderDefinition trader = instance.traderModule.getTrader(session.traderId);
         if (trader == null) {
             SESSIONS.remove(player.getUniqueId());
             player.closeDialog();
             return;
         }
-        PlayerData data = module.getDataModule().getPlayerData(player.getUniqueId());
+        PlayerData data = instance.traderModule.getDataModule().getPlayerData(player.getUniqueId());
         if (data == null) return;
         List<Entry> entries = entries(player, trader, data);
         if (session.confirming >= 0) {
@@ -301,7 +319,7 @@ public final class TraderDialog implements Listener {
 
     private static void showConfirm(Player player, Session session, TraderDefinition trader, PlayerData data, Entry entry) {
         int maxStack = Math.max(1, entry.icon().getMaxStackSize());
-        double balance = module.getEconomyModule().getBalance(player.getUniqueId());
+        double balance = instance.traderModule.getEconomyModule().getBalance(player.getUniqueId());
         int affordable = entry.price() <= 0 ? Integer.MAX_VALUE : (int) Math.floor(balance / entry.price());
         boolean barter = entry.barter();
         if (barter) affordable = Math.min(affordable, entry.tradesByItems());
@@ -363,7 +381,7 @@ public final class TraderDialog implements Listener {
             showBarterCheck(player, session, entry, quantity);
             return;
         }
-        double balance = module.getEconomyModule().getBalance(player.getUniqueId());
+        double balance = instance.traderModule.getEconomyModule().getBalance(player.getUniqueId());
         double total = entry.price() * quantity;
         List<DialogBody> body = new ArrayList<>();
         body.add(DialogBody.item(entry.icon()).description(DialogBody.plainMessage(
@@ -471,7 +489,7 @@ public final class TraderDialog implements Listener {
                 : trader.canRepairArmor && trader.canRepairWeapon ? "アーマーと武器を修理する"
                 : trader.canRepairArmor ? "アーマーを修理する" : "武器を修理する";
         return new HeaderView(traderName(trader).toUpperCase(java.util.Locale.ROOT),
-                (long) module.getEconomyModule().getBalance(player.getUniqueId()),
+                (long) instance.traderModule.getEconomyModule().getBalance(player.getUniqueId()),
                 CostSlotManager.usedCost(player, player.getInventory()), CostSlotManager.capacity(player, player.getInventory()),
                 data.getLevel(), sort.label, hideLocked, repair, tabs);
     }
@@ -541,9 +559,9 @@ public final class TraderDialog implements Listener {
     private static RowView rowView(Entry e) {
         if (!e.unlocked()) {
             List<Part> requirements = new ArrayList<>();
-            requirements.add(new Part("Lv." + module.getRequiredLevel(e.item()), e.levelMet() ? OK : NG));
+            requirements.add(new Part("Lv." + instance.traderModule.getRequiredLevel(e.item()), e.levelMet() ? OK : NG));
             if (e.item().requiredQuestId != null) {
-                QuestModule quests = module.getPlugin().getServiceContainer().get(QuestModule.class);
+                QuestModule quests = instance.quests;
                 QuestDefinition quest = quests == null ? null : quests.getQuest(e.item().requiredQuestId);
                 String questName = quest != null ? quest.getDisplayName() : e.item().requiredQuestId;
                 requirements.add(new Part(e.questMet() ? "取引解放済み" : "クエスト「" + questName + "」", e.questMet() ? OK : NG));
@@ -684,18 +702,18 @@ public final class TraderDialog implements Listener {
         // 交換に使う品物を一度に数える (持ち物とスタッシュ)
         List<HideoutFacility.ItemCost> costs = new ArrayList<>();
         for (TraderItem ti : trader.items) costs.addAll(ti.barter);
-        Map<String, Integer> have = costs.isEmpty() ? Map.of() : module.countBarter(player, data, costs);
+        Map<String, Integer> have = costs.isEmpty() ? Map.of() : instance.traderModule.countBarter(player, data, costs);
         for (int i = 0; i < trader.items.size(); i++) {
             TraderItem ti = trader.items.get(i);
             ItemStack icon = icon(player, ti);
             if (icon == null) continue;
             String name = PlainTextComponentSerializer.plainText().serialize(icon.effectiveName());
             entries.add(new Entry(i, ti, icon, name, categoryOf(ti.itemId), ItemRegistry.getAmmo(ti.itemId),
-                    Math.max(1, ItemWeights.costOf(icon)), module.isUnlocked(data, ti),
-                    data.getLevel() >= module.getRequiredLevel(ti),
-                    module.isQuestRequirementMet(data, ti),
-                    module.remainingToday(data, trader, ti),
-                    module.buyPrice(player.getUniqueId(), trader, ti), module.dailyLimit(player.getUniqueId(), ti),
+                    Math.max(1, ItemWeights.costOf(icon)), instance.traderModule.isUnlocked(data, ti),
+                    data.getLevel() >= instance.traderModule.getRequiredLevel(ti),
+                    instance.traderModule.isQuestRequirementMet(data, ti),
+                    instance.traderModule.remainingToday(data, trader, ti),
+                    instance.traderModule.buyPrice(player.getUniqueId(), trader, ti), instance.traderModule.dailyLimit(player.getUniqueId(), ti),
                     needs(ti, have)));
         }
         return entries;
@@ -786,7 +804,7 @@ public final class TraderDialog implements Listener {
     }
 
     private static int reportableQuests(TraderDefinition trader, PlayerData data) {
-        QuestModule quests = module.getPlugin().getServiceContainer().get(QuestModule.class);
+        QuestModule quests = instance.quests;
         if (quests == null) return 0;
         int count = 0;
         for (QuestDefinition quest : quests.getQuestsByTrader(trader.id)) {
@@ -835,7 +853,9 @@ public final class TraderDialog implements Listener {
             count = event.getDialogResponseView().getFloat("count");
         }
         Float slider = count;
-        Bukkit.getScheduler().runTask(module.getPlugin(), () -> handle(player, action, slider));
+        Bukkit.getScheduler().runTask(traderModule.getPlugin(), () -> {
+            if (instance == this) handle(player, action, slider);
+        });
     }
 
     private static void handle(Player player, String action, Float slider) {
@@ -847,7 +867,7 @@ public final class TraderDialog implements Listener {
             return;
         }
         if (session == null) return;
-        TraderDefinition trader = module.getTrader(session.traderId);
+        TraderDefinition trader = instance.traderModule.getTrader(session.traderId);
         if (trader == null) return;
         String[] parts = action.split("/");
         switch (parts[0]) {
@@ -892,7 +912,7 @@ public final class TraderDialog implements Listener {
                     return;
                 }
                 session.pendingQuantity = 0;
-                TraderModule.Purchase result = module.purchase(player, trader, trader.items.get(index), quantity);
+                TraderModule.Purchase result = instance.traderModule.purchase(player, trader, trader.items.get(index), quantity);
                 result.messages().forEach(notice -> Messages.chat(player, "iem.trader.traderdialog.forwarded_notice", MessageText.of("iem.trader.traderdialog.forwarded_notice", MessageText.payload(notice))));
                 session.notice = result.notice();
                 session.noticeUntil = Bukkit.getCurrentTick() + NOTICE_TICKS;

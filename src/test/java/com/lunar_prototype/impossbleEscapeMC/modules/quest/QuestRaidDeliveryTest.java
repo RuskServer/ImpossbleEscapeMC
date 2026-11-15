@@ -66,6 +66,8 @@ public final class QuestRaidDeliveryTest {
         Field container=ImpossbleEscapeMC.class.getDeclaredField("serviceContainer");container.setAccessible(true);
         container.set(plugin,services);singleton.set(null,plugin);
         services.register(RaidModule.class,(RaidModule)allocate(RaidProbe.class));
+        var access = new QuestDeliveryAccess(services.get(RaidModule.class));
+        access.start();
         var quests=new Quests();var data=new PlayerData(id);
         var hand=new HandInObjective("bolts",null,1,true);
         var kill=new KillEntityObjective("SCAV",1);
@@ -99,8 +101,8 @@ public final class QuestRaidDeliveryTest {
             // ロビーで開いた画面のボタンが、参加後に遅れて届く場合。
             Object stale=session(QuestHandInDialog.class,new Class<?>[]{TraderDefinition.class,List.class,boolean.class},null,List.of(quest.getId()),false);
             sessions(QuestHandInDialog.class).put(id,stale);
-            Constructor<?> handler=QuestHandInDialog.class.getDeclaredConstructor();handler.setAccessible(true);
-            invoke(QuestHandInDialog.class,"handle",new Class<?>[]{Player.class,String.class},handler.newInstance(),player,"go");
+            var handler = new QuestHandInDialog(null, null, quests);
+            invoke(QuestHandInDialog.class,"handle",new Class<?>[]{Player.class,String.class},handler,player,"go");
             check(!sessions(QuestHandInDialog.class).containsKey(id)&&closed==1,"stale hand-in session is cleared without consumption");
             sessions(QuestDialog.class).put(id,session(QuestDialog.class,new Class<?>[]{String.class},"kovacs"));
             invoke(QuestDialog.class,"handle",new Class<?>[]{Player.class,String.class},null,player,"report/"+quest.getId());
@@ -114,6 +116,7 @@ public final class QuestRaidDeliveryTest {
             check(data.isQuestCompleted(quest.getId())&&data.getBalance()==100&&quests.notified==1,"report and rewards work normally after raid");
         } finally {
             sessions(QuestHandInDialog.class).remove(id);sessions(QuestDialog.class).remove(id);
+            access.stop();
             singleton.set(null,before);
             messageScope.close();
         }

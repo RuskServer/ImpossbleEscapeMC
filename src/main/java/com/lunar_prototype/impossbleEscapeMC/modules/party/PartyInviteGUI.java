@@ -4,7 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import net.kyori.adventure.text.Component;
@@ -41,6 +41,7 @@ public class PartyInviteGUI implements Listener {
     private static final int BACK_SLOT = 49;
     private static final int NEXT_SLOT = 53;
 
+    private final JavaPlugin plugin;
     private final Player player;
     private final PartyModule manager;
     /** タイトルにページ数を出すので、開くときに作る */
@@ -49,11 +50,12 @@ public class PartyInviteGUI implements Listener {
     private int page;
     private int pageCount = 1;
 
-    public PartyInviteGUI(Player player, int page) {
+    public PartyInviteGUI(Player player, int page, PartyModule manager, JavaPlugin plugin) {
         this.player = player;
-        this.manager = PartyModule.get();
+        this.manager = manager;
+        this.plugin = plugin;
         this.page = page;
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
     public void open() {
@@ -112,12 +114,12 @@ public class PartyInviteGUI implements Listener {
 
         if (slot == BACK_SLOT) {
             player.closeInventory();
-            new PartyGUI(player).open();
+            new PartyGUI(player, manager, plugin).open();
         } else if (slot == PREV_SLOT && page > 0) {
             // ページ数はタイトルに出ているので、開き直して更新する
-            new PartyInviteGUI(player, page - 1).open();
+            new PartyInviteGUI(player, page - 1, manager, plugin).open();
         } else if (slot == NEXT_SLOT && page < pageCount - 1) {
-            new PartyInviteGUI(player, page + 1).open();
+            new PartyInviteGUI(player, page + 1, manager, plugin).open();
         } else if (targetBySlot.containsKey(slot)) {
             Player target = Bukkit.getPlayer(targetBySlot.get(slot));
             if (target == null) {
@@ -128,7 +130,7 @@ public class PartyInviteGUI implements Listener {
             // 招待するとパーティーが無ければ作られる (/party invite と同じ)
             manager.invitePlayer(player, target);
             player.closeInventory();
-            new PartyGUI(player).open();
+            new PartyGUI(player, manager, plugin).open();
         }
     }
 

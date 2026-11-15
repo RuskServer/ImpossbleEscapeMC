@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.inventory;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.item.inventory.ItemWeights;
@@ -26,7 +30,15 @@ import java.util.Map;
  * 占有スロットは空きスロットにしか置けないので、制限を超える操作は入る前に止める ({@code CostCapacityListener})。
  * 直接渡す経路も addItem で事前判定する。既に超過している持ち物は自動で捨てない。
  */
-public class CostSlotManager {
+@Service
+public class CostSlotManager implements Startable, Stoppable {
+    private static CostSlotManager instance;
+    private final RaidModule raids;
+    private final RigModule rigs;
+    @Inject public CostSlotManager(RaidModule raids, RigModule rigs) { this.raids = raids; this.rigs = rigs; }
+    @Override public void start() { instance = this; }
+    @Override public void stop() { if (instance == this) instance = null; }
+
 
     /** プレイヤーのインベントリのうち、ホットバーのスロット */
     private static final int HOTBAR_SIZE = 9;
@@ -268,7 +280,7 @@ public class CostSlotManager {
     public static List<Integer> acquisitionSlots(Player player) {
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < HOTBAR_SIZE; i++) if (i != RaidMapManager.MAP_SLOT) slots.add(i);
-        RigModule rig = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        RigModule rig = instance == null ? null : instance.rigs;
         int end = rig == null ? 35 : rig.getUnlockedMainInventoryEndSlot(player);
         for (int i = 9; i <= end; i++) slots.add(i);
         return slots;
@@ -307,7 +319,7 @@ public class CostSlotManager {
         List<Integer> slots = new ArrayList<>();
 
         if (inventory.getHolder() instanceof Player) {
-            RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+            RigModule rigModule = instance == null ? null : instance.rigs;
             if (rigModule != null && rigModule.isControlSuppressed(player)) {
                 return slots;
             }
@@ -340,7 +352,7 @@ public class CostSlotManager {
     }
 
     private static boolean isInRaid(Player player) {
-        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getRaidModule();
+        RaidModule raidModule = instance == null ? null : instance.raids;
         return raidModule != null && raidModule.isInRaid(player);
     }
 }

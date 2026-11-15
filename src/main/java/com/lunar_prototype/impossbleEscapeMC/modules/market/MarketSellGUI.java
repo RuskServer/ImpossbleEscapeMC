@@ -4,7 +4,8 @@ import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
+import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -30,19 +31,23 @@ import java.util.List;
  * アイテム出品用のGUI。プレイヤーのインベントリからFIRアイテムを選択する。
  */
 public class MarketSellGUI implements Listener {
+    private final JavaPlugin plugin;
+    private final EconomyModule economy;
     private final Player player;
     private final MarketModule marketModule;
     private final Inventory inventory;
 
-    public MarketSellGUI(Player player, MarketModule marketModule) {
+    public MarketSellGUI(Player player, MarketModule marketModule, JavaPlugin plugin, EconomyModule economy) {
         this.player = player;
+        this.plugin = plugin;
+        this.economy = economy;
         this.marketModule = marketModule;
         this.inventory = Bukkit.createInventory(null, 45, GuiBackground.MARKET_SELL.title());
     }
 
     public void open() {
         setupGUI();
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
         player.openInventory(inventory);
     }
 
@@ -99,7 +104,7 @@ public class MarketSellGUI implements Listener {
 
         int slot = event.getRawSlot();
         if (slot == 40) {
-            new MarketMainGUI(player, marketModule).open();
+            new MarketMainGUI(player, marketModule, plugin, economy).open();
             return;
         }
 
@@ -119,7 +124,7 @@ public class MarketSellGUI implements Listener {
             }
 
             // 価格設定画面へ
-            new MarketPriceGUI(player, marketModule, original, slot).open();
+            new MarketPriceGUI(player, marketModule, plugin, economy, original, slot).open();
         }
     }
 

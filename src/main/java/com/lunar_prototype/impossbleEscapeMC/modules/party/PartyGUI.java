@@ -1,7 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import net.kyori.adventure.text.Component;
@@ -47,6 +47,7 @@ public class PartyGUI implements Listener {
     /** 脱退・解散の確認クリックの受付時間 */
     private static final long CONFIRM_WINDOW_MS = 3000;
 
+    private final JavaPlugin plugin;
     private final Player player;
     private final PartyModule manager;
     private final Inventory inventory;
@@ -54,11 +55,12 @@ public class PartyGUI implements Listener {
     private final Map<Integer, UUID> memberBySlot = new HashMap<>();
     private long leaveConfirmUntil = 0;
 
-    public PartyGUI(Player player) {
+    public PartyGUI(Player player, PartyModule manager, JavaPlugin plugin) {
         this.player = player;
-        this.manager = PartyModule.get();
+        this.manager = manager;
+        this.plugin = plugin;
         this.inventory = Bukkit.createInventory(null, SIZE, GuiBackground.PARTY.title());
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
     public void open() {
@@ -192,7 +194,7 @@ public class PartyGUI implements Listener {
             refresh();
         } else if (slot == INVITE_SLOT_SOLO) {
             player.closeInventory();
-            new PartyInviteGUI(player, 0).open();
+            new PartyInviteGUI(player, 0, manager, plugin).open();
         }
     }
 
@@ -209,7 +211,7 @@ public class PartyGUI implements Listener {
             refresh();
         } else if (slot == INVITE_SLOT && isLeader) {
             player.closeInventory();
-            new PartyInviteGUI(player, 0).open();
+            new PartyInviteGUI(player, 0, manager, plugin).open();
         } else if (slot == LEAVE_SLOT) {
             long now = System.currentTimeMillis();
             if (now < leaveConfirmUntil) {
@@ -223,7 +225,7 @@ public class PartyGUI implements Listener {
                 leaveConfirmUntil = now + CONFIRM_WINDOW_MS;
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 0.7f);
                 // 確認の受付時間が過ぎたら表示を元に戻す
-                Bukkit.getScheduler().runTaskLater(ImpossbleEscapeMC.getInstance(), () -> {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
                     if (player.getOpenInventory().getTopInventory().equals(inventory)) refresh();
                 }, CONFIRM_WINDOW_MS / 50 + 1);
             }

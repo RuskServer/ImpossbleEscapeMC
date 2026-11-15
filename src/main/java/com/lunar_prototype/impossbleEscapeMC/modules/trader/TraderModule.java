@@ -64,8 +64,6 @@ public class TraderModule implements IModule {
         commands.register(new TraderCommand(this));
 
         loadTraders();
-        // 買うトレーダーの画面 (ダイアログ) の操作を受ける
-        TraderDialog.init(this);
 
     }
 

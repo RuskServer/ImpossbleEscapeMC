@@ -1,6 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.craft;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
@@ -100,7 +104,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
  * 行の組み立て (headerLines・recipeLines・queueLines) はサーバーなしで組み立てられる (CraftDialogLayoutTest が幅を確かめ、見本を書き出す)。
  * 時間の決まりは {@link CraftQueues}、レシピは {@link CraftRecipes}。キューの画面を開いている間は 1 秒ごとに送り直す (残り時間・完成)
  */
-public final class CraftDialog implements Listener {
+@Service
+public final class CraftDialog implements Listener, Startable, Stoppable {
 
     // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int HEADER_ART_W = HEADER_TILES * HEADER_TILE_W;
@@ -119,7 +124,29 @@ public final class CraftDialog implements Listener {
     private static final int REFRESH_TICKS = 20;
     private static final int NOTICE_TICKS = 80;
 
-    private CraftDialog() {
+    private final JavaPlugin plugin;
+    private final PlayerDataModule data;
+    private final HideoutModule hideout;
+
+    @Inject
+    public CraftDialog(JavaPlugin plugin, PlayerDataModule data, HideoutModule hideout) {
+        this.plugin = plugin;
+        this.data = data;
+        this.hideout = hideout;
+    }
+
+    @Override
+    public void start() {
+        instance = this;
+    }
+
+    @Override
+    public void stop() {
+        if (instance != this) return;
+        SESSIONS.clear();
+        if (refresher != null) refresher.cancel();
+        refresher = null;
+        instance = null;
     }
 
     // ---- 開く ----
@@ -147,20 +174,17 @@ public final class CraftDialog implements Listener {
     private static CraftDialog instance;
     private static BukkitTask refresher;
 
-    private static void ensureRegistered() {
-        if (instance == null) {
-            instance = new CraftDialog();
-            Bukkit.getPluginManager().registerEvents(instance, ImpossbleEscapeMC.getInstance());
-        }
+    private static void ensureStarted() {
+        if (instance == null) throw new IllegalStateException("CraftDialog is not started");
         if (refresher == null || refresher.isCancelled()) {
-            refresher = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), CraftDialog::refreshAll, REFRESH_TICKS, REFRESH_TICKS);
+            refresher = Bukkit.getScheduler().runTaskTimer(instance.plugin, CraftDialog::refreshAll, REFRESH_TICKS, REFRESH_TICKS);
         }
     }
 
     /** 設備の製作の画面を開く (製作の画面のある設備だけ) */
     public static void open(Player player, HideoutFacility facility) {
         if (!CraftRecipes.crafts(facility)) return;
-        ensureRegistered();
+        ensureStarted();
         player.closeInventory();
         Session session = new Session(facility);
         SESSIONS.put(player.getUniqueId(), session);
@@ -275,7 +299,9 @@ public final class CraftDialog implements Listener {
             return;
         }
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (instance == this) handle(player, action);
+        });
     }
 
     private static void handle(Player player, String action) {
@@ -326,7 +352,7 @@ public final class CraftDialog implements Listener {
                 return;
             }
         } catch (IOException e) {
-            ImpossbleEscapeMC.getInstance().getLogger().log(Level.WARNING, "製作の素材を取れませんでした", e);
+            instance.plugin.getLogger().log(Level.WARNING, "製作の素材を取れませんでした", e);
             notice(session, "素材を取れませんでした");
             return;
         }
@@ -442,11 +468,11 @@ public final class CraftDialog implements Listener {
     }
 
     private static PlayerDataModule dataModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        return instance.data;
     }
 
     private static HideoutModule hideoutModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(HideoutModule.class);
+        return instance.hideout;
     }
 
     // ---- 上の端末 ----

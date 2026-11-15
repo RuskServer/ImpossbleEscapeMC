@@ -1,6 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
+
+
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -87,7 +93,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
  * 見た目の部品はクエストの画面と同じ (フォント iem:trader・iem:quest) と、iem:result ({@link RaidResultFont})。
  * 本文の文字は行ごとに中央揃えになるので、すべての行をちょうど決まった幅にする ({@link DialogLine})
  */
-public final class RaidResultDialog implements Listener {
+@Service
+public final class RaidResultDialog implements Listener, Startable, Stoppable {
 
     // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     private static final int BODY_W = 340;
@@ -126,14 +133,33 @@ public final class RaidResultDialog implements Listener {
     private static final Map<UUID, Session> SESSIONS = new ConcurrentHashMap<>();
     private static RaidResultDialog instance;
 
-    private RaidResultDialog() {
+    private final JavaPlugin plugin;
+    private final LevelModule levels;
+    private final QuestModule quests;
+    private final PlayerDataModule data;
+    private final RaidModule raids;
+    private final TraderModule traders;
+
+    @Inject
+    public RaidResultDialog(JavaPlugin plugin, LevelModule levels, QuestModule quests, PlayerDataModule data, RaidModule raids, TraderModule traders) {
+        this.plugin = plugin;
+        this.levels = levels;
+        this.quests = quests;
+        this.data = data;
+        this.raids = raids;
+        this.traders = traders;
+    }
+
+    @Override public void start() { instance = this; }
+    @Override public void stop() {
+        if (instance != this) return;
+        SESSIONS.values().forEach(RaidResultDialog::stopAnim);
+        SESSIONS.clear();
+        instance = null;
     }
 
     private static void ensureRegistered() {
-        if (instance == null) {
-            instance = new RaidResultDialog();
-            Bukkit.getPluginManager().registerEvents(instance, ImpossbleEscapeMC.getInstance());
-        }
+        if (instance == null) throw new IllegalStateException("RaidResultDialog is not started");
     }
 
     /** 1 ページ目 (経験値の演出) から開く */
@@ -182,7 +208,7 @@ public final class RaidResultDialog implements Listener {
             shown[i] = Math.max(0, Math.min(1, t * n - i));
             gained += lines.get(i).amount() * shown[i];
         }
-        LevelModule levels = ImpossbleEscapeMC.getInstance().getServiceContainer().get(LevelModule.class);
+        LevelModule levels = instance.levels;
         int level = r.levelBefore();
         long exp = r.expBefore() + Math.round(gained);
         while (levels != null && exp >= levels.getRequiredExperience(level)) {
@@ -211,7 +237,7 @@ public final class RaidResultDialog implements Listener {
 
         if (t < 1.0 && session.anim == null) {
             UUID id = player.getUniqueId();
-            session.anim = Bukkit.getScheduler().runTaskTimer(ImpossbleEscapeMC.getInstance(), () -> {
+            session.anim = Bukkit.getScheduler().runTaskTimer(instance.plugin, () -> {
                 Player p = Bukkit.getPlayer(id);
                 if (p == null || SESSIONS.get(id) != session || session.page != Page.EXP) {
                     stopAnim(session);
@@ -394,8 +420,8 @@ public final class RaidResultDialog implements Listener {
     }
 
     private static QuestAutoHandIn autoHandIn(Player player) {
-        QuestModule quests = ImpossbleEscapeMC.getInstance().getServiceContainer().get(QuestModule.class);
-        PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        QuestModule quests = instance.quests;
+        PlayerDataModule dataModule = instance.data;
         PlayerData data = dataModule != null ? dataModule.getPlayerData(player.getUniqueId()) : null;
         return quests != null && data != null ? new QuestAutoHandIn(player, data, quests) : null;
     }
@@ -441,7 +467,7 @@ public final class RaidResultDialog implements Listener {
     private static void showSupply(Player player, Session session) {
         List<DialogBody> body = new ArrayList<>();
         body.add(header(session.report, "戻る: キルログ", "page/kills"));
-        var status = FreeLoadoutPresentation.capture(player);
+        var status = FreeLoadoutPresentation.capture(player, instance.data, instance.raids);
         body.add(DialogBody.plainMessage(FreeLoadoutPresentation.buttonLabel(status), BODY_W));
         for (Component text : FreeLoadoutPresentation.summary(status)) {
             body.add(DialogBody.plainMessage(text, BODY_W));
@@ -453,7 +479,7 @@ public final class RaidResultDialog implements Listener {
 
     private static void returnFromSupply(Player player, Session session) {
         if (!player.isOnline() || player.isDead() || SESSIONS.get(player.getUniqueId()) != session || !session.supplyOpen) return;
-        RaidModule raids = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
+        RaidModule raids = instance.raids;
         if (raids != null && raids.isInRaid(player)) {
             SESSIONS.remove(player.getUniqueId(), session);
             return;
@@ -555,7 +581,7 @@ public final class RaidResultDialog implements Listener {
     }
 
     private static String traderName(String id) {
-        TraderModule traders = ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
+        TraderModule traders = instance.traders;
         TraderDefinition trader = traders != null ? traders.getTrader(id) : null;
         if (trader == null) return id;
         return PlainTextComponentSerializer.plainText().serialize(LegacyComponentSerializer.legacySection().deserialize(trader.displayName))
@@ -579,7 +605,7 @@ public final class RaidResultDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> { if (instance == this) handle(player, action); });
     }
 
     private static void handle(Player player, String action) {
@@ -609,7 +635,7 @@ public final class RaidResultDialog implements Listener {
                 session.animTick = ANIM_TICKS;
                 session.supplyOpen = true;
                 player.closeDialog();
-                new SupplyLoadoutGUI(player, () -> returnFromSupply(player, session)).open();
+                new SupplyLoadoutGUI(player, instance.plugin, instance.data, instance.raids, () -> returnFromSupply(player, session)).open();
                 return;
             }
             case "loot" -> {

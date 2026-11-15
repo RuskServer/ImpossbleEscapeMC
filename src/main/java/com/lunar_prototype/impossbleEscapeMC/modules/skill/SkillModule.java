@@ -57,7 +57,6 @@ public final class SkillModule implements IModule, Listener {
     public void onEnable(ServiceContainer container) {
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
-        SkillTreeDialog.init(this);
         instance = this;
         // 射撃のスキル: データパックが銃を読み込んだ値に、毎 tick 倍率を掛ける
         Bukkit.getScheduler().runTaskTimer(plugin, gunScores, 1L, 1L);

@@ -1,6 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.tooltip.TooltipStyle;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDialog;
@@ -39,20 +38,22 @@ public class TraderSelectionGUI implements Listener {
     private final Player player;
     private final Inventory inventory;
     private final TraderModule traderModule;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks;
     private final List<TraderDefinition> traderList;
     private final Map<Integer, TraderDefinition> buttons = new HashMap<>();
     private int page;
 
-    public TraderSelectionGUI(Player player, TraderModule traderModule) {
+    public TraderSelectionGUI(Player player, TraderModule traderModule, com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule backpacks) {
         this.player = player;
         this.traderModule = traderModule;
+        this.backpacks = backpacks;
         traderList = new ArrayList<>(traderModule.getAllTraders());
         traderList.sort(Comparator.comparingInt((TraderDefinition trader) -> {
             int rank = ORDER.indexOf(trader.id);
             return rank < 0 ? ORDER.size() : rank;
         }).thenComparing(trader -> trader.id));
         inventory = Bukkit.createInventory(null, 27, GuiBackground.TRADERS.title());
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, traderModule.getPlugin());
     }
 
     public void open() {
@@ -132,7 +133,7 @@ public class TraderSelectionGUI implements Listener {
 
     private void switchScreen(Runnable next) {
         // InventoryClickEventの処理中に画面を閉じない。連打後の古い遷移もここで止める。
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
+        Bukkit.getScheduler().runTask(traderModule.getPlugin(), () -> {
             if (!player.isOnline() || player.getOpenInventory().getTopInventory() != inventory) return;
             player.closeInventory();
             next.run();

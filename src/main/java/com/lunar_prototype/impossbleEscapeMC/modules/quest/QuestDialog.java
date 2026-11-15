@@ -3,7 +3,11 @@ package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
+import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Stoppable;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.PDAGUI;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
@@ -132,7 +136,8 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.TEXT_X;
  * iem:quest (quest_font.py)、目標・報酬のアイコンは iem:icon ({@link UiIcon}、ui_icons.py)。字の番号・寸法はそれぞれと同じにする。
  * 本文の文字は行ごとに中央揃えになるので、すべての行をちょうど決まった幅にする ({@link DialogLine})
  */
-public final class QuestDialog implements Listener {
+@Service
+public final class QuestDialog implements Listener, Startable, Stoppable {
 
     // ---- 寸法 (GUI の画素。共通の部品の字・寸法・色は gui/TerminalFont・TerminalPalette) ----
     /** 上の端末の絵の幅と、要素の幅・行の幅。絵の左端は行の頭 */
@@ -227,14 +232,34 @@ public final class QuestDialog implements Listener {
     private static final Map<String, ItemStack> ITEMS = new ConcurrentHashMap<>();
     private static QuestDialog instance;
 
-    private QuestDialog() {
+    private final JavaPlugin plugin;
+    private final PlayerDataModule data;
+    private final QuestModule quests;
+    private final TraderModule traders;
+
+    @Inject
+    public QuestDialog(JavaPlugin plugin, PlayerDataModule data, QuestModule quests, TraderModule traders) {
+        this.plugin = plugin;
+        this.data = data;
+        this.quests = quests;
+        this.traders = traders;
     }
 
-    private static void ensureRegistered() {
-        if (instance == null) {
-            instance = new QuestDialog();
-            Bukkit.getPluginManager().registerEvents(instance, ImpossbleEscapeMC.getInstance());
-        }
+    @Override
+    public void start() {
+        instance = this;
+    }
+
+    @Override
+    public void stop() {
+        if (instance != this) return;
+        SESSIONS.clear();
+        ITEMS.clear();
+        instance = null;
+    }
+
+    private static void ensureStarted() {
+        if (instance == null) throw new IllegalStateException("QuestDialog is not started");
     }
 
     // ---- 開く ----
@@ -258,12 +283,12 @@ public final class QuestDialog implements Listener {
             openTrader(player, trader);
             return;
         }
-        ensureRegistered();
+        ensureStarted();
         show(player, session);
     }
 
     private static void open(Player player, Session session) {
-        ensureRegistered();
+        ensureStarted();
         player.closeInventory();
         SESSIONS.put(player.getUniqueId(), session);
         show(player, session);
@@ -273,7 +298,7 @@ public final class QuestDialog implements Listener {
 
     private static void show(Player player, Session session) {
         QuestModule quests = questModule();
-        PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        PlayerDataModule dataModule = instance.data;
         PlayerData data = dataModule == null ? null : dataModule.getPlayerData(player.getUniqueId());
         if (quests == null || data == null) return;
         if (session.detail != null) {
@@ -878,11 +903,11 @@ public final class QuestDialog implements Listener {
     // ---- トレーダー ----
 
     private static TraderModule traderModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(TraderModule.class);
+        return instance.traders;
     }
 
     private static QuestModule questModule() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(QuestModule.class);
+        return instance.quests;
     }
 
     private static TraderDefinition trader(String id) {
@@ -927,7 +952,9 @@ public final class QuestDialog implements Listener {
         if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
         Player player = connection.getPlayer();
         String action = id.value().substring(PREFIX.length());
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> handle(player, action));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (instance == this) handle(player, action);
+        });
     }
 
     private static void handle(Player player, String action) {
@@ -942,7 +969,7 @@ public final class QuestDialog implements Listener {
         if ((operation.equals("report") || operation.equals("handin") || operation.equals("bulk"))
                 && !QuestDeliveryAccess.requireOutsideRaid(player)) return;
         QuestModule quests = questModule();
-        PlayerDataModule dataModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(PlayerDataModule.class);
+        PlayerDataModule dataModule = instance.data;
         PlayerData data = dataModule == null ? null : dataModule.getPlayerData(player.getUniqueId());
         if (quests == null || data == null) return;
         String[] parts = action.split("/", 2);

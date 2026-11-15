@@ -4,7 +4,7 @@ import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
 import com.lunar_prototype.impossbleEscapeMC.gui.PdaIcons;
-import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
+import org.bukkit.plugin.java.JavaPlugin;
 import com.lunar_prototype.impossbleEscapeMC.gui.GuiBackground;
 import com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule;
 import com.lunar_prototype.impossbleEscapeMC.util.SerializationUtil;
@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
  * マーケットのメイン画面（出品一覧）
  */
 public class MarketMainGUI implements Listener {
+    private final JavaPlugin plugin;
+    private final EconomyModule economy;
     private final Player player;
     private final MarketModule marketModule;
     /** タイトルにページ数を出すので、開くときに作る */
@@ -44,12 +46,14 @@ public class MarketMainGUI implements Listener {
     /** 欄ごとに出している出品の ID (押した時はこれで引く。並べ直した一覧の位置で引くと、開いている間に出品が増減して別の物を買ってしまう) */
     private final UUID[] shown = new UUID[45];
 
-    public MarketMainGUI(Player player, MarketModule marketModule) {
-        this(player, marketModule, 0);
+    public MarketMainGUI(Player player, MarketModule marketModule, JavaPlugin plugin, EconomyModule economy) {
+        this(player, marketModule, plugin, economy, 0);
     }
 
-    public MarketMainGUI(Player player, MarketModule marketModule, int page) {
+    public MarketMainGUI(Player player, MarketModule marketModule, JavaPlugin plugin, EconomyModule economy, int page) {
         this.player = player;
+        this.plugin = plugin;
+        this.economy = economy;
         this.marketModule = marketModule;
         this.page = page;
     }
@@ -59,7 +63,7 @@ public class MarketMainGUI implements Listener {
         page = Math.max(0, Math.min(page, pageCount - 1));
         this.inventory = Bukkit.createInventory(null, 54, GuiBackground.MARKET.pagedTitle(page, pageCount));
         setupGUI();
-        Bukkit.getPluginManager().registerEvents(this, ImpossbleEscapeMC.getInstance());
+        Bukkit.getPluginManager().registerEvents(this, plugin);
         player.openInventory(inventory);
     }
 
@@ -143,13 +147,13 @@ public class MarketMainGUI implements Listener {
 
         int slot = event.getRawSlot();
         if (slot == 49) {
-            new MarketSellGUI(player, marketModule).open();
+            new MarketSellGUI(player, marketModule, plugin, economy).open();
             return;
         }
 
         // ページ数はタイトルに出ているので、ページを変えるときは開き直す
         if (slot == 45 && page > 0) {
-            new MarketMainGUI(player, marketModule, page - 1).open();
+            new MarketMainGUI(player, marketModule, plugin, economy, page - 1).open();
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             return;
         }
@@ -159,7 +163,7 @@ public class MarketMainGUI implements Listener {
                     .sorted(Comparator.comparingLong(MarketListing::getListDate).reversed())
                     .collect(Collectors.toList());
             if (allListings.size() > (page + 1) * 45) {
-                new MarketMainGUI(player, marketModule, page + 1).open();
+                new MarketMainGUI(player, marketModule, plugin, economy, page + 1).open();
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             }
             return;
@@ -196,7 +200,6 @@ public class MarketMainGUI implements Listener {
             }
         } else {
             // 購入
-            EconomyModule economy = ImpossbleEscapeMC.getInstance().getServiceContainer().get(EconomyModule.class);
             if (economy.withdraw(player.getUniqueId(), listing.getPrice())) {
                 try {
                     ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());

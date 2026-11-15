@@ -65,7 +65,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
     }
 
     public com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI getSearchGUI() {
-        return searchGUI;
+        return searchGUI != null ? searchGUI : serviceContainer == null ? null : serviceContainer.get(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class);
     }
 
     public com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener getLootEggListener() {
@@ -123,7 +123,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         com.lunar_prototype.impossbleEscapeMC.effect.LightHeads.init(this);
         minigameManager = new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager(this);
         lootManager = new com.lunar_prototype.impossbleEscapeMC.loot.LootManager(this);
-        searchGUI = new com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI(this);
         lootBackpackOverlayListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener(this);
         lootEggListener = new com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener(this);
         corpseManager = new com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager(this);
@@ -133,7 +132,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         serviceContainer.register(ScavSpawner.class, scavSpawner);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.minigame.MinigameManager.class, minigameManager);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootManager.class, lootManager);
-        serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class, searchGUI);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootBackpackOverlayListener.class, lootBackpackOverlayListener);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.LootEggListener.class, lootEggListener);
         serviceContainer.register(com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager.class, corpseManager);
@@ -169,6 +167,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // モジュールの有効化
         moduleBootstrap.enableModules();
         raidModule = serviceContainer.get(RaidModule.class);
+        searchGUI = serviceContainer.get(com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI.class);
         operationHintHud = new com.lunar_prototype.impossbleEscapeMC.modules.raid.OperationHintHud(this);
 
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
@@ -178,7 +177,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 画面を開くときにカーソルのアイテムを持ち物へ戻す (Paper は自分のインベントリ画面を閉じずに差し替えるため戻らない)
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.listener.CursorItemListener(this), this);
         // 容量のゲージ (クラフトグリッドの左下) と、大きい物の説明の「サイズ N マス」
-        com.lunar_prototype.impossbleEscapeMC.modules.inventory.CapacityGauge.init();
         com.lunar_prototype.impossbleEscapeMC.listener.ItemSizeTooltip.init();
         // フラッシュライトの点け消しと、向けられた時のまぶしさ
         com.lunar_prototype.impossbleEscapeMC.item.Flashlight.init(this);
@@ -202,8 +200,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         getServer().getPluginManager().registerEvents(ammoTracker, this);
         getServer().getScheduler().runTaskTimer(this, ammoTracker, 1L, 1L);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameListener(minigameManager), this);
-        getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidSelectionGUI(raidModule), this);
-        getServer().getPluginManager().registerEvents(searchGUI, this);
         getServer().getPluginManager().registerEvents(lootBackpackOverlayListener, this);
         getServer().getPluginManager().registerEvents(lootEggListener, this);
         getServer().getPluginManager().registerEvents(new com.lunar_prototype.impossbleEscapeMC.map.MapSlotListener(this, raidMapManager), this);
@@ -230,7 +226,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // 探知グレネード (UNRG-7K) と、映った相手の縁取り
         com.lunar_prototype.impossbleEscapeMC.modules.grenade.ReconGrenade.init(this);
         // 銃 (Toi's Armory) の設定の画面と、移動補完の固定
-        com.lunar_prototype.impossbleEscapeMC.gui.GunSettingsDialog.init(this);
 
         // ヒートマップの定期クリーンアップ (5秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(this, com.lunar_prototype.impossbleEscapeMC.ai.CombatHeatmapManager::cleanup, 100, 100);
@@ -242,9 +237,6 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
                 new com.lunar_prototype.impossbleEscapeMC.loot.LootCommand(this));
         commands.install(this);
 
-        QuestModule questModule = serviceContainer.get(QuestModule.class);
-        // 受けているクエストで納品するアイテムを、そのプレイヤーの画面で強調する
-        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestItemHighlighter.init(this, questModule);
 
         CrossbowTask.start(this);
     }
