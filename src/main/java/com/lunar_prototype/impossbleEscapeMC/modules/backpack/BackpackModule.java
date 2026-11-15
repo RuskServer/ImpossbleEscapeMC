@@ -1,5 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -25,14 +31,28 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+@Service
 public class BackpackModule implements IModule {
+    private final ImpossbleEscapeMC plugin;
+    private final RaidModule raids;
+    private final Supplier<RigModule> rigModule;
+
+    @Inject
+    public BackpackModule(ImpossbleEscapeMC plugin,
+            RaidModule raids,
+            Supplier<RigModule> rigModule) {
+        this.plugin = plugin;
+        this.raids = raids;
+        this.rigModule = rigModule;
+    }
+
     private final Map<UUID, BackpackSession> sessions = new HashMap<>();
     private BackpackDisplayManager displayManager;
 
     @Override
     public void onEnable(ServiceContainer container) {
-        displayManager = new BackpackDisplayManager(ImpossbleEscapeMC.getInstance());
-        Bukkit.getPluginManager().registerEvents(new BackpackListener(this), ImpossbleEscapeMC.getInstance());
+        displayManager = new BackpackDisplayManager(plugin, this, rigModule, raids);
+        Bukkit.getPluginManager().registerEvents(new BackpackListener(this), plugin);
     }
 
     @Override
@@ -99,7 +119,7 @@ public class BackpackModule implements IModule {
         sessions.put(player.getUniqueId(), new BackpackSession(uid));
         player.openInventory(finalInv);
         // 開いた直後は占有マスが無いので、次のtickでコストの占有マスを描く (開いている間は InventoryListener が更新する)
-        Bukkit.getScheduler().runTask(ImpossbleEscapeMC.getInstance(), () -> {
+        Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline()
                     && player.getOpenInventory().getTopInventory().getHolder() instanceof BackpackInventoryHolder) {
                 com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.updateInventory(player, finalInv);
@@ -191,7 +211,7 @@ public class BackpackModule implements IModule {
             if (old != null && !old.isEmpty()) return SerializationUtil.deserializeInventory(old, Component.text("Backpack"));
             return Bukkit.createInventory(null, getBackpackSize(item));
         } catch (Exception e) {
-            ImpossbleEscapeMC.getInstance().getLogger().warning("納品元のバッグを読めませんでした: " + e.getMessage());
+            plugin.getLogger().warning("納品元のバッグを読めませんでした: " + e.getMessage());
             return null;
         }
     }
@@ -215,7 +235,7 @@ public class BackpackModule implements IModule {
             pdc.set(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY, bytes);
             backpackItem.setItemMeta(meta);
         } catch (IOException e) {
-            ImpossbleEscapeMC.getInstance().getLogger().warning("Failed to save backpack inventory: " + e.getMessage());
+            plugin.getLogger().warning("Failed to save backpack inventory: " + e.getMessage());
         }
     }
 
@@ -291,7 +311,7 @@ public class BackpackModule implements IModule {
 
             return new LoadInventoryResult(resized, hasOverflowItems);
         } catch (Exception e) {
-            ImpossbleEscapeMC.getInstance().getLogger().warning("Failed to load backpack inventory: " + e.getMessage());
+            plugin.getLogger().warning("Failed to load backpack inventory: " + e.getMessage());
             return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
         }
     }

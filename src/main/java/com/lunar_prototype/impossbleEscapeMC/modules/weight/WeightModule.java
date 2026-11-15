@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.weight;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -40,21 +44,34 @@ import org.bukkit.NamespacedKey;
 import net.kyori.adventure.text.Component; // Import for Component
 import net.kyori.adventure.text.format.NamedTextColor; // Import for NamedTextColor
 
+@Service
 public class WeightModule implements IModule, Listener {
-    private ImpossbleEscapeMC plugin;
-    private PlayerDataModule dataModule;
-    private BackpackModule backpackModule;
-    private RigModule rigModule;
+    private final Supplier<SkillModule> skills;
+
+    @Inject
+    public WeightModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            BackpackModule backpackModule,
+            RigModule rigModule,
+            Supplier<SkillModule> skills) {
+        this.plugin = plugin;
+        this.dataModule = dataModule;
+        this.backpackModule = backpackModule;
+        this.rigModule = rigModule;
+        this.skills = skills;
+    }
+
+    private final ImpossbleEscapeMC plugin;
+    private final PlayerDataModule dataModule;
+    private final BackpackModule backpackModule;
+    private final RigModule rigModule;
     private static final NamespacedKey SPEED_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_speed_penalty");
     private static final NamespacedKey GRAVITY_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "weight_gravity_penalty");
     private final Map<UUID, WeightStage> lastStages = new HashMap<>();
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.plugin = ImpossbleEscapeMC.getInstance();
-        this.dataModule = container.get(PlayerDataModule.class);
-        this.backpackModule = container.get(BackpackModule.class);
-        this.rigModule = container.get(RigModule.class);
+
 
         Bukkit.getPluginManager().registerEvents(this, plugin);
 
@@ -236,7 +253,7 @@ public class WeightModule implements IModule, Listener {
         updateSpeedModifier(player, weight);
 
         // 2. ダッシュ制限 (Critical: 35kg〜。スキルで上がる)
-        if (weight >= 35000 + SkillModule.value(player, SkillStat.SPRINT_BLOCK_G)) {
+        if (weight >= 35000 + skills.get().stat(player, SkillStat.SPRINT_BLOCK_G)) {
             if (player.isSprinting()) {
                 player.setSprinting(false);
             }
@@ -266,7 +283,7 @@ public class WeightModule implements IModule, Listener {
         // 既存の重量補正を削除
         moveSpeed.removeModifier(SPEED_MODIFIER_KEY);
 
-        int start = 40000 + (int) SkillModule.value(player, SkillStat.SLOW_START_G);
+        int start = 40000 + (int) skills.get().stat(player, SkillStat.SLOW_START_G);
         double penalty = speedPenalty(weight, start);
 
         if (penalty != 0.0) {

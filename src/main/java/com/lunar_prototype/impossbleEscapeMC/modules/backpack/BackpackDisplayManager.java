@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 
+import java.util.function.Supplier;
+
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
@@ -55,6 +57,9 @@ public class BackpackDisplayManager {
     private static final int TURN_INTERPOLATION_TICKS = 1;
 
     private final JavaPlugin plugin;
+    private final BackpackModule backpackModule;
+    private final Supplier<RigModule> rigs;
+    private final RaidModule raidModule;
     private final Map<UUID, DisplaySession> activeSessions = new HashMap<>();
 
     private static class DisplaySession {
@@ -85,13 +90,15 @@ public class BackpackDisplayManager {
         }
     }
 
-    public BackpackDisplayManager(JavaPlugin plugin) {
+    public BackpackDisplayManager(JavaPlugin plugin, BackpackModule backpackModule, Supplier<RigModule> rigs, RaidModule raidModule) {
         this.plugin = plugin;
+        this.backpackModule = backpackModule;
+        this.rigs = rigs;
+        this.raidModule = raidModule;
     }
 
     public void sync(Player player) {
-        BackpackModule backpackModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(BackpackModule.class);
-        RigModule rigModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RigModule.class);
+        RigModule rigModule = rigs.get();
         if (backpackModule == null) {
             clearDisplay(player);
             return;
@@ -265,7 +272,6 @@ public class BackpackDisplayManager {
 
     private boolean shouldShowToReceiver(Player owner, Player receiver) {
         if (!owner.equals(receiver)) return true;
-        RaidModule raidModule = ImpossbleEscapeMC.getInstance().getServiceContainer().get(RaidModule.class);
         return raidModule == null || !raidModule.isInRaid(owner);
     }
 

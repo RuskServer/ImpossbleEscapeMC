@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.party;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -26,29 +29,37 @@ import java.util.*;
  * リーダーがログアウトしても解散しない (メンバーはリーダーの隠れ家に集まり続けられる。明示的な
  * /party leave と /party disband は今まで通り解散する)
  */
+@Service
 public class PartyModule implements IModule, Listener {
+    private static PartyModule instance;
+    private final CommandRegistry commands;
+
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Party> playerPartyMap = new HashMap<>();
     private final Map<UUID, UUID> pendingInvites = new HashMap<>(); // Invited -> Inviter
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public PartyModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public PartyModule(ImpossbleEscapeMC plugin,
+            CommandRegistry commands) {
+        this.commands = commands;
         this.plugin = plugin;
     }
 
     /** 動いているパーティーのモジュール (起動前は null) */
     public static PartyModule get() {
-        return ImpossbleEscapeMC.getInstance().getServiceContainer().get(PartyModule.class);
+        return instance;
     }
 
     @Override
     public void onEnable(ServiceContainer container) {
+        instance = this;
         Bukkit.getPluginManager().registerEvents(this, plugin);
-        container.get(CommandRegistry.class).register(new PartyCommand(this));
+        commands.register(new PartyCommand(this));
     }
 
     @Override
     public void onDisable() {
+        instance = null;
         playerPartyMap.clear();
         pendingInvites.clear();
     }

@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.rig;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -27,23 +30,33 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+@Service
 public class RigModule implements IModule {
+    private final BackpackModule backpackModule;
+
+    @Inject
+    public RigModule(ImpossbleEscapeMC plugin,
+            BackpackModule backpackModule) {
+        this.plugin = plugin;
+        this.backpackModule = backpackModule;
+    }
+
     public static final int MAIN_INVENTORY_START = 9;
     public static final int MAIN_INVENTORY_END = 35;
 
-    private ImpossbleEscapeMC plugin;
+    private final ImpossbleEscapeMC plugin;
     private final Set<UUID> lootSessionSuppressedPlayers = new HashSet<>();
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.plugin = ImpossbleEscapeMC.getInstance();
+
         Bukkit.getPluginManager().registerEvents(new RigListener(this, plugin), plugin);
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager.isGunner(player)) continue; // SCAVのデータパック銃用FakePlayer
                 if (isControlSuppressed(player)) continue;
                 if (syncEquippedRigModel(player)) {
-                    BackpackModule backpack = container.get(BackpackModule.class);
+                    BackpackModule backpack = backpackModule;
                     if (backpack != null && backpack.getDisplayManager() != null) {
                         backpack.getDisplayManager().sync(player);
                     }

@@ -1,5 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+import com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager;
+import com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager;
+import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -32,6 +42,18 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public class RaidInstance {
+    private final PlayerDataModule playersData;
+    private final LevelModule leveling;
+    private final Supplier<QuestModule> questService;
+    private final Supplier<BackpackModule> backpacks;
+    private final Supplier<SkillModule> skillService;
+    private final ScavSpawner scavs;
+    private final AiRaidLogger raidLogger;
+    private final RaidModule owner;
+    private final Supplier<PartyModule> partyService;
+    private final CorpseManager corpseManager;
+    private final RaidMapManager mapManager;
+
     private final ImpossbleEscapeMC plugin;
     private final RaidMap map;
     private final Set<UUID> players = new HashSet<>();
@@ -126,24 +148,42 @@ public class RaidInstance {
      * @param map         このインスタンスが管理するレイド用マップ定義
      * @param participants 初期参加者のリスト（空の場合は参加処理を行わない）
      */
-    public RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants) {
-        this(plugin,map,participants,false);
-    }
-    /** 復元したレイドではボス抽選を抑止し、再起動による再抽選・装備の復活を防ぐ。 */
-    RaidInstance(ImpossbleEscapeMC plugin,RaidMap map,List<Player> participants,boolean restored) {
+    RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants, boolean restored,
+            RaidModule owner,
+            PlayerDataModule playersData,
+            LevelModule leveling,
+            Supplier<QuestModule> questService,
+            Supplier<BackpackModule> backpacks,
+            Supplier<SkillModule> skillService,
+            Supplier<PartyModule> partyService,
+            ScavSpawner scavs,
+            CorpseManager corpseManager,
+            RaidMapManager mapManager,
+            AiRaidLogger raidLogger) {
+        this.playersData = playersData;
+        this.leveling = leveling;
+        this.questService = questService;
+        this.backpacks = backpacks;
+        this.skillService = skillService;
+        this.scavs = scavs;
+        this.raidLogger = raidLogger;
+        this.owner = owner;
+        this.partyService = partyService;
+        this.corpseManager = corpseManager;
+        this.mapManager = mapManager;
         this.plugin = plugin;
         this.map = map;
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
-        this.bossEncounter=new RaidBossEncounter(plugin,map,raidSessionId,restored);
-        this.radio = new RaidRadio(plugin,map);
+        this.bossEncounter=new RaidBossEncounter(plugin,map,raidSessionId,restored,scavs);
+        this.radio = new RaidRadio(plugin,map,playersData,questService);
         this.endSequence = new RaidEndSequence(plugin, map,radio);
-        this.hud = new RaidHud(plugin, map, activeExtractions,radio);
+        this.hud = new RaidHud(plugin, map, activeExtractions,radio,playersData,questService);
         // 時間帯・天候 (周期の始めに当てはめているが、その時ワールドが無かった場合のために、もう一度)
-        if (plugin.getRaidModule() != null) plugin.getRaidModule().applyConditions(map.getMapId());
+        if (owner != null) owner.applyConditions(map.getMapId());
 
-        if (plugin.getAiRaidLogger() != null) {
-            plugin.getAiRaidLogger().startRaidSession(
+        if (raidLogger != null) {
+            raidLogger.startRaidSession(
                     raidSessionId,
                     map.getMapId(),
                     map.getWorldName(),
@@ -327,14 +367,14 @@ public class RaidInstance {
      * 現在のレイド参加者について、利用可能なAIレイドロガーへプレイヤーのスナップショットを記録する。
      *
      * AIレイドロガーが存在し有効な場合にのみ、現在の参加者集合を走査してオンラインの各プレイヤーに対し
-     * `plugin.getAiRaidLogger().logPlayerSnapshot(raidSessionId, p)` を呼び出す。
+     * `raidLogger.logPlayerSnapshot(raidSessionId, p)` を呼び出す。
      */
     private void logPlayerSnapshots() {
-        if (plugin.getAiRaidLogger() == null || !plugin.getAiRaidLogger().isEnabled()) return;
+        if (raidLogger == null || !raidLogger.isEnabled()) return;
         for (UUID uuid : players) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                plugin.getAiRaidLogger().logPlayerSnapshot(raidSessionId, p);
+                raidLogger.logPlayerSnapshot(raidSessionId, p);
             }
         }
     }
@@ -363,7 +403,7 @@ public class RaidInstance {
     RaidRadio radio(){return radio;}
 
     private void updateHudTime() {
-        hud.setTimeLeft(plugin.getRaidModule().getMapTimeLeft(map.getMapId()));
+        hud.setTimeLeft(owner.getMapTimeLeft(map.getMapId()));
     }
 
     /**
@@ -391,9 +431,9 @@ public class RaidInstance {
                 p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 hud.hide(p);
                 resetCameraDistance(p);
-                plugin.getRaidModule().applyFailureEffect(p);
+                owner.applyFailureEffect(p);
                 showIndividualRaidResult(p);
-                plugin.getRaidMapManager().updateMapSlot(p);
+                mapManager.updateMapSlot(p);
             }
         }
         players.clear();
@@ -417,7 +457,7 @@ public class RaidInstance {
         // Cleanup SCAVs for the new cycle
         for (VirtualScav vs : virtualScavs) {
             if (vs.isSpawned() && vs.getEntityId() != null) {
-                plugin.getScavSpawner().removeScav(vs.getEntityId());
+                scavs.removeScav(vs.getEntityId());
                 vs.setSpawned(false);
                 vs.setEntityId(null);
             }
@@ -453,12 +493,12 @@ public class RaidInstance {
 
             if (playerNearby && !tooCloseOrVisible && !vs.isSpawned() && !vs.isDead()) {
                 Integer ammoClassCap = nearestPlayerId == null ? null : scavAmmoClassCaps.get(nearestPlayerId);
-                UUID uuid = plugin.getScavSpawner().spawnScav(spawnLoc, raidSessionId, map.getMapId(), ammoClassCap);
+                UUID uuid = scavs.spawnScav(spawnLoc, raidSessionId, map.getMapId(), ammoClassCap);
                 if (uuid == null) continue;   // 出せなかった (銃が無い)。湧いていないままにして、次の判定でまた試す
                 vs.setEntityId(uuid);
                 vs.setSpawned(true);
             } else if (!playerNearby && vs.isSpawned() && !vs.isPermanent()) {
-                plugin.getScavSpawner().removeScav(vs.getEntityId());
+                scavs.removeScav(vs.getEntityId());
                 vs.setSpawned(false);
                 vs.setEntityId(null);
             }
@@ -529,8 +569,8 @@ public class RaidInstance {
     public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid, ScavBrain.BrainLevel brainLevel) {
         if (!raidMembers.contains(killerUuid)) return;
         
-        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        LevelModule levelModule =
+                leveling;
         int playerLevel = 1;
         if (levelModule != null) {
             playerLevel = levelModule.getLevel(killerUuid);
@@ -546,8 +586,8 @@ public class RaidInstance {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.scavKills += 1;
             grant(result, EXP_SCAV, levelModule != null ? levelModule.getScaledKillReward(playerLevel,
-                    com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.SCAV_BASE_EXP)
-                    : com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.SCAV_BASE_EXP);
+                    LevelModule.SCAV_BASE_EXP)
+                    : LevelModule.SCAV_BASE_EXP);
             result.kills.add(killRecord(scavEntityId, killerUuid, RaidReport.Kind.SCAV, null));
         }
     }
@@ -598,7 +638,7 @@ public class RaidInstance {
         extractionTimer.put(p.getUniqueId(), count);
 
         // 脱出にかかる時間 10 秒 (スキルで縮む)
-        int remaining = Math.max(1, 10 + (int) SkillModule.value(p, SkillStat.EXTRACT_SECONDS)) - count;
+        int remaining = Math.max(1, 10 + (int) skillService.get().stat(p, SkillStat.EXTRACT_SECONDS)) - count;
         if (remaining > 0) {
             Messages.actionBar(p, "iem.raid.raidinstance.handleextraction.notice_001", MessageText.of("iem.raid.raidinstance.handleextraction.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.handleextraction.notice_001.text_01", remaining, ep.getName()).color(NamedTextColor.GREEN))));
             // カウントダウン音 (1秒ごと)
@@ -613,18 +653,18 @@ public class RaidInstance {
             RaidResult result = getOrCreateRaidResult(p.getUniqueId());
             result.outcome = RaidOutcome.SURVIVED;
             result.extractName = ep.getName();
-            plugin.getRaidModule().markFinished(map.getMapId(), p.getUniqueId());
+            owner.markFinished(map.getMapId(), p.getUniqueId());
             result.endMillis = System.currentTimeMillis();
             result.loot = foundLoot(p);
 
-            com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+            LevelModule levelModule =
+                    leveling;
             grant(result, EXP_SURVIVED, levelModule != null
                     ? levelModule.getRaidOutcomeReward(levelModule.getLevel(p.getUniqueId()), "SURVIVED") : 50L);
 
             // 脱出回数加算
-            com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
-                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+            PlayerDataModule dataModule =
+                    playersData;
             if (dataModule != null && !result.extractionCountIncremented) {
                 com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(p.getUniqueId());
                 data.setExtractions(data.getExtractions() + 1);
@@ -637,8 +677,8 @@ public class RaidInstance {
             p.setGameMode(org.bukkit.GameMode.ADVENTURE);
 
             // クエストトリガーの発火
-            com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule = 
-                    plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+            QuestModule questModule =
+                    questService.get();
             if (questModule != null) {
                 if (dataModule != null) {
                     com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule.getPlayerData(p.getUniqueId());
@@ -651,7 +691,7 @@ public class RaidInstance {
             p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
             resetCameraDistance(p);
             showIndividualRaidResult(p);
-            plugin.getRaidMapManager().updateMapSlot(p);
+            mapManager.updateMapSlot(p);
 
             if (players.isEmpty()) {
                 endRaid();
@@ -680,17 +720,17 @@ public class RaidInstance {
         // Cleanup all spawned SCAVs
         for (VirtualScav vs : virtualScavs) {
             if (vs.isSpawned() && vs.getEntityId() != null) {
-                plugin.getScavSpawner().removeScav(vs.getEntityId());
+                scavs.removeScav(vs.getEntityId());
                 vs.setSpawned(false);
                 vs.setEntityId(null);
             }
         }
 
         // Cleanup corpses in the world
-        if (plugin.getCorpseManager() != null) {
+        if (corpseManager != null) {
             org.bukkit.World world = Bukkit.getWorld(map.getWorldName());
             if (world != null) {
-                plugin.getCorpseManager().cleanup(world);
+                corpseManager.cleanup(world);
             }
         }
         // 落ちているアイテムも消す (読み込まれていない所の物は、読み込まれた時に RaidGroundItems が消す)
@@ -717,9 +757,9 @@ public class RaidInstance {
         }
         players.clear();
         applyRaidRewardsAndShowResults();
-        plugin.getRaidModule().removeRaid(map.getMapId(), this);
-        if (plugin.getAiRaidLogger() != null) {
-            plugin.getAiRaidLogger().endRaidSession(raidSessionId, endReason);
+        owner.removeRaid(map.getMapId(), this);
+        if (raidLogger != null) {
+            raidLogger.endRaidSession(raidSessionId, endReason);
         }
     }
 
@@ -736,8 +776,8 @@ public class RaidInstance {
         if (!players.contains(player.getUniqueId())) return;
         extractionTimer.remove(player.getUniqueId());
 
-        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        LevelModule levelModule =
+                leveling;
         int playerLevel = 1;
         if (levelModule != null) {
             playerLevel = levelModule.getLevel(player.getUniqueId());
@@ -747,7 +787,7 @@ public class RaidInstance {
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
         result.outcome = RaidOutcome.DEAD;
         result.endMillis = System.currentTimeMillis();
-        plugin.getRaidModule().markFinished(map.getMapId(), player.getUniqueId());
+        owner.markFinished(map.getMapId(), player.getUniqueId());
         result.lostValue = broughtInValue(player);
         grant(result, EXP_DEAD, levelModule != null ? levelModule.getRaidOutcomeReward(playerLevel, "DEAD") : 10L);
         RaidKillTracker.Hit lastHit = RaidKillTracker.lastHitOn(player.getUniqueId());
@@ -771,7 +811,7 @@ public class RaidInstance {
         hud.hide(player);
         resetCameraDistance(player);
         showIndividualRaidResult(player);
-        plugin.getRaidMapManager().updateMapSlot(player);
+        mapManager.updateMapSlot(player);
 
         if (players.isEmpty()) {
             endReason = "all_dead_or_extracted";
@@ -824,7 +864,7 @@ public class RaidInstance {
 
     public void joinPlayers(List<Player> participants) {
         // グループ化 (パーティーごと)
-        com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule parties = com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.get();
+        PartyModule parties = partyService.get();
         Map<com.lunar_prototype.impossbleEscapeMC.modules.party.Party, List<Player>> groupMap = new HashMap<>();
         List<Player> soloPlayers = new ArrayList<>();
 
@@ -891,7 +931,7 @@ public class RaidInstance {
             boolean protect = centerSpawn != null;
 
             setRaidCameraDistance(player);
-            plugin.getRaidMapManager().updateMapSlot(player);
+            mapManager.updateMapSlot(player);
             // 出撃時の PDA の演出 (脱出地点の戦術マップ)。しまい終えてから HUD・開始のタイトル・チャットの案内を出し、
             // スポーン保護を始める (演出の間は PdaIntro がダメージを止めている)
             UUID playerId = player.getUniqueId();
@@ -901,7 +941,7 @@ public class RaidInstance {
                 hud.show(joined);
                 showStartTitle(joined);
                 Messages.chat(joined, "iem.raid.raidinstance.spawngroup.notice_001", MessageText.of("iem.raid.raidinstance.spawngroup.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.spawngroup.notice_001.text_01", map.getMapId()).color(NamedTextColor.GOLD).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD))));
-                RaidConditions conditions = plugin.getRaidModule() != null ? plugin.getRaidModule().getConditions(map.getMapId()) : null;
+                RaidConditions conditions = owner != null ? owner.getConditions(map.getMapId()) : null;
                 if (conditions != null) {
                     Messages.chat(joined, "iem.raid.raidinstance.spawngroup.notice_002", MessageText.of("iem.raid.raidinstance.spawngroup.notice_002", MessageText.payload(MessageText.of("iem.raid.raidinstance.spawngroup.notice_002.text_01", conditions.describe()).color(NamedTextColor.GRAY))));
                 }
@@ -940,7 +980,7 @@ public class RaidInstance {
     }
 
     public int getTimeLeft() {
-        return plugin.getRaidModule().getMapTimeLeft(map.getMapId());
+        return owner.getMapTimeLeft(map.getMapId());
     }
 
     public RaidEndSequence getEndSequence() {
@@ -967,10 +1007,21 @@ public class RaidInstance {
         for (UUID uuid : uuids) {
             getOrCreateRaidResult(uuid);
         }
-        for (UUID uuid : uuids) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) onParticipantJoin(p);
-        }
+        restorePresentation(plugin, uuids, id -> !ended && players.contains(id), this::onParticipantJoin);
+    }
+
+    /** 状態は即時に復元し、HUD等の他機能を使う表示だけを全モジュール起動後へ回す。 */
+    static void restorePresentation(org.bukkit.plugin.java.JavaPlugin plugin, Set<UUID> participants,
+                                    java.util.function.Predicate<UUID> active,
+                                    java.util.function.Consumer<Player> display) {
+        Set<UUID> snapshot = Set.copyOf(participants);
+        if (snapshot.isEmpty()) return;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (UUID id : snapshot) {
+                Player player = Bukkit.getPlayer(id);
+                if (player != null && player.isOnline() && active.test(id)) display.accept(player);
+            }
+        });
     }
 
     /** 参加者が (サーバーの再起動の後に) 入ってきた: レイドの表示とゲームモードを戻す */
@@ -1009,7 +1060,7 @@ public class RaidInstance {
         bossEncounter.cleanup();
         for (VirtualScav vs : virtualScavs) {
             if (vs.isSpawned() && vs.getEntityId() != null) {
-                plugin.getScavSpawner().removeScav(vs.getEntityId());
+                scavs.removeScav(vs.getEntityId());
                 vs.setSpawned(false);
                 vs.setEntityId(null);
             }
@@ -1021,8 +1072,8 @@ public class RaidInstance {
             hud.hide(p);
             resetCameraDistance(p);
         }
-        if (plugin.getAiRaidLogger() != null) {
-            plugin.getAiRaidLogger().endRaidSession(raidSessionId, "server_stop");
+        if (raidLogger != null) {
+            raidLogger.endRaidSession(raidSessionId, "server_stop");
         }
     }
 
@@ -1046,7 +1097,7 @@ public class RaidInstance {
     }
 
     private void markRaidBroughtInItems(Player player) {
-        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+        BackpackModule backpackModule = backpacks.get();
         if (backpackModule != null) {
             backpackModule.saveBackpackFromOpenInventory(player);
         }
@@ -1059,7 +1110,7 @@ public class RaidInstance {
     }
 
     private void clearRaidMarkersFromCurrentInventory(Player player) {
-        BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
+        BackpackModule backpackModule = backpacks.get();
         if (backpackModule != null) {
             backpackModule.saveBackpackFromOpenInventory(player);
         }
@@ -1131,8 +1182,8 @@ public class RaidInstance {
      * SCAVキル数・獲得EXP・最終結果をチャットに送信する。レベル管理モジュールが利用できない場合は何もしない。</p>
      */
     private void applyRaidRewardsAndShowResults() {
-        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        LevelModule levelModule =
+                leveling;
         if (levelModule == null) return;
 
         for (UUID uuid : raidMembers) {
@@ -1149,7 +1200,7 @@ public class RaidInstance {
             }
 
             // スキル (交易の記録係): 経験値の合計に割合で足す
-            PlayerDataModule dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
+            PlayerDataModule dataModule = playersData;
             double skillBonus = dataModule != null ? SkillModule.value(dataModule.getPlayerData(uuid), SkillStat.RAID_EXP) : 0;
             long bonus = Math.round(result.experienceToGrant * skillBonus);
             if (bonus > 0) grant(result, EXP_SKILL, bonus);
@@ -1177,8 +1228,8 @@ public class RaidInstance {
      */
     private void showIndividualRaidResult(Player player) {
         RaidResult result = getOrCreateRaidResult(player.getUniqueId());
-        com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class);
+        LevelModule levelModule =
+                leveling;
         int level = result.granted ? result.levelBefore : levelModule != null ? levelModule.getLevel(player.getUniqueId()) : 1;
         long exp = result.granted ? result.expBefore : levelModule != null ? levelModule.getExperience(player.getUniqueId()) : 0;
 
@@ -1199,7 +1250,7 @@ public class RaidInstance {
         if ((e = result.expBreakdown.get(EXP_BOSS)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "BOSS を排除", "×" + e[0], e[1]));
         if ((e = result.expBreakdown.get(EXP_PMC)) != null) lines.add(new RaidReport.ExpLine(UiIcon.KILL, "PMC を排除", "×" + e[0], e[1]));
         // スキルの経験値の上乗せ (付与する前なら、ここまでの合計からの見込み)
-        double skillBonus = SkillModule.value(player, SkillStat.RAID_EXP);
+        double skillBonus = skillService.get().stat(player, SkillStat.RAID_EXP);
         String bonusNote = "+" + Math.round(skillBonus * 100) + "%";
         if ((e = result.expBreakdown.get(EXP_SKILL)) != null) {
             lines.add(new RaidReport.ExpLine(UiIcon.EXP, "スキル (記録係)", bonusNote, e[1]));
@@ -1227,10 +1278,10 @@ public class RaidInstance {
 
     /** 持ち帰った物: FIR (レイド内で入手) の物を欄ごとに、価値の高い順 (バッグの中も数える) */
     private List<RaidReport.LootStack> foundLoot(Player player) {
-        com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule questModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
-        com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule =
-                plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
+        QuestModule questModule =
+                questService.get();
+        PlayerDataModule dataModule =
+                playersData;
         com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData data = dataModule != null ? dataModule.getPlayerData(player.getUniqueId()) : null;
         List<RaidReport.LootStack> loot = new ArrayList<>();
         visitPlayerItems(player, item -> {
@@ -1238,7 +1289,7 @@ public class RaidInstance {
             boolean usable = questModule != null && data != null
                     && com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestAutoHandIn.usable(data, questModule, item);
             loot.add(new RaidReport.LootStack(item.clone(), RaidResults.valueOf(player.getUniqueId(), item), usable));
-        }, plugin.getServiceContainer().get(BackpackModule.class));
+        }, backpacks.get());
         loot.sort(Comparator.comparingLong(RaidReport.LootStack::value).reversed());
         return List.copyOf(loot);
     }
@@ -1251,7 +1302,7 @@ public class RaidInstance {
                     .getOrDefault(PDCKeys.RAID_BROUGHT_IN, PDCKeys.BOOLEAN, (byte) 0) == 1) {
                 total[0] += RaidResults.valueOf(player.getUniqueId(), item);
             }
-        }, plugin.getServiceContainer().get(BackpackModule.class));
+        }, backpacks.get());
         return total[0];
     }
 }

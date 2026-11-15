@@ -695,7 +695,7 @@ public final class TraderDialog implements Listener {
                     data.getLevel() >= module.getRequiredLevel(ti),
                     module.isQuestRequirementMet(data, ti),
                     module.remainingToday(data, trader, ti),
-                    TraderModule.buyPrice(player.getUniqueId(), trader, ti), TraderModule.dailyLimit(player.getUniqueId(), ti),
+                    module.buyPrice(player.getUniqueId(), trader, ti), module.dailyLimit(player.getUniqueId(), ti),
                     needs(ti, have)));
         }
         return entries;

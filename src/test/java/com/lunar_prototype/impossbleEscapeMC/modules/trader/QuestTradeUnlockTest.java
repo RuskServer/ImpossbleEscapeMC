@@ -9,7 +9,7 @@ public final class QuestTradeUnlockTest {
         if (!value) throw new AssertionError(message);
     }
     public static void main(String[] args) {
-        var module = new TraderModule(null);
+        var module = new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
         Set<String> starter = Set.of("ak74", "545x39_hp", "556x45_rrlp", "762x51_sp", "762x54r_hp_bt",
                 "9x39_hp", "9x19_rip", "45acp_hydra_shok", "12x70_steel_buckshot");
         var beginner = new PlayerData(new UUID(0, 2)); beginner.setLevel(1);

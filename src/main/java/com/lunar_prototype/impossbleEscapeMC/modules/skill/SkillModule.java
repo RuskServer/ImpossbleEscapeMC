@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.skill;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -26,25 +29,33 @@ import java.util.logging.Level;
  * スキルツリー: お金と素材を払ってノードを習得する (docs/SKILL_TREE.md)。
  * 各モジュールは {@link #value(UUID, SkillStat)} で、習得したノードの値の合計を聞いて自分の数値に掛ける・足す
  */
+@Service
 public final class SkillModule implements IModule, Listener {
+    private final EconomyModule economyModule;
+    private final HideoutModule hideouts;
+
     private static SkillModule instance;
 
     private final ImpossbleEscapeMC plugin;
-    private ServiceContainer container;
-    private PlayerDataModule dataModule;
+    private final PlayerDataModule dataModule;
     /** 習得したノードの値の合計 (習得した時・抜けた時に作り直す) */
     private final Map<UUID, EnumMap<SkillStat, Double>> totals = new ConcurrentHashMap<>();
     private final GunSkillScores gunScores = new GunSkillScores();
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public SkillModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public SkillModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            EconomyModule economyModule,
+            HideoutModule hideouts) {
+        this.dataModule = dataModule;
+        this.economyModule = economyModule;
+        this.hideouts = hideouts;
         this.plugin = plugin;
     }
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.container = container;
-        this.dataModule = container.get(PlayerDataModule.class);
+
         Bukkit.getPluginManager().registerEvents(this, plugin);
         SkillTreeDialog.init(this);
         instance = this;
@@ -61,14 +72,32 @@ public final class SkillModule implements IModule, Listener {
     /** 習得したノードの、その値の合計 (スキルが無い・データが無い・オンラインのプレイヤーでない時は 0) */
     public static double value(UUID player, SkillStat stat) {
         SkillModule module = instance;
-        if (module == null || player == null) return 0;
-        EnumMap<SkillStat, Double> map = module.totals.get(player);
+        return module == null ? 0 : module.stat(player, stat);
+    }
+
+    /** 注入済みのモジュールを使う処理用。外部の旧static入口も同じ計算へ委譲する。 */
+    public double stat(UUID player, SkillStat stat) {
+        if (player == null) return 0;
+        EnumMap<SkillStat, Double> map = totals.get(player);
         if (map == null) {
-            // SCAV などプレイヤーでない物のデータを作らない
             if (Bukkit.getPlayer(player) == null) return 0;
-            map = module.totals.computeIfAbsent(player, module::compute);
+            map = totals.computeIfAbsent(player, this::compute);
         }
         return map.getOrDefault(stat, 0.0);
+    }
+
+    public double stat(Player player, SkillStat stat) {
+        return player == null ? 0 : stat(player.getUniqueId(), stat);
+    }
+
+    public double factor(Player player, SkillStat stat) { return 1 + stat(player, stat); }
+    public double factor(UUID player, SkillStat stat) { return 1 + stat(player, stat); }
+
+    public WeightStage stage(Player player, int weightGrams) {
+        WeightStage stage = WeightStage.getFromWeight(weightGrams);
+        if (stage == WeightStage.NORMAL && weightGrams <= WeightStage.LIGHT.getUpperLimit() + stat(player, SkillStat.LIGHT_LIMIT_G))
+            return WeightStage.LIGHT;
+        return stage;
     }
 
     public static double value(Player player, SkillStat stat) {
@@ -151,11 +180,11 @@ public final class SkillModule implements IModule, Listener {
     }
 
     EconomyModule economy() {
-        return container.get(EconomyModule.class);
+        return economyModule;
     }
 
     HideoutModule hideout() {
-        return container.get(HideoutModule.class);
+        return hideouts;
     }
 
     ImpossbleEscapeMC plugin() {

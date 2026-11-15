@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.scoreboard;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -20,15 +24,15 @@ import java.util.UUID;
 /**
  * スコアボード表示を管理するモジュール
  */
-@com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service
+@Service
 public class ScoreboardModule implements IModule, Listener {
     private final ImpossbleEscapeMC plugin;
     private final PlayerDataModule dataModule;
-    private final java.util.function.Supplier<RaidModule> raids;
+    private final Supplier<RaidModule> raids;
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
+    @Inject
     public ScoreboardModule(ImpossbleEscapeMC plugin, PlayerDataModule dataModule,
-                            java.util.function.Supplier<RaidModule> raids) {
+                            Supplier<RaidModule> raids) {
         this.plugin = plugin;
         this.dataModule = dataModule;
         this.raids = raids;

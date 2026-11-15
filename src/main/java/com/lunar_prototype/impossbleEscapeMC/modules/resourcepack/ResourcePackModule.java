@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.resourcepack;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -20,14 +23,16 @@ import java.util.concurrent.CompletableFuture;
  * 起動時にパックを別スレッドで読んで SHA-1 を計算しておき、送る時に付ける (パックが更新された時に、クライアントが読み直す)。
  * 計算が終わる前に参加した人には、ハッシュなしで送る
  */
+@Service
 public class ResourcePackModule implements IModule, Listener {
 
     private final ImpossbleEscapeMC plugin;
     /** パックの SHA-1 (計算が終わるまで null。別スレッドで書いてメインスレッドで読む) */
     private volatile byte[] resourcePackHash = null;
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
+    @Inject
     public ResourcePackModule(ImpossbleEscapeMC plugin) {
+
         this.plugin = plugin;
     }
 

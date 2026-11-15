@@ -1,5 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -34,12 +39,16 @@ import java.util.*;
 /**
  * クエストシステムを管理するモジュール
  */
+@Service
 public class QuestModule implements IModule {
+    private final CommandRegistry commands;
+    private final TraderModule traders;
+
     private final ImpossbleEscapeMC plugin;
     /** 定義の順 (トレーダーごとの受領の順) を保つ */
     private final Map<String, QuestDefinition> quests = new java.util.LinkedHashMap<>();
     private final QuestEventBus eventBus = new QuestEventBus();
-    private PlayerDataModule dataModule;
+    private final PlayerDataModule dataModule;
     private final Listener catalogReloadListener = new Listener() {
         @EventHandler
         public void onResourcesReloaded(io.papermc.paper.event.server.ServerResourcesReloadedEvent event) {
@@ -54,15 +63,21 @@ public class QuestModule implements IModule {
         RAID_DEATH_FAILURE
     }
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public QuestModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public QuestModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            CommandRegistry commands,
+            TraderModule traders) {
+        this.dataModule = dataModule;
+        this.commands = commands;
+        this.traders = traders;
         this.plugin = plugin;
     }
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.dataModule = container.get(PlayerDataModule.class);
-        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new com.lunar_prototype.impossbleEscapeMC.command.QuestCommand(this));
+
+        commands.register(new com.lunar_prototype.impossbleEscapeMC.command.QuestCommand(this));
 
         plugin.getServer().getPluginManager().registerEvents(catalogReloadListener, plugin);
         loadQuests();
@@ -74,8 +89,7 @@ public class QuestModule implements IModule {
         
         // 位置チェックタスクの開始 (20 ticks = 1秒ごと)
         org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, this::checkPlayerLocations, 20L, 20L);
-        
-        container.register(QuestModule.class, this);
+
     }
 
     private class PlayerDataLoadedJoinListener implements Listener {
@@ -193,8 +207,7 @@ public class QuestModule implements IModule {
     }
 
     private String completionTraderName(String id) {
-        var traders=plugin==null?null:plugin.getServiceContainer().get(
-                com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule.class);
+        var traders=this.traders;
         var trader=traders==null?null:traders.getTrader(id);
         return plainName(trader==null?id:trader.displayName).replace(" (Buy Only)","").replace(" (Sell Only)","");
     }
@@ -224,7 +237,7 @@ public class QuestModule implements IModule {
      */
     private void validateQuests() {
         if (quests.isEmpty()) return;
-        var traderModule = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderModule.class);
+        var traderModule = traders;
         if (traderModule != null) traderModule.validateItems();
         for (QuestDefinition def : quests.values()) {
             for (QuestCondition condition : def.getConditions()) {

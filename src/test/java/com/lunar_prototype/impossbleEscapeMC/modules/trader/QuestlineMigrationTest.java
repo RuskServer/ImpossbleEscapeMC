@@ -28,7 +28,7 @@ public final class QuestlineMigrationTest {
                 .filter(i->i.itemId.equals(item)&&i.isBarter()==barter).findFirst().orElseThrow();
     }
     public static void main(String[] args) {
-        var module=new TraderModule(null);
+        var module=new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
         var data=legacy("bastion_night_optics_trial","kovacs_rewiring","kovacs_uzi_parts");
         var before=nonQuest(data);check(data.getQuestlineVersion()==0,"missing JSON version is legacy");
         check(QuestlineMigration.migrate(data),"legacy migrates");

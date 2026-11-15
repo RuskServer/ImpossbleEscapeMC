@@ -69,7 +69,7 @@ public final class QuestExpansionTest {
         check(calibers.size()==8, "all eight calibers covered");
         for (String id : byId.keySet()) visit(id,byId,new HashSet<>(),new HashSet<>());
         List<TraderDefinition> traders = catalog("com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCatalog", "create");
-        var traderModule = new TraderModule(null);
+        var traderModule = new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
         for (var q : definitions) for (var reward : q.getRewards()) if (reward instanceof UnlockTradeReward unlock) {
             var trader = traders.stream().filter(t -> t.id.equals(unlock.getTraderId())).findFirst().orElseThrow();
             var sale = trader.items.stream().filter(i -> i.itemId.equals(unlock.getItemId())

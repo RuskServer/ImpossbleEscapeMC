@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavBossPost;
 import org.bukkit.*;
@@ -12,13 +14,14 @@ import java.util.function.BiPredicate;
 /** レイドに1部隊だけ。近接による再抽選、通常SCAVの再湧き・遠距離消去から独立する。 */
 final class RaidBossEncounter {
     private final ImpossbleEscapeMC plugin;
+    private final ScavSpawner scavs;
     private final String mapId,worldName,session;
     private final RaidBossGroup group;
     private final RaidRadioZone zone;
     private final RaidBossRoll roll;
     private final List<UUID> members=new ArrayList<>();
-    RaidBossEncounter(ImpossbleEscapeMC plugin,RaidMap map,String session,boolean restored) {
-        this.plugin=plugin;mapId=map.getMapId();worldName=map.getWorldName();this.session=session;
+    RaidBossEncounter(ImpossbleEscapeMC plugin,RaidMap map,String session,boolean restored, ScavSpawner scavs) {
+        this.scavs=scavs;this.plugin=plugin;mapId=map.getMapId();worldName=map.getWorldName();this.session=session;
         List<RaidBossGroup> eligible=new ArrayList<>();
         for(var g:map.bossGroups()) {
             RaidRadioZone z=map.highThreatZones().stream().filter(v->v.id().equals(g.zoneId())).findFirst().orElse(null);
@@ -56,8 +59,8 @@ final class RaidBossEncounter {
             members.addAll(spawnAll(i->{
                 Location p=points.get(i);
                 ScavBossPost post=new ScavBossPost(zone.minX(),zone.minY(),zone.minZ(),zone.maxX(),zone.maxY(),zone.maxZ(),p.getX(),p.getY(),p.getZ(),i==0?8:12,i==0,unit);
-                return plugin.getScavSpawner().spawnBossMember(p,session,mapId,RaidBossGroup.ROLES.get(i),post);
-            },id->plugin.getScavSpawner().removeScav(id)));
+                return scavs.spawnBossMember(p,session,mapId,RaidBossGroup.ROLES.get(i),post);
+            },id->scavs.removeScav(id)));
             plugin.getLogger().info("[Raid boss] Spawned boss and two guards on map "+mapId);
         } catch(RuntimeException ex) {
             cleanup();plugin.getLogger().log(java.util.logging.Level.WARNING,"ボス部隊の生成に失敗したため、生成途中の全員を回収しました（このレイドでは再試行しません）",ex);
@@ -98,7 +101,7 @@ final class RaidBossEncounter {
     }
     void cleanup() {
         roll.consume();
-        for(UUID id:members)try{plugin.getScavSpawner().removeScav(id);}
+        for(UUID id:members)try{scavs.removeScav(id);}
         catch(RuntimeException ex){plugin.getLogger().log(java.util.logging.Level.WARNING,"ボス部隊員の回収に失敗しました",ex);}
         members.clear();
     }

@@ -1,5 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.loot.LootManager;
+import com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -29,12 +35,23 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.*;
 
 /** 2段引き出し。登録はマップ、各段の中身・検索済み欄はInteractionのPDCに保存する。 */
+@Service
 public final class DrawerLootModule implements IModule, Listener {
+    private final RaidModule raids;
+    private final LootManager lootManager;
+    private final SearchGUI searchGUI;
+
     private final ImpossbleEscapeMC plugin;
     private final NamespacedKey ownerKey,slotKey,inventoryKey,generationKey,searchedKey,removerKey;
     private final Map<String,Cabinet> loaded=new HashMap<>();
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public DrawerLootModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public DrawerLootModule(ImpossbleEscapeMC plugin,
+            RaidModule raids,
+            LootManager lootManager,
+            SearchGUI searchGUI) {
+        this.raids = raids;
+        this.lootManager = lootManager;
+        this.searchGUI = searchGUI;
         this.plugin=plugin;
         ownerKey=new NamespacedKey(plugin,"loot_drawer_owner");slotKey=new NamespacedKey(plugin,"loot_drawer_slot");
         inventoryKey=new NamespacedKey(plugin,"loot_drawer_inventory");generationKey=new NamespacedKey(plugin,"loot_drawer_generation");
@@ -42,7 +59,7 @@ public final class DrawerLootModule implements IModule, Listener {
     }
     @Override public void onEnable(ServiceContainer services) {
         Bukkit.getPluginManager().registerEvents(this,plugin);
-        for(RaidMap map:plugin.getRaidModule().getMaps().values()) {
+        for(RaidMap map:raids.getMaps().values()) {
             String worldName=map.getWorldName();
             World world=worldName==null?null:Bukkit.getWorld(worldName);if(world==null)continue;
             for(var spec:map.getLootDrawers())if(world.isChunkLoaded(spec.x>>4,spec.z>>4))ensure(map,spec,world);
@@ -55,18 +72,18 @@ public final class DrawerLootModule implements IModule, Listener {
     private record Placement(RaidMap map,RaidMap.LootDrawer spec) {}
     private Placement at(Block block) {
         if(block==null)return null;
-        for(RaidMap map:plugin.getRaidModule().getMaps().values())if(map.isWorld(block.getWorld()))
+        for(RaidMap map:raids.getMaps().values())if(map.isWorld(block.getWorld()))
             for(var s:map.getLootDrawers())if(s.x==block.getX()&&s.y==block.getY()&&s.z==block.getZ())return new Placement(map,s);
         return null;
     }
     public boolean isDrawer(Block block){return at(block)!=null;}
     public void place(Player player,String mapId,String crateId,Block target) {
-        RaidMap map=plugin.getRaidModule().getMap(mapId);
+        RaidMap map=raids.getMap(mapId);
         if(map==null||!map.isWorld(player.getWorld()))throw new IllegalArgumentException("対象マップのワールドで設置してください。");
-        if(plugin.getLootManager().getCrate(crateId)==null)throw new IllegalArgumentException("そのクレートIDはありません。");
+        if(lootManager.getCrate(crateId)==null)throw new IllegalArgumentException("そのクレートIDはありません。");
         if(target==null||!target.getType().isAir()||at(target)!=null)throw new IllegalArgumentException("設置先の1ブロックを空けてください。");
         var spec=new RaidMap.LootDrawer(UUID.randomUUID().toString(),crateId,target.getX(),target.getY(),target.getZ(),DrawerModel.facing(player.getYaw()));
-        map.getLootDrawers().add(spec);plugin.getRaidModule().saveMap(map);
+        map.getLootDrawers().add(spec);raids.saveMap(map);
         target.setType(Material.BARRIER,false);ensure(map,spec,target.getWorld());
         Messages.chat(player, "iem.loot.drawerlootmodule.place.notice_001", MessageText.of("iem.loot.drawerlootmodule.place.notice_001", MessageText.payload(MessageText.of("iem.loot.drawerlootmodule.place.notice_001.text_01", crateId, mapId).color(NamedTextColor.GREEN))));
     }
@@ -76,7 +93,7 @@ public final class DrawerLootModule implements IModule, Listener {
         if(cabinet!=null)close(cabinet);
         // 当該チャンクの自分の部品だけを消す。持ち物は落とさない。
         for(Entity entity:block.getChunk().getEntities())if(spec.id.equals(entity.getPersistentDataContainer().get(ownerKey,PersistentDataType.STRING)))entity.remove();
-        placement.map().getLootDrawers().remove(spec);plugin.getRaidModule().saveMap(placement.map());
+        placement.map().getLootDrawers().remove(spec);raids.saveMap(placement.map());
         if(block.getType()==Material.BARRIER)block.setType(Material.AIR,false);
         return true;
     }
@@ -88,7 +105,7 @@ public final class DrawerLootModule implements IModule, Listener {
             Cabinet cabinet=loaded.get(spec.id);
             if(cabinet!=null){close(cabinet);for(Source source:cabinet.sources)source.refill();}
         }
-        plugin.getRaidModule().saveMap(map);
+        raids.saveMap(map);
     }
     public boolean refillAt(Block block) {
         Placement p=at(block);if(p==null)return false;
@@ -171,7 +188,7 @@ public final class DrawerLootModule implements IModule, Listener {
         void refill() {
             if(!available)return;
             inventory.clear();data().remove(searchedKey);
-            var items=new ArrayList<>(plugin.getLootManager().rollContents(handle.getWorld(),cabinet.spec.crateId));
+            var items=new ArrayList<>(lootManager.rollContents(handle.getWorld(),cabinet.spec.crateId));
             Collections.shuffle(items);
             for(int i=0;i<Math.min(items.size(),inventory.getSize());i++)inventory.setItem(i,items.get(i));
             data().set(generationKey,PersistentDataType.LONG,cabinet.spec.generation);persist();
@@ -201,7 +218,7 @@ public final class DrawerLootModule implements IModule, Listener {
         Source source=cabinet.sources[slot];
         if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder holder&&holder.getSource()==source)return;
         if(!source.available){Messages.chat(player, "iem.loot.drawerlootmodule.interactdrawer.notice_002", MessageText.of("iem.loot.drawerlootmodule.interactdrawer.notice_002", MessageText.payload(MessageText.of("iem.loot.drawerlootmodule.interactdrawer.notice_002.text_01").color(NamedTextColor.RED))));return;}
-        plugin.getSearchGUI().open(player,source);
+        searchGUI.open(player,source);
     }
     @EventHandler public void opened(LootSessionStartEvent event) {
         if(!(event.getSource() instanceof Source source))return;
@@ -226,7 +243,7 @@ public final class DrawerLootModule implements IModule, Listener {
     @EventHandler public void entitiesLoaded(EntitiesLoadEvent event) {
         Bukkit.getScheduler().runTask(plugin,()->{
         if(!event.getWorld().isChunkLoaded(event.getChunk().getX(),event.getChunk().getZ()))return;
-        for(RaidMap map:plugin.getRaidModule().getMaps().values())if(map.isWorld(event.getWorld()))
+        for(RaidMap map:raids.getMaps().values())if(map.isWorld(event.getWorld()))
             for(var spec:map.getLootDrawers())if((spec.x>>4)==event.getChunk().getX()&&(spec.z>>4)==event.getChunk().getZ())ensure(map,spec,event.getWorld());
         });
     }

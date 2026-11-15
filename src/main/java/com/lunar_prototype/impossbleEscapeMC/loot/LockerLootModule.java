@@ -1,5 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.loot.LootManager;
+import com.lunar_prototype.impossbleEscapeMC.loot.SearchGUI;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -29,13 +35,24 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.*;
 
 /** ロッカー。登録はマップ、中身・検索済み欄はInteractionのPDCに保存する。 */
+@Service
 public final class LockerLootModule implements IModule, Listener {
+    private final RaidModule raids;
+    private final LootManager lootManager;
+    private final SearchGUI searchGUI;
+
     private final ImpossbleEscapeMC plugin;
     private final NamespacedKey ownerKey,slotKey,inventoryKey,generationKey,searchedKey,removerKey;
     private final NamespacedKey eggKey;
     private final Map<String,Cabinet> loaded=new HashMap<>();
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public LockerLootModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public LockerLootModule(ImpossbleEscapeMC plugin,
+            RaidModule raids,
+            LootManager lootManager,
+            SearchGUI searchGUI) {
+        this.raids = raids;
+        this.lootManager = lootManager;
+        this.searchGUI = searchGUI;
         this.plugin=plugin;eggKey=new NamespacedKey(plugin,"locker_loot_egg_map");
         ownerKey=new NamespacedKey(plugin,"loot_locker_owner");slotKey=new NamespacedKey(plugin,"loot_locker_slot");
         inventoryKey=new NamespacedKey(plugin,"loot_locker_inventory");generationKey=new NamespacedKey(plugin,"loot_locker_generation");
@@ -43,7 +60,7 @@ public final class LockerLootModule implements IModule, Listener {
     }
     @Override public void onEnable(ServiceContainer services) {
         Bukkit.getPluginManager().registerEvents(this,plugin);
-        for(RaidMap map:plugin.getRaidModule().getMaps().values()) {
+        for(RaidMap map:raids.getMaps().values()) {
             String worldName=map.getWorldName();
             World world=worldName==null?null:Bukkit.getWorld(worldName);if(world==null)continue;
             for(var spec:map.getLootLockers())if(world.isChunkLoaded(spec.x>>4,spec.z>>4))ensure(map,spec,world);
@@ -82,19 +99,19 @@ public final class LockerLootModule implements IModule, Listener {
     private record Placement(RaidMap map,RaidMap.LootLocker spec) {}
     private Placement at(Block block) {
         if(block==null)return null;
-        for(RaidMap map:plugin.getRaidModule().getMaps().values())if(map.isWorld(block.getWorld()))
+        for(RaidMap map:raids.getMaps().values())if(map.isWorld(block.getWorld()))
             for(var s:map.getLootLockers())if(s.x==block.getX()&&(s.y==block.getY()||s.y+1==block.getY())&&s.z==block.getZ())return new Placement(map,s);
         return null;
     }
     public boolean isLocker(Block block){return at(block)!=null;}
     public void place(Player player,String mapId,Block target) {
-        RaidMap map=plugin.getRaidModule().getMap(mapId);
+        RaidMap map=raids.getMap(mapId);
         if(map==null||!map.isWorld(player.getWorld()))throw new IllegalArgumentException("対象マップのワールドで設置してください。");
-        for(String crate:LockerLootRoll.CRATES)if(plugin.getLootManager().getCrate(crate)==null)throw new IllegalArgumentException("必要なクレートがありません: "+crate);
+        for(String crate:LockerLootRoll.CRATES)if(lootManager.getCrate(crate)==null)throw new IllegalArgumentException("必要なクレートがありません: "+crate);
         if(target==null||target.getY()+2>=target.getWorld().getMaxHeight())throw new IllegalArgumentException("設置先の高さを確認してください。");
         for(int dy=0;dy<3;dy++)if(!target.getRelative(0,dy,0).getType().isAir()||at(target.getRelative(0,dy,0))!=null)throw new IllegalArgumentException("設置先は上3ブロック分を空けてください。");
         var spec=new RaidMap.LootLocker(UUID.randomUUID().toString(),target.getX(),target.getY(),target.getZ(),LockerModel.facing(player.getYaw()));
-        map.getLootLockers().add(spec);plugin.getRaidModule().saveMap(map);
+        map.getLootLockers().add(spec);raids.saveMap(map);
         target.setType(Material.BARRIER,false);target.getRelative(0,1,0).setType(Material.BARRIER,false);ensure(map,spec,target.getWorld());
         Messages.chat(player, "iem.loot.lockerlootmodule.place.notice_001", MessageText.of("iem.loot.lockerlootmodule.place.notice_001", MessageText.payload(MessageText.of("iem.loot.lockerlootmodule.place.notice_001.text_01", mapId).color(NamedTextColor.GREEN))));
     }
@@ -104,7 +121,7 @@ public final class LockerLootModule implements IModule, Listener {
         if(cabinet!=null)close(cabinet);
         // 当該チャンクの自分の部品だけを消す。持ち物は落とさない。
         for(Entity entity:block.getChunk().getEntities())if(spec.id.equals(entity.getPersistentDataContainer().get(ownerKey,PersistentDataType.STRING)))entity.remove();
-        placement.map().getLootLockers().remove(spec);plugin.getRaidModule().saveMap(placement.map());
+        placement.map().getLootLockers().remove(spec);raids.saveMap(placement.map());
         for(int dy=0;dy<2;dy++){Block cell=block.getWorld().getBlockAt(spec.x,spec.y+dy,spec.z);if(cell.getType()==Material.BARRIER)cell.setType(Material.AIR,false);}
         return true;
     }
@@ -116,13 +133,13 @@ public final class LockerLootModule implements IModule, Listener {
             Cabinet cabinet=loaded.get(spec.id);
             if(cabinet!=null){close(cabinet);for(Source source:cabinet.sources)source.refill();}
         }
-        plugin.getRaidModule().saveMap(map);
+        raids.saveMap(map);
     }
     public boolean refillAt(Block block) {
         Placement p=at(block);if(p==null)return false;
         Cabinet cabinet=ensure(p.map(),p.spec(),block.getWorld());
         if(cabinet==null)return false;
-        p.spec().generation++;plugin.getRaidModule().saveMap(p.map());
+        p.spec().generation++;raids.saveMap(p.map());
         close(cabinet);for(Source source:cabinet.sources)source.refill();return true;
     }
     private Cabinet ensure(RaidMap map,RaidMap.LootLocker spec,World world) {
@@ -204,7 +221,7 @@ public final class LockerLootModule implements IModule, Listener {
             inventory.clear();data().remove(searchedKey);
             String crate=LockerLootRoll.select(cabinet.spec.id,cabinet.spec.generation);
             var items=new ArrayList<org.bukkit.inventory.ItemStack>();
-            if(crate!=null)items.addAll(plugin.getLootManager().rollContents(handle.getWorld(),crate));
+            if(crate!=null)items.addAll(lootManager.rollContents(handle.getWorld(),crate));
             Collections.shuffle(items);
             for(int i=0;i<Math.min(items.size(),inventory.getSize());i++)inventory.setItem(i,items.get(i));
             data().set(generationKey,PersistentDataType.LONG,cabinet.spec.generation);persist();
@@ -234,7 +251,7 @@ public final class LockerLootModule implements IModule, Listener {
         Source source=cabinet.sources[slot];
         if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder holder&&holder.getSource()==source)return;
         if(!source.available){Messages.chat(player, "iem.loot.lockerlootmodule.interactlocker.notice_002", MessageText.of("iem.loot.lockerlootmodule.interactlocker.notice_002", MessageText.payload(MessageText.of("iem.loot.lockerlootmodule.interactlocker.notice_002.text_01").color(NamedTextColor.RED))));return;}
-        plugin.getSearchGUI().open(player,source);
+        searchGUI.open(player,source);
     }
     @EventHandler public void opened(LootSessionStartEvent event) {
         if(!(event.getSource() instanceof Source source))return;
@@ -259,7 +276,7 @@ public final class LockerLootModule implements IModule, Listener {
     @EventHandler public void entitiesLoaded(EntitiesLoadEvent event) {
         Bukkit.getScheduler().runTask(plugin,()->{
         if(!event.getWorld().isChunkLoaded(event.getChunk().getX(),event.getChunk().getZ()))return;
-        for(RaidMap map:plugin.getRaidModule().getMaps().values())if(map.isWorld(event.getWorld()))
+        for(RaidMap map:raids.getMaps().values())if(map.isWorld(event.getWorld()))
             for(var spec:map.getLootLockers())if((spec.x>>4)==event.getChunk().getX()&&(spec.z>>4)==event.getChunk().getZ())ensure(map,spec,event.getWorld());
         });
     }

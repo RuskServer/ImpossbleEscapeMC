@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.economy;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
@@ -10,18 +13,18 @@ import java.util.UUID;
 /**
  * 経済システムを担当するモジュール
  */
-@com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service
+@Service
 public class EconomyModule implements IModule {
     private final PlayerDataModule dataModule;
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
+    @Inject
     public EconomyModule(PlayerDataModule dataModule) {
+
         this.dataModule = dataModule;
     }
 
     @Override
     public void onEnable(ServiceContainer container) {
-
     }
 
     @Override

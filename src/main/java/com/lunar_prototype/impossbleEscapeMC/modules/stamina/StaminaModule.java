@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stamina;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
 
 import com.destroystokyo.paper.event.player.PlayerJumpEvent;
@@ -27,10 +31,22 @@ import org.bukkit.NamespacedKey;
 
 import java.util.UUID;
 
+@Service
 public class StaminaModule implements IModule, Listener {
+    private final Supplier<SkillModule> skills;
 
-    private ImpossbleEscapeMC plugin;
-    private PlayerDataModule dataModule;
+    @Inject
+    public StaminaModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            Supplier<SkillModule> skills) {
+        this.plugin = plugin;
+        this.dataModule = dataModule;
+        this.skills = skills;
+    }
+
+
+    private final ImpossbleEscapeMC plugin;
+    private final PlayerDataModule dataModule;
     private static final NamespacedKey EXHAUSTION_SPEED_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "exhaustion_speed_penalty");
     private static final NamespacedKey EXHAUSTION_GRAVITY_MODIFIER_KEY = new NamespacedKey("impossbleescapemc", "exhaustion_gravity_penalty");
 
@@ -58,8 +74,7 @@ public class StaminaModule implements IModule, Listener {
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.plugin = ImpossbleEscapeMC.getInstance();
-        this.dataModule = container.get(PlayerDataModule.class);
+
         Bukkit.getPluginManager().registerEvents(this, plugin);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }
@@ -88,7 +103,7 @@ public class StaminaModule implements IModule, Listener {
 
             // --- Consumption ---
             if (player.isSprinting()) {
-                handleStaminaConsumption(player, data, (float) (SPRINT_COST_PER_TICK * SkillModule.multiplier(player, SkillStat.SPRINT_COST)));
+                handleStaminaConsumption(player, data, (float) (SPRINT_COST_PER_TICK * skills.get().factor(player, SkillStat.SPRINT_COST)));
                 isConsuming = true;
             }
 
@@ -111,15 +126,15 @@ public class StaminaModule implements IModule, Listener {
     }
 
     /** スタミナの上限 (スキルで増える) */
-    private static float maxStamina(Player player) {
-        return (float) (MAX_STAMINA + SkillModule.value(player, SkillStat.STAMINA_MAX));
+    private float maxStamina(Player player) {
+        return (float) (MAX_STAMINA + skills.get().stat(player, SkillStat.STAMINA_MAX));
     }
 
     /**
      * スタミナは PlayerData では 0〜100 (割合) で持つ。上限が m に増えた人は、減り方・回復を m / 100 で割って入れる
      * (同じ量を使っても割合では少なく減る = 上限が増えたのと同じ)
      */
-    private static float scale(Player player) {
+    private float scale(Player player) {
         return maxStamina(player) / MAX_STAMINA;
     }
 
@@ -133,9 +148,9 @@ public class StaminaModule implements IModule, Listener {
         if (data.getStamina() <= 0) return;
 
         int weight = data.getCurrentWeight();
-        WeightStage stage = SkillModule.weightStage(player, weight);
+        WeightStage stage = skills.get().stage(player, weight);
         double multiplier = stage.getStaminaCostMultiplier(rampWeight(player, stage, weight));
-        if (stage == WeightStage.CRITICAL) multiplier += SkillModule.value(player, SkillStat.CRITICAL_COST);
+        if (stage == WeightStage.CRITICAL) multiplier += skills.get().stat(player, SkillStat.CRITICAL_COST);
         // 上限が増えた人は、同じ量を使っても割合では少なく減る
         float finalCost = (float) (amount * multiplier / scale(player));
 
@@ -145,17 +160,17 @@ public class StaminaModule implements IModule, Listener {
 
     private void handleStaminaRecovery(Player player, PlayerData data) {
         int weight = data.getCurrentWeight();
-        WeightStage stage = SkillModule.weightStage(player, weight);
-        long recoveryDelay = BASE_RECOVERY_DELAY_MS + (long) SkillModule.value(player, SkillStat.STAMINA_DELAY_MS)
+        WeightStage stage = skills.get().stage(player, weight);
+        long recoveryDelay = BASE_RECOVERY_DELAY_MS + (long) skills.get().stat(player, SkillStat.STAMINA_DELAY_MS)
                 + stage.getStaminaRecoveryDelayPenalty(rampWeight(player, stage, weight));
         if (data.isExhausted()) {
-            recoveryDelay += EXHAUSTION_PENALTY_MS + (long) SkillModule.value(player, SkillStat.EXHAUSTION_MS);
+            recoveryDelay += EXHAUSTION_PENALTY_MS + (long) skills.get().stat(player, SkillStat.EXHAUSTION_MS);
         }
 
         if (System.currentTimeMillis() - data.getLastStaminaActionTime() > recoveryDelay) {
             float recoveryMultiplier = 1.0f; // Walking
             if (!player.isSprinting() && player.isSneaking()) {
-                recoveryMultiplier = (float) (1.2 + SkillModule.value(player, SkillStat.CROUCH_RECOVERY)); // Crouching
+                recoveryMultiplier = (float) (1.2 + skills.get().stat(player, SkillStat.CROUCH_RECOVERY)); // Crouching
             } else if (player.getVelocity().lengthSquared() < 0.001) {
                 recoveryMultiplier = 1.5f; // Standing still
             }
@@ -163,19 +178,19 @@ public class StaminaModule implements IModule, Listener {
             // --- Hunger Penalty ---
             // Scaled from 1.0x at 20 food to ~0.3x at 0 food
             // (スキルで下限が上がる: 0.3 + v から 1.0 まで)
-            float floor = (float) Math.min(1.0, 0.3 + SkillModule.value(player, SkillStat.FOOD_RECOVERY_FLOOR));
+            float floor = (float) Math.min(1.0, 0.3 + skills.get().stat(player, SkillStat.FOOD_RECOVERY_FLOOR));
             float foodMultiplier = floor + ((1.0f - floor) * (player.getFoodLevel() / 20.0f));
 
             float finalRecovery = (float) (RECOVERY_PER_TICK * recoveryMultiplier * foodMultiplier
-                    * SkillModule.multiplier(player, SkillStat.STAMINA_RECOVERY) / scale(player));
+                    * skills.get().factor(player, SkillStat.STAMINA_RECOVERY) / scale(player));
             data.setStamina(data.getStamina() + finalRecovery);
         }
     }
 
     /** 「重い」の負担が増え始める重さ (20kg) をスキルで遅らせる: 負担の計算に使う重さを、その分だけ軽くする */
-    private static int rampWeight(Player player, WeightStage stage, int weight) {
+    private int rampWeight(Player player, WeightStage stage, int weight) {
         if (stage != WeightStage.HEAVY) return weight;
-        return Math.max(0, weight - (int) SkillModule.value(player, SkillStat.HEAVY_RAMP_START_G));
+        return Math.max(0, weight - (int) skills.get().stat(player, SkillStat.HEAVY_RAMP_START_G));
     }
 
     @EventHandler
@@ -186,7 +201,7 @@ public class StaminaModule implements IModule, Listener {
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         if (data == null) return;
 
-        handleStaminaConsumption(player, data, (float) Math.max(0, JUMP_COST + SkillModule.value(player, SkillStat.JUMP_COST)));
+        handleStaminaConsumption(player, data, (float) Math.max(0, JUMP_COST + skills.get().stat(player, SkillStat.JUMP_COST)));
     }
 
     @EventHandler
@@ -214,7 +229,7 @@ public class StaminaModule implements IModule, Listener {
         // Apply speed reduction
         AttributeInstance moveSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (moveSpeed != null) {
-            double slow = Math.min(0, -0.2 + SkillModule.value(player, SkillStat.EXHAUSTED_SLOW));
+            double slow = Math.min(0, -0.2 + skills.get().stat(player, SkillStat.EXHAUSTED_SLOW));
             moveSpeed.addModifier(new AttributeModifier(EXHAUSTION_SPEED_MODIFIER_KEY, slow, AttributeModifier.Operation.ADD_SCALAR));
         }
     }

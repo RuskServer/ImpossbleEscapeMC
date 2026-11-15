@@ -70,7 +70,7 @@ Supplierの対象も全体起動前に生成・検証する。Supplier.getは全
 
 既存の `IModule.onEnable/onDisable` も同じ起動管理へ接続する。`ModuleBootstrap.registerModule(Class)` は型と起動順の登録だけを行う。enableModulesで全コンポーネントを検出し、宣言が揃ってから構築・起動する。従来の登録順は明示的な起動順として維持する。既存モジュールの登録順と新しい必須依存が衝突したら、循環エラーとして起動を拒否する。新規の独立サービスにはこの既存順序の鎖を付けない。
 
-既存getは構築済みモジュールを起動前にも取得できる。getが非nullでも起動完了を保証しないので、既存onEnableでの順序を崩さない。移行の例としてEconomyModuleはPlayerDataModuleのコンストラクタ注入、ScoreboardModuleはレイドのSupplier注入へ変更している。他の旧モジュール内部のgetやプラグインgetterは互換のため残している。
+既存getは構築済みモジュールを起動前にも取得できる。getが非nullでも起動完了を保証しないので、既存onEnableでの順序を崩さない。既存23モジュールの本体は、機能間の依存を@Injectコンストラクタで受け取る。後から起動する機能への実行時参照はSupplierで宣言し、本体内のcontainer.get、プラグイン経由のサービス検索、他モジュールのシングルトン参照は使わない。GUI・コマンド等の従来入口には互換コードが残るが、モジュール本体の依存宣言とは分離する。
 
 以前のBootstrapはモジュール起動失敗後も続行していた。現在は失敗を伝播して起動を止め、失敗したコンポーネントの停止を試み、その後に起動済みのコンポーネントを逆順で停止する。一つの停止処理の失敗で、残りの停止を中断しない。初期化途中の失敗にも対応できるよう、stop/onDisableは未初期化フィールドを考慮する。
 
@@ -95,3 +95,20 @@ IModuleは従来どおり自身でリスナー・コマンドを登録するの�
 `DIContainerTest` は通常循環・遅延循環・起動前取得・シングルトン・一覧注入・起動失敗の巻き戻し・停止順・旧getとの互換・注釈スキャンを検証する。単独mainとMavenの両方で実行する。`DILifecycleRegressionTest` は別スレッド参照待ち、停止の再入、起動途中の停止、親子の具体型の区別を検証する。`DIBukkitTest` はMockBukkitでリスナー／コマンド登録と、検出後のモジュール構築・一覧注入を確認する。
 
 実サーバーでは起動・終了ログ、参加／再接続、出撃、脱出・死亡、クエスト納品、スコアボードを確認する。NMS・Citizens・WorldEdit等を含む完全なゲーム起動は単体テスト環境だけでは再現していない。
+
+## 23モジュールの依存移行
+
+全モジュールに@Serviceと@Injectコンストラクタを用意した。レイド参加状態はRaidModuleが保持する。遅延取得は次のように使い分ける。
+
+- RaidModule: PlayerData、Level、ルート・死体・地図・SCAV・ログ管理は直接注入。Party、Quest、Backpack、SkillはSupplier。
+- TraderModule: PlayerData、Economy、コマンド登録簿は直接注入。Quest、Hideout、SkillはSupplier。
+- QuestModule: 起動済みのTraderとPlayerDataを直接注入。TraderからQuestへの戻り参照だけを遅延させる。
+- Medical、Weight、Stamina: SkillをSupplierで注入。スキルのstatic互換入口を介さず、注入したインスタンスの計算を使う。
+- Backpack: レイドを直接注入し、後から起動するRigはSupplier。表示マネージャーへは同じ参照を渡す。
+- Hideout: PlayerData、Party、Raid、コマンド登録簿を直接注入。Skillは起動順が後なので、Hideoutからの新しい必須依存を作らない。
+
+RaidInstanceは引き続きレイドが生成・所有する。セッション生成時に依存を明示的に渡し、HUD・無線・ボス部隊にも必要な参照を渡す。セッション内部でコンテナやプラグインから機能を探し直さない。オンライン参加者がいる保存済みレイドの復元では、参加状態の登録は即時に行い、HUD等の表示だけを次のtickへ回す。起動途中のSupplier取得を避け、停止済みのセッションには表示しない。
+
+SkillModuleの既存static入口は他の従来コードとの互換用で、注入先はstat/factor/stageのインスタンスメソッドを使う。PlayerDataを引数に取る純粋なスキル集計など、サービス状態を参照しないstatic計算はそのまま使える。Traderの価格・日次制限・売却倍率・修理倍率はインスタンスメソッドに揃え、既存の購入画面と修理計算も同じインスタンスを使う。
+
+ModuleDependencyMigrationTestは実際の23モジュールの宣言を読み、通常依存と従来起動順を合わせた循環、未登録の遅延依存、本体内の隠れたサービス検索を検査する。RaidRestoreInjectionTestは復元表示のタイミングと中止を、InjectedSkillTradingTestは注入したスキルによる取引計算を確認する。

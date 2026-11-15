@@ -1,5 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -22,30 +28,45 @@ import java.io.IOException;
 import java.util.*;
 import java.util.logging.Level;
 
+@Service
 public class TraderModule implements IModule {
+    private final Supplier<SkillModule> skills;
+    private final CommandRegistry commands;
+    private final Supplier<QuestModule> quests;
+    private final Supplier<HideoutModule> hideouts;
+
     private final ImpossbleEscapeMC plugin;
     private final Map<String, TraderDefinition> traders = new HashMap<>();
     
-    private PlayerDataModule dataModule;
-    private EconomyModule economyModule;
+    private final PlayerDataModule dataModule;
+    private final EconomyModule economyModule;
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public TraderModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public TraderModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            EconomyModule economyModule,
+            CommandRegistry commands,
+            Supplier<QuestModule> quests,
+            Supplier<HideoutModule> hideouts,
+            Supplier<SkillModule> skills) {
+        this.skills = skills;
+        this.dataModule = dataModule;
+        this.economyModule = economyModule;
+        this.commands = commands;
+        this.quests = quests;
+        this.hideouts = hideouts;
         this.plugin = plugin;
     }
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.dataModule = container.get(PlayerDataModule.class);
-        this.economyModule = container.get(EconomyModule.class);
-        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new TraderCommand(this));
+
+        commands.register(new TraderCommand(this));
 
         loadTraders();
         // 買うトレーダーの画面 (ダイアログ) の操作を受ける
         TraderDialog.init(this);
 
-        // 登録
-        container.register(TraderModule.class, this);
     }
 
     @Override
@@ -73,7 +94,7 @@ public class TraderModule implements IModule {
 
     /** Check after datapack load functions, also called on resource reload. */
     public void validateItems() {
-        var quests = plugin.getServiceContainer().get(com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+        var quests = this.quests.get();
         for (TraderDefinition trader : traders.values()) {
             for (TraderItem item : trader.items) {
                 if (!GameItems.exists(item.itemId)) plugin.getLogger().warning("トレーダー " + trader.id
@@ -149,8 +170,7 @@ public class TraderModule implements IModule {
     public String getUnlockRequirements(TraderItem item) {
         String requirements = "Lv." + getRequiredLevel(item);
         if (item.requiredQuestId != null) {
-            var quests = plugin == null ? null : plugin.getServiceContainer().get(
-                    com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule.class);
+            var quests = this.quests.get();
             var quest = quests == null ? null : quests.getQuest(item.requiredQuestId);
             requirements += " ＋ クエスト「" + (quest == null ? item.requiredQuestId : quest.getDisplayName()) + "」完了";
         }
@@ -228,31 +248,31 @@ public class TraderModule implements IModule {
 
     /** 交換に使う品物を、持ち物とスタッシュで数える (隠れ家の素材と同じ数え方) */
     public Map<String, Integer> countBarter(Player player, PlayerData data, List<HideoutFacility.ItemCost> costs) {
-        HideoutModule hideout = plugin.getServiceContainer().get(HideoutModule.class);
+        HideoutModule hideout = hideouts.get();
         return hideout == null ? Map.of() : hideout.countMaterials(player, data, costs);
     }
 
     /** そのプレイヤーの 1 日の上限 (0 以下なら制限なし。スキルで増える、端数は切り上げ) */
-    public static int dailyLimit(UUID player, TraderItem item) {
+    public int dailyLimit(UUID player, TraderItem item) {
         if (item.dailyLimit <= 0) return item.dailyLimit;
-        return (int) Math.ceil(item.dailyLimit * SkillModule.multiplier(player, SkillStat.DAILY_LIMIT) - 1e-9);
+        return (int) Math.ceil(item.dailyLimit * skills.get().factor(player, SkillStat.DAILY_LIMIT) - 1e-9);
     }
 
     /** そのプレイヤーの買値 (スキルで安くなる。1₽ 単位に丸める) */
-    public static double buyPrice(UUID player, TraderDefinition trader, TraderItem item) {
+    public double buyPrice(UUID player, TraderDefinition trader, TraderItem item) {
         SkillStat own = switch (trader.id) {
             case "kovacs" -> SkillStat.BUY_KOVACS;
             case "pharmakon" -> SkillStat.BUY_PHARMAKON;
             case "bastion" -> SkillStat.BUY_BASTION;
             default -> null;
         };
-        double discount = SkillModule.value(player, SkillStat.BUY_ALL) + (own != null ? SkillModule.value(player, own) : 0);
+        double discount = skills.get().stat(player, SkillStat.BUY_ALL) + (own != null ? skills.get().stat(player, own) : 0);
         return Math.round(item.price * Math.max(0, 1 + discount));
     }
 
     /** ブローカーの買取の倍率 (スキルで上がる) */
-    public static double sellMultiplier(UUID player) {
-        return SkillModule.multiplier(player, SkillStat.SELL_BROKER);
+    public double sellMultiplier(UUID player) {
+        return skills.get().factor(player, SkillStat.SELL_BROKER);
     }
 
     /** Broker の 1 個あたり買取額。売却画面とレイド結果で同じ状態補正を使う。 */
@@ -268,8 +288,8 @@ public class TraderModule implements IModule {
     }
 
     /** 修理代の倍率 (スキルで下がる) */
-    public static double repairMultiplier(UUID player) {
-        return Math.max(0, SkillModule.multiplier(player, SkillStat.REPAIR_COST));
+    public double repairMultiplier(UUID player) {
+        return Math.max(0, skills.get().factor(player, SkillStat.REPAIR_COST));
     }
 
     /**
@@ -351,7 +371,7 @@ public class TraderModule implements IModule {
      */
     private Purchase barter(Player player, PlayerData data, TraderDefinition trader, TraderItem ti, int quantity,
                             boolean limitAdjusted, List<Component> messages) {
-        HideoutModule hideout = plugin.getServiceContainer().get(HideoutModule.class);
+        HideoutModule hideout = hideouts.get();
         ItemStack sample = GameItems.create(player.getWorld(), ti.itemId, ti.displayName);
         if (hideout == null || sample == null) return new Purchase(0, messages, null);
         String name = PlainTextComponentSerializer.plainText().serialize(sample.effectiveName());

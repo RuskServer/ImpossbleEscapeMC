@@ -165,17 +165,17 @@ public class TraderGUI implements Listener {
             // 交換の取引: 渡す品物 (と代金があれば代金)
             StringBuilder cost = new StringBuilder();
             for (var c : ti.barter) cost.append(cost.length() > 0 ? "、" : "").append(TraderDialog.itemName(c.itemId())).append(" ×").append(c.amount());
-            long price = (long) TraderModule.buyPrice(player.getUniqueId(), trader, ti);
+            long price = (long) traderModule.buyPrice(player.getUniqueId(), trader, ti);
             if (price > 0) cost.append("、").append(price).append("₽");
             lore.add(Component.text("交換: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
                     .append(Component.text(cost.toString(), NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false)));
         } else {
             lore.add(Component.text("価格: ", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-                    .append(Component.text((long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.GOLD)
+                    .append(Component.text((long) traderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.GOLD)
                             .decoration(TextDecoration.ITALIC, false)));
         }
         boolean soldOut = false;
-        int limit = TraderModule.dailyLimit(player.getUniqueId(), ti);
+        int limit = traderModule.dailyLimit(player.getUniqueId(), ti);
         if (limit > 0) {
             int bought = data.getDailyPurchases().getOrDefault(TraderModule.limitKey(trader, ti), 0);
             int remaining = Math.max(0, limit - bought);
@@ -217,7 +217,7 @@ public class TraderGUI implements Listener {
             for (var c : ti.barter) cost.append(cost.length() > 0 ? "、" : "").append(TraderDialog.itemName(c.itemId())).append(" ×").append(c.amount());
             lore.add(Component.text("交換: " + cost, NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
         } else {
-            lore.add(Component.text("価格: " + (long) TraderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.DARK_GRAY)
+            lore.add(Component.text("価格: " + (long) traderModule.buyPrice(player.getUniqueId(), trader, ti) + "₽", NamedTextColor.DARK_GRAY)
                     .decoration(TextDecoration.ITALIC, false));
         }
         meta.lore(lore);
@@ -316,7 +316,7 @@ public class TraderGUI implements Listener {
                 total += price * item.getAmount();
             }
         }
-        return Math.floor(total * TraderModule.sellMultiplier(player.getUniqueId()));   // ブローカーの買取はスキルで上がる
+        return Math.floor(total * traderModule.sellMultiplier(player.getUniqueId()));   // ブローカーの買取はスキルで上がる
     }
 
     @EventHandler

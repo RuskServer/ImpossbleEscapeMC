@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
@@ -85,6 +87,8 @@ final class RaidHud {
     private static final Style HINT = HUD.color(TextColor.color(233, 234, 235)).shadowColor(ShadowColor.none());
 
     private final ImpossbleEscapeMC plugin;
+    private final PlayerDataModule playersData;
+    private final Supplier<QuestModule> questService;
     private final RaidMap map;
     private final RaidRadio radio;
     private final List<RaidMap.ExtractionPoint> extractions;
@@ -92,13 +96,11 @@ final class RaidHud {
     private BukkitTask task;
     private int timeLeft;
 
-    RaidHud(ImpossbleEscapeMC plugin, RaidMap map, List<RaidMap.ExtractionPoint> extractions) {
-        this(plugin,map,extractions,null);
-    }
-
-    RaidHud(ImpossbleEscapeMC plugin, RaidMap map, List<RaidMap.ExtractionPoint> extractions,RaidRadio radio) {
+    RaidHud(ImpossbleEscapeMC plugin, RaidMap map, List<RaidMap.ExtractionPoint> extractions,RaidRadio radio,PlayerDataModule playersData,Supplier<QuestModule> questService) {
         this.radio=radio;
         this.plugin = plugin;
+        this.playersData = playersData;
+        this.questService = questService;
         this.map = map;
         this.extractions = extractions;
     }
@@ -166,7 +168,7 @@ final class RaidHud {
 
     /** 受けているクエストの、まだ着いていない到達の目標のうち、このワールドの物への水平の差 {dx, dz} */
     private void collectQuestTargets(PlayerData data, Location here, List<double[]> out) {
-        QuestModule quests = plugin.getServiceContainer().get(QuestModule.class);
+        QuestModule quests = questService.get();
         if (quests == null) return;
         String world = here.getWorld().getName();
         for (ActiveQuest active : data.getActiveQuests().values()) {
@@ -300,7 +302,7 @@ final class RaidHud {
     }
 
     private PlayerData playerData(Player player) {
-        PlayerDataModule module = plugin.getServiceContainer().get(PlayerDataModule.class);
+        PlayerDataModule module = playersData;
         return module != null ? module.getPlayerData(player.getUniqueId()) : null;
     }
 

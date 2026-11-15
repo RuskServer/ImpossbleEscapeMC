@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -20,12 +22,14 @@ import java.util.*;
 final class RaidRadio {
     private static final String ITEM="iem:radio.quest_item_found",ZONE="iem:radio.high_threat";
     private final ImpossbleEscapeMC plugin;
+    private final PlayerDataModule players;
+    private final Supplier<QuestModule> questService;
     private final RaidMap map;
     private final boolean enabled;
     private final Map<UUID,RaidRadioState> states=new HashMap<>();
     private final Map<UUID,String> zoneNames=new HashMap<>();
-    RaidRadio(ImpossbleEscapeMC plugin,RaidMap map) {
-        this.plugin=plugin;this.map=map;enabled=plugin.getConfig().getBoolean("raid-radio.enabled",true);
+    RaidRadio(ImpossbleEscapeMC plugin,RaidMap map,PlayerDataModule players,Supplier<QuestModule> questService) {
+        this.players=players;this.questService=questService;this.plugin=plugin;this.map=map;enabled=plugin.getConfig().getBoolean("raid-radio.enabled",true);
     }
     private RaidRadioState state(Player p){return states.computeIfAbsent(p.getUniqueId(),id->new RaidRadioState());}
     void tick(Player p) {
@@ -46,8 +50,7 @@ final class RaidRadio {
     }
     void discovered(Player p,ItemStack item) {
         if(!enabled||p.isDead()||p.getGameMode()==GameMode.SPECTATOR||!map.isWorld(p.getWorld()))return;
-        PlayerDataModule players=plugin.getServiceContainer().get(PlayerDataModule.class);
-        QuestModule quests=plugin.getServiceContainer().get(QuestModule.class);
+        QuestModule quests=questService.get();
         if(players==null||quests==null)return;
         var data=players.getPlayerData(p.getUniqueId());
         // 検索中のコンテナ品は、まだ取得時のFIR処理を受けていない。実物は変更せず取得後の資格で確認する。

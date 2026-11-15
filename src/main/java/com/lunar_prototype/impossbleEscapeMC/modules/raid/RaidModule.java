@@ -1,5 +1,21 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
+import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager;
+import com.lunar_prototype.impossbleEscapeMC.loot.LootManager;
+import com.lunar_prototype.impossbleEscapeMC.map.RaidMapManager;
+import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -23,7 +39,22 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 
+@Service
 public class RaidModule implements IModule {
+    private final PlayerDataModule playersData;
+    private final LevelModule leveling;
+    private final Supplier<QuestModule> questService;
+    private final Supplier<BackpackModule> backpacks;
+    private final Supplier<SkillModule> skillService;
+    private final ScavSpawner scavs;
+    private final AiRaidLogger raidLogger;
+
+    private final CommandRegistry commands;
+    private final LootManager lootManager;
+    private final CorpseManager corpseManager;
+    private final RaidMapManager mapManager;
+    private final Supplier<PartyModule> parties;
+
     private final ImpossbleEscapeMC plugin;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Map<String, RaidMap> maps = new HashMap<>();
@@ -54,8 +85,33 @@ public class RaidModule implements IModule {
     }
     private final Map<UUID, Disconnect> disconnected = new HashMap<>();
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public RaidModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public RaidModule(ImpossbleEscapeMC plugin,
+            CommandRegistry commands,
+            LootManager lootManager,
+            CorpseManager corpseManager,
+            RaidMapManager mapManager,
+            Supplier<PartyModule> parties,
+            PlayerDataModule playersData,
+            LevelModule leveling,
+            Supplier<QuestModule> questService,
+            Supplier<BackpackModule> backpacks,
+            Supplier<SkillModule> skillService,
+            ScavSpawner scavs,
+            AiRaidLogger raidLogger) {
+        this.playersData = playersData;
+        this.leveling = leveling;
+        this.questService = questService;
+        this.backpacks = backpacks;
+        this.skillService = skillService;
+        this.scavs = scavs;
+        this.raidLogger = raidLogger;
+
+        this.commands = commands;
+        this.lootManager = lootManager;
+        this.corpseManager = corpseManager;
+        this.mapManager = mapManager;
+        this.parties = parties;
         this.plugin = plugin;
         this.mapsFolder = new File(plugin.getDataFolder(), "raids");
         this.stateFile = new File(plugin.getDataFolder(), "raid_state.json");
@@ -68,7 +124,7 @@ public class RaidModule implements IModule {
     public void onEnable(ServiceContainer container) {
         loadMaps();
         Bukkit.getPluginManager().registerEvents(new RaidRadioListener(this),plugin);
-        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new RaidCommand(this));
+        commands.register(new RaidCommand(this));
         // 出撃時の PDA の演出の間の操作の停止
         Bukkit.getPluginManager().registerEvents(new PdaIntro(), plugin);
         // レイド結果のキルログ: 弾が当たった時の様子 (武器・弾・距離・部位) を覚えておく
@@ -160,28 +216,33 @@ public class RaidModule implements IModule {
         finishedThisCycle.remove(mapId);
         RaidMap map = maps.get(mapId);
         if (map == null) return;
-        if (plugin.getLootManager() != null) {
-            plugin.getLootManager().refillContainers(map);
+        if (lootManager != null) {
+            lootManager.refillContainers(map);
         }
-        if (plugin.getCorpseManager() != null) {
+        if (corpseManager != null) {
             org.bukkit.World world = Bukkit.getWorld(map.getWorldName());
             if (world != null) {
-                plugin.getCorpseManager().cleanup(world);
+                corpseManager.cleanup(world);
             }
         }
     }
 
     /** このマップのインスタンスがまだ無ければ作る (二重生成しない) */
+    private RaidInstance newSession(RaidMap map, List<Player> participants, boolean restored) {
+        return new RaidInstance(plugin, map, participants, restored, this, playersData, leveling,
+                questService, backpacks, skillService, parties, scavs, corpseManager, mapManager, raidLogger);
+    }
+
     private RaidInstance createRaid(String mapId, List<Player> participants) {
         RaidInstance existing = activeRaids.get(mapId);
         if (existing != null) return existing;
         RaidMap map = maps.get(mapId);
         if (map == null) return null;
-        RaidInstance raid = new RaidInstance(plugin, map, participants);
+        RaidInstance raid = newSession(map, participants, false);
         activeRaids.put(mapId, raid);
         // 地面ルートはレイドが動き出してから置く (このレイドが落ちた物として覚え、終わったら消す: RaidGroundItems)
-        if (plugin.getLootManager() != null) {
-            int placed = plugin.getLootManager().spawnGroundLoot(map, item -> raid.trackGroundItem(item.getUniqueId()));
+        if (lootManager != null) {
+            int placed = lootManager.spawnGroundLoot(map, item -> raid.trackGroundItem(item.getUniqueId()));
             if (!map.getGroundLoot().isEmpty()) plugin.getLogger().info("Ground loot for " + mapId + ": " + placed + "/" + map.getGroundLoot().size());
         }
         return raid;
@@ -317,7 +378,7 @@ public class RaidModule implements IModule {
                     }
 
                     if (!uuids.isEmpty()) {
-                        RaidInstance raid = new RaidInstance(plugin, map, new ArrayList<>(),true);
+                        RaidInstance raid = newSession(map, new ArrayList<>(), true);
                         raid.restoreParticipants(uuids); // 復元用メソッド
                         raid.keepExistingGroundItems();   // 再起動の前に落ちた物は覚えていないので、残っている物をこのレイドの物とする
                         activeRaids.put(mapId, raid);
@@ -495,7 +556,7 @@ public class RaidModule implements IModule {
             return;
         }
 
-        com.lunar_prototype.impossbleEscapeMC.modules.party.Party party = com.lunar_prototype.impossbleEscapeMC.modules.party.PartyModule.get().getParty(player.getUniqueId());
+        com.lunar_prototype.impossbleEscapeMC.modules.party.Party party = parties.get().getParty(player.getUniqueId());
         if (party != null && !party.isLeader(player.getUniqueId())) {
             Messages.chat(player, "iem.raid.raidmodule.automatch.notice_002", MessageText.of("iem.raid.raidmodule.automatch.notice_002", MessageText.payload(MessageText.of("iem.raid.raidmodule.automatch.notice_002.text_01").color(NamedTextColor.RED))));
             return;
@@ -754,7 +815,7 @@ public class RaidModule implements IModule {
         player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
         Messages.chat(player, "iem.raid.raidmodule.forfeitafterdisconnect.notice_001", MessageText.of("iem.raid.raidmodule.forfeitafterdisconnect.notice_001", MessageText.payload(MessageText.of("iem.raid.raidmodule.forfeitafterdisconnect.notice_001.text_01").color(NamedTextColor.RED))));
         applyFailureEffect(player);
-        plugin.getRaidMapManager().updateMapSlot(player);
+        mapManager.updateMapSlot(player);
     }
 
     /**

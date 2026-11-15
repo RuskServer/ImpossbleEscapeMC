@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
@@ -21,7 +24,10 @@ import java.lang.Math;
 import java.util.*;
 
 /** SCAVだけの短時間ラグドール。中身の所有者は既存Mannequinのまま。 */
+@Service
 public final class ScavRagdollModule implements IModule,Listener {
+    private final SearchGUI searchGUI;
+
     private record Impact(Vector3d direction,int tick) {}
     private final ImpossbleEscapeMC plugin;
     private final Map<UUID,Impact> impacts=new HashMap<>();
@@ -43,8 +49,11 @@ public final class ScavRagdollModule implements IModule,Listener {
     private record Diagnostic(int tick,String result) {}
     private final Map<UUID,PendingOpen> pendingOpens=new HashMap<>();
     private final Map<UUID,Diagnostic> lastClicks=new HashMap<>();
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public ScavRagdollModule(ImpossbleEscapeMC plugin){this.plugin=plugin;}
+    @Inject
+    public ScavRagdollModule(ImpossbleEscapeMC plugin,
+            SearchGUI searchGUI) {
+        this.searchGUI = searchGUI;this.plugin=plugin;
+    }
     @Override public void onEnable(ServiceContainer services) {
         if(!plugin.getConfig().getBoolean("scav-ragdoll.enabled",true))return;
         corpseKey=new NamespacedKey(plugin,"ragdoll_corpse");
@@ -365,7 +374,7 @@ public final class ScavRagdollModule implements IModule,Listener {
             for(LootClick request:queued.clicks)if(!request.event.isCancelled()&&validateClick(player,actor,request)){allowed=true;break;}
             if(!allowed){if(queued.clicks.stream().allMatch(c->c.event.isCancelled()))remember(player,"処理完了後に操作イベントがキャンセルされています");return;}
             if(player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse){remember(player,"同じ死体のGUIは既に開いています");return;}
-            try{plugin.getSearchGUI().open(player,actor.corpse);}
+            try{searchGUI.open(player,actor.corpse);}
             catch(RuntimeException ex){remember(player,"GUIを開く際の例外: "+ex.getClass().getSimpleName());plugin.getLogger().log(java.util.logging.Level.WARNING,"SCAV死体のGUIを開けませんでした",ex);return;}
             boolean opened=player.getOpenInventory().getTopInventory().getHolder() instanceof SearchGUI.SearchHolder h&&h.getSource()==actor.corpse;
             remember(player,opened?"死体GUIを開きました":"GUIを開けませんでした（中身データ／InventoryOpenの拒否）");

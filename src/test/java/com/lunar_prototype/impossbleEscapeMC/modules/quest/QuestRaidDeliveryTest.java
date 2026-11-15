@@ -22,12 +22,12 @@ public final class QuestRaidDeliveryTest {
     private static boolean participating;
     private static int messages, closed;
     public static final class RaidProbe extends RaidModule {
-        RaidProbe() { super(null); }
+        RaidProbe() { super(null, null, null, null, null, () -> null, null, null, () -> null, () -> null, () -> null, null, null); }
         @Override public boolean isInRaid(Player player) { return participating; }
     }
     private static final class Quests extends QuestModule {
         int notified;
-        Quests() { super(null); }
+        Quests() { super(null, null, null, null); }
         @Override void notifyCompletion(Player player, QuestDefinition quest) { notified++; }
     }
     private static void check(boolean b,String message) { if(!b)throw new AssertionError(message); }

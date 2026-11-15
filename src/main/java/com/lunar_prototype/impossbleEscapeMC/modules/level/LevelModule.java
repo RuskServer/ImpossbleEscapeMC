@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.level;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -15,15 +18,19 @@ import java.util.UUID;
 /**
  * レベルシステムを担当するモジュール
  */
+@Service
 public class LevelModule implements IModule {
+    @Inject
+    public LevelModule(PlayerDataModule dataModule) {
+        this.dataModule = dataModule;
+    }
+
     public static final long SCAV_BASE_EXP = 150L;
 
-    private PlayerDataModule dataModule;
+    private final PlayerDataModule dataModule;
 
     @Override
     public void onEnable(ServiceContainer container) {
-        // DIコンテナからPlayerDataModuleを取得
-        this.dataModule = container.get(PlayerDataModule.class);
     }
 
     @Override

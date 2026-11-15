@@ -1,5 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -43,16 +48,29 @@ import java.util.logging.Level;
  * パーティーに所属している人は、入る時はリーダーの隠れ家に集まる ({@link #visit})。設備の利用のレベルの判定は
  * クラフトやスキルの各画面がプレイヤー自身のデータで行うので、どの隠れ家にいても自分のレベルのまま
  */
+@Service
 public class HideoutModule implements IModule {
+    private final CommandRegistry commands;
+    private final PartyModule parties;
+    private final RaidModule raids;
+
     private final ImpossbleEscapeMC plugin;
     private final HideoutWorldManager worldManager;
     private final HideoutLayout layout;
     private final HideoutBuilder builder;
     private final HideoutSlots slots;
-    private PlayerDataModule dataModule;
+    private final PlayerDataModule dataModule;
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public HideoutModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public HideoutModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            CommandRegistry commands,
+            PartyModule parties,
+            RaidModule raids) {
+        this.dataModule = dataModule;
+        this.commands = commands;
+        this.parties = parties;
+        this.raids = raids;
         this.plugin = plugin;
         this.worldManager = new HideoutWorldManager();
         this.layout = new HideoutLayout(plugin.getDataFolder());
@@ -61,8 +79,8 @@ public class HideoutModule implements IModule {
     }
 
     public void onEnable(ServiceContainer serviceContainer) {
-        this.dataModule = plugin.getServiceContainer().get(PlayerDataModule.class);
-        serviceContainer.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new HideoutCommand(this));
+
+        commands.register(new HideoutCommand(this));
         
         // ワールドの初期化
         worldManager.initWorlds();
@@ -135,7 +153,7 @@ public class HideoutModule implements IModule {
 
     /** 隠れ家に入った時に集まる先の持ち主のデータ。パーティーに所属していない人と、リーダー自身は null (自分の隠れ家) */
     private PlayerData hostData(UUID visitor) {
-        PartyModule parties = PartyModule.get();
+        PartyModule parties = this.parties;
         UUID host = parties != null ? visitHost(parties.getParty(visitor), visitor) : null;
         if (host == null) return null;
         PlayerData data = dataModule.getPlayerData(host);
@@ -175,7 +193,7 @@ public class HideoutModule implements IModule {
      */
     public double foodDrainMultiplier(Player player) {
         boolean lobby = player.getWorld().equals(Bukkit.getWorlds().get(0))
-                && (plugin.getRaidModule() == null || !plugin.getRaidModule().isInRaid(player));
+                && (raids == null || !raids.isInRaid(player));
         if (!lobby && !worldManager.isPlayerWorld(player.getWorld())) return 1.0;
         PlayerData data = dataModule.getPlayerData(player.getUniqueId());
         int level = data != null ? data.getHideoutLevel(HideoutFacility.WATER.id) : 0;

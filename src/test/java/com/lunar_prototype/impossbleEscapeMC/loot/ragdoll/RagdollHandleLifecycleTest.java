@@ -69,7 +69,7 @@ public final class RagdollHandleLifecycleTest {
             case "getVelocity"->new Vector();
             default->throw new AssertionError("unexpected victim: "+m.getName());
         });
-        ScavRagdollModule module=new ScavRagdollModule(null);
+        ScavRagdollModule module=new ScavRagdollModule(null, null);
         Field key=ScavRagdollModule.class.getDeclaredField("corpseKey");key.setAccessible(true);key.set(module,new NamespacedKey("iem","ragdoll_corpse"));
         Class<?> actorClass=Class.forName(ScavRagdollModule.class.getName()+"$Actor");
         var constructor=actorClass.getDeclaredConstructors()[0];constructor.setAccessible(true);

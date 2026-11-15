@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.medical;
 
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -31,11 +33,13 @@ import java.util.UUID;
 public class StatusEffectManager implements Listener {
     private final ImpossbleEscapeMC plugin;
     private final PlayerDataModule dataModule;
+    private final Supplier<SkillModule> skills;
     /** 自動アドレナリンで設定した満了時刻。通常の鎮痛剤の終了音とは区別する。 */
     private final java.util.Map<UUID,Long> adrenalineExpiries = new java.util.HashMap<>();
 
-    public StatusEffectManager(ImpossbleEscapeMC plugin, PlayerDataModule dataModule) {
+    public StatusEffectManager(ImpossbleEscapeMC plugin, PlayerDataModule dataModule, Supplier<SkillModule> skills) {
         this.plugin = plugin;
+        this.skills = skills;
         this.dataModule = dataModule;
     }
 
@@ -63,7 +67,7 @@ public class StatusEffectManager implements Listener {
         if (data.getBleedingLevel() <= 0) return;
 
         // 1分間に2ダメージ = 1秒間に 2/60 (約0.033) ダメージ
-        double damage = data.getBleedingLevel() * (2.0 / 60.0) * Math.max(0, SkillModule.multiplier(player, SkillStat.BLEED_DAMAGE));
+        double damage = data.getBleedingLevel() * (2.0 / 60.0) * Math.max(0, skills.get().factor(player, SkillStat.BLEED_DAMAGE));
         player.damage(damage);
         
         // 血のパーティクル
@@ -76,7 +80,7 @@ public class StatusEffectManager implements Listener {
     private void handleFractureEffects(Player player, PlayerData data) {
         // 足の骨折: 走るとダメージ (鎮痛剤なしの場合)
         if (data.hasLegFracture() && player.isSprinting() && !data.isPainkillerActive()) {
-            double damage = Math.max(0, 0.5 + SkillModule.value(player, SkillStat.FRACTURE_SPRINT_DAMAGE));
+            double damage = Math.max(0, 0.5 + skills.get().stat(player, SkillStat.FRACTURE_SPRINT_DAMAGE));
             if (damage > 0) player.damage(damage);
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_HURT, 0.5f, 0.8f);
             Messages.actionBar(player, "iem.combat.statuseffectmanager.handlefractureeffects.notice_001", MessageText.of("iem.combat.statuseffectmanager.handlefractureeffects.notice_001", MessageText.payload(MessageText.of("iem.combat.statuseffectmanager.handlefractureeffects.notice_001.text_01").color(NamedTextColor.RED))));
@@ -125,8 +129,8 @@ public class StatusEffectManager implements Listener {
         long now = System.currentTimeMillis();
 
         // 1. 自動鎮痛効果 (5分クールダウン, 5秒持続。どちらもスキルで変わる)
-        long cooldown = 300_000 + (long) SkillModule.value(victim, SkillStat.ADRENALINE_COOLDOWN_MS);
-        long duration = 5000 + (long) SkillModule.value(victim, SkillStat.ADRENALINE_DURATION_MS);
+        long cooldown = 300_000 + (long) skills.get().stat(victim, SkillStat.ADRENALINE_COOLDOWN_MS);
+        long duration = 5000 + (long) skills.get().stat(victim, SkillStat.ADRENALINE_DURATION_MS);
         if (now - data.getLastPainkillerTrigger() > cooldown) {
             data.setPainkillerUntil(now + duration);
             adrenalineExpiries.put(victim.getUniqueId(),now+duration);
@@ -149,10 +153,10 @@ public class StatusEffectManager implements Listener {
     private void applyInjuryChance(Player victim, PlayerData data, String hitLocation, boolean penetrated) {
         double roll = Math.random();
         // スキル: 確率を下げる (脚の骨折・出血は個別に、骨折・出血まとめての割合も)
-        double injury = Math.max(0, SkillModule.multiplier(victim, SkillStat.INJURY_CHANCE));
-        double legChance = Math.max(0, 0.25 + SkillModule.value(victim, SkillStat.LEG_FRACTURE_CHANCE)) * injury;
+        double injury = Math.max(0, skills.get().factor(victim, SkillStat.INJURY_CHANCE));
+        double legChance = Math.max(0, 0.25 + skills.get().stat(victim, SkillStat.LEG_FRACTURE_CHANCE)) * injury;
         double armChance = 0.15 * injury;
-        double bleedChance = Math.max(0, 0.10 + SkillModule.value(victim, SkillStat.BLEED_CHANCE)) * injury;
+        double bleedChance = Math.max(0, 0.10 + skills.get().stat(victim, SkillStat.BLEED_CHANCE)) * injury;
 
         // 1. 足の骨折 (足に当たった場合のみ)
         if ("legs".equals(hitLocation) && roll < legChance) {

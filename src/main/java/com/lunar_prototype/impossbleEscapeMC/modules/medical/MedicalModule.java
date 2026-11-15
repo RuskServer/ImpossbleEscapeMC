@@ -1,5 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.medical;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
+import java.util.function.Supplier;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -31,14 +36,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+@Service
 public class MedicalModule implements IModule, Listener {
-    private ImpossbleEscapeMC plugin;
+    private final Supplier<SkillModule> skills;
+
+    private final ImpossbleEscapeMC plugin;
     private final Map<UUID, Long> lastInteract = new HashMap<>();
     private final Map<UUID, Integer> activeTasks = new HashMap<>();
     private final Map<UUID, Integer> usingSlots = new HashMap<>();
     /** 使い切り: 使い始めてからのチック数 / 押し続け: 回復した回数 */
     private final Map<UUID, Integer> progressTicks = new HashMap<>();
-    private com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule dataModule;
+    private final PlayerDataModule dataModule;
     private StatusEffectManager statusEffectManager;
 
     // CAT と AI-2 を使う時の音 (リソースパックの iem:med.*、IEM_shader/tools/med_sounds.py が作る)
@@ -50,7 +58,13 @@ public class MedicalModule implements IModule, Listener {
             20, "iem:med.cat.windlass",
             38, "iem:med.cat.clip");
 
-    public MedicalModule() {
+    @Inject
+    public MedicalModule(ImpossbleEscapeMC plugin,
+            PlayerDataModule dataModule,
+            Supplier<SkillModule> skills) {
+        this.plugin = plugin;
+        this.dataModule = dataModule;
+        this.skills = skills;
     }
 
     /** 使っている本人にだけ、高さを少し揺らして鳴らす */
@@ -61,9 +75,8 @@ public class MedicalModule implements IModule, Listener {
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.plugin = ImpossbleEscapeMC.getInstance();
-        this.dataModule = container.get(com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule.class);
-        this.statusEffectManager = new StatusEffectManager(plugin, dataModule);
+
+        this.statusEffectManager = new StatusEffectManager(plugin, dataModule, skills);
         
         Bukkit.getPluginManager().registerEvents(this, plugin);
         Bukkit.getPluginManager().registerEvents(statusEffectManager, plugin);
@@ -73,7 +86,7 @@ public class MedicalModule implements IModule, Listener {
             long now = System.currentTimeMillis();
             for (UUID uuid : new java.util.HashSet<>(lastInteract.keySet())) {
                 // 250ms (約5チック) 経過で離したと判定 (スキルで延びる)
-                if (now - lastInteract.get(uuid) > 250 + SkillModule.value(uuid, SkillStat.USE_GRACE_MS)) {
+                if (now - lastInteract.get(uuid) > 250 + skills.get().stat(uuid, SkillStat.USE_GRACE_MS)) {
                     stopUsing(Bukkit.getPlayer(uuid));
                 }
             }
@@ -131,7 +144,7 @@ public class MedicalModule implements IModule, Listener {
             boolean cat = CAT_ID.equals(def.id);
             if (cat) playMedSound(player, "iem:med.cat.velcro");
             // CAT の使用時間はスキルで短くなる
-            int duration = cat ? Math.max(1, def.medStats.durationTicks + (int) SkillModule.value(player, SkillStat.CAT_TICKS))
+            int duration = cat ? Math.max(1, def.medStats.durationTicks + (int) skills.get().stat(player, SkillStat.CAT_TICKS))
                     : def.medStats.durationTicks;
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 int current = progressTicks.getOrDefault(uuid, 0) + 1;
@@ -231,7 +244,7 @@ public class MedicalModule implements IModule, Listener {
         // 回復タスクがなければ開始 (0.5s = 10ticks 周期。AI-2 はスキルで短くなる)
         if (!activeTasks.containsKey(uuid)) {
             progressTicks.put(uuid, 0);
-            long period = AI2_ID.equals(def.id) ? Math.max(1, 10 + (long) SkillModule.value(player, SkillStat.AI2_INTERVAL_TICKS)) : 10L;
+            long period = AI2_ID.equals(def.id) ? Math.max(1, 10 + (long) skills.get().stat(player, SkillStat.AI2_INTERVAL_TICKS)) : 10L;
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 handleHeal(player, def);
             }, period, period).getTaskId();
@@ -263,7 +276,7 @@ public class MedicalModule implements IModule, Listener {
         }
 
         boolean ai2 = AI2_ID.equals(def.id);
-        double heal = def.medStats.healPerUse + (ai2 ? SkillModule.value(player, SkillStat.AI2_HEAL) : 0);
+        double heal = def.medStats.healPerUse + (ai2 ? skills.get().stat(player, SkillStat.AI2_HEAL) : 0);
         double newHealth = Math.min(maxHealth, currentHealth + heal);
         player.setHealth(newHealth);
         if (AI2_ID.equals(def.id)) {
@@ -281,7 +294,7 @@ public class MedicalModule implements IModule, Listener {
         }
 
         // 耐久消費 (AI-2 はスキルで、確率で減らさない)
-        if (ai2 && Math.random() < SkillModule.value(player, SkillStat.AI2_SAVE_CHANCE)) return;
+        if (ai2 && Math.random() < skills.get().stat(player, SkillStat.AI2_SAVE_CHANCE)) return;
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         int currentDurability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
         int nextDurability = currentDurability - def.medStats.durabilityPerUse;

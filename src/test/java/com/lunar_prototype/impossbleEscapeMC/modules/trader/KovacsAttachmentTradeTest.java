@@ -39,7 +39,7 @@ public final class KovacsAttachmentTradeTest {
                 "uzi_folded_stock","kovacs_uzi_parts","2_stage_suppressor","kovacs_suppressor_supply",
                 "9x39mm_30round_magazine","kovacs_val_magazines");
         var kovacs=TraderCatalog.create().stream().filter(t->t.id.equals("kovacs")).findFirst().orElseThrow();
-        var module=new TraderModule(null);
+        var module=new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
         for(var entry:expected.entrySet()) {
             var sales=kovacs.items.stream().filter(i->i.itemId.equals(entry.getKey())).toList();
             check(sales.size()==1,"one sale per attachment");var sale=sales.getFirst();

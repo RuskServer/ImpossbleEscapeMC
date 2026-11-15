@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.core;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -40,7 +44,10 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>控え: 保存のたびに 3 世代 (backups/&lt;uuid&gt;/1〜3.json) と、1 日 1 回の控え 7 日分 (daily-日付.json)</li>
  * </ul>
  */
+@Service
 public class PlayerDataModule implements IModule, Listener {
+    private final CommandRegistry commands;
+
     private final ImpossbleEscapeMC plugin;
     private final PlayerDataStorage storage;
     private final Map<UUID, PlayerData> dataCache = new ConcurrentHashMap<>();
@@ -57,8 +64,10 @@ public class PlayerDataModule implements IModule, Listener {
     /** 書き出しの番号 (新しい書き出しの後に古い書き出しを書かないように) */
     private final AtomicLong snapshotCounter = new AtomicLong();
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public PlayerDataModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public PlayerDataModule(ImpossbleEscapeMC plugin,
+            CommandRegistry commands) {
+        this.commands = commands;
         this.plugin = plugin;
         this.storage = new PlayerDataStorage(new File(plugin.getDataFolder(), "userdata"), plugin.getLogger());
     }
@@ -66,7 +75,7 @@ public class PlayerDataModule implements IModule, Listener {
     @Override
     public void onEnable(ServiceContainer container) {
         Bukkit.getPluginManager().registerEvents(this, plugin);
-        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(new SettingsCommand(this));
+        commands.register(new SettingsCommand(this));
         // オートセーブ (5 分ごと)。JSON にするのはメインスレッド、書くのは別スレッド
         Bukkit.getScheduler().runTaskTimer(plugin, this::autosave, 6000L, 6000L);
     }

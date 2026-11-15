@@ -104,7 +104,7 @@ public final class RaidResults {
                 if (id.equals(ti.itemId)) best = Math.max(best, TraderModule.conditionAdjustedSellPrice(ti, item));
             }
         }
-        double multiplier = player == null ? 1.0 : TraderModule.sellMultiplier(player);
+        double multiplier = player == null ? 1.0 : traders.sellMultiplier(player);
         return (long) Math.floor(best * item.getAmount() * multiplier);
     }
 }

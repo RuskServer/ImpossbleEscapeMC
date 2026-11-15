@@ -48,7 +48,7 @@ final class Repairs {
             boolean jammed = DatapackGunCondition.isJammed(item);
             if (durability >= max && !jammed) return null;
             double base = datapackGunBasePrice(module, gunId);
-            return quote(trader, player, durability, max, jammed, true, base);
+            return quote(module, trader, player, durability, max, jammed, true, base);
         }
         ItemMeta meta = item.getItemMeta();
         String itemId = meta.getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
@@ -61,14 +61,14 @@ final class Repairs {
         if (durability >= def.maxDurability) return null;
         double base = def.armorStats != null ? TraderModule.getBaseArmorRepairCost(def.armorStats.armorClass)
                 : TraderModule.getBaseWeaponRepairCost(def.rarity);
-        return quote(trader, player, durability, def.maxDurability, false, weapon, base);
+        return quote(module, trader, player, durability, def.maxDurability, false, weapon, base);
     }
 
-    private static Quote quote(TraderDefinition trader, UUID player, int durability, int max, boolean jammed, boolean weapon, double base) {
+    private static Quote quote(TraderModule module, TraderDefinition trader, UUID player, int durability, int max, boolean jammed, boolean weapon, double base) {
         boolean allowed = weapon ? trader.canRepairWeapon : trader.canRepairArmor;
         String reason = allowed ? null : weapon ? "この店では武器を修理できません" : "この店ではアーマーを修理できません";
         double damage = 1.0 - Math.max(0, Math.min(1, (double) durability / max));
-        long cost = Math.round(base * damage * TraderModule.repairMultiplier(player));   // スキルで安くなる
+        long cost = Math.round(base * damage * module.repairMultiplier(player));   // スキルで安くなる
         return new Quote(durability, max, jammed, weapon, allowed, reason, cost);
     }
 

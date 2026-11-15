@@ -341,3 +341,10 @@ In `config.yml`:
 - PREPARING/STARTINGの停止要求は起動側が処理し、部分起動も含めて一度だけ逆順解放。CancellationExceptionで起動を打ち切りSTOPPEDへ移す。停止後のRUNNING復帰を防止。
 - registerModule(Class)は型登録に限定し、全宣言とスキャンが揃ってから生成する。起動前にRaid/Traderだけをresolveしていた経路も除去。プラグインの既存レイドgetterは構築済みの同一インスタンスを参照する。
 - resolveは具体型の親子を混同しない。明示的な別名登録の共有と、一度だけのライフサイクルは維持。回帰テストを追加。
+
+### 23モジュールの機能間依存をコンストラクタ注入へ移行 (2026-11-15)
+
+- 全23モジュール本体を@Service/@Injectに揃え、依存をfinalフィールドで保持。本体内のcontainer.get、plugin.getServiceContainer、getInstanceによる取得を除去した。元の23モジュール起動順を維持し、後発機能はSupplierで明示。
+- RaidInstanceとHUD・無線・ボス、医療の状態異常管理、バックパック表示にも所有元から依存を渡す。レイド参加状態の所有・セッション寿命は従来通り。保存済みレイドの参加状態は即時復元し、オンライン参加者への表示だけを起動後のtickへ回す。
+- Skillの旧static入口は互換用に残し、移行先はstat/factor/stageを利用。Traderの取引倍率・価格・制限はインスタンスへ移し、各画面・修理計算の呼び出しも更新。
+- 既存の単独テストは新しいコンストラクタへ必要な依存を明示する形へ更新。モジュール依存グラフの構造検査、復元表示の遅延、スキル注入後の取引計算のテストを追加。詳細はDEPENDENCY_INJECTION.md。

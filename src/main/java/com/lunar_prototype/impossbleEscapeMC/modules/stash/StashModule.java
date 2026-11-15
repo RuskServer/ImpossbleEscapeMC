@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stash;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -15,12 +18,17 @@ import org.bukkit.inventory.Inventory;
 
 import java.io.IOException;
 
+@Service
 public class StashModule implements IModule {
-    private PlayerDataModule dataModule;
+    @Inject
+    public StashModule(PlayerDataModule dataModule) {
+        this.dataModule = dataModule;
+    }
+
+    private final PlayerDataModule dataModule;
 
     @Override
     public void onEnable(ServiceContainer container) {
-        this.dataModule = container.get(PlayerDataModule.class);
     }
 
     @Override

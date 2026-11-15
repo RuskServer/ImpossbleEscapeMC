@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.movement;
 
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.DatapackGunnerManager;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
@@ -15,12 +18,18 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 
 /** 参加・復活時に共通倍率を適用し、切断・停止時には自分の補正だけを除去する。 */
+@Service
 public final class MovementModule implements IModule, Listener {
+    @Inject
+    public MovementModule(ImpossbleEscapeMC plugin) {
+        this.plugin = plugin;
+    }
+
     private boolean active;
-    private ImpossbleEscapeMC plugin;
+    private final ImpossbleEscapeMC plugin;
 
     @Override public void onEnable(ServiceContainer services) {
-        plugin = ImpossbleEscapeMC.getInstance();
+
         active = true;
         Bukkit.getPluginManager().registerEvents(this, plugin);
         for (Player player : Bukkit.getOnlinePlayers()) apply(player);

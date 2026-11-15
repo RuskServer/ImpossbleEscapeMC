@@ -1,5 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.market;
 
+import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
+import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
+import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -19,14 +24,22 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * グローバルマーケットのメインモジュール
  */
+@Service
 public class MarketModule implements IModule {
+    private final CommandRegistry commands;
+    private final LevelModule levels;
+
     private final ImpossbleEscapeMC plugin;
     private final File dataFile;
     private final Gson gson;
     private final Map<UUID, MarketListing> listings = new ConcurrentHashMap<>();
 
-    @com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject
-    public MarketModule(ImpossbleEscapeMC plugin) {
+    @Inject
+    public MarketModule(ImpossbleEscapeMC plugin,
+            CommandRegistry commands,
+            LevelModule levels) {
+        this.commands = commands;
+        this.levels = levels;
         this.plugin = plugin;
         this.dataFile = new File(plugin.getDataFolder(), "market.json");
         this.gson = new GsonBuilder().setPrettyPrinting().create();
@@ -35,8 +48,8 @@ public class MarketModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         loadListings();
-        container.get(com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry.class).register(
-                new MarketCommand(this, container.get(com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule.class)));
+        commands.register(
+                new MarketCommand(this, levels));
     }
 
     @Override
