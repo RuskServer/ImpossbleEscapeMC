@@ -1,7 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
+
+import org.junit.jupiter.api.Test;
 public final class AdrenalineHeartbeatRecoveryTest {
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
-    public static void main(String[] args){
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void adrenalineHeartbeatRecovery(){
         for(int delay=1;delay<=10;delay++){
             var recovery=new AdrenalineHeartbeatRecovery(delay);
             int last=0,interval=0,count=0;
@@ -23,6 +26,6 @@ public final class AdrenalineHeartbeatRecoveryTest {
             check(recovery.finished(),"recovery ends at four seconds");
             for(int i=0;i<100;i++)check(recovery.tick()==null,"no beats after completion");
         }
-        System.out.println("PASS: every onset phase, slowing cadence, fading volume and bounded recovery lifetime");
+
     }
 }

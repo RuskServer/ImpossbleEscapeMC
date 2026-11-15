@@ -1,10 +1,13 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Quaterniond;
 import org.joml.Vector3d;
 
 public final class RagdollLootTargetTest {
-    public static void main(String[] args) {
+    @Test
+    void ragdollLootTarget() {
         var pose=new RagdollPhysics.Pose(new Vector3d(0,0,-2),new Quaterniond());
         var half=RagdollPhysics.halfSize(RagdollPhysics.Part.TORSO);
         var eye=new Vector3d(-1,.35,0);var nativeHit=new Vector3d(.274,.35,-1.725);
@@ -35,7 +38,7 @@ public final class RagdollLootTargetTest {
         }
         check(RagdollLootTarget.capture(pose,half,new Vector3d(Double.NaN,0,0))==null,"invalid packet position");
         check(RagdollLootTarget.capture(new RagdollPhysics.Pose(new Vector3d(),new Quaterniond(Double.NaN,0,0,1)),half,nativeHit)==null,"invalid orientation");
-        System.out.println("RagdollLootTargetTest passed: reproduced native-corner and next-tick view misses; captured target, moving body, walls and range");
+
     }
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
 }

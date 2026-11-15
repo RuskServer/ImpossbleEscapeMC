@@ -1,9 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import org.junit.jupiter.api.Test;
+
 /** 広い格子の中央へのフォールバックで値・原点・光種別・容量を保つ。 */
 public final class LightGridRangeTest {
-    private static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
-    public static void main(String[] args) {
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void lightGridRange() {
         int w = 64, h = 16;
         int[] near = new int[2*((w*h*w+6)/7)], kinds = new int[(32*8*32+6)/7];
         for (int y=0;y<h;y++) for(int z=0;z<w;z++) for(int x=0;x<w;x++) {
@@ -36,6 +39,6 @@ public final class LightGridRangeTest {
         check(!SunShadowService.selectPayload(grid,null,1936).compressed(),"missing compression falls back");
         var old=SunShadowService.cropGrid(grid,48);
         check(SunShadowService.selectPayload(old,null,1936).shift()==0,"legacy origin unchanged");
-        System.out.println("PASS: 64 grid capacity boundary, 48 central fallback, every near/kind cell and origin shift");
+
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.CompletedQuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
@@ -8,9 +10,7 @@ import java.util.Map;
 
 /** 倉庫調査が沿岸の討伐系列に挟まり、二つの地点を別々に記録することを確かめる。 */
 public final class CoastalWarehouseQuestTest {
-    private static void check(boolean ok, String message) {
-        if (!ok) throw new AssertionError(message);
-    }
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 
     private static QuestDefinition quest(String id) {
         return QuestCatalog.create(null).stream().filter(q -> q.getId().equals(id)).findFirst().orElseThrow();
@@ -21,7 +21,8 @@ public final class CoastalWarehouseQuestTest {
                 && completed.getRequiredQuestId().equals(id));
     }
 
-    public static void main(String[] args) {
+    @Test
+    void coastalWarehouseQuest() {
         QuestDefinition warehouse = quest("bastion_coastal_warehouses");
         check(requires(warehouse, "bastion_coastal_clearance"), "warehouse follows clearance");
         check(requires(quest("bastion_rifle_drill"), warehouse.getId()), "rifle drill follows warehouse");
@@ -41,6 +42,6 @@ public final class CoastalWarehouseQuestTest {
         check(first.isCompleted(active, 0) && !second.isCompleted(active, 1), "first visit only");
         second.updateProgress(null, null, active, 1, QuestTrigger.LOCATION_REACHED, Map.of("locationName", "物流倉庫2"));
         check(second.isCompleted(active, 1), "second visit");
-        System.out.println("CoastalWarehouseQuestTest: chain, locations, and separate progress passed");
+
     }
 }

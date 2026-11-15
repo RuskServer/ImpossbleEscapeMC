@@ -1,18 +1,18 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.supply;
 
+import org.junit.jupiter.api.Test;
+
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import static com.lunar_prototype.impossbleEscapeMC.modules.supply.FreeLoadoutPresentation.*;
 
 /** 実際の受取制約の優先順と、ホバーなしでも分かる案内を検証する。 */
 public final class FreeLoadoutPresentationTest {
-    private static void check(boolean ok, String message) {
-        if (!ok) throw new AssertionError(message);
-    }
-    public static void main(String[] args) {
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    @org.junit.jupiter.api.DisplayName("ready")
+    void ready() throws Exception {
         var ready = status(true, false, 0, 900000, null);
         check(ready.state() == State.READY, "ready");
-        check(status(false, true, 1000, 900000, "raid").state() == State.IN_RAID, "raid first");
-        check(status(false, false, 1000, 900000, "loading").state() == State.LOADING, "loading first");
         var waiting = status(true, false, 61001, 720000, "次に受け取れるまで 1:02");
         check(waiting.state() == State.WAITING && waiting.shortLabel().equals("1:02"), "ceil countdown");
         var inventory = status(true, false, 0, 900000, "持ち物を空にしてください");
@@ -27,6 +27,12 @@ public final class FreeLoadoutPresentationTest {
         check(summary(inventory).stream().map(plain::serialize).anyMatch(s -> s.contains(inventory.reason())), "reason in body");
         check(summary(waiting).stream().map(plain::serialize).anyMatch(s -> s.contains("12 分")), "skill-adjusted interval");
         check(summary(ready).stream().noneMatch(c -> c.hoverEvent() != null), "essential guidance needs no hover");
-        System.out.println("FreeLoadoutPresentationTest passed");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("raid first")
+    void raidFirst() throws Exception {
+        check(status(false, true, 1000, 900000, "raid").state() == State.IN_RAID, "raid first");
+        check(status(false, false, 1000, 900000, "loading").state() == State.LOADING, "loading first");
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.util.FontWidths;
@@ -19,15 +21,16 @@ import java.util.List;
  *   <li>空白の組み合わせ (±2^i) が狙いの幅になる</li>
  *   <li>上の端末・品物の行・確認の行のどの行も、決まった幅ちょうどになる (中央揃えでもずれない)</li>
  * </ul>
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、作った文字を JSON で書き出す
+ * iem.previewDirectory に local/ 内の出力先を渡すと、作った文字を JSON で書き出す
  * (IEM_shader/tools/dialog_render.py がクライアントと同じ規則で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class TraderDialogLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void traderDialogLayout() throws Exception {
         // バニラの字の幅
         check(FontWidths.width("A") == 6, "A " + FontWidths.width("A"));
         check(FontWidths.width("i") == 2, "i");
@@ -108,7 +111,7 @@ public final class TraderDialogLayoutTest {
 
         Component headerComponent = TraderDialog.header(header);
         check(PlainTextComponentSerializer.plainText().serialize(headerComponent).split("\n").length == 6, "header lines");
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             StringBuilder json = new StringBuilder("[");
             json.append("{\"kind\":\"header\",\"width\":340,\"component\":").append(GsonComponentSerializer.gson().serialize(headerComponent)).append('}');
@@ -122,6 +125,6 @@ public final class TraderDialogLayoutTest {
                     .append(GsonComponentSerializer.gson().serialize(TraderDialog.confirmRow(barterConfirm))).append("}]");
             Files.writeString(Path.of(dump), json.toString(), StandardCharsets.UTF_8);
         }
-        System.out.println("TraderDialogLayoutTest: font widths, spaces, line widths and sample screens passed");
+
     }
 }

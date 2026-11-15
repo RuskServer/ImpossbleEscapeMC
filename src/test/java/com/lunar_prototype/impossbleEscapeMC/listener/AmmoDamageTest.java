@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoCatalog;
 
@@ -8,7 +10,8 @@ public final class AmmoDamageTest {
     private static void equal(double actual, double expected, String message) {
         if (Math.abs(actual - expected) > 1e-9) throw new AssertionError(message + ": " + actual);
     }
-    public static void main(String[] args) {
+    @Test
+    void ammoDamage() {
         AmmoDefinition ps = new AmmoDefinition(); ps.damage = 12;
         AmmoDefinition hp = new AmmoDefinition(); hp.damage = 15;
         AmmoDefinition shell = new AmmoDefinition(); shell.damage = 9;
@@ -46,6 +49,6 @@ public final class AmmoDamageTest {
         equal(BulletDamageModel.effectiveArmorClass(5, 450, 900), 4, "half durability drops class 5 to 4");
         equal(BulletDamageModel.effectiveArmorClass(2, 0, 0), 2, "armor without durability keeps class");
         equal(BulletDamageModel.effectiveArmorClass(0, 0, 0), 0, "no armor class stays none");
-        System.out.println("AmmoDamageTest: direct ammo damage, hit locations, no blunt damage, durability class and shell damage passed");
+
     }
 }

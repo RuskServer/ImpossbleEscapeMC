@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 
+import org.junit.jupiter.api.Test;
+
 import com.github.retrooper.packetevents.util.Quaternion4f;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -9,9 +11,7 @@ import org.joml.Quaternionf;
  * (26.3 のクライアントの描き方をそのまま行列にして比べる。どちらもこの後にアイテムの head の表示設定が続く)
  */
 public final class BackpackDisplayMathTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** アーマースタンド: LivingEntityRenderer (向き・裏返し・-1.501) → 頭の軸 (1px) → CustomHeadLayer.translateToHead */
     private static Matrix4f armorStand(float bodyYaw) {
@@ -36,10 +36,11 @@ public final class BackpackDisplayMathTest {
                 .rotateY((float) Math.PI);
     }
 
-    public static void main(String[] args) {
+    @Test
+    void backpackDisplayMath() {
         for (float yaw : new float[]{0f, 37.5f, 90f, -135f, 179.9f, 270f}) {
             check(armorStand(yaw).equals(display(yaw), 1e-5f), "yaw " + yaw + "\n" + armorStand(yaw) + "\n" + display(yaw));
         }
-        System.out.println("BackpackDisplayMathTest OK");
+
     }
 }

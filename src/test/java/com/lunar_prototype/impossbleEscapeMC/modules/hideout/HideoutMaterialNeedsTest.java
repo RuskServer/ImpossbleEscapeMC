@@ -1,9 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
+
+import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 public final class HideoutMaterialNeedsTest {
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
-    public static void main(String[] args){
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void hideoutMaterialNeeds(){
         var uses=Map.of("bolts",List.of(new HideoutMaterialNeeds.Use("ワークベンチ",2,4,false),new HideoutMaterialNeeds.Use("医療設備",1,2,true)));
         var need=HideoutMaterialNeeds.withStock(uses,Map.of("bolts",2)).get("bolts");
         check(need.required()==6&&need.have()==2&&need.shortage()==4&&need.missing(),"shared stock is counted once against combined demand");
@@ -17,6 +20,6 @@ public final class HideoutMaterialNeedsTest {
         check(!HideoutMaterialNeeds.prerequisiteMissing(HideoutFacility.MEDICAL,1,f->f==HideoutFacility.WORKBENCH?1:0),"prerequisite resolved");
         check(HideoutMaterialNeeds.demands(f->0,f->f==HideoutFacility.MEDICAL?4:0).isEmpty(),"prerequisite-only facility must not invent material requirements");
         try{need.uses().clear();throw new AssertionError("mutable snapshot");}catch(UnsupportedOperationException expected){}
-        System.out.println("PASS: next upgrade aggregation, shared counts, secured stock, prerequisites and immutable snapshots");
+
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.*;
 import org.bukkit.entity.*;
 import org.bukkit.plugin.messaging.Messenger;
@@ -9,19 +11,21 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /** 発射によるpostEffects操作なしで、1tick消灯・ディスプレイ再利用・破棄を確認する。 */
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.BukkitState.class)
 public final class MuzzleFlashSignalTest {
-    static int tick=100,spawns,removes;
-    static boolean mod;
-    static Component text;
-    static final UUID id=UUID.randomUUID();
-    static final List<Integer> packets=new ArrayList<>();
-    @SuppressWarnings("unchecked") static <T>T proxy(Class<T> c,InvocationHandler h) {
+     int tick=100,spawns,removes;
+     boolean mod;
+     Component text;
+     final UUID id=UUID.randomUUID();
+     final List<Integer> packets=new ArrayList<>();
+    @SuppressWarnings("unchecked")  <T>T proxy(Class<T> c,InvocationHandler h) {
         return (T)Proxy.newProxyInstance(c.getClassLoader(),new Class[]{c},(p,m,a)->switch(m.getName()) {
             case "equals"->p==a[0];case "hashCode"->System.identityHashCode(p);default->h.invoke(p,m,a);
         });
     }
-    static void check(boolean b,String message){if(!b)throw new AssertionError(message);}
-    @SuppressWarnings("unchecked") public static void main(String[] args)throws Exception {
+     void check(boolean b,String message){ org.junit.jupiter.api.Assertions.assertTrue(b, message); }
+    @SuppressWarnings("unchecked") @Test
+    void muzzleFlashSignal()throws Exception {
         World[] world={null};
         TextDisplay display=proxy(TextDisplay.class,(p,m,a)->switch(m.getName()) {
             case "text"->{if(a!=null&&a.length==1)text=(Component)a[0];yield text;}
@@ -57,6 +61,6 @@ public final class MuzzleFlashSignalTest {
         signal.tick(++tick);check(packets.equals(List.of(3,0)),"native channel turns off next tick");
         signal.flash(player,2);signal.clear(id);check(packets.getLast()==0,"world/death cleanup clears native signal");
         signal.close();
-        System.out.println("MuzzleFlashSignalTest passed: one-tick pulse, display reuse, mod routing and cleanup; no postEffects API calls");
+
     }
 }

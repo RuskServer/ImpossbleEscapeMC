@@ -1,15 +1,16 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.UUID;
 
 /** Run without Bukkit: java ... ScavHelpEncounterTest. */
 public final class ScavHelpEncounterTest {
     private static UUID id(int n) { return new UUID(0, n); }
-    private static void check(boolean ok, String message) {
-        if (!ok) throw new AssertionError(message);
-    }
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 
-    public static void main(String[] args) {
+    @Test
+    void scavHelpEncounter() {
         var registry = new ScavHelpEncounter.Registry();
         var root = registry.contact(null, id(1), id(100), 0);
         check(root.recruit(id(2), 0), "first rescue accepted");
@@ -47,6 +48,6 @@ public final class ScavHelpEncounterTest {
         check(anonymous.recruit(id(13), 500), "unknown-attacker encounter works");
         check(registry.contact(anonymous, id(13), null, 501) == anonymous,
                 "unknown attacker still preserves rescue chain budget");
-        System.out.println("ScavHelpEncounterTest: all checks passed");
+
     }
 }

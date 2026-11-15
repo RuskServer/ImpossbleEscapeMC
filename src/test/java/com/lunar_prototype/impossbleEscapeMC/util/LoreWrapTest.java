@@ -1,21 +1,24 @@
 package com.lunar_prototype.impossbleEscapeMC.util;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 
 /**
  * 説明文の折り返し: 幅に収まる、文の中身が欠けない、英数字の続きを切らない、禁則の字が行の頭・終わりに来ない、改行と空行を残す
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class LoreWrapTest {
 
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void checkFits(List<String> lines, int max) {
         for (String line : lines) check(LoreWrap.width(line) <= max, "幅に収まる: " + line + " (" + LoreWrap.width(line) + ")");
     }
 
-    public static void main(String[] args) {
+    @Test
+    void loreWrap() {
         check(LoreWrap.wrap(null).isEmpty() && LoreWrap.wrap("").isEmpty(), "空なら行なし");
         check(LoreWrap.wrap("短い説明。").equals(List.of("短い説明。")), "短ければそのまま");
 
@@ -76,6 +79,6 @@ public final class LoreWrapTest {
 
         // 既定の幅 (全角でおよそ 20 字)
         checkFits(LoreWrap.wrap("観光客向けの特大バックパック。MBSS を上回る収納を誇るが、背負えば否応なく目立つ。"), LoreWrap.DEFAULT_WIDTH);
-        System.out.println("LoreWrapTest ok");
+
     }
 }

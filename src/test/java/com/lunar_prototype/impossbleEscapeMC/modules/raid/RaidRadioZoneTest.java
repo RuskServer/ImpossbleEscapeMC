@@ -1,9 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.Gson;
 
 public final class RaidRadioZoneTest {
-    public static void main(String[] args) {
+    @Test
+    void raidRadioZone() {
         var zone=new RaidRadioZone("office","factory","オフィス",-10,-34,5,11,-29,16);
         check(zone.contains(-10,-34,5,0)&&zone.contains(10.99,-29.01,15.99,0),"inclusive selected blocks with exclusive outer faces");
         check(!zone.contains(11,-32,10,0)&&!zone.contains(0,-29,10,0),"outside selected x/y faces");
@@ -18,7 +21,7 @@ public final class RaidRadioZoneTest {
         check(map.removeHighThreatZone("office")&&map.highThreatZones().isEmpty(),"remove persisted zone");
         boolean invalid=false;try{new RaidRadioZone("bad","factory","bad",0,0,0,0,1,1);}catch(IllegalArgumentException ex){invalid=true;}
         check(invalid,"invalid bounds rejected");
-        System.out.println("RaidRadioZoneTest OK");
+
     }
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 }

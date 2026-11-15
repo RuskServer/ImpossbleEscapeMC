@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
@@ -19,12 +21,12 @@ import java.util.List;
  *   <li>割り当て: 選んだ行だけを、目標の順・行の順に、必要な数まで使う (ほかの目標に使った分は減る)</li>
  *   <li>開いた時の選び方: 行の順 (価値の低い順) に、必要な数に届くまで選ぶ</li>
  * </ul>
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面を JSON で書き出す (IEM_shader/tools/dialog_render.py で絵にする)
+ * iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面を JSON で書き出す (IEM_shader/tools/dialog_render.py で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class QuestHandInDialogTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void checkWidths(List<DialogLine> lines, int width, String label) {
         for (int i = 0; i < lines.size(); i++) {
@@ -39,7 +41,8 @@ public final class QuestHandInDialogTest {
                 + ",\"component\":" + GsonComponentSerializer.gson().serialize(body) + "}";
     }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void questHandInDialog() throws Exception {
         // ---- 幅 ----
         checkWidths(QuestHandInDialog.objectiveLines(new QuestHandInDialog.ObjectiveView(null, "M855A1 弾を 60 発納品する (FIR)", 12, 60, 60)),
                 QuestHandInDialog.LINE_W, "objective");
@@ -76,7 +79,7 @@ public final class QuestHandInDialogTest {
         chosen = QuestHandInDialog.defaultSelection(new int[]{5}, List.of(List.of(0, 1)), new int[]{30, 50});
         check(chosen[0][0] && !chosen[0][1], "stop once enough");
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             List<String> elements = new ArrayList<>();
             elements.add(element("text", 340, null, QuestHandInDialog.objectiveLines(
@@ -94,6 +97,6 @@ public final class QuestHandInDialogTest {
             Files.writeString(Path.of(dump), "{\"screens\":[{\"title\":\"納品 ― 部品の調達\",\"footer\":[\"納品する (3 個)\",\"自動で選び直す\",\"戻る\"],"
                     + "\"elements\":[" + String.join(",", elements) + "]}]}", StandardCharsets.UTF_8);
         }
-        System.out.println("QuestHandInDialogTest OK");
+
     }
 }

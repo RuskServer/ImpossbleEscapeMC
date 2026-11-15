@@ -1,10 +1,13 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Quaterniond;
 import org.joml.Vector3d;
 
 public final class RagdollCollisionTest {
-    public static void main(String[] args) {
+    @Test
+    void ragdollCollision() {
         // 薄い壁が部位の中央を横切る。8頂点はいずれも壁の外なので角だけでは検出できない。
         var pose=new RagdollPhysics.Pose(new Vector3d(-.02,1,0),new Quaterniond());
         var half=new Vector3d(.25,.375,.125);
@@ -20,7 +23,7 @@ public final class RagdollCollisionTest {
         half=new Vector3d(.7,.1,.03);
         var diagonalGap=new RagdollPhysics.Box(.35,-.05,.35,.4,.05,.4);
         check(RagdollCollision.correction(pose,half,diagonalGap).lengthSquared()==0,"rotated separating axis avoids false collision");
-        System.out.println("RagdollCollisionTest OK");
+
     }
-    private static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
+    private static void check(boolean value,String message){ org.junit.jupiter.api.Assertions.assertTrue(value, message); }
 }

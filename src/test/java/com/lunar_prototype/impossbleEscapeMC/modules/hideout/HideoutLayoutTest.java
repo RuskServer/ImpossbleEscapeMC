@@ -1,13 +1,16 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.nio.file.Files;
 
 /** 隠れ家の建築データ: 版の上がり方、続いているレベルの数え方、ブロックの比べ方 (座標を除く) */
 public final class HideoutLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path temporaryDirectory;
+
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** 差分は中身が無いと「ある」と数えない (HideoutLayout.hasLayer) ので、エンティティを 1 つ足した差分にする */
     private static HideoutLayout.Layer layer() {
@@ -16,8 +19,9 @@ public final class HideoutLayoutTest {
         return layer;
     }
 
-    public static void main(String[] args) throws Exception {
-        File dir = Files.createTempDirectory("hideout-layout").toFile();
+    @Test
+    void hideoutLayout() throws Exception {
+        File dir = temporaryDirectory.toFile();
         HideoutLayout layout = new HideoutLayout(dir);
         check(layout.version() == 0 && layout.base() == null, "empty");
 
@@ -72,6 +76,6 @@ public final class HideoutLayoutTest {
         check(SnbtPosition.strip(chest).contains("components:{x:1}") && SnbtPosition.strip(chest).contains("a,x:1"), "nested and quoted kept");
         check(!SnbtPosition.strip(chest).equals(SnbtPosition.strip(chest.replace("count:1", "count:2"))), "content still compared");
         check(SnbtPosition.strip("minecraft:stone").equals("minecraft:stone"), "no nbt");
-        System.out.println("HideoutLayoutTest OK");
+
     }
 }

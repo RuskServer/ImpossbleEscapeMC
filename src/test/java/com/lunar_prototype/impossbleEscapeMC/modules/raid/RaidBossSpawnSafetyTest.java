@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.util.BoundingBox;
@@ -8,9 +10,10 @@ import java.lang.reflect.Proxy;
 import java.util.*;
 
 public final class RaidBossSpawnSafetyTest {
-    private static boolean loaded=true,liquid;private static int reads;
-    private static final Map<String,List<BoundingBox>> shapes=new HashMap<>();
-    public static void main(String[] args) {
+    private boolean loaded=true,liquid;private int reads;
+    private final Map<String,List<BoundingBox>> shapes=new HashMap<>();
+    @Test
+    void raidBossSpawnSafety() {
         World world=(World)Proxy.newProxyInstance(World.class.getClassLoader(),new Class<?>[]{World.class},(p,m,a)->switch(m.getName()) {
             case "getMinHeight"->-64;
             case "getMaxHeight"->320;
@@ -41,7 +44,7 @@ public final class RaidBossSpawnSafetyTest {
         liquid=true;check(!RaidBossEncounter.safePosition(point),"water/lava rejected");liquid=false;
         check(!RaidBossEncounter.safePosition(new Location(world,.5,319,.5)),"world ceiling");
         check(!RaidBossEncounter.safePosition(new Location(world,Double.NaN,1,.5)),"invalid coordinates");
-        System.out.println("RaidBossSpawnSafetyTest passed: floor, head, shoulder, unloaded chunks, fluids and world bounds");
+
     }
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
 }

@@ -114,11 +114,5 @@ public class DILifecycleRegressionTest {
         assertSame(c.resolve(PartImpl.class), c.resolve(Part.class));
         c.stopAll();
     }
-    public static void main(String[] args) {
-        var test = new DILifecycleRegressionTest();
-        test.callbacksCanAwaitWorkerLookups(); test.repeatedAndReentrantStopsRunOnce();
-        test.stopDuringStartupCancelsAndUnwindsOnce(); test.stopDuringPreparationPreventsStartup();
-        test.concreteComponentsAreIndependentOfRegistrationOrder(); test.preparedInterfaceResolvesAtRuntime();
-        System.out.println("DILifecycleRegressionTest OK: unlocked callbacks, reentrant stop, startup cancellation, concrete identity");
-    }
+
 }

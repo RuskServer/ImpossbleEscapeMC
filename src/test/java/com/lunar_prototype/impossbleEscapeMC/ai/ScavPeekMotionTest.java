@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
@@ -11,7 +13,7 @@ import java.lang.reflect.*;
 import java.util.UUID;
 
 public final class ScavPeekMotionTest {
-    private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
     @SuppressWarnings("unchecked") private static <T>T proxy(Class<T> type,InvocationHandler h) {
         return (T)Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},h);
     }
@@ -34,7 +36,8 @@ public final class ScavPeekMotionTest {
         @Override boolean peekRouteClear(Location dest) {return clear;}
         @Override public void stopMoving() {x=z=0;}
     }
-    public static void main(String[] args)throws Exception {
+    @Test
+    void scavPeekMotion()throws Exception {
         // 方向・移動距離に依らず、立ち上がりと反転の入力変化に上限がある。
         for(int angle=0;angle<360;angle+=15) {
             var motion=new ScavPeekMotion();
@@ -105,6 +108,6 @@ public final class ScavPeekMotionTest {
             tactics.tickDirectMove();check(paths[0]==1,"fallback path is not restarted every tick");
             tactics.cancelPeek();check(stoppedPaths[0]==1&&!tactics.isPeekPathfinding(),"cancel stops owned fallback path");
         }
-        System.out.println("ScavPeekMotionTest OK: 24 directions, acceleration/reversal limits, per-tick out/fire/back, no sliding fire, cover return and stale-input cleanup");
+
     }
 }

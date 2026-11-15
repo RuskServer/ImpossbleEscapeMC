@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.starter;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.stash.StashModule;
 
 import java.util.Set;
@@ -7,11 +9,10 @@ import java.util.stream.Collectors;
 
 /** 初期物資がレベル 1 のスタッシュの 1 ページ目に収まるか (弾は 64 個で 1 スタック、ほかの品物は 1 個で 1 スタック) */
 public final class StarterKitTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
-    public static void main(String[] args) {
+    @Test
+    void starterKit() {
         Set<String> ammo = StarterKit.CONTENTS.stream().filter(StarterKit.Entry::gun).map(StarterKit.Entry::ammoId)
                 .collect(Collectors.toSet());
         int slots = StarterKit.slotsNeeded(id -> ammo.contains(id) ? 64 : 1);
@@ -25,6 +26,6 @@ public final class StarterKitTest {
             }
         }
         check(StarterKit.MONEY == 50_000, "money");
-        System.out.println("StarterKitTest OK (" + slots + "/" + capacity + " slots)");
+
     }
 }

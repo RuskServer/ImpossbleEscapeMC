@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.item.factory;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAttachments;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.AttachmentDefinitionParser;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.ActiveQuest;
@@ -11,13 +13,16 @@ import java.util.List;
 import java.util.Map;
 
 public final class AttachmentItemsTest {
-    private static void check(boolean value, String message) {
-        if (!value) throw new AssertionError(message);
-    }
-    public static void main(String[] args) {
+    private static void check(boolean value, String message) { org.junit.jupiter.api.Assertions.assertTrue(value, message); }
+    @Test
+    @org.junit.jupiter.api.DisplayName("datapack slot wins collision")
+    void datapackSlotWinsCollision() throws Exception {
         var config = new MemoryConfiguration();
-        config.set("displayName", "Old name"); config.set("slot", "BARREL");
-        config.set("weight", 450); config.set("cost", 2); config.set("rarity", 3);
+        config.set("displayName", "Old name");
+        config.set("slot", "BARREL");
+        config.set("weight", 450);
+        config.set("cost", 2);
+        config.set("rarity", 3);
         config.set("description", List.of("&7Existing description"));
         var legacy = AttachmentDefinitionParser.parse("eotech_xps2", config);
         var nativeInfo = new DatapackAttachments.Info("eotech_xps2", "sight", "item.toisarm.eotech_xps2", "Eotech XPS2");
@@ -28,10 +33,25 @@ public final class AttachmentItemsTest {
         check(resolved.description().equals(List.of("&7Existing description")), "description retained");
         var nativeOnly = AttachmentItems.definition("eotech_xps2", nativeInfo, null);
         check(nativeOnly.weight() == 320 && nativeOnly.cost() == 1, "known datapack uses existing specs");
+        check(!AttachmentItems.definition("eotech_xps2", null, legacy).datapack(), "legacy fallback works");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("new native item has defaults")
+    void newNativeItemHasDefaults() throws Exception {
         var unknownNative = AttachmentItems.definition("new_optic", new DatapackAttachments.Info("new_optic", "sight", "", "New optic"), null);
         check(unknownNative.weight() == 200 && unknownNative.cost() == 1, "new native item has defaults");
-        check(!AttachmentItems.definition("eotech_xps2", null, legacy).datapack(), "legacy fallback works");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("unknown id rejected")
+    void unknownIdRejected() throws Exception {
         check(AttachmentItems.definition("missing", null, null) == null, "unknown id rejected");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("non-FIR rejected")
+    void nonFIRRejected() throws Exception {
         var objective = new HandInObjective("eotech_xps2", null, 1, true);
         var active = new ActiveQuest("optic_calibration");
         check(!objective.updateProgress(null, null, active, 0, QuestTrigger.HAND_IN,
@@ -43,6 +63,5 @@ public final class AttachmentItemsTest {
         check(objective.isCompleted(active, 0), "optic objective completed");
         check(!objective.updateProgress(null, null, active, 0, QuestTrigger.HAND_IN,
                 Map.of("itemId", "eotech_xps2", "isFIR", true, "amount", 1)), "completed objective cannot consume more");
-        System.out.println("AttachmentItemsTest: all checks passed");
     }
 }

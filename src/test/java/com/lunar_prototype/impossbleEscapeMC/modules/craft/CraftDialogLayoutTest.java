@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.craft;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
@@ -14,13 +16,13 @@ import java.util.List;
 
 /**
  * クラフトの画面: 上の端末・レシピの行・キューの行が、行の幅を超えず、ちょうど行の幅で終わる (クライアントが途中で改行しない・中央揃えでずれない)。
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面 (ワークベンチの製作・弾薬製造の製作・キュー) を JSON で書き出す
+ * iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面 (ワークベンチの製作・弾薬製造の製作・キュー) を JSON で書き出す
  * (IEM_shader/tools/dialog_render.py で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class CraftDialogLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void checkWidths(List<DialogLine> lines, int width, String label) {
         for (int i = 0; i < lines.size(); i++) {
@@ -40,7 +42,8 @@ public final class CraftDialogLayoutTest {
                 + "],\"elements\":[" + String.join(",", elements) + "]}";
     }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void craftDialogLayout() throws Exception {
         List<CraftDialog.Tab> craftTabs = List.of(new CraftDialog.Tab("製作", true, "screen/craft"), new CraftDialog.Tab("キュー 2/3", false, "screen/queue"));
         List<CraftDialog.Tab> queueTabs = List.of(new CraftDialog.Tab("製作", false, "screen/craft"), new CraftDialog.Tab("キュー 2/3", true, "screen/queue"));
         CraftDialog.HeaderView workbench = new CraftDialog.HeaderView("ワークベンチ", 2, 2, 3, 1, craftTabs, List.of(
@@ -86,7 +89,7 @@ public final class CraftDialogLayoutTest {
             checkWidths(CraftDialog.queueLines(q), TerminalFont.ROW_LINE_W, "queue " + q.name());
         }
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             List<String> screens = new ArrayList<>();
             screens.add(screen("ワークベンチ ― 製作", List.of("閉じる"), List.of(
@@ -105,6 +108,6 @@ public final class CraftDialogLayoutTest {
                     element("row", TerminalFont.ROW_BODY_W, "mc:shears", CraftDialog.queueLines(waiting)))));
             Files.writeString(Path.of(dump), "{\"screens\":[" + String.join(",", screens) + "]}", StandardCharsets.UTF_8);
         }
-        System.out.println("CraftDialogLayoutTest OK");
+
     }
 }

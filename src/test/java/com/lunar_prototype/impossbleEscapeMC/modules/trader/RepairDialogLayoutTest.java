@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
@@ -16,12 +18,12 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.ROW_LINE_W;
 
 /**
  * 修理の画面: 上の行・物の行が、行の幅を超えず、ちょうど行の幅で終わる (クライアントが途中で改行しない・中央揃えでずれない)。
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面を JSON で書き出す (IEM_shader/tools/dialog_render.py で絵にする)
+ * iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面を JSON で書き出す (IEM_shader/tools/dialog_render.py で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class RepairDialogLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void checkWidths(List<DialogLine> lines, int width, String label) {
         for (int i = 0; i < lines.size(); i++) {
@@ -36,7 +38,8 @@ public final class RepairDialogLayoutTest {
                 + ",\"component\":" + GsonComponentSerializer.gson().serialize(body) + "}";
     }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void repairDialogLayout() throws Exception {
         RepairDialog.HeaderView header = new RepairDialog.HeaderView(184_500, 3, 21_340);
         RepairDialog.HeaderView poor = new RepairDialog.HeaderView(1_200, 2, 48_000);
         RepairDialog.HeaderView none = new RepairDialog.HeaderView(184_500, 0, 0);
@@ -59,7 +62,7 @@ public final class RepairDialogLayoutTest {
         }
         check(RepairDialog.price(1234567).equals("1,234,567₽"), "price");
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             List<String> elements = new ArrayList<>();
             elements.add(element("header", 340, null, RepairDialog.headerLines(header)));
@@ -69,6 +72,6 @@ public final class RepairDialogLayoutTest {
                     + String.join(",", elements) + "]}";
             Files.writeString(Path.of(dump), "{\"screens\":[" + screen + "]}", StandardCharsets.UTF_8);
         }
-        System.out.println("RepairDialogLayoutTest OK");
+
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.hideout;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.Component;
@@ -14,12 +16,12 @@ import java.util.List;
 
 /**
  * 隠れ家の画面のパネル: どの行も行の幅を超えず、ちょうど行の幅で終わる (クライアントが途中で改行しない・中央揃えでずれない)。
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面を JSON で書き出す (IEM_shader/tools/dialog_render.py で絵にする)
+ * iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面を JSON で書き出す (IEM_shader/tools/dialog_render.py で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class HideoutDialogLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static boolean[] built(int... indices) {
         boolean[] b = new boolean[HideoutFacility.values().length];
@@ -27,7 +29,8 @@ public final class HideoutDialogLayoutTest {
         return b;
     }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void hideoutDialogLayout() throws Exception {
         int stash = HideoutFacility.STASH.ordinal();
         HideoutDialog.Requirement money = new HideoutDialog.Requirement("₽", 25_000, 72_550, HideoutDialog.RequirementKind.MONEY);
         List<HideoutDialog.Requirement> skillTree = List.of(
@@ -78,7 +81,7 @@ public final class HideoutDialogLayoutTest {
             check(sum == n, "spaces " + n);
         }
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             var gson = GsonComponentSerializer.gson();
             List<String> screens = new ArrayList<>();
@@ -89,6 +92,6 @@ public final class HideoutDialogLayoutTest {
             }
             Files.writeString(Path.of(dump), "{\"screens\":[" + String.join(",", screens) + "]}", StandardCharsets.UTF_8);
         }
-        System.out.println("HideoutDialogLayoutTest OK");
+
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.util.FontWidths;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -13,13 +15,13 @@ import java.util.List;
  * タイルが画面の左端から 44 ごとに並ぶこと、名前が 8、使っているマスの右端が 168 に来ること、縦のずらしのフォントが段数に合うことを確かめる。
  * 文字の幅の表 (IEM_FONT_WIDTHS) が要る
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class InventoryPanelTest {
     private record Placed(String text, Key font, int x) {
     }
 
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** 置かれた字 (画面の左からの位置) */
     private static List<Placed> layout(Component title) {
@@ -52,7 +54,8 @@ public final class InventoryPanelTest {
         for (Component child : c.children()) walk(child, font, x, out);
     }
 
-    public static void main(String[] args) {
+    @Test
+    void inventoryPanel() throws Exception {
         check(FontWidths.isLoaded(), "IEM_FONT_WIDTHS is required");
 
         // いつもの表示: 「インベントリ」を (8, 20 + 18*段数) に
@@ -114,7 +117,7 @@ public final class InventoryPanelTest {
         // ボタンの無い画面は枠も案内も出さない
         check(layout(InventoryPanel.title("x", 3, null)).stream().noneMatch(e -> e.text().equals(InventoryPanel.TOGGLE_HINT)), "no hint without a toggle");
 
-        String dump = System.getenv("IEM_PANEL_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             var gson = net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson();
             String json = "{\"rows\":3,\"normal\":" + gson.serialize(InventoryPanel.title("Searching...", 3, InventoryPanel.Bag.PLAYER))
@@ -125,6 +128,6 @@ public final class InventoryPanelTest {
                 throw new RuntimeException(e);
             }
         }
-        System.out.println("InventoryPanelTest OK");
+
     }
 }

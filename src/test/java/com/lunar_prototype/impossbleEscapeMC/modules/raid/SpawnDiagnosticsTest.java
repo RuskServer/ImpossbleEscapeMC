@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.Gson;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -8,9 +10,10 @@ import java.util.UUID;
 import static com.lunar_prototype.impossbleEscapeMC.modules.raid.SpawnRouteSearch.Point;
 
 public final class SpawnDiagnosticsTest {
-    public static void main(String[] args) {
+    @Test
+    void spawnDiagnostics() {
         stableIds(); routes(); thresholds();
-        System.out.println("SpawnDiagnosticsTest OK");
+
     }
     private static void stableIds() {
         Gson gson=new Gson();
@@ -61,5 +64,5 @@ public final class SpawnDiagnosticsTest {
         check(SpawnRouteSearch.rating(40,15,30,40).startsWith("目標範囲"),"40s inclusive");
         check(SpawnRouteSearch.rating(40.01,15,30,40).startsWith("早期接敵"),"over 40s");
     }
-    private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 }

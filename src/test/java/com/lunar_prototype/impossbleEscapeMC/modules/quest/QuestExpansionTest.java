@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -15,7 +17,7 @@ public final class QuestExpansionTest {
     private static final Set<String> LEGACY = Set.of("supply_route", "field_deployment", "optic_calibration",
             "kovacs_marksman_01", "kovacs_marksman_02", "first_aid_basics", "stop_the_bleed", "sanitary_maintenance",
             "bastion_logistics_01", "bastion_logistics_02", "bastion_logistics_03");
-    private static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
     private static Object field(Object target, String name) throws Exception {
         var f = target.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(target);
     }
@@ -36,7 +38,8 @@ public final class QuestExpansionTest {
         }
         visiting.remove(id); done.add(id);
     }
-    public static void main(String[] args) throws Exception {
+    @Test
+    void questExpansion() throws Exception {
         List<ItemDefinition> items = catalog("com.lunar_prototype.impossbleEscapeMC.item.definition.ItemCatalog", "create");
         List<AmmoDefinition> ammo = catalog("com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoCatalog", "create");
         Map<String,ItemDefinition> itemMap = registry("ITEM_MAP");
@@ -103,6 +106,6 @@ public final class QuestExpansionTest {
         check(!extract.isCompleted(extraction,0),"first extract partial");
         extract.updateProgress(null,null,extraction,0,QuestTrigger.RAID_EXTRACT,Map.of("mapId","map_b"));
         check(extract.isCompleted(extraction,0),"different maps counted");
-        System.out.println("QuestExpansionTest: all checks passed (51 rebuilt quests, 8 calibers, loot, unlocks, FIR progression)");
+
     }
 }

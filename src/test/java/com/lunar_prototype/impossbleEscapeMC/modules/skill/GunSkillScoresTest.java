@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.skill;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.Arrays;
 
 /**
@@ -7,11 +9,10 @@ import java.util.Arrays;
  * 読み込みは「持ち替えの残りが増えた」か「前に書いた値から変わった」で見つける
  */
 public final class GunSkillScoresTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
-    public static void main(String[] args) {
+    @Test
+    void gunSkillScores() {
         double[] m = {0.9, 1.0};
         // 前の tick: 銃 A (40, 100) を読み込んで 36 にした。持ち替えの残りは -1 (終わっている)
         GunSkillScores.State state = new GunSkillScores.State(new int[]{36, 100}, -1);
@@ -36,6 +37,6 @@ public final class GunSkillScoresTest {
         GunSkillScores.State s3 = new GunSkillScores.State(new int[]{GunSkillScores.UNSET, 100}, GunSkillScores.UNSET);
         next = GunSkillScores.step(s3, new int[]{GunSkillScores.UNSET, 100}, GunSkillScores.UNSET, m, 0.5);
         check(next[0] == GunSkillScores.UNSET, "unset stays unset");
-        System.out.println("GunSkillScoresTest OK");
+
     }
 }

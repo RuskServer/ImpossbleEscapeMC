@@ -1,9 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.stamina;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.movement.MovementTuning;
 
 public final class StaminaTravelModelTest {
-    public static void main(String[] args) {
+    @Test
+    void staminaTravelModel() {
         var normal=StaminaModule.diagnosticTravel(20000,20,5,5.6,4.3);
         near(normal.seconds(0),0);
         near(normal.sprintSpeed(),MovementTuning.scale(5.6));
@@ -26,8 +29,8 @@ public final class StaminaTravelModelTest {
         boolean invalid=false;
         try {new StaminaTravelModel(100,4,12,1,100,5.6,4.3,true);}catch(IllegalArgumentException ex){invalid=true;}
         check(invalid,"invalid reserve rejected");
-        System.out.println("StaminaTravelModelTest OK");
+
     }
     private static void near(double actual,double expected){check(Math.abs(actual-expected)<1e-6,actual+" != "+expected);}
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 }

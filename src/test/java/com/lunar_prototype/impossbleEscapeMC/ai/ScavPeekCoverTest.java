@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -58,7 +60,9 @@ public final class ScavPeekCoverTest {
             default->throw new AssertionError("rejected peek must not issue movement: "+m.getName());
         });
     }
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("open ground is not cover")
+    void openGroundIsNotCover() throws Exception {
         Geometry open=new Geometry();
         check(!ScavPeekCover.covered(open.feet(),open.threat())&&open.rays==1,"open ground is not cover");
         var wall=new Geometry(new BoundingBox(.7,0,-2,1,3,2));
@@ -67,15 +71,14 @@ public final class ScavPeekCoverTest {
         check(!ScavPeekCover.covered(far.feet(),far.threat()),"remote wall does not make open ground a peek origin");
         var low=new Geometry(new BoundingBox(.7,0,-2,1,1.3,2));
         check(!ScavPeekCover.covered(low.feet(),low.threat()),"exposed head cannot peek from low cover");
-        var tallEye=new Geometry(new BoundingBox(.7,0,-2,1,1.7,2));
-        check(!ScavPeekCover.covered(tallEye.feet(),tallEye.threat(),1.8),"actual eye height must be hidden");
         var beam=new Geometry(new BoundingBox(.7,1.4,-2,1,2,2));
         check(!ScavPeekCover.covered(beam.feet(),beam.threat()),"head-only obstruction leaves torso exposed");
         var pole=new Geometry(new BoundingBox(.7,0,-.02,1,3,.02));
         check(!ScavPeekCover.covered(pole.feet(),pole.threat()),"thin post cannot shelter torso width");
         var behind=new Geometry(new BoundingBox(-1,0,-2,-.7,3,2));
         check(!ScavPeekCover.covered(behind.feet(),behind.threat()),"wall behind scav does not shield threat direction");
-        var missing=new Geometry();missing.loaded=(x,z)->x!=0;
+        var missing=new Geometry();
+        missing.loaded=(x,z)->x!=0;
         check(!ScavPeekCover.covered(new Location(missing.world,-.1,0,0),missing.threat())&&missing.rays==0,"unloaded chunk crossing rejected before raycast");
         check(!ScavPeekCover.covered(wall.feet(),open.threat()),"world mismatch");
         check(!ScavPeekCover.covered(wall.feet(),wall.feet().add(0,1.6,0)),"coincident threat");
@@ -91,7 +94,13 @@ public final class ScavPeekCoverTest {
         var tactics=new ScavTactics(mob(wall),null);
         check(!tactics.startPeekTo(wall.feet().add(0,0,.2),wall.threat()),"destination must actually expose a firing line");
         check(tactics.getPeekPhase()==0,"blocked destination does not begin movement");
-        System.out.println("ScavPeekCoverTest OK: local cover, exposed terrain, remote walls, body width, unloaded chunks and actual peek entrypoints");
     }
-    private static void check(boolean condition,String message) {if(!condition)throw new AssertionError(message);}
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("actual eye height must be hidden")
+    void actualEyeHeightMustBeHidden() throws Exception {
+        var tallEye=new Geometry(new BoundingBox(.7,0,-2,1,1.7,2));
+        check(!ScavPeekCover.covered(tallEye.feet(),tallEye.threat(),1.8),"actual eye height must be hidden");
+    }
+    private static void check(boolean condition,String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 }

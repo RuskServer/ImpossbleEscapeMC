@@ -1,11 +1,13 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
 /** 実際の時間・色計算と、サーチ中の品物の差し替え判定を検証する。 */
 public final class LootSearchAnimationTest {
-    private static void check(boolean condition, String message) {if (!condition) throw new AssertionError(message);}
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
     private static final class Stack extends ItemStack {
         private final String identity;
         private final Material type;
@@ -17,7 +19,9 @@ public final class LootSearchAnimationTest {
             return other instanceof Stack stack && stack.type==type && stack.identity.equals(identity);
         }
     }
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("rarity duration")
+    void rarityDuration() throws Exception {
         int[] duration={10,12,15,20,26};
         for(int rarity=1;rarity<=5;rarity++) {
             check(LootSearchAnimation.durationTicks(rarity,0)==duration[rarity-1],"rarity duration");
@@ -43,9 +47,19 @@ public final class LootSearchAnimationTest {
                 }
             }
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("catalog rarity clamps to valid range")
+    void catalogRarityClampsToValidRange() throws Exception {
         check(LootSearchAnimation.durationTicks(-1,0)==10&&LootSearchAnimation.durationTicks(99,0)==26,"catalog rarity clamps to valid range");
         check(LootSearchAnimation.durationTicks(5,Integer.MAX_VALUE)==Integer.MAX_VALUE,"adjustments do not overflow");
         check(LootSearchAnimation.frame(4,-100,20).rotation()==0,"negative elapsed cannot select an invalid asset");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("another player removing part of the same stack does not restart it")
+    void anotherPlayerRemovingPartOfTheSameStackDoes() throws Exception {
         var expected=new Stack("legendary:a",Material.PAPER,5);
         check(SearchGUI.sameSearchTarget(expected,new Stack("legendary:a",Material.PAPER,1)),"another player removing part of the same stack does not restart it");
         check(!SearchGUI.sameSearchTarget(expected,new Stack("legendary:b",Material.PAPER,5)),"replacement metadata or identity cannot inherit progress");
@@ -53,6 +67,5 @@ public final class LootSearchAnimationTest {
         check(!SearchGUI.sameSearchTarget(expected,null)&&!SearchGUI.sameSearchTarget(expected,new Stack("legendary:a",Material.AIR,1)),"removed item cancels without revealing");
         check(!SearchGUI.sameSearchTarget(expected,new Stack("legendary:a",Material.PAPER,0)),"zero-amount stack cannot reveal");
         check(expected.getAmount()==5,"target comparison does not mutate live contents");
-        System.out.println("LootSearchAnimationTest OK: rarity timings, skill-adjusted midpoint, three-tick palette transition, rotation and changed-target rejection");
     }
 }

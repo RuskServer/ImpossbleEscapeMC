@@ -1,12 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Vector3d;
 import java.util.*;
 
 /** 階段ブロックではなく、通常ブロックを斜めに並べた壁の凹凸で検証する。 */
 public final class RagdollDiagonalWallTest {
     private static final Vector3d MOTION=new Vector3d(.3286947205545099,0,.30040347822525804);
-    public static void main(String[] args) {
+    @Test
+    void ragdollDiagonalWall() {
         // 旧実装はこの配置の10tick目、頭の回転箱が壁に約9mm入る。
         verify(2,false,0,new Vector3d(-.8255886960323915,.1,-1.5044129349351538),69,12);
         int cases=1;
@@ -16,7 +19,7 @@ public final class RagdollDiagonalWallTest {
                         :new Vector3d(.65,.1,slope==1?1.35:2.35);
                 verify(slope,corridor,rotation,origin,yaw,seed);cases++;
             }
-        System.out.println("RagdollDiagonalWallTest OK: "+cases+" layouts, every tick and frozen pose");
+
     }
     private static Vector3d rotate(Vector3d v,int turns) {
         return switch(turns) {case 1->new Vector3d(v.z,v.y,-v.x);case 2->new Vector3d(-v.x,v.y,-v.z);case 3->new Vector3d(-v.z,v.y,v.x);default->new Vector3d(v);};
@@ -54,5 +57,5 @@ public final class RagdollDiagonalWallTest {
         Vector3d a=rotate(new Vector3d(x,0,z),rotation),b=rotate(new Vector3d(x+1,5,z+1),rotation);
         return new RagdollPhysics.Box(Math.min(a.x,b.x),0,Math.min(a.z,b.z),Math.max(a.x,b.x),5,Math.max(a.z,b.z));
     }
-    private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 }

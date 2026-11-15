@@ -117,6 +117,12 @@ PR前にこのチェックを通してください。
 [ ] 変更理由と検証手順をPR本文に書いた
 ```
 
+## Tests
+
+検証はJUnit 5に統一している。`mvn test`で通常の単体テスト、`mvn package`で同じ検証とjar生成を行う。GitHub ActionsのBuildもこれを実行する。
+
+実フォント幅による配置の検証は、表を指定して`mvn -Pfont-tests test`を実行する。表が無い時は成功扱いにしない。テストの分割、`@TempDir`、Bukkitの復元、プレビュー出力とフォント表の生成は[テスト手順](docs/TESTING.md)を参照。
+
 ## Dependencies
 
 - Paper API

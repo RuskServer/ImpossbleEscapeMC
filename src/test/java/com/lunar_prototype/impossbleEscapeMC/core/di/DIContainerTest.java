@@ -12,13 +12,9 @@ import java.util.function.Supplier;
 /** 循環、遅延取得、ライフサイクル失敗、旧コンテナとの同一性を実際に検証する。 */
 public final class DIContainerTest {
     static final List<String> calls = new ArrayList<>();
-    static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
+    static void check(boolean value, String message) { org.junit.jupiter.api.Assertions.assertTrue(value, message); }
     static <T extends Throwable> T expect(Class<T> type, Runnable work) {
-        try { work.run(); } catch (Throwable e) {
-            if (type.isInstance(e)) return type.cast(e);
-            throw new AssertionError("Expected " + type.getName(), e);
-        }
-        throw new AssertionError("Expected " + type.getName());
+        return org.junit.jupiter.api.Assertions.assertThrows(type, work::run);
     }
     static class Base implements Startable, Stoppable {
         public void start() { calls.add("base+"); }
@@ -79,20 +75,31 @@ public final class DIContainerTest {
         public void onEnable(ServiceContainer container) { check(container.get(First.class) != null, "legacy get"); calls.add("second+"); }
         public void onDisable() { calls.add("second-"); }
     }
-    @Test void suite() { main(new String[0]); }
-    public static void main(String[] args) {
+
+    @org.junit.jupiter.api.BeforeEach
+    @org.junit.jupiter.api.AfterEach
+    void clearCalls() { calls.clear(); }
+
+    @Test
+    void singletonLifecycle() {
         DIContainer c = new DIContainer();
         Client client = c.resolve(Client.class);
         check(client == c.resolve(Client.class) && client.base == c.resolve(Base.class), "singleton identity");
         calls.clear(); c.startAll(); c.stopAll(); c.stopAll();
         check(calls.equals(List.of("base+", "client+", "client-", "base-")), "dependency start and reverse stop, once: " + calls);
         expect(DependencyResolutionException.class, () -> c.resolve(Client.class));
+    }
 
+    @Test
+    void cycleDiagnostics() {
         DIContainer cyclic = new DIContainer();
         var cycle = expect(CircularDependencyException.class, () -> cyclic.resolve(CycleA.class));
         check(cycle.getMessage().contains("CycleA -> CycleB -> CycleA"), "cycle path");
         check(cyclic.resolve(Base.class) != null, "resolution stack restored after failure");
+    }
 
+    @Test
+    void deferredDependencyLifecycle() {
         DIContainer lazy = new DIContainer();
         Raid raid = lazy.resolve(Raid.class);
         expect(DependencyResolutionException.class, raid.tasks.raids::get);
@@ -104,7 +111,10 @@ public final class DIContainerTest {
         DIContainer earlyStart = new DIContainer(); earlyStart.registerTypes(PrematureStart.class);
         expect(DependencyResolutionException.class, earlyStart::startAll);
         check(earlyStart.phase() == DIContainer.Phase.FAILED, "early provider access fails startup");
+    }
 
+    @Test
+    void collectionsAndExplicitBindings() {
         DIContainer list = new DIContainer(); list.registerTypes(Two.class, One.class);
         check(list.resolve(CollectionClient.class).values.getFirst() instanceof One, "stable collection injection order");
         expect(DependencyResolutionException.class, () -> list.resolve(ContractClient.class));
@@ -117,14 +127,20 @@ public final class DIContainerTest {
         explicit.resolve(ConcreteClient.class); explicit.startAll(); explicit.stopAll();
         expect(DependencyResolutionException.class, () -> new DIContainer().resolve(Multiple.class));
         expect(DependencyResolutionException.class, () -> new DIContainer().resolve(Raw.class));
+    }
 
+    @Test
+    void startupRollbackAndStopFailures() {
         DIContainer failure = new DIContainer(); failure.registerTypes(Broken.class); calls.clear();
         expect(IllegalStateException.class, failure::startAll);
         check(calls.equals(List.of("base+", "broken+", "broken-", "base-")), "rollback only started/partial components: " + calls);
         failure.stopAll(); check(calls.size() == 4, "rollback not repeated");
         DIContainer stopFailure = new DIContainer(); stopFailure.resolve(StopsBadly.class); stopFailure.resolve(Base.class);
         stopFailure.startAll(); calls.clear(); stopFailure.stopAll(); check(calls.containsAll(List.of("bad-", "base-")), "stop failures isolated");
+    }
 
+    @Test
+    void legacyContainerAndOrdering() {
         ServiceContainer legacy = new ServiceContainer();
         check(legacy.get(Raid.class) == null, "legacy nullable lookup does not instantiate");
         check(legacy.resolve(ServiceContainer.class) == legacy && legacy.resolve(DIContainer.class) == legacy, "single shared container");
@@ -133,12 +149,15 @@ public final class DIContainerTest {
         check(calls.equals(List.of("first+", "second+", "second-", "first-")), "legacy lifecycle ordering and self registration");
         DIContainer orderedCycle = new DIContainer(); orderedCycle.registerTypes(Base.class, Client.class); orderedCycle.startAfter(Base.class, Client.class);
         expect(CircularDependencyException.class, orderedCycle::startAll);
+    }
 
+    @Test
+    void annotationScanningDoesNotInitializeComponents() {
         DIContainer scanning = new DIContainer();
+        int initializedBeforeScan = ScanFixtures.initialized;
         var found = scanning.scan(DIContainerTest.class.getClassLoader(), "com.lunar_prototype.impossbleEscapeMC.di_fixture");
         check(found.equals(Set.of(ScanFixtures.Found.class)), "only marked, not ignored components");
-        check(ScanFixtures.initialized == 0, "scan does not initialize classes");
+        check(ScanFixtures.initialized == initializedBeforeScan, "scan does not initialize classes");
         scanning.startAll(); check(ScanFixtures.initialized == 1, "resolve initializes scanned singleton"); scanning.stopAll();
-        System.out.println("DIContainerTest OK: singleton, cycles, deferred references, collections, rollback, legacy bridge, scanning");
     }
 }

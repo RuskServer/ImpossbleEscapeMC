@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Vector3d;
 import java.util.UUID;
 import java.util.Random;
@@ -10,7 +12,9 @@ public final class ScavIndividualAimTest {
     private static ScavIndividualTraits traits(double tracking,double acquisition) {
         return new ScavIndividualTraits(.65,.1,acquisition,.12,20,tracking,0,0,1,1,.1,1.1);
     }
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("traits must not reroll")
+    void traitsMustNotReroll() throws Exception {
         for(int i=0;i<1000;i++) {
             UUID id=new UUID(i,i*71L);
             var low=ScavIndividualTraits.create(id,0);var high=ScavIndividualTraits.create(id,2);
@@ -20,9 +24,15 @@ public final class ScavIndividualAimTest {
             check(low.pauseChance()>=.04&&low.pauseChance()<=.18&&low.strafeDuration()>=.8&&low.strafeDuration()<=1.45,"movement bounds");
             check(!low.equals(ScavIndividualTraits.create(new UUID(i+1,i*71L),0)),"different individuals");
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("persistent side-bias bounds by rank")
+    void persistentSideBiasBoundsByRank() throws Exception {
         // 最小値付近へクランプして山を作らず、左右両側の範囲を連続して使う。
         Random population=new Random(0x5CAFL);
-        int[] positive=new int[3],atFloor=new int[3];double[] sums=new double[3];
+        int[] positive=new int[3],atFloor=new int[3];
+        double[] sums=new double[3];
         double[] minimum={.06,.03,0},maximum={.16,.12,.08};
         for(int i=0;i<10000;i++) {
             UUID id=new UUID(population.nextLong(),population.nextLong());
@@ -45,13 +55,23 @@ public final class ScavIndividualAimTest {
                     &&reference.pauseChance()==.1457665697958506&&reference.peekRest()==1.3181752237185074,
                     "non-bias personality draws must remain unchanged");
         }
-        check(ScavIndividualTraits.create(new UUID(123,456),2).sideBias()==-.06521582632976608,"HIGH bias distribution remains unchanged");
         // 下限は固定の寄りだけ。揺れとの相殺を禁止するような毎発の最低誤差は作らない。
         double pressure=.2,range=1+10./35*pressure;
         double phase=Math.asin(-.06*range/(.025+.22*pressure));
         var cancellable=new ScavAimModel(new ScavIndividualTraits(.65,.06,0,0,20,5,0,phase,1,1,.1,1));
         cancellable.observe(TARGET,FEET,1.62,0);
         check(Math.abs(cancellable.aimPoint(EYE,0,pressure).z)<1e-12,"continuous sway can still cross the intended point");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("HIGH bias distribution remains unchanged")
+    void highBiasDistributionRemainsUnchanged() throws Exception {
+        check(ScavIndividualTraits.create(new UUID(123,456),2).sideBias()==-.06521582632976608,"HIGH bias distribution remains unchanged");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("aim body rather than exact eyes")
+    void aimBodyRatherThanExactEyes() throws Exception {
         var model=new ScavAimModel(traits(5,.6));
         model.observe(TARGET,FEET,1.62,0);
         Vector3d first=model.aimPoint(EYE,0,0),previous=first;
@@ -70,7 +90,13 @@ public final class ScavIndividualAimTest {
         check(model.aimPoint(EYE,128,0).x<-9,"target switch clears old tracked position and velocity");
         model.observe(new UUID(9,9),new Vector3d(40,0,0),1.62,131);
         check(model.aimPoint(EYE,131,0).x>39,"teleport cannot become an extreme velocity lead");
-        var slow=new ScavAimModel(traits(8,0));var fast=new ScavAimModel(traits(2,0));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("tracking personality produces persistent movement lag")
+    void trackingPersonalityProducesPersistentMovementLag() throws Exception {
+        var slow=new ScavAimModel(traits(8,0));
+        var fast=new ScavAimModel(traits(2,0));
         Vector3d slowPoint=null,fastPoint=null;
         for(int tick=0;tick<=81;tick++) {
             Vector3d observed=new Vector3d(10,0,tick*.15);
@@ -78,6 +104,11 @@ public final class ScavIndividualAimTest {
             slowPoint=slow.aimPoint(EYE,tick,0);fastPoint=fast.aimPoint(EYE,tick,0);
         }
         check(fastPoint.z-slowPoint.z>.5,"tracking personality produces persistent movement lag");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("stress stays near the body rather than sky/ground")
+    void stressStaysNearTheBodyRatherThanSkyGround() throws Exception {
         var stressed=new ScavAimModel(ScavIndividualTraits.create(new UUID(32,73),0));
         for(int tick=0;tick<100;tick++) {
             stressed.observe(TARGET,FEET,1.62,tick);
@@ -87,7 +118,6 @@ public final class ScavIndividualAimTest {
         stressed.observe(TARGET,FEET,.4,100);
         Vector3d crawling=stressed.aimPoint(EYE,100,1);
         check(crawling.y>=.08&&crawling.y<=.38,"short poses retain body-height bounds");
-        System.out.println("ScavIndividualAimTest OK: 30000 bias bounds/distributions, stable personality, sway cancellation, body aim, correction, tracking and expiry");
     }
-    private static void check(boolean value,String message) {if(!value)throw new AssertionError(message);}
+    private static void check(boolean value,String message) { org.junit.jupiter.api.Assertions.assertTrue(value, message); }
 }

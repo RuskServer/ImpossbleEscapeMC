@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
@@ -17,13 +19,13 @@ import java.util.List;
  * クエストの画面 (ダイアログ) の文字の組み立てを確かめる。サーバーは要らない。
  * 一覧の上の端末・一覧の行・詳細の上の端末・見出し・目標の行・報酬の行のどの行も、途中で行の幅を超えず
  * (超えるとクライアントが改行する)、ちょうど行の幅で終わる。
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面を JSON で書き出す
+ * iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面を JSON で書き出す
  * (IEM_shader/tools/dialog_render.py がクライアントと同じ規則で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class QuestDialogLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void checkLines(List<DialogLine> lines, int width, String what) {
         for (DialogLine l : lines) {
@@ -37,7 +39,8 @@ public final class QuestDialogLayoutTest {
     private static final TextColor AMBER = TextColor.color(0xDEAC4E);
     private static final TextColor DIM = TextColor.color(0x827E6E);
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void questDialogLayout() throws Exception {
         List<QuestDialog.Tab> tabs = List.of(new QuestDialog.Tab("すべて 5", true, "tab/all"), new QuestDialog.Tab("進行中 2", false, "tab/active"),
                 new QuestDialog.Tab("受領可 1", false, "tab/start"), new QuestDialog.Tab("完了 1", false, "tab/done"),
                 new QuestDialog.Tab("ロック 1", false, "tab/locked"));
@@ -89,7 +92,7 @@ public final class QuestDialogLayoutTest {
                 new QuestDialog.NoteView("SVD 販売解放", TextColor.color(0xE0D6AA), "Kovacs で買えるようになる", NOTE));
         for (QuestDialog.NoteView n : notes) checkLines(QuestDialog.noteLines(n), TerminalFont.ROW_LINE_W, "note " + n.text());
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             var gson = GsonComponentSerializer.gson();
             List<String> screens = new ArrayList<>();
@@ -119,7 +122,7 @@ public final class QuestDialogLayoutTest {
             screens.add(pda.append("]}").toString());
             Files.writeString(Path.of(dump), "{\"screens\":[" + String.join(",", screens) + "]}", StandardCharsets.UTF_8);
         }
-        System.out.println("QuestDialogLayoutTest: header, rows, detail, sections, objectives and rewards fit their widths");
+
     }
 
     private static String element(String kind, int width, String icon, String component) {

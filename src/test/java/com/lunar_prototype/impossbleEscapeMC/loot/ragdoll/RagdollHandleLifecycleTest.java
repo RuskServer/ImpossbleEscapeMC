@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.loot.event.CorpseCreatedEvent;
 import org.bukkit.*;
 import org.bukkit.entity.*;
@@ -10,10 +12,11 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /** 実Actorの生成・更新・部分欠損・回収を、サーバーを動かさず検証する。 */
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.BukkitState.class)
 public final class RagdollHandleLifecycleTest {
-    private static final List<Handle> spawned=new ArrayList<>();
-    private static boolean blocked;
-    private static final class Handle implements InvocationHandler {
+    private final List<Handle> spawned=new ArrayList<>();
+    private boolean blocked;
+    private final class Handle implements InvocationHandler {
         boolean valid=true;float width,height;Location location;Interaction entity;
         final UUID id=UUID.randomUUID();
         Handle(Location location){this.location=location.clone();entity=proxy(Interaction.class,this);}
@@ -35,7 +38,8 @@ public final class RagdollHandleLifecycleTest {
             };
         }
     }
-    public static void main(String[] args) throws Exception {
+    @Test
+    void ragdollHandleLifecycle() throws Exception {
         Field server=Bukkit.class.getDeclaredField("server");server.setAccessible(true);
         server.set(null,proxy(Server.class,(p,m,a)->switch(m.getName()) {
             case "getCurrentTick"->100;
@@ -120,8 +124,8 @@ public final class RagdollHandleLifecycleTest {
         check(spawned.size()==12&&spawned.stream().filter(h->h.valid).count()==11,"only missing handle repaired");
         var remove=ScavRagdollModule.class.getDeclaredMethod("remove",actorClass,boolean.class);remove.setAccessible(true);remove.invoke(module,actor,false);
         check(spawned.stream().noneMatch(h->h.valid),"all handles removed during fallback/cleanup");
-        System.out.println("RagdollHandleLifecycleTest passed: native click capture/validation, creation, reuse, missing-handle repair and complete cleanup");
+
     }
-    private static <T> T proxy(Class<T> type,InvocationHandler handler){return type.cast(Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},handler));}
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private <T> T proxy(Class<T> type,InvocationHandler handler){return type.cast(Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},handler));}
+    private void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
 }

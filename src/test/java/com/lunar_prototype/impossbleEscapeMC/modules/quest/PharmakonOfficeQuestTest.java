@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.CompletedQuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
@@ -8,9 +10,7 @@ import java.util.Map;
 
 /** オフィスビルの二地点と、Pharmakon序盤の受領順を確かめる。 */
 public final class PharmakonOfficeQuestTest {
-    private static void check(boolean ok, String message) {
-        if (!ok) throw new AssertionError(message);
-    }
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 
     private static QuestDefinition quest(String id) {
         return QuestCatalog.create(null).stream().filter(q -> q.getId().equals(id)).findFirst().orElseThrow();
@@ -21,7 +21,8 @@ public final class PharmakonOfficeQuestTest {
                 && completed.getRequiredQuestId().equals(id));
     }
 
-    public static void main(String[] args) {
+    @Test
+    void pharmakonOfficeQuest() {
         QuestDefinition office = quest("pharmakon_office_recon");
         check(requires(office, "stop_the_bleed"), "office follows stop the bleed");
         check(requires(quest("sanitary_maintenance"), office.getId()), "sanitary maintenance follows office");
@@ -46,6 +47,6 @@ public final class PharmakonOfficeQuestTest {
         lab.updateProgress(null, null, active, 1, QuestTrigger.LOCATION_REACHED,
                 Map.of("locationName", "オフィスビル1階の研究室"));
         check(lab.isCompleted(active, 1), "laboratory visit");
-        System.out.println("PharmakonOfficeQuestTest: chain, locations, and separate progress passed");
+
     }
 }

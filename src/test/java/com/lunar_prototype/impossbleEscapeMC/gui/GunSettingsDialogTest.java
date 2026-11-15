@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.GunSettingsDialog.Setting;
 
 /**
@@ -7,9 +9,7 @@ import com.lunar_prototype.impossbleEscapeMC.gui.GunSettingsDialog.Setting;
  * 移動補完は画面に出さず、既定値に固定する
  */
 public final class GunSettingsDialogTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void cycle(Setting setting, int... values) {
         for (int i = 0; i + 1 < values.length; i++) {
@@ -18,7 +18,8 @@ public final class GunSettingsDialogTest {
         }
     }
 
-    public static void main(String[] args) {
+    @Test
+    void gunSettingsDialog() {
         cycle(Setting.KEYBIND_SWAP, 1, 2, 1);
         cycle(Setting.KEYBIND_DROP, 2, 1, 2);
         cycle(Setting.RELOAD_DISABLE_ADS, 1, 0, 1);
@@ -46,6 +47,6 @@ public final class GunSettingsDialogTest {
         }
         for (String action : new String[]{"reset", "reset_yes", "back", "close"}) GunSettingsDialog.actionKey(action);
         check(Setting.byId("move_comp.rate") == null, "locked setting has no button");
-        System.out.println("GunSettingsDialogTest OK");
+
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -24,8 +26,9 @@ public final class ScavVoiceAudioTest {
             default->throw new UnsupportedOperationException(m.getName());
         });
     }
-    static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
-    public static void main(String[] args){
+    static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void scavVoiceAudio(){
         List<Player> players=new ArrayList<>();int[] queries={0};
         List<BoundingBox> floors=List.of(new BoundingBox(-5,3,-5,5,4,5),new BoundingBox(-5,7,-5,5,8,5));
         World world=(World)Proxy.newProxyInstance(World.class.getClassLoader(),new Class<?>[]{World.class},(p,m,a)->switch(m.getName()){
@@ -65,6 +68,6 @@ public final class ScavVoiceAudioTest {
         check(Math.abs(same.getFirst().position.getY()-1.44)<1e-9&&upper.getFirst().position.equals(same.getFirst().position),"mouth position used for every listener");
         check(same.getFirst().pitch==1&&upper.getFirst().pitch==1&&farUpper.getFirst().pitch==1,"height does not change voice pitch");
         check(queries[0]<=18,"collision work bounded per utterance");
-        System.out.println("PASS: actual SCAV audio fan-out, mouth position, identical take, occlusion gains and distance/online filtering");
+
     }
 }

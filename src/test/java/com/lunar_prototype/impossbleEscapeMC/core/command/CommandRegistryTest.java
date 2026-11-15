@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.core.command;
 
+import org.junit.jupiter.api.Test;
+
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.jetbrains.annotations.NotNull;
@@ -18,9 +20,7 @@ import java.util.stream.Stream;
  * 補完の引数を Bukkit の形にする、注釈の権限が付く
  */
 public final class CommandRegistryTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** 前の plugin.yml の commands (名前 → 権限。空は誰でも) */
     private static final Map<String, String> EXPECTED = Map.ofEntries(
@@ -37,7 +37,8 @@ public final class CommandRegistryTest {
         }
     }
 
-    public static void main(String[] args) throws IOException {
+    @Test
+    void commandRegistry() throws IOException {
         // ---- 注釈の付いたコマンド (ビルドしたクラスを探す。初期化はしない) ----
         Path root = Path.of("target/classes");
         Map<String, Command> found = new HashMap<>();
@@ -84,6 +85,6 @@ public final class CommandRegistryTest {
         } catch (IllegalArgumentException expected) {
             // 注釈が無ければ断る
         }
-        System.out.println("CommandRegistryTest OK (" + found.size() + " commands)");
+
     }
 }

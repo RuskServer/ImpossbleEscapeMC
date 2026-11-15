@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.*;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
@@ -24,7 +26,7 @@ public final class VisorArmorTest {
     @SuppressWarnings("unchecked") private static <T>T proxy(Class<T> type,InvocationHandler h) {
         return (T)Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},h);
     }
-    private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
     private static ItemMeta meta(Map<NamespacedKey,Object> values) {
         var data=proxy(PersistentDataContainer.class,(p,m,a)->switch(m.getName()) {
             case "get"->values.get(a[0]);
@@ -59,7 +61,8 @@ public final class VisorArmorTest {
         @Override public <T>void setData(DataComponentType.Valued<T> type,T value) {components.put(type,value);}
         @Override public Stack clone() {var copy=new Stack((String)data.get(PDCKeys.ITEM_ID));copy.data.putAll(data);copy.components.putAll(components);return copy;}
     }
-    @SuppressWarnings("unchecked") public static void main(String[] args)throws Exception {
+    @SuppressWarnings("unchecked") @Test
+    void visorArmor()throws Exception {
         Field unsafeField=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafeField.setAccessible(true);
         var unsafe=(sun.misc.Unsafe)unsafeField.get(null);
         // DIAMONDはブロックでないため、そのレジストリ参照だけ空として提供する。
@@ -132,6 +135,6 @@ public final class VisorArmorTest {
             check(BulletDamageModel.damageForHit(10,"face",false,2)==0,"blocked face shot uses normal armor damage");
             check(Math.abs(BulletDamageModel.damageForHit(10,"face",true,2)-9.6)<1e-9,"penetrated face shot uses head multiplier and class reduction");
         } finally {items.clear();items.putAll(saved);instance.set(null,before);unsafe.putObject(registryBase,registryOffset,previousRegistry);}
-        System.out.println("VisorArmorTest OK: FAST/PVS/Altyn catalog, real face armor selection, legacy durability, independent wear, broken protection and common damage");
+
     }
 }

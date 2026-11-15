@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -18,8 +20,9 @@ public final class HandInStoreTest {
         @Override public void setAmount(int n){amount=n;}
         @Override public Stack clone(){return new Stack(amount);}
     }
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
-    public static void main(String[] args) throws Exception {
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void handInStore() throws Exception {
         ItemStack[] actual={new Stack(5)};
         PlayerInventory inventory=(PlayerInventory)Proxy.newProxyInstance(PlayerInventory.class.getClassLoader(),new Class<?>[]{PlayerInventory.class},(p,m,a)->switch(m.getName()){
             case "getItem"->actual[(int)a[0]];
@@ -45,6 +48,6 @@ public final class HandInStoreTest {
         var good=new HandInPlaces.Store(player,data,null,Map.of(),true);
         ItemStack next=good.get(source);next.setAmount(3);good.set(source,next);good.commit();
         check(actual[0].getAmount()==3,"successful commit applies once");
-        System.out.println("PASS: actual hand-in store staging, save-failure atomicity and successful commit");
+
     }
 }

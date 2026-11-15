@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.command.QuestCommand;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -17,8 +19,9 @@ import java.lang.reflect.*;
 import java.util.*;
 
 /** 実際の公開入口と実行処理を呼び、レイド中は消費・進捗・報酬まで到達しないことを確認する。 */
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.BukkitState.class)
 public final class QuestRaidDeliveryTest {
-    private static final ServiceContainer services = new ServiceContainer();
+    private final ServiceContainer services = new ServiceContainer();
     private static boolean participating;
     private static int messages, closed;
     public static final class RaidProbe extends RaidModule {
@@ -30,7 +33,11 @@ public final class QuestRaidDeliveryTest {
         Quests() { super(null, null, null, null); }
         @Override void notifyCompletion(Player player, QuestDefinition quest) { notified++; }
     }
-    private static void check(boolean b,String message) { if(!b)throw new AssertionError(message); }
+    @org.junit.jupiter.api.BeforeEach
+    @org.junit.jupiter.api.AfterEach
+    void resetCounters() { participating = false; messages = closed = 0; }
+
+    private static void check(boolean b,String message) { org.junit.jupiter.api.Assertions.assertTrue(b, message); }
     @SuppressWarnings("unchecked") private static <T>T proxy(Class<T> type, InvocationHandler h) {
         return (T)Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},h);
     }
@@ -50,8 +57,12 @@ public final class QuestRaidDeliveryTest {
     private static void invoke(Class<?> owner,String method,Class<?>[] types,Object receiver,Object...args)throws Exception {
         Method target=owner.getDeclaredMethod(method,types);target.setAccessible(true);target.invoke(receiver,args);
     }
-    @SuppressWarnings("unchecked") public static void main(String[] args)throws Exception {
-        var messageScope=com.lunar_prototype.impossbleEscapeMC.api.message.MessageTestSupport.forwarding();
+    private AutoCloseable messageScope;
+    @org.junit.jupiter.api.AfterEach
+    void closeMessages() throws Exception { if (messageScope != null) messageScope.close(); }
+    @SuppressWarnings("unchecked") @Test
+    void questRaidDelivery()throws Exception {
+        messageScope=com.lunar_prototype.impossbleEscapeMC.api.message.MessageTestSupport.forwarding();
         UUID id=UUID.randomUUID();
         Player player=proxy(Player.class,(p,m,a)->switch(m.getName()) {
             case "getUniqueId"->id;
@@ -120,6 +131,6 @@ public final class QuestRaidDeliveryTest {
             singleton.set(null,before);
             messageScope.close();
         }
-        System.out.println("QuestRaidDeliveryTest passed: command/dialog/objective/event/result guards, stale sessions, no raid reward and normal kill/exploration/post-raid delivery");
+
     }
 }

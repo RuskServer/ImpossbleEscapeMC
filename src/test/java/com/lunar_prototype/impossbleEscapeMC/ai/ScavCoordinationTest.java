@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import java.lang.reflect.Proxy;
 import java.util.UUID;
 import org.bukkit.Location;
@@ -8,8 +10,10 @@ import org.bukkit.util.Vector;
 
 public final class ScavCoordinationTest {
     static UUID id(int n) { return new UUID(0,n); }
-    static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
-    public static void main(String[] args) {
+    static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    @org.junit.jupiter.api.DisplayName("input defensively copied")
+    void inputDefensivelyCopied() throws Exception {
         World world = (World) Proxy.newProxyInstance(World.class.getClassLoader(), new Class<?>[]{World.class},
                 (proxy,method,arguments) -> switch(method.getName()) {
                     case "equals" -> proxy == arguments[0];
@@ -18,23 +22,18 @@ public final class ScavCoordinationTest {
                     case "getName", "toString" -> "test";
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        var point = new Location(world,0,64,0); var velocity = new Vector(1,0,0);
+        var point = new Location(world,0,64,0);
+        var velocity = new Vector(1,0,0);
         var report = new ScavContactReport(id(100),id(1),point,velocity,0);
-        point.add(100,0,0); velocity.setX(100);
+        point.add(100,0,0);
+        velocity.setX(100);
         check(report.position().getX()==0 && report.velocity().getX()==1,"input defensively copied");
-        report.position().add(100,0,0); report.velocity().setX(100);
+        report.position().add(100,0,0);
+        report.velocity().setX(100);
         check(report.position().getX()==0 && report.velocity().getX()==1,"output defensively copied");
         check(report.fresh(199)&&!report.fresh(200)&&!report.fresh(-1),"report expires and rejects future time");
         check(report.predicted(100).getX()==6,"prediction bounded by six blocks");
         check(report.uncertainty(100)>report.uncertainty(1),"older observation less precise");
-        double routine=ScavHelpPolicy.priority(1,0,false,true,0,10);
-        double urgent=ScavHelpPolicy.priority(.2,.8,true,true,0,12);
-        check(urgent>routine+20,"urgent injured suppressed caller outranks routine fight");
-        check(!ScavHelpPolicy.shouldSwitch(routine,urgent,39,true),"minimum commitment");
-        check(ScavHelpPolicy.shouldSwitch(routine,urgent,40,true),"urgent call can preempt after commitment");
-        check(!ScavHelpPolicy.shouldSwitch(routine,routine+20,100,true),"hysteresis prevents oscillation");
-        check(ScavHelpPolicy.shouldSwitch(urgent,routine,0,false),"dead/expired caller can be replaced");
-        check(ScavHelpPolicy.priority(.2,.8,true,true,2,12)<urgent,"existing help reduces priority");
         var plan=new ScavSearchPlan();
         var stationary=new ScavContactReport(id(100),id(1),new Location(world,0,64,0),new Vector(),0);
         var first=plan.assign(id(1),stationary,0,p->true);
@@ -45,7 +44,9 @@ public final class ScavCoordinationTest {
         plan.inspected(id(1),id(100),first,20);
         var next=plan.assign(id(1),stationary,21,p->true);
         check(next.distanceSquared(first)>=9,"checked sector avoided");
-        plan.release(id(2)); plan.release(id(3)); plan.release(id(1));
+        plan.release(id(2));
+        plan.release(id(3));
+        plan.release(id(1));
         var refreshed=new ScavContactReport(id(100),id(1),new Location(world,0,64,0),new Vector(),30);
         check(plan.assign(id(4),refreshed,30,p->true).distanceSquared(first)==0,"new sighting invalidates earlier empty evidence");
         check(new ScavSearchPlan().assign(id(1),stationary,0,p->false)==null,"unreachable sectors not assigned");
@@ -54,6 +55,33 @@ public final class ScavCoordinationTest {
         var before=timeout.assign(id(1),stationary,0,p->true);
         var afterTimeout=timeout.assign(id(2),stationary,60,p->true);
         check(afterTimeout.getX()==before.getX()&&afterTimeout.getZ()>0,"dead/departed lease expires");
+        // 情報利得の方位スコアは、不確かさが残っている方向を向いた時に高くなる。
+        var belief=new OpponentBelief();
+        belief.reset(new Location(world,20,64,0),null);
+        int bins=16;
+        double[] gain=belief.scanGainByBearing(new Location(world,0,64,0),100.0,96.0,bins);
+        int toward=(int)Math.round(((-Math.PI/2)+Math.PI)/(Math.PI*2/bins))%bins;
+        // +X 方向
+        int away=(toward+bins/2)%bins;
+        check(gain[toward]>0.0&&gain[toward]>gain[away],"information gain favors the direction of the unknown");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("urgent injured suppressed caller outranks routine fight")
+    void urgentInjuredSuppressedCallerOutranksRoutineFight() throws Exception {
+        double routine=ScavHelpPolicy.priority(1,0,false,true,0,10);
+        double urgent=ScavHelpPolicy.priority(.2,.8,true,true,0,12);
+        check(urgent>routine+20,"urgent injured suppressed caller outranks routine fight");
+        check(!ScavHelpPolicy.shouldSwitch(routine,urgent,39,true),"minimum commitment");
+        check(ScavHelpPolicy.shouldSwitch(routine,urgent,40,true),"urgent call can preempt after commitment");
+        check(!ScavHelpPolicy.shouldSwitch(routine,routine+20,100,true),"hysteresis prevents oscillation");
+        check(ScavHelpPolicy.shouldSwitch(urgent,routine,0,false),"dead/expired caller can be replaced");
+        check(ScavHelpPolicy.priority(.2,.8,true,true,2,12)<urgent,"existing help reduces priority");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("two reinforcements accepted")
+    void twoReinforcementsAccepted() throws Exception {
         var registry=new ScavHelpEncounter.Registry();
         var encounter=registry.contact(null,id(1),id(100),0);
         check(encounter.recruit(id(2),0)&&encounter.recruit(id(3),0),"two reinforcements accepted");
@@ -70,14 +98,5 @@ public final class ScavCoordinationTest {
         var solo=registry.contact(null,id(11),id(103),41);
         var merged=registry.contact(solo,id(11),id(102),42);
         check(merged!=null&&!merged.recruit(id(12),42),"merged encounters enforce total combatant cap");
-        // 情報利得の方位スコアは、不確かさが残っている方向を向いた時に高くなる。
-        var belief=new OpponentBelief();
-        belief.reset(new Location(world,20,64,0),null);
-        int bins=16;
-        double[] gain=belief.scanGainByBearing(new Location(world,0,64,0),100.0,96.0,bins);
-        int toward=(int)Math.round(((-Math.PI/2)+Math.PI)/(Math.PI*2/bins))%bins; // +X 方向
-        int away=(toward+bins/2)%bins;
-        check(gain[toward]>0.0&&gain[toward]>gain[away],"information gain favors the direction of the unknown");
-        System.out.println("ScavCoordinationTest: all checks passed");
     }
 }

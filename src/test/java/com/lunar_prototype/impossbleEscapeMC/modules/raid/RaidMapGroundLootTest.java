@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.Gson;
 
 /**
@@ -7,11 +9,10 @@ import com.google.gson.Gson;
  * サーバーは要らない
  */
 public final class RaidMapGroundLootTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
-    public static void main(String[] args) {
+    @Test
+    void raidMapGroundLoot() {
         Gson gson = new Gson();
         RaidMap old = gson.fromJson("{\"mapId\":\"m\",\"worldName\":\"w\",\"lootContainers\":[]}", RaidMap.class);
         check(old.getGroundLoot() != null && old.getGroundLoot().isEmpty(), "old JSON gives an empty list");
@@ -23,6 +24,6 @@ public final class RaidMapGroundLootTest {
         check(loaded.getGroundLoot().get(0).getCrateId().equals("medical_case"), "crate id");
         String saved = gson.toJson(loaded);
         check(saved.contains("\"groundLoot\"") && saved.contains("\"ammo_case\""), "saved back: " + saved);
-        System.out.println("RaidMapGroundLootTest OK");
+
     }
 }

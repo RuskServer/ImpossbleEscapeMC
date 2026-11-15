@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.api.message;
 
+import org.junit.jupiter.api.Test;
+
 import net.kyori.adventure.text.*;
 import net.kyori.adventure.text.event.*;
 import net.kyori.adventure.text.format.*;
@@ -9,9 +11,13 @@ import java.util.*;
 
 /** 実リソースの完全性、言語選択、装飾付き引数、失敗する再読み込みを確認する。 */
 public final class MessageCatalogTest {
-    static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path temporaryDirectory;
+
+    static void check(boolean value,String message){ org.junit.jupiter.api.Assertions.assertTrue(value, message); }
     static String plain(Component c){return PlainTextComponentSerializer.plainText().serialize(c);}
-    public static void main(String[] args)throws Exception {
+    @Test
+    void messageCatalog()throws Exception {
         MessageCatalog built=MessageCatalog.load(null,"ja_jp");
         check(built.definitions().size()>480,"all notifications registered");
         // 英語辞書を日本語と同じ範囲に保ち、引数を含め全テンプレートを実際に展開する。
@@ -48,7 +54,7 @@ public final class MessageCatalogTest {
         check(plain(MessageService.render(input,Locale.FRANCE,built)).equals(plain(jp)),"unsupported locale falls back");
         Component vanilla=Component.translatable("block.minecraft.stone");
         check(MessageService.render(vanilla,Locale.JAPAN,built).equals(vanilla),"client vanilla translation preserved");
-        Path dir=Path.of("local/message-api/test-lang-"+UUID.randomUUID());Files.createDirectories(dir);
+        Path dir=temporaryDirectory;
         MessageCatalog.load(dir,"ja_jp");
         Files.writeString(dir.resolve("en_us.json"),"{\""+key+"\":\"Custom <arg:0>\"}");
         MessageCatalog edited=MessageCatalog.load(dir,"ja_jp");check(plain(MessageService.render(input,Locale.UK,edited)).startsWith("Custom"),"language family fallback");
@@ -63,6 +69,6 @@ public final class MessageCatalogTest {
             rejected=false;try{MessageCatalog.load(dir,"ja_jp");}catch(IllegalArgumentException e){rejected=true;}
             check(rejected,"invalid argument tag rejected: "+invalid);
         }
-        System.out.println("MessageCatalogTest OK: real catalog, locale/fallback, rich arguments, reload validation");
+
     }
 }

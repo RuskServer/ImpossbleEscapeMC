@@ -1,10 +1,13 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Quaterniond;
 import org.joml.Vector3d;
 
 public final class RagdollPickingTest {
-    public static void main(String[] args) {
+    @Test
+    void ragdollPicking() {
         var pose=new RagdollPhysics.Pose(new Vector3d(0,0,-2),new Quaterniond());
         var half=new Vector3d(.25,.5,.125);
         close(RagdollPicking.distance(pose,half,new Vector3d(),new Vector3d(0,0,-1),3),1.875);
@@ -21,7 +24,7 @@ public final class RagdollPickingTest {
         close(RagdollPicking.distance(moved,half,offset,new Vector3d(0,0,-1),3),1.875);
         // 入力を変更しない。
         close(pose.center().z,-2);close(half.z,.125);
-        System.out.println("RagdollPickingTest passed");
+
     }
     private static void close(double actual,double expected) {if(Math.abs(actual-expected)>1e-8)throw new AssertionError(actual+" != "+expected);}
     private static void miss(double value) {if(value!=Double.POSITIVE_INFINITY)throw new AssertionError("unexpected hit: "+value);}

@@ -1,14 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import java.util.UUID;
 import java.util.Set;
 
 public final class QuestTradeUnlockTest {
-    private static void check(boolean value, String message) {
-        if (!value) throw new AssertionError(message);
-    }
-    public static void main(String[] args) {
+    private static void check(boolean value, String message) { org.junit.jupiter.api.Assertions.assertTrue(value, message); }
+    @Test
+    void questTradeUnlock() {
         var module = new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
         Set<String> starter = Set.of("ak74", "545x39_hp", "556x45_rrlp", "762x51_sp", "762x54r_hp_bt",
                 "9x39_hp", "9x19_rip", "45acp_hydra_shok", "12x70_steel_buckshot");
@@ -39,6 +40,6 @@ public final class QuestTradeUnlockTest {
             }
         }
         check(starterFound == starter.size(), "all starter guns/ammo found exactly once");
-        System.out.println("QuestTradeUnlockTest: all checks passed");
+
     }
 }

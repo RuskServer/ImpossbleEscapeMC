@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -46,9 +48,7 @@ public final class RaidHudTest {
     private record Placed(char ch, int x, TextColor color) {
     }
 
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** 題名の文字を、置かれる位置 (帯の左端からの GUI px) と一緒に並べる。戻り値の最後は全体の幅 */
     private static int layout(Component title, List<Placed> placed) {
@@ -79,7 +79,8 @@ public final class RaidHudTest {
         return placed.stream().filter(p -> p.ch() == ch).mapToInt(Placed::x).findFirst().orElse(-1);
     }
 
-    public static void main(String[] args) {
+    @Test
+    void raidHud() {
         // 北を向き、真北 100m に脱出地点
         List<Placed> placed = new ArrayList<>();
         int width = layout(RaidHud.compose(180, List.of(new double[]{0, -100}), List.of(), 600), placed);
@@ -132,6 +133,6 @@ public final class RaidHudTest {
                     List.of(new double[]{-12, 7}, new double[]{800, -3000}), yaw + 300), new ArrayList<>())
                     == RaidHud.STRIP, "width at yaw " + yaw);
         }
-        System.out.println("RaidHudTest: strip width, headings, extract and quest markers, edge arrows and timer placement passed");
+
     }
 }

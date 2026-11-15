@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,9 +17,7 @@ import java.util.Set;
  * 先読みの一覧 (shaderwarm_warmup.txt) が測定の一覧 (shaderwarm_effects.txt) の中にあること
  */
 public final class ShaderWarmupTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static List<String> resource(String name) throws IOException {
         List<String> lines = new ArrayList<>();
@@ -31,7 +31,8 @@ public final class ShaderWarmupTest {
         return lines;
     }
 
-    public static void main(String[] args) throws IOException {
+    @Test
+    void shaderWarmup() throws IOException {
         // 一覧の読み込み: コメントと空行は飛ばす
         check(ShaderWarmup.parseEffectNames(List.of("# 説明", "", "  grade_visor ", "hit")).equals(List.of("grade_visor", "hit")), "コメントと空行を飛ばす");
         boolean rejected = false;
@@ -62,6 +63,6 @@ public final class ShaderWarmupTest {
         check(warm.size() >= 10, "先読みの数が少なすぎる: " + warm.size());
         for (String name : warm) check(all.contains(name), "先読みに、パックに無いエフェクト: " + name);
         check(!warm.contains("control_debug"), "確認用は入れない");
-        System.out.println("ShaderWarmupTest OK (先読み " + warm.size() + " 個)");
+
     }
 }

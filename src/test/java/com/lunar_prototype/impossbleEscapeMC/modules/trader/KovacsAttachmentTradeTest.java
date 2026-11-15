@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.trader;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestDefinition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.CompletedQuestCondition;
@@ -10,7 +12,7 @@ import java.util.*;
 
 /** 取引表示だけでなく、実際の購入ゲートと回収品の入手経路を検証する。 */
 public final class KovacsAttachmentTradeTest {
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
     private static void visit(String id,Map<String,QuestDefinition> quests,Set<String> visiting,Set<String> done) {
         if(done.contains(id))return;
         check(visiting.add(id),"quest cycle: "+id);
@@ -21,7 +23,8 @@ public final class KovacsAttachmentTradeTest {
         visiting.remove(id);done.add(id);
     }
     @SuppressWarnings("unchecked")
-    public static void main(String[] args) throws Exception {
+    @Test
+    void kovacsAttachmentTrade() throws Exception {
         var create=Class.forName("com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestCatalog")
                 .getDeclaredMethod("create",Class.forName("com.lunar_prototype.impossbleEscapeMC.modules.quest.QuestModule"));
         create.setAccessible(true);
@@ -64,6 +67,6 @@ public final class KovacsAttachmentTradeTest {
         }
         check(kovacs.items.stream().noneMatch(i->Set.of("ekp_8","infinity_magazine","no_recoil_grip",
                 "scar_h_drum_magazine","svd_long_barrel","uzi_mini_barrel").contains(i.itemId)),"legacy/debug and loot-exclusive parts are not sold");
-        System.out.println("KovacsAttachmentTradeTest passed: quest graph, FIR loot sources, reward-sale links, purchase gates and limited stock");
+
     }
 }

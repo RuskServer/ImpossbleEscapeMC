@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.*;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.*;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
@@ -7,13 +9,14 @@ import java.util.*;
 
 /** 報酬・導線と、未実装の目標を混入していないことを確認する。 */
 public final class QuestlineRebuildTest {
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
     private static Set<String> prerequisites(QuestDefinition q) {
         var ids=new HashSet<String>();
         for(var c:q.getConditions())if(c instanceof CompletedQuestCondition p)ids.add(p.getRequiredQuestId());
         return ids;
     }
-    public static void main(String[] args) {
+    @Test
+    void questlineRebuild() {
         var quests=QuestCatalog.create(null);var byId=new HashMap<String,QuestDefinition>();
         long money=0,exp=0;int extended=0;
         Set<String> knownPoints=Set.of("factory:100.0,-33.0,98.0","factory:178.0,-33.0,119.0",
@@ -48,6 +51,6 @@ public final class QuestlineRebuildTest {
         check(active.getProgress(0)+active.getProgress(1)==1,"one map cannot satisfy both extraction objectives");
         for(int i=0;i<extracts.size();i++)extracts.get(i).updateProgress(null,null,active,i,QuestTrigger.RAID_EXTRACT,Map.of("mapId","ノヴォザリエ沿岸工業地区"));
         check(active.getProgress(0)+active.getProgress(1)==2,"second map completes pair");
-        System.out.println("QuestlineRebuildTest passed: 51 quests, reward totals, faction progression, known points and per-map extraction");
+
     }
 }

@@ -1,11 +1,15 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Vector3d;
 import java.util.*;
 
 public final class RagdollPhysicsTest {
     private static final RagdollPhysics.Box FLOOR=new RagdollPhysics.Box(-30,-3,-30,30,0,30);
-    public static void main(String[] args) throws Exception {
+    @Test
+    @org.junit.jupiter.api.DisplayName("finite, bounded body")
+    void finiteBoundedBody() throws Exception {
         for(int yaw:new int[]{0,90,180,-90})for(int seed=0;seed<8;seed++) {
             var physics=new RagdollPhysics(new Vector3d(0,.1,0),yaw,new Vector3d(),new Vector3d(0,0,1),seed);
             for(int i=0;i<48;i++)physics.step((x,y,z)->List.of(FLOOR));
@@ -25,6 +29,11 @@ public final class RagdollPhysicsTest {
             var before=physics.pose(RagdollPhysics.Part.HEAD).center();physics.step((x,y,z)->List.of(FLOOR));
             check(before.equals(physics.pose(RagdollPhysics.Part.HEAD).center()),"sleeping body stops changing");
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("wall collision stays finite")
+    void wallCollisionStaysFinite() throws Exception {
         var wall=new RagdollPhysics.Box(.7,-3,-30,1,5,30);
         var p=new RagdollPhysics(new Vector3d(0,.1,0),0,new Vector3d(.35,0,0),new Vector3d(1,0,0),7);
         for(int i=0;i<80;i++)p.step((x,y,z)->List.of(FLOOR,wall));
@@ -34,15 +43,24 @@ public final class RagdollPhysicsTest {
         p=new RagdollPhysics(new Vector3d(0,.7,0),180,new Vector3d(),new Vector3d(0,0,-1),8);
         for(int i=0;i<80;i++)p.step((x,y,z)->List.of(slab));
         check(p.pose(RagdollPhysics.Part.TORSO).center().y>.49,"non-full block collision height");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("impact direction changes fall")
+    void impactDirectionChangesFall() throws Exception {
         var plus=new RagdollPhysics(new Vector3d(0,.1,0),0,new Vector3d(),new Vector3d(1,0,0),1);
         var minus=new RagdollPhysics(new Vector3d(0,.1,0),0,new Vector3d(),new Vector3d(-1,0,0),1);
         for(int i=0;i<20;i++){plus.step((x,y,z)->List.of(FLOOR));minus.step((x,y,z)->List.of(FLOOR));}
         check(plus.pose(RagdollPhysics.Part.TORSO).center().x>minus.pose(RagdollPhysics.Part.TORSO).center().x,"impact direction changes fall");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("large and negative world coordinates")
+    void largeAndNegativeWorldCoordinates() throws Exception {
         var far=new RagdollPhysics(new Vector3d(100000,-33,100000),0,new Vector3d(),new Vector3d(),1);
         var farFloor=new RagdollPhysics.Box(99970,-36,99970,100030,-33,100030);
         for(int i=0;i<80;i++)far.step((x,y,z)->List.of(farFloor));
         check(far.valid(),"large and negative world coordinates");
-        System.out.println("RagdollPhysicsTest OK");
     }
-    private static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
+    private static void check(boolean value,String message){ org.junit.jupiter.api.Assertions.assertTrue(value, message); }
 }

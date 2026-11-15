@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.core;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,9 +22,10 @@ import java.util.logging.Logger;
  * </ul>
  */
 public final class PlayerDataStorageTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path temporaryDirectory;
+
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static PlayerData data(UUID uuid, double balance) {
         PlayerData data = new PlayerData(uuid);
@@ -30,8 +33,9 @@ public final class PlayerDataStorageTest {
         return data;
     }
 
-    public static void main(String[] args) throws Exception {
-        File dir = Files.createTempDirectory("iem-userdata").toFile();
+    @Test
+    void playerDataStorage() throws Exception {
+        File dir = temporaryDirectory.toFile();
         Logger logger = Logger.getLogger("PlayerDataStorageTest");
         logger.setLevel(Level.OFF);
         AtomicReference<LocalDate> today = new AtomicReference<>(LocalDate.of(2026, 10, 1));
@@ -83,6 +87,6 @@ public final class PlayerDataStorageTest {
         check(dailyCount == PlayerDataStorage.DAILY_BACKUPS, "daily backups " + dailyCount);
         check(new File(storage.backupDir(rotating), "daily-2026-10-10.json").exists(), "latest daily kept");
         check(!new File(storage.backupDir(rotating), "daily-2026-10-01.json").exists(), "oldest daily removed");
-        System.out.println("PlayerDataStorageTest: load fallback, failure guard, stale writes and backups passed");
+
     }
 }

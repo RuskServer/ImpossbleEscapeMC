@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.loot.CorpseLootLayout;
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
@@ -34,28 +36,41 @@ public final class CorpseLootLayoutTest {
         var method=ScavRagdollModule.class.getDeclaredMethod("supported",Inventory.class);method.setAccessible(true);
         return (boolean)method.invoke(null,inventory);
     }
-    public static void main(String[] args) throws Exception {
+    @Test
+    @org.junit.jupiter.api.DisplayName("reproduce ammo mistaken for leg armor")
+    void reproduceAmmoMistakenForLegArmor() throws Exception {
         // 旧addItemが空き装備欄へ予備弾を詰めた結果。装備ではない弾で対象判定が失敗する。
-        ItemStack[] old=new ItemStack[27];old[4]=new Stack("gun",1);
-        old[0]=new Stack("ammo",64);old[1]=new Stack("ammo",64);old[2]=new Stack("ammo",2);
+        ItemStack[] old=new ItemStack[27];
+        old[4]=new Stack("gun",1);
+        old[0]=new Stack("ammo",64);
+        old[1]=new Stack("ammo",64);
+        old[2]=new Stack("ammo",2);
         check(!supported(inventory(old)),"reproduce ammo mistaken for leg armor");
-        ItemStack[] slots=new ItemStack[27];slots[4]=new Stack("gun",1);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("ordinary reserve ammo fits")
+    void ordinaryReserveAmmoFits() throws Exception {
+        ItemStack[] slots=new ItemStack[27];
+        slots[4]=new Stack("gun",1);
         Stack ammunition=new Stack("ammo",130);
         check(CorpseLootLayout.addExtra(inventory(slots),List.of(ammunition)).isEmpty(),"ordinary reserve ammo fits");
         check(supported(inventory(slots)),"same unarmored SCAV now qualifies for ragdoll");
         check(slots[0]==null&&slots[1]==null&&slots[2]==null&&slots[3]==null&&slots[5]==null,"empty equipment slots remain empty");
         check(slots[6].getAmount()==64&&slots[7].getAmount()==64&&slots[8].getAmount()==2,"split ammo into loot slots");
         check(ammunition.getAmount()==130,"do not mutate caller stacks");
-        ItemStack helmet=new Stack("helmet",1),chest=new Stack("chest",1);slots[0]=helmet;slots[1]=chest;
+        ItemStack helmet=new Stack("helmet",1),chest=new Stack("chest",1);
+        slots[0]=helmet;
+        slots[1]=chest;
         CorpseLootLayout.addExtra(inventory(slots),List.of(new Stack("ammo",20)));
         check(slots[0]==helmet&&slots[1]==chest,"preserve real equipment for appearance sync");
         check(slots[8].getAmount()==22,"merge partial stacks only in loot slots");
-        slots=new ItemStack[9];slots[0]=helmet;
+        slots=new ItemStack[9];
+        slots[0]=helmet;
         var overflow=CorpseLootLayout.addExtra(inventory(slots),List.of(new Stack("ammo",260)));
         check(slots[0]==helmet&&slots[1]==null&&slots[2]==null&&slots[3]==null&&slots[4]==null&&slots[5]==null,"full loot area never borrows equipment slots");
         check(overflow.size()==1&&overflow.getFirst().getAmount()==68,"return exact overflow for world drop without loss");
         check(slots[6].getAmount()+slots[7].getAmount()+slots[8].getAmount()+overflow.getFirst().getAmount()==260,"conserve ammo quantity");
-        System.out.println("CorpseLootLayoutTest OK: old ragdoll rejection reproduced, reserved slots and ammo conservation verified");
     }
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 }

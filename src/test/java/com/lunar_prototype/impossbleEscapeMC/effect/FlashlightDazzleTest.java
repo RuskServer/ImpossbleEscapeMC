@@ -1,19 +1,21 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import org.junit.jupiter.api.Test;
+
 /**
  * フラッシュライトを向けられた時のまぶしさの段: 近い・光の真ん中ほど強く、遠い・光の縁・明るい所・光が視線の外では弱いか
  */
 public final class FlashlightDazzleTest {
 
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static int level(double angle, double distance, int light, double facingAngle) {
         return FlashlightDazzle.levelOf(FlashlightDazzle.strength(angle, distance, light) * FlashlightDazzle.facing(facingAngle));
     }
 
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("3m は一番強い段")
+    void m() throws Exception {
         // 夜、光の真ん中で、光の方を見ている
         check(level(0, 3, 0, 0) == 3, "3m は一番強い段");
         check(level(0, 10, 0, 0) == 2, "10m は中の段");
@@ -27,6 +29,11 @@ public final class FlashlightDazzleTest {
         // 光が視線の外 (横・後ろ) なら画面にはかけない
         check(level(0, 3, 0, 45) < 3, "視線から 45° は弱く");
         check(level(0, 3, 0, 90) == 0, "真横・後ろからは無し");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("段は強さの順")
+    void scenario2() throws Exception {
         // 強さが段を下回らない限り、段は強さの順
         int previous = 0;
         for (double p = 0; p <= 1.0; p += 0.01) {
@@ -34,6 +41,5 @@ public final class FlashlightDazzleTest {
             check(l >= previous && l <= 3, "段は強さの順");
             previous = l;
         }
-        System.out.println("FlashlightDazzleTest ok");
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.inventory;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -19,8 +21,9 @@ public final class CostTransferTest {
         @Override public boolean isSimilar(ItemStack item){return item instanceof Stack s&&kind.equals(s.kind);}
         @Override public Stack clone(){return new Stack(kind,amount);}
     }
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
-    public static void main(String[] args) throws Exception {
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void costTransfer() throws Exception {
         // Paper 26.3のMaterial.isAirはサーバーのレジストリを使う。非ブロック素材だけを試験用に固定する。
         var blockType=Material.class.getDeclaredField("blockType");blockType.setAccessible(true);
         Object previous=blockType.get(Material.IRON_INGOT);
@@ -43,7 +46,7 @@ public final class CostTransferTest {
         ItemStack before=slots[0];
         rest=CostSlotManager.insert(inv,List.of(0,1),2,new Stack("drill",1));
         check(rest.getAmount()==1&&slots[0]==before,"full cost refusal does not evict any item");
-        System.out.println("PASS: actual cost-aware inventory transfer, partial/source retention and locked-slot exclusion");
+
         } finally {blockType.set(Material.IRON_INGOT,previous);}
     }
 }

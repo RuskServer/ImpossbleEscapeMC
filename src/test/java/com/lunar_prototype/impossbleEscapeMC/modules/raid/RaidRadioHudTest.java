@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
@@ -12,7 +14,8 @@ public final class RaidRadioHudTest {
             Map.entry('',180),Map.entry((char)0xE43F,181),Map.entry('',1),Map.entry('',5),Map.entry('',5),Map.entry('',5),Map.entry('',5),
             Map.entry('',8),Map.entry('',7),Map.entry('',9),Map.entry('',10),Map.entry('',3),
             Map.entry(OperationHintHud.MAP.glyph(),OperationHintHud.MAP.width()));
-    public static void main(String[] args) {
+    @Test
+    void raidRadioHud() {
         for(int frame=0;frame<12;frame++) {
             Component base=RaidHud.compose(20,List.of(),List.of(),345,OperationHintHud.MAP);
             Component title=RaidHud.compose(20,List.of(),List.of(),345,OperationHintHud.MAP,frame);
@@ -37,7 +40,7 @@ public final class RaidRadioHudTest {
         var plain=net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
         check(plain.serialize(RaidHud.compose(0,List.of(),List.of(),10,null,7,"軍事キャンプ")).contains("軍事キャンプ"),"active notification includes zone name");
         check(!plain.serialize(RaidHud.compose(0,List.of(),List.of(),10,null,-1,"軍事キャンプ")).contains("軍事キャンプ"),"zone name disappears with notification");
-        System.out.println("RaidRadioHudTest OK");
+
     }
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 }

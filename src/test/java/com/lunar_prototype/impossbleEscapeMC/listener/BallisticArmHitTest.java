@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
@@ -9,7 +11,7 @@ import java.util.*;
 
 /** 胴中心を通る弾の腕誤判定を再現し、胴防護と外周だけの腕命中を分離する。 */
 public final class BallisticArmHitTest {
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
     private static final class Victim {
         double x=12000,y=-34,z=-8000,width=.6,eyeHeight=1.62;
         float yaw;
@@ -31,8 +33,11 @@ public final class BallisticArmHitTest {
     private static Vector entry(Victim v,Vector origin,Vector direction) {
         var hit=v.box().rayTrace(origin,direction,30);check(hit!=null,"test trajectory enters the expanded hit box");return hit.getHitPosition();
     }
-    public static void main(String[] args)throws Exception {
-        var v=new Victim();int cases=0,oldFalseArms=0;
+    @Test
+    @org.junit.jupiter.api.DisplayName("contact vectors must not be mutated")
+    void contactVectorsMustNotBeMutated() throws Exception {
+        var v=new Victim();
+        int cases=0,oldFalseArms=0;
         for(double width:new double[]{.3,.6,1.2})for(double eye:new double[]{1.62,1.27})
             for(int yaw:new int[]{0,45,90,135})for(int angle=0;angle<360;angle+=30)for(int elevation:new int[]{-10,0,10}) {
                 v.width=width;v.eyeHeight=eye;v.yaw=yaw;
@@ -47,7 +52,8 @@ public final class BallisticArmHitTest {
                 check(hit.equals(savedHit)&&direction.equals(savedDirection),"contact vectors must not be mutated");cases++;
             }
         check(cases==864&&oldFalseArms>300,"old side-surface bug reproduced across views and poses");
-        v.width=.6;v.eyeHeight=1.62;
+        v.width=.6;
+        v.eyeHeight=1.62;
         for(int yaw:new int[]{0,45,90,135}) {
             v.yaw=yaw;
             for(double side:new double[]{-.26,.26}) {
@@ -64,7 +70,8 @@ public final class BallisticArmHitTest {
             check(BulletDamageModel.BODY.equals(BulletDamageModel.hitLocation(v.entity,side,unknown)),"unknown incoming direction does not invent unarmored arm damage");
         Vector leg=v.local(0,.3,.4),head=v.local(0,1.8,.4),face=v.local(0,1.5,.4);
         for(Vector point:List.of(leg,head,face))check(BulletDamageModel.hitLocation(v.entity,point).equals(BulletDamageModel.hitLocation(v.entity,point,new Vector(0,0,-1))),"head/face/leg classification unchanged");
-        var bridge=DatapackBulletHitBridge.class.getDeclaredMethod("hitLocation",LivingEntity.class,Vector.class,Vector.class);bridge.setAccessible(true);
+        var bridge=DatapackBulletHitBridge.class.getDeclaredMethod("hitLocation",LivingEntity.class,Vector.class,Vector.class);
+        bridge.setAccessible(true);
         check(bridge.invoke(null,v.entity,side,new Vector(-1,0,0)).equals(BulletDamageModel.BODY),"actual bridge passes incoming direction into body trace");
         check(bridge.invoke(null,v.entity,side,null).equals(BulletDamageModel.BODY),"nearest-marker fallback remains conservative");
         check(bridge.invoke(null,v.entity,head,new Vector(0,0,-1)).equals(BulletDamageModel.BODY),"unmarked head stays datapack-controlled");
@@ -72,8 +79,12 @@ public final class BallisticArmHitTest {
         v.tags.add("CRIT_HIT");
         check(bridge.invoke(null,v.entity,head,new Vector(0,0,-1)).equals(BulletDamageModel.HEAD),"marked head preserved");
         check(bridge.invoke(null,v.entity,face,new Vector(0,0,-1)).equals(BulletDamageModel.FACE),"marked face preserved");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("body armor reduction unchanged")
+    void bodyArmorReductionUnchanged() throws Exception {
         check(Math.abs(BulletDamageModel.damageForHit(12,"body",true,4)-7.2)<1e-9,"body armor reduction unchanged");
         check(BulletDamageModel.damageForHit(12,"arms",true,0)==12,"true arm damage multiplier unchanged");
-        System.out.println("BallisticArmHitTest passed: "+cases+" centre rays (old false arms="+oldFalseArms+"), outer grazes, direction fallback, bridge and head/leg preservation");
     }
 }

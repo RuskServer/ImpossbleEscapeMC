@@ -1,12 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.inventory;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.Arrays;
 
 /** 占有スロットの割り当てと、容量のゲージの目盛りを確かめる。サーバーは要らない */
 public final class CostLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** costs: 0 は空き */
     private static int[] layout(int firstMain, int... costs) {
@@ -15,7 +15,9 @@ public final class CostLayoutTest {
         return CostSlotManager.placeholderOwners(costs, free, firstMain);
     }
 
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("costLayout scenario 1")
+    void costlayoutScenario() throws Exception {
         // メインの段の物の分は、すぐ後ろに置く
         int[] owners = layout(2, 1, 0, 3, 0, 0, 0, 0);
         check(Arrays.equals(owners, new int[]{-1, -1, -1, 2, 2, -1, -1}), "right after " + Arrays.toString(owners));
@@ -34,10 +36,19 @@ public final class CostLayoutTest {
         // 先にある物から近い空きを取る (並んだ 2 つの大きい物は、その後ろに同じ順で並ぶ)
         owners = layout(0, 2, 2, 0, 0);
         check(Arrays.equals(owners, new int[]{-1, -1, 0, 1}), "first item first " + Arrays.toString(owners));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("stable")
+    void stable() throws Exception {
         // 今の占有スロットも空きとして扱う (物の場所だけで決まる)
         boolean[] free = {false, true, true};
         check(Arrays.equals(CostSlotManager.placeholderOwners(new int[]{2, 0, 0}, free, 0), new int[]{-1, 0, -1}), "stable");
+    }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("empty")
+    void empty() throws Exception {
         // ゲージ: 空は 0、少しでも使えば 1 以上、満杯の時だけ最大
         check(CapacityGauge.level(0, 17) == 0, "empty");
         check(CapacityGauge.level(1, 40) == 1, "a little");
@@ -45,6 +56,5 @@ public final class CostLayoutTest {
         check(CapacityGauge.level(17, 17) == CapacityGauge.LEVELS, "full");
         check(CapacityGauge.level(20, 17) == CapacityGauge.LEVELS, "over");
         check(CapacityGauge.level(3, 0) == 0, "no capacity");
-        System.out.println("CostLayoutTest: placeholder layout and gauge levels passed");
     }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,9 +14,7 @@ public final class RaidRotationTest {
     private static final int CYCLE = RaidModule.CYCLE_DURATION;
     private static final int LATE_JOIN = RaidModule.LATE_JOIN_WINDOW;
 
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     /** 各マップの開始の時刻 (秒) を回す。timers は始めの残り時間 */
     private static List<List<Integer>> simulate(int[] timers, int seconds) {
@@ -77,10 +77,11 @@ public final class RaidRotationTest {
         }
         if (spacing < LATE_JOIN) check(closed == 0, maps + " maps: closed seconds " + closed);
         else check(closed > 0, maps + " maps: spacing " + spacing + " should leave gaps with a " + LATE_JOIN + "s window");
-        System.out.println(maps + " maps: spacing " + spacing + "s, closed " + closed + "s in the last hour");
+
     }
 
-    public static void main(String[] args) {
+    @Test
+    void raidRotation() {
         // ---- 枠 ----
         check(RaidRotation.spacing(CYCLE, 2) == 300 && RaidRotation.spacing(CYCLE, 3) == 200, "spacing");
         check(RaidRotation.slot(CYCLE, 3, 2) == 400, "slot");
@@ -98,6 +99,6 @@ public final class RaidRotationTest {
         checkRotation(2);
         checkRotation(3);
         checkRotation(4);
-        System.out.println("RaidRotationTest OK");
+
     }
 }

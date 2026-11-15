@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.listener;
 
+import org.junit.jupiter.api.Test;
+
 import com.destroystokyo.paper.event.entity.EntityAddToWorldEvent;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
@@ -21,23 +23,22 @@ import java.lang.reflect.*;
 import java.util.*;
 
 /** 発射監視前の初弾・発射情報の独立・二重命中・耐久イベントを実ハンドラーで検証する。 */
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.BukkitState.class)
 public final class DatapackDamageRegressionTest {
-    private static int tick = 100;
-    private static Marker activeBullet;
-    private static EntityDamageEvent lastDamage;
-    private static int notifications;
-    private static final Map<String, Map<String, Integer>> scores = new HashMap<>();
-    private static final List<Player> players = new ArrayList<>();
-    private static final List<ItemStack> worn = new ArrayList<>();
+    private int tick = 100;
+    private Marker activeBullet;
+    private EntityDamageEvent lastDamage;
+    private int notifications;
+    private final Map<String, Map<String, Integer>> scores = new HashMap<>();
+    private final List<Player> players = new ArrayList<>();
+    private final List<ItemStack> worn = new ArrayList<>();
     private static final class TestItem extends ItemStack {
         @Override public boolean equals(Object other) { return this == other; }
         @Override public int hashCode() { return System.identityHashCode(this); }
     }
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
     @SuppressWarnings("unchecked")
-    private static <T> T proxy(Class<T> type, InvocationHandler handler) {
+    private <T> T proxy(Class<T> type, InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, (p, m, a) -> switch (m.getName()) {
             case "equals" -> p == a[0];
             case "hashCode" -> System.identityHashCode(p);
@@ -45,7 +46,7 @@ public final class DatapackDamageRegressionTest {
             default -> handler.invoke(p, m, a);
         });
     }
-    private static PersistentDataContainer data() {
+    private PersistentDataContainer data() {
         Map<NamespacedKey, Object> values = new HashMap<>();
         return proxy(PersistentDataContainer.class, (p, m, a) -> switch (m.getName()) {
             case "set" -> { values.put((NamespacedKey) a[0], a[2]); yield null; }
@@ -54,7 +55,7 @@ public final class DatapackDamageRegressionTest {
             default -> throw new AssertionError(m.getName());
         });
     }
-    private static Objective objective(String name) {
+    private Objective objective(String name) {
         if (!scores.containsKey(name)) return null;
         return proxy(Objective.class, (p, m, a) -> {
             if (!m.getName().equals("getScore")) throw new AssertionError(m.getName());
@@ -65,12 +66,12 @@ public final class DatapackDamageRegressionTest {
             });
         });
     }
-    private static final World world = proxy(World.class, (p, m, a) -> switch (m.getName()) {
+    private final World world = proxy(World.class, (p, m, a) -> switch (m.getName()) {
         case "getPlayers" -> players;
         case "getNearbyEntitiesByType" -> activeBullet == null ? List.of() : List.of(activeBullet);
         default -> throw new AssertionError(m.getName());
     });
-    private static Marker bullet(Set<String> tags) {
+    private Marker bullet(Set<String> tags) {
         UUID id = UUID.randomUUID();
         PersistentDataContainer data = data();
         return proxy(Marker.class, (p, m, a) -> switch (m.getName()) {
@@ -82,11 +83,11 @@ public final class DatapackDamageRegressionTest {
             default -> throw new AssertionError(m.getName());
         });
     }
-    private static final PlayerInventory inventory = proxy(PlayerInventory.class, (p, m, a) -> switch (m.getName()) {
+    private final PlayerInventory inventory = proxy(PlayerInventory.class, (p, m, a) -> switch (m.getName()) {
         case "getArmorContents" -> worn.toArray(ItemStack[]::new);
         default -> throw new AssertionError(m.getName());
     });
-    private static Player player(UUID id, String name, Set<String> tags) {
+    private Player player(UUID id, String name, Set<String> tags) {
         return proxy(Player.class, (p, m, a) -> switch (m.getName()) {
             case "getUniqueId" -> id;
             case "getName" -> name;
@@ -103,7 +104,7 @@ public final class DatapackDamageRegressionTest {
             default -> throw new AssertionError(m.getName());
         });
     }
-    private static DamageSource source(String namespace, String key) {
+    private DamageSource source(String namespace, String key) {
         DamageType type = proxy(DamageType.class, (p, m, a) -> {
             if (m.getName().equals("getKey")) return new NamespacedKey(namespace, key);
             throw new AssertionError(m.getName());
@@ -114,15 +115,34 @@ public final class DatapackDamageRegressionTest {
         });
     }
     @SuppressWarnings("removal")
-    private static EntityDamageByEntityEvent hit(Entity shooter, Entity victim, DamageSource source) {
+    private EntityDamageByEntityEvent hit(Entity shooter, Entity victim, DamageSource source) {
         return new EntityDamageByEntityEvent(shooter, victim, EntityDamageEvent.DamageCause.CUSTOM, source, 100);
     }
-    private static AmmoDefinition ammo(String id, double damage, int ammoClass) {
+    private AmmoDefinition ammo(String id, double damage, int ammoClass) {
         var ammo = new AmmoDefinition(); ammo.id = id; ammo.damage = damage; ammo.ammoClass = ammoClass;
         return ammo;
     }
     @SuppressWarnings("unchecked")
-    public static void main(String[] args) throws Exception {
+    private Map<String, AmmoDefinition> savedDefinitions;
+    private Map<UUID, ScavAmmoSupply> savedSupplies;
+    @org.junit.jupiter.api.BeforeEach
+    @SuppressWarnings("unchecked")
+    void saveRegistries() throws Exception {
+        var ammo = ItemRegistry.class.getDeclaredField("AMMO_MAP"); ammo.setAccessible(true);
+        savedDefinitions = new HashMap<>((Map<String, AmmoDefinition>) ammo.get(null));
+        var supplies = ScavAmmoSupply.class.getDeclaredField("SUPPLIES"); supplies.setAccessible(true);
+        savedSupplies = new HashMap<>((Map<UUID, ScavAmmoSupply>) supplies.get(null));
+    }
+    @org.junit.jupiter.api.AfterEach
+    @SuppressWarnings("unchecked")
+    void restoreRegistries() throws Exception {
+        var ammo = ItemRegistry.class.getDeclaredField("AMMO_MAP"); ammo.setAccessible(true);
+        var definitions = (Map<String, AmmoDefinition>) ammo.get(null); definitions.clear(); definitions.putAll(savedDefinitions);
+        var supplies = ScavAmmoSupply.class.getDeclaredField("SUPPLIES"); supplies.setAccessible(true);
+        var values = (Map<UUID, ScavAmmoSupply>) supplies.get(null); values.clear(); values.putAll(savedSupplies);
+    }
+    @Test
+    void datapackDamageRegression() throws Exception {
         Scoreboard board = proxy(Scoreboard.class, (p, m, a) -> objective((String) a[0]));
         ScoreboardManager scoreboardManager = proxy(ScoreboardManager.class, (p, m, a) -> board);
         PluginManager plugins = proxy(PluginManager.class, (p, m, a) -> {
@@ -226,6 +246,6 @@ public final class DatapackDamageRegressionTest {
         check(DatapackBulletHitBridge.armorWear(true, .75) == 1, "penetrating pellet wears selected armor once");
         check(DatapackBulletHitBridge.armorWear(true, 0) == 0, "zeroed penetrating damage wears nothing");
         supplyMap.clear();
-        System.out.println("DatapackDamageRegressionTest passed: spawn snapshot, initial shot, ammo switching, independent pellets/victims, nested events, duplicate rejection and scoped armor wear");
+
     }
 }

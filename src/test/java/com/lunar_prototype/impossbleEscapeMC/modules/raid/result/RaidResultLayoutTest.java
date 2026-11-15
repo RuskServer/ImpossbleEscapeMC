@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
@@ -17,13 +19,13 @@ import java.util.List;
 /**
  * レイド結果の画面 (ダイアログ) の文字の組み立てを確かめる。サーバーは要らない。
  * 上の札・レベルの板・経験値の内訳・クエスト納品の行・キルログの行のどの行も、途中で行の幅を超えず、ちょうど行の幅で終わる。
- * 評価ランクの決まりも確かめる。環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面を JSON で書き出す
+ * 評価ランクの決まりも確かめる。iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面を JSON で書き出す
  * (IEM_shader/tools/dialog_render.py が絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class RaidResultLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void lines(List<DialogLine> lines, int width, String what) {
         for (DialogLine l : lines) check(l.max <= width && l.x == width, what + " " + l.max + " / " + l.x + " (幅 " + width + ")");
@@ -33,7 +35,8 @@ public final class RaidResultLayoutTest {
         return Component.join(JoinConfiguration.newlines(), lines.stream().map(DialogLine::build).toList());
     }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void raidResultLayout() throws Exception {
         TextColor ok = TextColor.color(0x78CD60), amber = TextColor.color(0xDEAC4E);
         RaidResultDialog.HeaderView header = new RaidResultDialog.HeaderView("脱出成功", true, "北道路脱出 · ノヴォザリエ薬品工場 · 23:41", null, null);
         RaidResultDialog.HeaderView header4 = new RaidResultDialog.HeaderView("死亡", false, "ノヴォザリエ薬品工場 · 11:38", "戻る: クエスト納品", "page/handin");
@@ -77,7 +80,7 @@ public final class RaidResultLayoutTest {
         check(dead.rank().equals("D"), "rank D");
         check(RaidReport.rankOf(119).equals("B") && RaidReport.rankOf(120).equals("A") && RaidReport.rankOf(49).equals("C"), "rank steps");
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             var gson = GsonComponentSerializer.gson();
             List<String> screens = new ArrayList<>();
@@ -104,7 +107,7 @@ public final class RaidResultLayoutTest {
                     + ",\"component\":" + gson.serialize(RaidResultLootGUI.title(lootReport, loot)) + "}]}");
             Files.writeString(Path.of(dump), "{\"screens\":[" + String.join(",", screens) + "]}", StandardCharsets.UTF_8);
         }
-        System.out.println("RaidResultLayoutTest: header, level, exp rows, hand-in rows, kill rows fit their widths; ranks ok");
+
     }
 
     private static String screen(String title, String b1, String b2, List<String> elements) {

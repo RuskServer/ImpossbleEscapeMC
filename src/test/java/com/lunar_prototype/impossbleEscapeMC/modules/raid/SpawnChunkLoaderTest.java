@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.util.ChunkLease;
 import org.bukkit.World;
 import org.bukkit.Chunk;
@@ -9,7 +11,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 public final class SpawnChunkLoaderTest {
-    public static void main(String[] args) {
+    @Test
+    void spawnChunkLoader() {
         Fixture f=new Fixture();
         ChunkLease a=ChunkLease.acquire(f.chunk,f.plugin), b=ChunkLease.acquire(f.chunk,f.plugin);
         check(f.ticket,"acquire ticket");a.close();a.close();check(f.ticket,"other lease retains ticket");b.close();check(!f.ticket,"last lease releases ticket");
@@ -27,10 +30,10 @@ public final class SpawnChunkLoaderTest {
         boolean rejected=false;
         try {new SpawnChunkLoader(f.world,f.plugin,List.of(point(0),point(10000)),32,1,2);}catch(IllegalArgumentException ex){rejected=true;}
         check(rejected,"oversize area rejected before loading");
-        System.out.println("SpawnChunkLoaderTest OK");
+
     }
     private static RaidMap.SpawnEntry point(double x){return new RaidMap.SpawnEntry(1,x,1,0,0,0);}
-    private static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
     private static final class Fixture {
         boolean ticket;
         int loads;

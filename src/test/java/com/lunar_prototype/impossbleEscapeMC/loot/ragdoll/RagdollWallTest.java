@@ -1,10 +1,13 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Vector3d;
 import java.util.List;
 
 public final class RagdollWallTest {
-    public static void main(String[] args) {
+    @Test
+    void ragdollWall() {
         var floor=new RagdollPhysics.Box(-20,-3,-20,20,0,20);
         for(double thickness:new double[]{1.52,.125,.03125})for(boolean cornerWall:new boolean[]{false,true}) {
             var wall=new RagdollPhysics.Box(.48,-3,-20,.48+thickness,5,20);
@@ -27,7 +30,7 @@ public final class RagdollWallTest {
                 }
             }
         }
-        System.out.println("RagdollWallTest OK");
+
     }
-    private static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
+    private static void check(boolean value,String message){ org.junit.jupiter.api.Assertions.assertTrue(value, message); }
 }

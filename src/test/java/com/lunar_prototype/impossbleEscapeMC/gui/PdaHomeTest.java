@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import org.junit.jupiter.api.Test;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
@@ -9,7 +11,7 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.PdaHomeModel.Action;
 
 /** 表示モデルと実際の操作コントローラーを検証する。Minecraftクライアントは不要。 */
 public final class PdaHomeTest {
-    private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
+    private static void check(boolean ok,String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
     private static PdaHomeModel.View view(int level,boolean raid,boolean hideout,Set<Action> available) {
         return new PdaHomeModel.View("Operator12345678",level,350,12000,123450,12,raid,hideout,
                 "3人 / リーダー","Inviter1234567890",available);
@@ -32,7 +34,9 @@ public final class PdaHomeTest {
         public void close(Player p) {closed++;}
         public void dispatch(Player p,Action action,PdaHomeModel.View view) {routes.add(action);dispatched=view;}
     }
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("nine home actions")
+    void nineHomeActions() throws Exception {
         var all=EnumSet.allOf(Action.class);
         var plain=PlainTextComponentSerializer.plainText();
         for(boolean raid:new boolean[]{false,true})for(boolean hideout:new boolean[]{false,true})for(int level:new int[]{1,9,10,40}) {
@@ -58,6 +62,92 @@ public final class PdaHomeTest {
                 check("レイド中".equals(PdaHomeModel.blocked(v,action)),"raid restriction is visible");
             if(!raid)check((PdaHomeModel.blocked(v,Action.MARKET)==null)==(level>=10),"market level gate");
         }
+        UUID id=UUID.randomUUID();
+        boolean[] online={true},dead={false};
+        Player player=(Player)Proxy.newProxyInstance(Player.class.getClassLoader(),new Class<?>[]{Player.class},(p,m,a)->switch(m.getName()) {
+            case "getUniqueId"->id;case "isOnline"->online[0];case "isDead"->dead[0];
+            default->throw new AssertionError("controller must not mutate inventory or world directly: "+m.getName());
+        });
+        var port=new Port(view(12,false,false,all));
+        var controller=new PdaHomeController(port);
+        controller.open(player);
+        String stale=port.token;
+        controller.open(player);
+        String current=port.token;
+        controller.handle(player,stale,Action.HIDEOUT_MENU);
+        check(port.page==PdaHomeController.Page.HOME&&port.routes.isEmpty(),"stale menu cannot open");
+        port.view=view(12,true,false,all);
+        controller.handle(player,current,Action.HIDEOUT_MENU);
+        check(port.page==PdaHomeController.Page.HOME&&port.denied==1,"raid entry blocks submenu");
+        port.view=view(12,false,false,all);
+        controller.open(player);
+        current=port.token;
+        controller.handle(player,current,Action.HIDEOUT);
+        check(port.routes.isEmpty(),"home cannot bypass submenu with direct travel");
+        controller.handle(player,current,Action.HIDEOUT_MENU);
+        check(port.page==PdaHomeController.Page.HIDEOUT&&port.routes.isEmpty(),"hideout click opens two choices without teleport");
+        String submenu=port.token;
+        controller.handle(player,submenu,Action.RAID);
+        check(port.routes.isEmpty(),"submenu cannot invoke a home-only action");
+        port.view=view(12,false,true,all);
+        controller.handle(player,submenu,Action.HIDEOUT);
+        controller.handle(player,submenu,Action.FACILITIES);
+        check(port.routes.equals(List.of(Action.HIDEOUT))&&port.dispatched.inHideout(),"travel rechecks location and executes once");
+        controller.open(player);
+        controller.handle(player,port.token,Action.HIDEOUT_MENU);
+        controller.handle(player,port.token,Action.BACK);
+        check(port.page==PdaHomeController.Page.HOME&&port.routes.size()==1,"back returns home without travel");
+        controller.handle(player,port.token,Action.HIDEOUT_MENU);
+        port.view=view(12,true,false,all);
+        int routes=port.routes.size();
+        controller.handle(player,port.token,Action.FACILITIES);
+        check(port.routes.size()==routes&&port.page==PdaHomeController.Page.HIDEOUT&&port.denied==2,"raid entry while submenu is open blocks facilities and refreshes reasons");
+        controller.handle(player,port.token,Action.BACK);
+        port.view=view(12,false,false,all);
+        controller.handle(player,port.token,Action.HIDEOUT_MENU);
+        controller.handle(player,port.token,Action.FACILITIES);
+        check(port.routes.getLast()==Action.FACILITIES,"facility choice opens management");
+        port.view=view(9,false,false,all);
+        controller.open(player);
+        controller.handle(player,port.token,Action.MARKET);
+        check(port.denied==3,"market level gate remains");
+        port.view=view(12,false,false,all);
+        for(Action action:List.of(Action.RAID,Action.QUESTS,Action.STASH,Action.TRADERS,Action.MARKET,Action.PARTY,Action.SETTINGS)) {
+            controller.open(player);controller.handle(player,port.token,action);check(port.routes.getLast()==action,"all destinations retained");
+        }
+        controller.open(player);
+        int before=port.opened;
+        controller.handle(player,port.token,Action.REFRESH);
+        check(port.opened==before+1&&port.page==PdaHomeController.Page.HOME,"refresh reloads home");
+        controller.forget(id);
+        before=port.routes.size();
+        controller.handle(player,port.token,Action.RAID);
+        check(port.routes.size()==before,"close or quit invalidates session");
+        controller.open(player);
+        controller.clear();
+        controller.handle(player,port.token,Action.RAID);
+        check(port.routes.size()==before,"shutdown invalidates session");
+        controller.open(player);
+        port.view=null;
+        controller.handle(player,port.token,Action.STASH);
+        check(port.unavailable==1&&port.routes.size()==before,"missing player state cannot dispatch");
+        port.view=view(12,false,false,all);
+        controller.open(player);
+        int closes=port.closed;
+        controller.handle(player,port.token,Action.CLOSE);
+        check(port.closed==closes+1,"close exits home");
+        controller.open(player);
+        online[0]=false;
+        controller.handle(player,port.token,Action.RAID);
+        online[0]=true;
+        dead[0]=true;
+        controller.handle(player,port.token,Action.RAID);
+        check(port.routes.size()==before,"offline/dead players cannot dispatch");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("unique buttons preserve status slots")
+    void uniqueButtonsPreserveStatusSlots() throws Exception {
         for (var page : PdaHomeController.Page.values()) {
             var slots = new HashSet<Integer>();
             for (Action action : Action.values()) {
@@ -68,62 +158,23 @@ public final class PdaHomeTest {
             }
             check(PdaHomeScreen.actionAt(page,-1)==null && PdaHomeScreen.actionAt(page,27)==null,"outside clicks cannot route");
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("original hideout button position")
+    void originalHideoutButtonPosition() throws Exception {
         check(PdaHomeScreen.slot(PdaHomeController.Page.HOME,Action.HIDEOUT_MENU)==9,"original hideout button position");
         check(PdaHomeScreen.slot(PdaHomeController.Page.HIDEOUT,Action.HIDEOUT)==11 && PdaHomeScreen.slot(PdaHomeController.Page.HIDEOUT,Action.FACILITIES)==15,"two separate submenu buttons");
-        var mutable=EnumSet.allOf(Action.class);var copied=view(10,false,false,mutable);mutable.clear();
-        check(PdaHomeModel.blocked(copied,Action.RAID)==null,"view copies module availability");
         check("利用不可".equals(PdaHomeModel.blocked(view(40,false,false,Set.of()),Action.STASH)),"missing destination cannot be selected");
         check(Action.parse("invented")==null&&Action.parse("close/extra")==null,"unknown action path rejected");
-        UUID id=UUID.randomUUID();boolean[] online={true},dead={false};
-        Player player=(Player)Proxy.newProxyInstance(Player.class.getClassLoader(),new Class<?>[]{Player.class},(p,m,a)->switch(m.getName()) {
-            case "getUniqueId"->id;case "isOnline"->online[0];case "isDead"->dead[0];
-            default->throw new AssertionError("controller must not mutate inventory or world directly: "+m.getName());
-        });
-        var port=new Port(view(12,false,false,all));var controller=new PdaHomeController(port);
-        controller.open(player);String stale=port.token;controller.open(player);String current=port.token;
-        controller.handle(player,stale,Action.HIDEOUT_MENU);
-        check(port.page==PdaHomeController.Page.HOME&&port.routes.isEmpty(),"stale menu cannot open");
-        port.view=view(12,true,false,all);controller.handle(player,current,Action.HIDEOUT_MENU);
-        check(port.page==PdaHomeController.Page.HOME&&port.denied==1,"raid entry blocks submenu");
-        port.view=view(12,false,false,all);controller.open(player);
-        current=port.token;controller.handle(player,current,Action.HIDEOUT);
-        check(port.routes.isEmpty(),"home cannot bypass submenu with direct travel");
-        controller.handle(player,current,Action.HIDEOUT_MENU);
-        check(port.page==PdaHomeController.Page.HIDEOUT&&port.routes.isEmpty(),"hideout click opens two choices without teleport");
-        String submenu=port.token;controller.handle(player,submenu,Action.RAID);
-        check(port.routes.isEmpty(),"submenu cannot invoke a home-only action");
-        port.view=view(12,false,true,all);controller.handle(player,submenu,Action.HIDEOUT);
-        controller.handle(player,submenu,Action.FACILITIES);
-        check(port.routes.equals(List.of(Action.HIDEOUT))&&port.dispatched.inHideout(),"travel rechecks location and executes once");
-        controller.open(player);controller.handle(player,port.token,Action.HIDEOUT_MENU);
-        controller.handle(player,port.token,Action.BACK);
-        check(port.page==PdaHomeController.Page.HOME&&port.routes.size()==1,"back returns home without travel");
-        controller.handle(player,port.token,Action.HIDEOUT_MENU);
-        port.view=view(12,true,false,all);int routes=port.routes.size();
-        controller.handle(player,port.token,Action.FACILITIES);
-        check(port.routes.size()==routes&&port.page==PdaHomeController.Page.HIDEOUT&&port.denied==2,"raid entry while submenu is open blocks facilities and refreshes reasons");
-        controller.handle(player,port.token,Action.BACK);
-        port.view=view(12,false,false,all);controller.handle(player,port.token,Action.HIDEOUT_MENU);
-        controller.handle(player,port.token,Action.FACILITIES);
-        check(port.routes.getLast()==Action.FACILITIES,"facility choice opens management");
-        port.view=view(9,false,false,all);controller.open(player);controller.handle(player,port.token,Action.MARKET);
-        check(port.denied==3,"market level gate remains");
-        port.view=view(12,false,false,all);
-        for(Action action:List.of(Action.RAID,Action.QUESTS,Action.STASH,Action.TRADERS,Action.MARKET,Action.PARTY,Action.SETTINGS)) {
-            controller.open(player);controller.handle(player,port.token,action);check(port.routes.getLast()==action,"all destinations retained");
-        }
-        controller.open(player);int before=port.opened;controller.handle(player,port.token,Action.REFRESH);
-        check(port.opened==before+1&&port.page==PdaHomeController.Page.HOME,"refresh reloads home");
-        controller.forget(id);before=port.routes.size();controller.handle(player,port.token,Action.RAID);
-        check(port.routes.size()==before,"close or quit invalidates session");
-        controller.open(player);controller.clear();controller.handle(player,port.token,Action.RAID);
-        check(port.routes.size()==before,"shutdown invalidates session");
-        controller.open(player);port.view=null;controller.handle(player,port.token,Action.STASH);
-        check(port.unavailable==1&&port.routes.size()==before,"missing player state cannot dispatch");
-        port.view=view(12,false,false,all);controller.open(player);int closes=port.closed;
-        controller.handle(player,port.token,Action.CLOSE);check(port.closed==closes+1,"close exits home");
-        controller.open(player);online[0]=false;controller.handle(player,port.token,Action.RAID);online[0]=true;
-        dead[0]=true;controller.handle(player,port.token,Action.RAID);check(port.routes.size()==before,"offline/dead players cannot dispatch");
-        System.out.println("PdaHomeTest OK: chest slots, labels/status, hideout submenu/back, permissions, current-state recheck, one-use sessions, routing and cleanup");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("view copies module availability")
+    void viewCopiesModuleAvailability() throws Exception {
+        var mutable=EnumSet.allOf(Action.class);
+        var copied=view(10,false,false,mutable);
+        mutable.clear();
+        check(PdaHomeModel.blocked(copied,Action.RAID)==null,"view copies module availability");
     }
 }

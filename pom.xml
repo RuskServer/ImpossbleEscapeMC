@@ -13,6 +13,7 @@
 
     <properties>
         <java.version>25</java.version>
+        <test.excludedGroups>font-data</test.excludedGroups>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -51,6 +52,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.4</version>
                 <configuration>
+                    <excludedGroups>${test.excludedGroups}</excludedGroups>
                     <!-- paper-nms (サーバーの中身) が入ると MockBukkit のレジストリ・Adventure の実装と衝突する -->
                     <classpathDependencyExcludes>
                         <classpathDependencyExclude>ca.bkaw:paper-nms</classpathDependencyExclude>
@@ -260,4 +262,12 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+    <profiles>
+        <profile>
+            <id>font-tests</id>
+            <properties>
+                <test.excludedGroups></test.excludedGroups>
+            </properties>
+        </profile>
+    </profiles>
 </project>

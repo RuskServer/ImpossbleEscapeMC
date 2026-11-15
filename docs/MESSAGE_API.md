@@ -102,7 +102,7 @@ public void onMessage(IemMessageSendEvent event) {
 
 ## 検証と直接送信の禁止
 
-`MessageCatalogTest`、`MessageServiceTest`、`MessageRoutingArchitectureTest` は単独mainでも動く。`MessageSystemTest` からMaven/Surefireでも実行する。
+`MessageCatalogTest`、`MessageServiceTest`、`MessageRoutingArchitectureTest` はJUnit 5のテストとして`mvn test`で実行する。mainを呼ぶ橋渡しは使わない。
 
 アーキテクチャテストはコンパイル済みクラスのメソッド参照を走査し、`BukkitMessagePlatform` 以外からのAudience/CommandSenderへの直接送信やBukkit/Serverのbroadcastを禁止する。ラムダ・メソッド参照も対象。通知を追加する際に直接 `player.sendMessage` へ戻さない。
 

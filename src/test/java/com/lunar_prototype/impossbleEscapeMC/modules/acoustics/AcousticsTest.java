@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.acoustics;
 
+import org.junit.jupiter.api.Test;
+
 import org.bukkit.Material;
 
 import java.util.HashSet;
@@ -7,11 +9,11 @@ import java.util.Set;
 
 /** 場所の判定のしきい値、マスの番号、足元の材質の決め方を確かめる。サーバーは要らない */
 public final class AcousticsTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("open sky")
+    void openSky() throws Exception {
         // 上半分の光線の 35% 以上が空に抜ければ、頭の上に何があっても屋外
         check(AcousticZone.classify(12, 30, 10, 64, 32) == AcousticZone.OUTDOOR, "open sky");
         check(AcousticZone.classify(8, 30, 1, 3, 4) == AcousticZone.INDOOR, "room with a window above");
@@ -20,21 +22,9 @@ public final class AcousticsTest {
         check(AcousticZone.classify(0, 30, 6, 3, 4) == AcousticZone.UNDERGROUND, "under thick ground");
         // 光線: 64 本の単位ベクトルで、上下にほぼ半分ずつ
         check(AcousticMap.RAYS.length == AcousticMap.RAY_COUNT, "ray count");
-        int upper = 0;
-        for (var ray : AcousticMap.RAYS) {
-            check(Math.abs(ray.length() - 1.0) < 1e-9, "unit ray");
-            if (ray.getY() > 0) upper++;
-        }
-        check(upper == AcousticMap.RAY_COUNT / 2, "half upward " + upper);
-        for (AcousticZone zone : AcousticZone.values()) check(AcousticZone.byId(zone.id) == zone, "byId " + zone);
-
         // マスの番号: 同じマスは同じ、隣のマス・負の座標も別
         check(AcousticMap.cellKey(0, 64, 0) == AcousticMap.cellKey(1, 65, 1), "same cell");
-        Set<Long> keys = new HashSet<>();
-        for (int x = -6; x <= 6; x += 2) for (int y = -64; y <= 318; y += 2) for (int z = -6; z <= 6; z += 2) keys.add(AcousticMap.cellKey(x, y, z));
-        check(keys.size() == 7 * 192 * 7, "unique keys " + keys.size());
         check(AcousticMap.cellKey(-1, 64, 0) != AcousticMap.cellKey(1, 64, 0), "negative x");
-
         // 材質: 名前で分かる物を先に、残りはバニラの足音の種類で
         check(FootstepSounds.material(Material.GRAY_CONCRETE, "block.stone.step", false).equals("tile"), "concrete");
         check(FootstepSounds.material(Material.GRAY_CONCRETE_POWDER, "block.sand.step", false).equals("sand"), "concrete powder");
@@ -60,6 +50,30 @@ public final class AcousticsTest {
         check(AmbienceService.bed(AcousticZone.HALL, true).equals("hall"), "hall");
         check(AmbienceService.bed(AcousticZone.UNDERGROUND, false).equals("underground"), "underground");
         check(!AmbienceService.isNight(6000) && AmbienceService.isNight(18000) && !AmbienceService.isNight(23500) && AmbienceService.isNight(13000 + 24000 * 5), "night range");
-        System.out.println("AcousticsTest: zone thresholds, cell keys, footstep materials and ambience beds passed");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("unit ray")
+    void unitRay() throws Exception {
+        int upper = 0;
+        for (var ray : AcousticMap.RAYS) {
+            check(Math.abs(ray.length() - 1.0) < 1e-9, "unit ray");
+            if (ray.getY() > 0) upper++;
+        }
+        check(upper == AcousticMap.RAY_COUNT / 2, "half upward " + upper);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("acoustics scenario 3")
+    void acousticsScenario() throws Exception {
+        for (AcousticZone zone : AcousticZone.values()) check(AcousticZone.byId(zone.id) == zone, "byId " + zone);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("acoustics scenario 4")
+    void acousticsScenario4() throws Exception {
+        Set<Long> keys = new HashSet<>();
+        for (int x = -6; x <= 6; x += 2) for (int y = -64; y <= 318; y += 2) for (int z = -6; z <= 6; z += 2) keys.add(AcousticMap.cellKey(x, y, z));
+        check(keys.size() == 7 * 192 * 7, "unique keys " + keys.size());
     }
 }

@@ -11,6 +11,9 @@ public final class MessageTestSupport {
     private static MessageCatalog load(){try{return MessageCatalog.load(null,"ja_jp");}catch(java.io.IOException e){throw new ExceptionInInitializerError(e);}}
     public static Component japanese(Component input){return MessageService.render(input,Locale.JAPAN,CATALOG);}
     public static AutoCloseable forwarding(){
+        MessageService previous;
+        try { previous = Messages.service(); } catch (IllegalStateException absent) { previous = null; }
+        MessageService saved = previous;
         MessageService service=new MessageService(CATALOG,new MessagePlatform(){
             public boolean isPrimaryThread(){return true;}
             public void execute(Runnable r){r.run();}
@@ -23,6 +26,6 @@ public final class MessageTestSupport {
                 switch(c){case CHAT,CONSOLE->p.sendMessage(content.text());case ACTION_BAR->p.sendActionBar(content.text());case TITLE->p.showTitle(Title.title(content.text(),content.subtitle(),content.times()));}
             }
         },false);
-        Messages.installForTest(service);return ()->{service.close();Messages.installForTest(null);};
+        Messages.installForTest(service);return ()->{service.close();Messages.installForTest(saved);};
     }
 }

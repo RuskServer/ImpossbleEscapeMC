@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import org.junit.jupiter.api.Test;
+
 import java.util.Arrays;
 
 /** 実際の反射レイで入射面の向きと、途中の部分透過を検証する。 */
@@ -16,7 +18,8 @@ public final class SunBounceTest {
         float[] direct=new float[N*N*N],lamp=new float[direct.length];Arrays.fill(direct,1);Arrays.fill(lamp,block);
         return SunShadowService.bounceRay(snapshot,4,4,4,new double[]{1,0,0},0,0,0,N,N,N,direct,lamp,sun);
     }
-    public static void main(String[] args) {
+    @Test
+    void sunBounce() {
         var snapshot=wall();double albedo=128.0/255;
         near(ray(snapshot,new double[]{-1,0,0},0),albedo,"sun facing the wall");
         near(ray(snapshot,new double[]{1,0,0},0),0,"sun behind the wall cannot reflect from the visible face");
@@ -27,7 +30,7 @@ public final class SunBounceTest {
         near(ray(snapshot,new double[]{-1,0,0},0),albedo*128/255,"partial obstruction attenuates the return path");
         Arrays.fill(snapshot.albedo(),(byte)0);
         near(ray(snapshot,new double[]{-1,0,0},0),0,"absorbing surfaces do not create light");
-        System.out.println("SunBounceTest OK");
+
     }
     private static void near(double actual,double expected,String reason){if(Math.abs(actual-expected)>1e-6)throw new AssertionError(reason+": "+actual+" != "+expected);}
 }

@@ -1,9 +1,12 @@
 package com.lunar_prototype.impossbleEscapeMC.command;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
 
 public final class ScavSpawnArgumentsTest {
-    public static void main(String[] args) {
+    @Test
+    void scavSpawnArguments() {
         check(ScavSpawnArguments.parse(new String[0]).level()==null,"default rank remains random");
         for(var level:ScavBrain.BrainLevel.values()) {
             var plain=ScavSpawnArguments.parse(new String[]{level.name().toLowerCase()});
@@ -18,7 +21,7 @@ public final class ScavSpawnArgumentsTest {
         for(String[] invalid:new String[][]{{"hgh"},{"low","1"},{"1","2"},{"high","1","2","3","4"},{"1","2","3","nope"},{"low","NaN","1","2"},{"1","Infinity","2"},{"~NaN","1","2"},{"heatmap"}}) {
             try{ScavSpawnArguments.parse(invalid);throw new AssertionError("invalid arguments accepted");}catch(IllegalArgumentException expected){}
         }
-        System.out.println("ScavSpawnArgumentsTest passed: all ranks, old/new coordinate syntax, relative coordinates and rejection before spawning");
+
     }
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
 }

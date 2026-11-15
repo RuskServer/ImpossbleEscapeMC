@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.api.message;
 
+import org.junit.jupiter.api.Test;
+
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -11,7 +13,8 @@ public final class MessageRoutingArchitectureTest {
     record Pair(int first,int second){}
     record ClassRef(int name){}
     record MethodRef(int owner,int type){}
-    public static void main(String[] args)throws Exception {
+    @Test
+    void messageRoutingArchitecture()throws Exception {
         List<String> violations=new ArrayList<>();int scanned=0;
         try(var paths=Files.walk(Path.of("target/classes"))) {
             for(Path path:paths.filter(p->p.toString().endsWith(".class")).toList()) {
@@ -48,6 +51,6 @@ public final class MessageRoutingArchitectureTest {
             }
         }
         if(!violations.isEmpty())throw new AssertionError("Direct sends outside message transport: "+violations);
-        System.out.println("MessageRoutingArchitectureTest OK: "+scanned+" classes including method references");
+
     }
 }

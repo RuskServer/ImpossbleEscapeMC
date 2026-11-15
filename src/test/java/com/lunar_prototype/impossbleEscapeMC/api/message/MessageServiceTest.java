@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.api.message;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.message_test.MessageCallSiteProbe;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
@@ -15,7 +17,7 @@ import static com.lunar_prototype.impossbleEscapeMC.api.message.MessageResult.St
 
 /** 実サーバーを使わず、送信経路・非同期・イベント・停止・再帰を実際に動かす。 */
 public final class MessageServiceTest {
-    static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
+    static void check(boolean value,String message){ org.junit.jupiter.api.Assertions.assertTrue(value, message); }
     static CommandSender sender(String name){return (CommandSender)Proxy.newProxyInstance(CommandSender.class.getClassLoader(),new Class[]{CommandSender.class},(proxy,m,a)->switch(m.getName()) {
         case "getName","toString" -> name;case "hashCode" -> System.identityHashCode(proxy);case "equals" -> proxy==a[0];default -> m.getReturnType()==boolean.class?false:null;
     });}
@@ -38,10 +40,22 @@ public final class MessageServiceTest {
     static final String KEY="iem.admin.messages.reload_failed";
     static final MessageContent BODY=MessageContent.text(MessageText.of(KEY,"detail"));
     static final MessageOrigin ORIGIN=new MessageOrigin("caller","method","Caller.java",17);
-    public static void main(String[] args)throws Exception {
+    private MessageService runningService;
+    private MessageService previousService;
+    @org.junit.jupiter.api.BeforeEach
+    void saveService() {
+        try { previousService = Messages.service(); } catch (IllegalStateException absent) { previousService = null; }
+    }
+    @org.junit.jupiter.api.AfterEach
+    void closeService() {
+        try { if (runningService != null) runningService.close(); }
+        finally { Messages.installForTest(previousService); }
+    }
+    @Test
+    void messageService()throws Exception {
         MessageCatalog catalog=MessageCatalog.load(null,"ja_jp");Platform p=new Platform();
         CommandSender jp=sender("ja"),en=sender("en"),off=sender("offline");p.locales.put(en,Locale.US);p.offline.add(off);p.targets.addAll(List.of(jp,en,off));
-        MessageService service=new MessageService(catalog,p,true);
+        MessageService service=new MessageService(catalog,p,true);runningService=service;
         check(MessageCatalogTest.plain(GlobalTranslator.render(BODY.text(),Locale.US)).startsWith("Reload failed"),"global registration");
         List<MessageResult> batch=service.broadcast(KEY,BODY,ORIGIN).toCompletableFuture().join();
         check(batch.size()==3&&batch.get(0).sendId().equals(batch.get(1).sendId()),"one ID per broadcast");
@@ -67,7 +81,7 @@ public final class MessageServiceTest {
         check(p.after.getLast().getRenderedContent().times().equals(times),"title timing preserved");
         Messages.installForTest(service);
         AtomicReference<CompletionStage<List<MessageResult>>> queued=new AtomicReference<>();
-        Thread thread=new Thread(()->queued.set(MessageCallSiteProbe.send(en)));thread.start();thread.join();
+        Thread thread=new Thread(()->queued.set(MessageCallSiteProbe.send(en)));thread.setDaemon(true);thread.start();thread.join(3000);check(!thread.isAlive(),"async caller returns without blocking");
         check(!queued.get().toCompletableFuture().isDone(),"async call queues instead of firing async events");p.drain();
         check(queued.get().toCompletableFuture().join().getFirst().status()==DISPATCHED,"queued delivery");
         MessageOrigin origin=p.after.getLast().getOrigin();check(origin.className().endsWith("MessageCallSiteProbe")&&origin.methodName().equals("send")&&origin.lineNumber()>0,"source captured before scheduling");
@@ -76,9 +90,9 @@ public final class MessageServiceTest {
         service.send(jp,KEY,BODY,ORIGIN).toCompletableFuture().join();check(recursive.get()==RECURSION_LIMIT,"recursive listeners bounded");p.handler=e->{};
         p.observer=e->{throw new IllegalStateException("observer failure");};
         check(service.group(List.of(jp,en),KEY,BODY,ORIGIN).toCompletableFuture().join().stream().allMatch(x->x.status()==DISPATCHED),"observer failure does not interrupt delivery");p.observer=e->{};
-        thread=new Thread(()->queued.set(MessageCallSiteProbe.send(en)));thread.start();thread.join();count=p.delivered.size();service.close();
+        thread=new Thread(()->queued.set(MessageCallSiteProbe.send(en)));thread.setDaemon(true);thread.start();thread.join(3000);check(!thread.isAlive(),"async caller returns without blocking");count=p.delivered.size();service.close();
         check(queued.get().toCompletableFuture().join().getFirst().status()==STOPPED,"shutdown completes pending futures");p.drain();check(p.delivered.size()==count,"stopped queued task cannot deliver later");
         check(GlobalTranslator.render(BODY.text(),Locale.US).equals(BODY.text()),"global source removed on shutdown");Messages.installForTest(null);
-        System.out.println("MessageServiceTest OK: events, locale, broadcast, mutation, offline/failure, async origin, recursion, shutdown");
+
     }
 }

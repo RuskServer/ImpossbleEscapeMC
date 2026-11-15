@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.quest;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.CompletedQuestCondition;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.component.impl.ReachLocationObjective;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.event.QuestTrigger;
@@ -8,9 +10,7 @@ import java.util.Map;
 
 /** 軍事キャンプの二地点と、討伐タスクの間に入る順序を確かめる。 */
 public final class SpectreCampQuestTest {
-    private static void check(boolean ok, String message) {
-        if (!ok) throw new AssertionError(message);
-    }
+    private static void check(boolean ok, String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
 
     private static QuestDefinition quest(String id) {
         return QuestCatalog.create(null).stream().filter(q -> q.getId().equals(id)).findFirst().orElseThrow();
@@ -21,7 +21,8 @@ public final class SpectreCampQuestTest {
                 && completed.getRequiredQuestId().equals(id));
     }
 
-    public static void main(String[] args) {
+    @Test
+    void spectreCampQuest() {
         QuestDefinition camp = quest("bastion_spectre_camp_recon");
         check(requires(camp, "bastion_coastal_warehouses"), "camp follows warehouse without optional weapon trial");
         check(requires(quest("bastion_close_quarters"), camp.getId()), "close quarters follows camp");
@@ -46,6 +47,6 @@ public final class SpectreCampQuestTest {
         tower.updateProgress(null, null, active, 1, QuestTrigger.LOCATION_REACHED,
                 Map.of("locationName", "Spectre軍事キャンプの電波塔"));
         check(tower.isCompleted(active, 1), "tower visit");
-        System.out.println("SpectreCampQuestTest: chain, locations, and separate progress passed");
+
     }
 }

@@ -1,7 +1,11 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 public final class ScavDecisionStabilityTest {
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("minor near misses do not enter suppression")
+    void minorNearMissesDoNotEnterSuppression() throws Exception {
         var state = new ScavDecisionStability();
         for (float input : new float[] {0.48f, 0.51f, 0.59f, 0.5f}) {
             check(!state.updateSuppression(input), "minor near misses do not enter suppression");
@@ -12,7 +16,6 @@ public final class ScavDecisionStabilityTest {
         }
         check(!state.updateSuppression(0.35f), "leave at lower boundary");
         check(!state.updateSuppression(0.59f), "reentry needs upper threshold again");
-
         check(state.movement(0, 100, false) == 0, "start approach");
         for (int tick = 103; tick < 115; tick += 3) {
             check(state.movement(tick % 2 == 0 ? 2 : 3, tick, false) == 0,
@@ -23,7 +26,11 @@ public final class ScavDecisionStabilityTest {
         check(state.movement(0, 121, false) == 8, "interrupted action gets a fresh hold");
         state.clearMovement();
         check(state.movement(3, 122, false) == 3, "return from dedicated path does not restore stale action");
+    }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("decision reevaluation or sight loss never rerolls preferred range")
+    void decisionReevaluationOrSightLossNeverRerollsPreferredRange() throws Exception {
         double range = ScavDecisionStability.engagementRange(20, 1.1);
         for (int step = 0; step < 200; step++) {
             check(ScavDecisionStability.engagementRange(20, 1.1) == range,
@@ -31,10 +38,7 @@ public final class ScavDecisionStabilityTest {
         }
         check(ScavDecisionStability.engagementRange(10, 1.1) == range / 2,
                 "weapon change immediately uses new preferred range with same individual trait");
-        System.out.println("ScavDecisionStabilityTest OK");
     }
 
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 }

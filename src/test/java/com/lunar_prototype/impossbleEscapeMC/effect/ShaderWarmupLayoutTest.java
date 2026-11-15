@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.gui.DialogLine;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
@@ -11,12 +13,12 @@ import java.util.List;
 
 /**
  * シェーダー準備の画面 ({@link ShaderWarmup#bodyLines}) の、どの行も途中で幅を超えず、ちょうど行の幅で終わることを確かめる。
- * 環境変数 IEM_DIALOG_DUMP にファイル名を渡すと、見本の画面を JSON で書き出す (tools/dialog_render.py で絵にする)
+ * iem.previewDirectory に local/ 内の出力先を渡すと、見本の画面を JSON で書き出す (tools/dialog_render.py で絵にする)
  */
+@org.junit.jupiter.api.Tag("font-data")
+@org.junit.jupiter.api.extension.ExtendWith(com.lunar_prototype.impossbleEscapeMC.testing.FontData.class)
 public final class ShaderWarmupLayoutTest {
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
 
     private static void checkLines(List<DialogLine> lines, String what) {
         for (DialogLine l : lines) {
@@ -24,7 +26,8 @@ public final class ShaderWarmupLayoutTest {
         }
     }
 
-    public static void main(String[] args) throws Exception {
+    @Test
+    void shaderWarmupLayout() throws Exception {
         int total = 18;
         List<ShaderWarmup.View> views = List.of(
                 new ShaderWarmup.View(0, total, "cover", 0),
@@ -41,7 +44,7 @@ public final class ShaderWarmupLayoutTest {
             checkLines(lines, "step " + v.done());
         }
 
-        String dump = System.getenv("IEM_DIALOG_DUMP");
+        String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             var gson = GsonComponentSerializer.gson();
             List<String> screens = new ArrayList<>();
@@ -53,6 +56,6 @@ public final class ShaderWarmupLayoutTest {
             }
             Files.writeString(Path.of(dump), "{\"screens\":[" + String.join(",", screens) + "]}", StandardCharsets.UTF_8);
         }
-        System.out.println("ShaderWarmupLayoutTest: every line fits its width");
+
     }
 }

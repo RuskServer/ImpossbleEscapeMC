@@ -46,21 +46,18 @@
 ## ビルドとテスト
 
 - ビルド: `mvn package` (Java 25)
-- テストは JUnit ではなく、`src/test/java` の `*Test` クラスの `main`。成功すると何か表示して終わり、失敗すると例外で止まる
-- ダイアログの配置のテストは、文字の幅の表を環境変数 `IEM_FONT_WIDTHS` で受け取る。表は手元の 26.3 のクライアントから作る:
+- テストは `src/test/java` の JUnit 5。通常は `mvn test`、配布物も含める時は `mvn package`。独自のmain実行ループは使わない
+- `font-data` タグの実フォント配置テストは通常実行から除外する。Mojang由来の表はコミットせず、実データのある環境で明示的に実行する:
 
 ```bash
-mvn -q package test-compile
-mvn -q dependency:build-classpath -Dmdep.outputFile=target/cp.txt
-# paper-nms (サーバーの中身) を入れると Adventure の実装が変わって落ちるので外す
-CP="target/test-classes:target/classes:$(tr ':' '\n' < target/cp.txt | grep -v paper-nms | paste -sd:)"
-# 表を作る (クライアントの jar、assets フォルダ、アセットの index の ID。作るのは最初の 1 回だけ)
-java -cp "$CP" com.lunar_prototype.impossbleEscapeMC.util.FontWidthTable \
-    <client.jar> <.minecraft/assets> <index の ID> local/font_widths.txt
-for c in $(cd target/test-classes && find . -name '*Test.class' | sed 's|^\./||;s|\.class$||;s|/|.|g'); do
-    IEM_FONT_WIDTHS=local/font_widths.txt java -cp "$CP" "$c" || echo "FAIL $c"
-done
+mvn test
+IEM_FONT_WIDTHS=local/font_widths.txt mvn -Pfont-tests test
+# または -Diem.fontWidths=local/font_widths.txt を指定する
 ```
+
+- 表の生成・個別実行・プレビュー・実行順の確認は [docs/TESTING.md](docs/TESTING.md)。`font-tests` を有効にして表が無い場合は失敗させ、代替幅で成功扱いにしない
+- 一時ファイルには `@TempDir` を使う。プレビューは `-Diem.previewDirectory=local/previews` を明示した時だけクラス別に書き出す
+- Bukkitの静的レジストリは共通の `BukkitBootstrap` が最初に初期化する。共有サーバー/プラグイン参照を差し替えるテストには `BukkitState` と後始末を用意する。並列実行を勝手に有効にしない
 
 - 変更の前から落ちているテストは、変更の前の状態で同じように落ちることを確かめてから「既存の失敗」として報告する。自分の変更と関係ないテストを勝手に直さない
 

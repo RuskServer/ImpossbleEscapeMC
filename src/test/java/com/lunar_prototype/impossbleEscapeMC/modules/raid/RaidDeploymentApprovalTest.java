@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import org.junit.jupiter.api.Test;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import java.util.ArrayList;
@@ -8,7 +10,7 @@ import java.util.UUID;
 
 /** 出撃先・同行者の同意を、古い画面や状態変更後に流用できないことを検証する。 */
 public final class RaidDeploymentApprovalTest {
-    private static void check(boolean condition, String message) {if (!condition) throw new AssertionError(message);}
+    private static void check(boolean condition, String message) { org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
     private static final UUID LEADER = UUID.randomUUID(), MEMBER = UUID.randomUUID();
     private static final RaidConditions DAY = new RaidConditions(RaidConditions.Period.DAY, 6000, RaidConditions.Weather.CLEAR);
     private static final RaidConditions NIGHT = new RaidConditions(RaidConditions.Period.NIGHT, 18000, RaidConditions.Weather.RAIN);
@@ -19,7 +21,8 @@ public final class RaidDeploymentApprovalTest {
     private static boolean hover(Component component) {
         return component.hoverEvent()!=null || component.children().stream().anyMatch(RaidDeploymentApprovalTest::hover);
     }
-    public static void main(String[] args) {
+    @Test
+    void raidDeploymentApproval() {
         var mode=RaidDeploymentApproval.Mode.IMMEDIATE;
         var group=List.of(LEADER,MEMBER);
         var original=snapshot("薬品工場",mode,100,DAY,LEADER,group,group,null);
@@ -66,6 +69,6 @@ public final class RaidDeploymentApprovalTest {
             check(lines.stream().noneMatch(RaidDeploymentApprovalTest::hover),"essential confirmation information has no hover requirement");
             check(text.contains(switch(m){case IMMEDIATE->"確認後すぐ";case LATE_JOIN->"途中参加";case QUEUE->"01:30";}),"immediate, late and queued participation are distinguished");
         }
-        System.out.println("RaidDeploymentApprovalTest OK: one-use agreement, stale/expired screens, changed destination/party/conditions, immutable membership and visible summary");
+
     }
 }

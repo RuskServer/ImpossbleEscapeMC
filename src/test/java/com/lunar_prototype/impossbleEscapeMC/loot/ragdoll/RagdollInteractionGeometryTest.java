@@ -1,13 +1,22 @@
 package com.lunar_prototype.impossbleEscapeMC.loot.ragdoll;
 
+import org.junit.jupiter.api.Test;
+
 import org.joml.Quaterniond;
 import org.joml.Vector3d;
 
 public final class RagdollInteractionGeometryTest {
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("all six body parts covered by 11 handles")
+    void allSixBodyPartsCoveredByHandles() throws Exception {
         int handles=0;
         for(var part:RagdollPhysics.Part.values())handles+=RagdollInteractionGeometry.sections(part);
         check(handles==11,"all six body parts covered by 11 handles");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("bounded handle dimensions")
+    void boundedHandleDimensions() throws Exception {
         // 直立・寝姿勢・斜めの壁際。外層の全頂点が少なくとも1個の操作箱に入る。
         for(int i=0;i<200;i++) {
             var q=new Quaterniond().rotateXYZ(i*.17,i*.31,i*.23);
@@ -31,10 +40,17 @@ public final class RagdollInteractionGeometryTest {
         }
         var pose=new RagdollPhysics.Pose(new Vector3d(0,0,-2),new Quaterniond());
         var half=RagdollPhysics.halfSize(RagdollPhysics.Part.TORSO);
-        var eye=new Vector3d(.26,0,0);var ray=new Vector3d(0,0,-1);
+        var eye=new Vector3d(.26,0,0);
+        var ray=new Vector3d(0,0,-1);
         check(!Double.isFinite(RagdollPicking.distance(pose,half,eye,ray,3)),"old inner-box picker misses visible outer shell");
         double distance=RagdollInteractionGeometry.distance(pose,half,eye,ray,3);
         check(RagdollInteractionGeometry.visible(distance,Double.POSITIVE_INFINITY,3),"outer skin shell is clickable");
+        check(half.x==.25&&half.y==.375&&half.z==.125,"input half-size unchanged");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("one-centimeter surface contact tolerated")
+    void oneCentimeterSurfaceContactTolerated() throws Exception {
         check(RagdollInteractionGeometry.visible(2,1.99,3),"one-centimeter surface contact tolerated");
         check(!RagdollInteractionGeometry.visible(2,1.97,3),"three-centimeter obstruction rejected");
         check(!RagdollInteractionGeometry.visible(2,1,3),"full wall cannot be looted through");
@@ -44,8 +60,6 @@ public final class RagdollInteractionGeometryTest {
         check(!RagdollInteractionGeometry.visible(Double.POSITIVE_INFINITY,Double.POSITIVE_INFINITY,3),"miss rejected");
         check(!RagdollInteractionGeometry.visible(Double.NaN,Double.POSITIVE_INFINITY,3),"invalid hit rejected");
         check(!RagdollInteractionGeometry.visible(1,Double.NaN,3),"invalid wall rejected");
-        check(half.x==.25&&half.y==.375&&half.z==.125,"input half-size unchanged");
-        System.out.println("RagdollInteractionGeometryTest passed: 200 rotations, full body coverage, outer skin, contact tolerance, walls and reach");
     }
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
 }

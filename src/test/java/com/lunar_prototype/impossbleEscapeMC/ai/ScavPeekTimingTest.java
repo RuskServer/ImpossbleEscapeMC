@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavWeapon;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -34,8 +36,9 @@ public final class ScavPeekTimingTest {
         set(tactics,"coverLocation",destination.clone().add(0,0,-1.5));
         set(tactics,"peekOutLimit",20);set(tactics,"peekShotsRemaining",3);
     }
-    private static void check(boolean ok,String message) {if(!ok)throw new AssertionError(message);}
-    public static void main(String[] args)throws Exception {
+    private static void check(boolean ok,String message) { org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+    @Test
+    void scavPeekTiming()throws Exception {
         Block wall=proxy(Block.class,(p,m,a)->{throw new AssertionError(m.getName());});
         World world=proxy(World.class,(p,m,a)->switch(m.getName()) {
             case "equals"->p==a[0];
@@ -88,6 +91,6 @@ public final class ScavPeekTimingTest {
         check(shots[0]==before,"settling cannot permit blind shots");
         tactics.cancelPeek();
         check(aimSteps(tactics)==0&&tactics.getPeekPhase()==0,"cancel clears settling state");
-        System.out.println("ScavPeekTimingTest OK: settled hold, reaction/RPM/sight gates, displacement, restart, readiness and cancel");
+
     }
 }

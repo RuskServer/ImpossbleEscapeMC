@@ -44,7 +44,7 @@ jobs:
     - name: Initialize Paper NMS
       run: mvn -B -ntp paper-nms:init
 
-    - name: Build
+    - name: Build and run unit tests
       run: mvn -B -ntp package --file pom.xml
 
     - name: Get Jar

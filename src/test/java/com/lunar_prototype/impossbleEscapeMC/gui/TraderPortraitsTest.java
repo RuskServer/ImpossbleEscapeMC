@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
+import org.junit.jupiter.api.Test;
+
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.destroystokyo.paper.profile.ProfileProperty;
 import com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderDefinition;
@@ -23,7 +25,7 @@ public final class TraderPortraitsTest {
         public String getTexture() { return texture; }
         public String getSignature() { return signature; }
     }
-    private static void check(boolean condition,String message){if(!condition)throw new AssertionError(message);}
+    private static void check(boolean condition,String message){ org.junit.jupiter.api.Assertions.assertTrue(condition, message); }
     @SuppressWarnings("unchecked") private static <T>T proxy(Class<T> type,InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},handler);
     }
@@ -34,7 +36,8 @@ public final class TraderPortraitsTest {
             default->throw new AssertionError("unexpected NPC operation (fetch/spawn/mutation): "+m.getName());
         });
     }
-    public static void main(String[] args) {
+    @Test
+    void traderPortraits() {
         SavedSkin trait=new SavedSkin("saved-texture-A","signed-A");
         NPC unspawned=npc(List.of(trait),null,true);
         ProfileProperty cached=TraderPortraits.CitizensSkin.texture(unspawned);
@@ -73,6 +76,6 @@ public final class TraderPortraitsTest {
         check(TraderSelectionGUI.name(trader).equals("Kovacs"),"legacy operation suffix is not shown as a contact name");
         trader.displayName=null;
         check(TraderSelectionGUI.name(trader).equals("kovacs"),"missing display name uses stable trader ID");
-        System.out.println("TraderPortraitsTest passed: saved/live skin priority, signatures, updates, NPC0 and missing NPCs without fetch/spawn");
+
     }
 }

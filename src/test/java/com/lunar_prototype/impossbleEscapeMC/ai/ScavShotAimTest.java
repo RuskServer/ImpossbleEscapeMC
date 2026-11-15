@@ -1,7 +1,10 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import org.junit.jupiter.api.Test;
+
 public final class ScavShotAimTest {
-    public static void main(String[] args) {
+    @Test
+    void scavShotAim() {
         var aim=new ScavShotAim();
         for(int shot=0;shot<100;shot++) {
             aim.capture(23.5f,12.25f,6);
@@ -14,7 +17,7 @@ public final class ScavShotAimTest {
         check(aim.held().yaw()==18&&aim.held().pitch()==-5,"a new shot uses current desired aim instead of perpetually holding old aim");
         aim.clear();check(aim.held()==null,"movement cancels queued trigger aim");
         aim.capture(0,Float.NaN,6);check(aim.held()==null,"nonfinite aim rejected");
-        System.out.println("ScavShotAimTest OK: shared orientation, retrigger, expiry and movement cleanup");
+
     }
-    private static void check(boolean value,String message) {if(!value)throw new AssertionError(message);}
+    private static void check(boolean value,String message) { org.junit.jupiter.api.Assertions.assertTrue(value, message); }
 }

@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.core;
 
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.*;
 import com.lunar_prototype.impossbleEscapeMC.modules.quest.*;
 import java.nio.file.*;
@@ -8,9 +10,13 @@ import java.util.logging.*;
 
 /** オフラインの初回読込と既存の原子的保存・バックアップを通す。 */
 public final class QuestlineLoadMigrationTest {
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
-    public static void main(String[] args)throws Exception {
-        Path dir=Files.createTempDirectory("iem-quest-migration");var log=Logger.getLogger("QuestlineLoadMigrationTest");log.setLevel(Level.OFF);
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path temporaryDirectory;
+
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
+    @Test
+    void questlineLoadMigration()throws Exception {
+        Path dir=temporaryDirectory;var log=Logger.getLogger("QuestlineLoadMigrationTest");log.setLevel(Level.OFF);
         var store=new PlayerDataStorage(dir.toFile(),log);UUID id=UUID.randomUUID();var gson=new Gson();
         var old=new PlayerData(id);old.completeQuest("bastion_night_optics_trial");old.getActiveQuests().put("supply_route",new ActiveQuest("supply_route"));
         var json=gson.toJsonTree(old).getAsJsonObject();json.remove("questlineVersion");json.remove("retainedTradeUnlocks");String original=json.toString();
@@ -25,7 +31,6 @@ public final class QuestlineLoadMigrationTest {
         var failed=gson.fromJson(original,PlayerData.class);
         check(!PlayerDataModule.migrateLoadedQuests(new PlayerDataStorage.LoadResult(failed,true,false,false))&&!failed.getCompletedQuests().isEmpty(),"failed data is never migrated");
         var created=store.load(UUID.randomUUID());check(!PlayerDataModule.migrateLoadedQuests(created),"new player not migrated");
-        try(var paths=Files.walk(dir)){for(Path path:paths.sorted(java.util.Comparator.reverseOrder()).toList())Files.delete(path);}
-        System.out.println("QuestlineLoadMigrationTest passed: lazy offline load, atomic snapshot, backup and failure/new-player guards");
+
     }
 }

@@ -1,13 +1,22 @@
 package com.lunar_prototype.impossbleEscapeMC.loot;
 
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.Gson;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidMap;
 import org.joml.Vector3f;
 
 public final class LockerModelTest {
-    public static void main(String[] args) {
+    @Test
+    @org.junit.jupiter.api.DisplayName("original display parts retained")
+    void originalDisplayPartsRetained() throws Exception {
         check(LockerModel.PARTS.size()==14,"original display parts retained");
         check(LockerModel.PARTS.stream().filter(LockerModel.Part::door).count()==8,"all eight door parts animate");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("shelf and shell never move")
+    void shelfAndShellNeverMove() throws Exception {
         for(int facing=0;facing<4;facing++) {
             var rotate=new org.joml.Matrix4f().rotateY((float)(facing*Math.PI/2));
             var hinge=rotate.transformPosition(new Vector3f(-.4375f,0,-.5f));
@@ -32,16 +41,22 @@ public final class LockerModelTest {
             near(c.x,.4375f,"closed panel right edge");near(c.z,-.5f,"closed panel front");
             near(o.x,-.4375f,"open panel aligned to hinge");near(o.z,-1.375f,"door swings outside cabinet");
         }
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("legacy map compatibility")
+    void legacyMapCompatibility() throws Exception {
         Gson gson=new Gson();
         var old=gson.fromJson("{\"mapId\":\"old\",\"worldName\":\"world\"}",RaidMap.class);
         check(old.getLootLockers().isEmpty(),"legacy map compatibility");
-        var spec=new RaidMap.LootLocker("locker-one",-17,-34,208,3);spec.generation=42;
+        var spec=new RaidMap.LootLocker("locker-one",-17,-34,208,3);
+        spec.generation=42;
         old.getLootLockers().add(spec);
-        var restored=gson.fromJson(gson.toJson(old),RaidMap.class);var saved=restored.getLootLockers().getFirst();
+        var restored=gson.fromJson(gson.toJson(old),RaidMap.class);
+        var saved=restored.getLootLockers().getFirst();
         check(saved.id.equals(spec.id)&&saved.x==-17&&saved.y==-34&&saved.z==208&&saved.facing==3&&saved.generation==42,"placement and refill generation survive restart");
         check(old.getLootContainers().isEmpty()&&old.getLootDrawers().isEmpty(),"existing furniture registrations remain independent");
-        System.out.println("LockerModelTest OK");
     }
     private static void near(float a,float b,String reason){check(Math.abs(a-b)<.0001,reason);}
-    private static void check(boolean value,String reason){if(!value)throw new AssertionError(reason);}
+    private static void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }
 }

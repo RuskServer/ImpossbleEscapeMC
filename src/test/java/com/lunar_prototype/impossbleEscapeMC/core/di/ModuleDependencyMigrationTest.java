@@ -84,8 +84,5 @@ public class ModuleDependencyMigrationTest {
         for (Class<?> next : graph.getOrDefault(node, List.of())) visit(next, graph, done, path);
         path.removeLast(); done.add(node);
     }
-    public static void main(String[] args) throws Exception {
-        verify();
-        System.out.println("ModuleDependencyMigrationTest OK: all 23 constructors, explicit lazy edges, no hidden lookups, acyclic startup");
-    }
+
 }
