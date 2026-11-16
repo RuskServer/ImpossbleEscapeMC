@@ -355,8 +355,11 @@ public class ItemFactory {
         // 医療
         // =========================
         if (def != null && "MED".equalsIgnoreCase(def.type) && def.medStats != null && def.medStats.continuous) {
-            int durability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
+            int durability = Math.clamp(pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability), 0, def.maxDurability);
+            pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, durability);
             lore.add("§7耐久値 §f" + durability + " §8/ §7" + def.maxDurability);
+            lore.add(visorLore("回復", def.medStats.healPerUse + " HP / 0.5秒"));
+            lore.add(visorLore("操作", "右クリック長押し"));
             lore.add("");
         }
 

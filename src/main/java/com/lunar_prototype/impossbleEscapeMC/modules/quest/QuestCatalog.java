@@ -260,11 +260,12 @@ final class QuestCatalog {
         quests.add(new QuestBuilder(module, "pharmakon_office_recon")
                 .trader(PHARMAKON)
                 .name("工場の受入先")
-                .description("国連側が工場の状態を知りたがっているの。オフィス一階の休憩所と研究室を見てきて。AI-2二つの回収と工場からの脱出もお願い。薬を探すだけでなく、施設をどこまで把握できるかを確かめたいそうよ。")
+                .description("国連側が工場の状態を知りたがっているの。オフィス一階の休憩所と研究室を見てきて。AI-2二つの回収と工場からの脱出もお願い。薬を探すだけでなく、施設をどこまで把握できるかを確かめたいそうよ。戻ったら、IFAKの販売枠を用意しておくわ。")
                 .requiresQuest("stop_the_bleed")
                 .reach("factory", 178, -33, 119, 10, "オフィスビル1階の休憩所")
                 .reach("factory", 195, -34, 107, 10, "オフィスビル1階の研究室")
                 .handInFir("ai2", 2).extract(FACTORY)
+                .unlockTrade(PHARMAKON, "ifak")
                 .money(25000)
                 .exp(1500)
                 .build());

@@ -105,6 +105,7 @@ final class LootCatalog {
         // --- 医療品 ---
         tables.add(table("medical_pool", 2, 5,
                 item("ai2", 80.0, 1, 2),
+                item("ifak", 15.0),
                 item("CAT", 50.0)));
 
         // --- 弾薬 ---

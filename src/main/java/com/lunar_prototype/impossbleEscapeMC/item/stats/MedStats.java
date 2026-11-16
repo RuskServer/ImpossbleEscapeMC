@@ -9,6 +9,7 @@ public class MedStats {
     public boolean continuous;           // 長押しで使い続けるタイプか
     public double healPerUse;           // 1回(0.5s)ごとの回復量
     public int durabilityPerUse;        // 1回(0.5s)ごとの耐久消費量
+    public String soundPrefix;         // 開閉・処置音のイベント接頭辞
     public int usingCustomModelData;    // 使用中のモデルID
 
     // --- 一括使用（CAT等）の設定 ---

@@ -49,9 +49,8 @@ public class MedicalModule implements IModule, Listener {
     private final PlayerDataModule dataModule;
     private StatusEffectManager statusEffectManager;
 
-    // CAT と AI-2 を使う時の音 (リソースパックの iem:med.*、IEM_shader/tools/med_sounds.py が作る)
+    // CAT・AI-2・IFAK を使う時の音 (リソースパックの iem:med.*、IEM_shader/tools/med_sounds.py が作る)
     private static final String CAT_ID = "CAT";
-    private static final String AI2_ID = "ai2";
     /** CAT: 使い始めてからのチック数と鳴らす音 (マジックテープ → ベルトを締める → 巻き上げ棒 → 留め具) */
     private static final Map<Integer, String> CAT_STEPS = Map.of(
             9, "iem:med.cat.strap",
@@ -234,17 +233,14 @@ public class MedicalModule implements IModule, Listener {
         if (meta.getCustomModelData() != def.medStats.usingCustomModelData) {
             meta.setCustomModelData(def.medStats.usingCustomModelData);
             item.setItemMeta(meta);
-            if (AI2_ID.equals(def.id)) {
-                playMedSound(player, "iem:med.ai2.open");
-            } else {
-                player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.5f);
-            }
         }
 
-        // 回復タスクがなければ開始 (0.5s = 10ticks 周期。AI-2 はスキルで短くなる)
+        // 回復タスクがなければ開始 (0.5s = 10ticks 周期。救急キットはスキルで短くなる)
         if (!activeTasks.containsKey(uuid)) {
             progressTicks.put(uuid, 0);
-            long period = AI2_ID.equals(def.id) ? Math.max(1, 10 + (long) skills.get().stat(player, SkillStat.AI2_INTERVAL_TICKS)) : 10L;
+            if (def.medStats.soundPrefix != null) playMedSound(player, def.medStats.soundPrefix + ".open");
+            else player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.5f);
+            long period = Math.max(1, 10 + (long) skills.get().stat(player, SkillStat.AI2_INTERVAL_TICKS));
             int taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 handleHeal(player, def);
             }, period, period).getTaskId();
@@ -275,29 +271,28 @@ public class MedicalModule implements IModule, Listener {
             return;
         }
 
-        boolean ai2 = AI2_ID.equals(def.id);
-        double heal = def.medStats.healPerUse + (ai2 ? skills.get().stat(player, SkillStat.AI2_HEAL) : 0);
+        int durability = Math.clamp(meta.getPersistentDataContainer().getOrDefault(
+                PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability), 0, def.maxDurability);
+        if (durability <= 0) {
+            stopUsing(player);
+            return;
+        }
+        double heal = def.medStats.healPerUse + skills.get().stat(player, SkillStat.AI2_HEAL);
         double newHealth = Math.min(maxHealth, currentHealth + heal);
         player.setHealth(newHealth);
-        if (AI2_ID.equals(def.id)) {
-            // 錠剤を振る・シートから押し出すを交互に
-            int heals = progressTicks.merge(player.getUniqueId(), 1, Integer::sum);
-            playMedSound(player, heals % 2 == 1 ? "iem:med.ai2.pills" : "iem:med.ai2.blister");
+        int heals = progressTicks.merge(player.getUniqueId(), 1, Integer::sum);
+        if (def.medStats.soundPrefix != null) {
+            String step = MedicalKitSounds.step(def.id, heals);
+            playMedSound(player, def.medStats.soundPrefix + "." + step);
         } else {
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.0f);
         }
         player.spawnParticle(org.bukkit.Particle.HEART, player.getLocation().add(0, 1.5, 0), 3, 0.3, 0.3, 0.3, 0.1);
 
-        // 回復後に満タンになったら停止
-        if (newHealth >= maxHealth) {
-            stopUsing(player);
-        }
-
-        // 耐久消費 (AI-2 はスキルで、確率で減らさない)
-        if (ai2 && Math.random() < skills.get().stat(player, SkillStat.AI2_SAVE_CHANCE)) return;
+        // 耐久を書き戻してから停止する。閉じたモデルを古い使用中メタで上書きしない。
+        boolean saved = Math.random() < skills.get().stat(player, SkillStat.AI2_SAVE_CHANCE);
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        int currentDurability = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);
-        int nextDurability = currentDurability - def.medStats.durabilityPerUse;
+        int nextDurability = saved ? durability : Math.max(0, durability - def.medStats.durabilityPerUse);
 
         if (nextDurability <= 0) {
             player.getInventory().setItemInMainHand(null);
@@ -307,6 +302,7 @@ public class MedicalModule implements IModule, Listener {
             pdc.set(PDCKeys.DURABILITY, PDCKeys.INTEGER, nextDurability);
             item.setItemMeta(meta);
             ItemFactory.updateLore(item);
+            if (newHealth >= maxHealth) stopUsing(player);
         }
     }
 
@@ -334,11 +330,10 @@ public class MedicalModule implements IModule, Listener {
                 if (meta.getCustomModelData() == def.medStats.usingCustomModelData) {
                     meta.setCustomModelData(def.customModelData);
                     item.setItemMeta(meta);
-                    if (AI2_ID.equals(def.id)) {
-                        playMedSound(player, "iem:med.ai2.close");
-                    } else {
-                        player.playSound(player.getLocation(), Sound.BLOCK_CHEST_CLOSE, 0.5f, 1.5f);
-                    }
+                }
+                if (taskId != null) {
+                    if (def.medStats.soundPrefix != null) playMedSound(player, def.medStats.soundPrefix + ".close");
+                    else player.playSound(player.getLocation(), Sound.BLOCK_CHEST_CLOSE, 0.5f, 1.5f);
                 }
             }
         }

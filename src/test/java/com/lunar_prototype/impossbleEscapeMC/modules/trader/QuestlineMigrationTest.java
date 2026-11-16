@@ -86,6 +86,10 @@ public final class QuestlineMigrationTest {
         QuestlineMigration.migrate(every);
         int grants=0;
         for(var trader:all)for(var item:trader.items)if(item.requiredQuestId!=null) {
+            if (trader.id.equals("pharmakon") && item.itemId.equals("ifak")) {
+                check(!every.hasRetainedTradeUnlock(item.retainedUnlockKey), "new IFAK sale is not a legacy entitlement");
+                continue;
+            }
             grants++;check(every.hasRetainedTradeUnlock(item.retainedUnlockKey),"legacy table covers "+item.retainedUnlockKey);
         }
         check(grants==40,"all forty legacy gated offers covered");

@@ -79,6 +79,7 @@ final class TraderCatalog {
                 false, false, List.of(
                         item("ai2", 3200, 50, 1, null, null),
                         item("beef_can", 1800, 0, 1, null, null),
+                        item("ifak", 11500, 10, 1, null, "pharmakon_office_recon"),
                         item("CAT", 1200, 50, 1, null, null),
                         item("water_filter", 4400, 5, 4, null, "pharmakon_factory_sweep")
                 )));
@@ -143,6 +144,7 @@ final class TraderCatalog {
                         item("sp_v", 115000, 0, 1, null, null),
                         // --- Medical ---
                         item("ai2", 2500, 0, 1, null, null),
+                        item("ifak", 6000, 0, 1, null, null),
                         item("CAT", 900, 0, 1, null, null),
                         // --- Rare/Valuable Items ---
                         item("mini_battery", 2500, 0, 1, null, null),

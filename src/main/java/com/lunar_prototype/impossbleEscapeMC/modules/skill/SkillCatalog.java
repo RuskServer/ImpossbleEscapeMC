@@ -119,7 +119,7 @@ public final class SkillCatalog {
         node(SkillCategory.MEDICAL, 1, "tourniquet", 1, "止血帯の扱い", "CAT の使用時間 45 → 36 tick",
                 List.of(), false, 8000, List.of(cost("CAT", 2)),
                 1, 0, 31, stats(SkillStat.CAT_TICKS, -9.0));
-        node(SkillCategory.MEDICAL, 2, "first_aid", 1, "応急手当", "AI-2 の 1 回の回復 2.0 → 2.4 HP",
+        node(SkillCategory.MEDICAL, 2, "first_aid", 1, "応急手当", "AI-2・IFAK の 1 回の回復 2.0 → 2.4 HP",
                 List.of(), false, 10000, List.of(cost("ai2", 1)),
                 1, 2, 32, stats(SkillStat.AI2_HEAL, 0.4));
         node(SkillCategory.MEDICAL, 3, "bleed_control", 1, "出血の抑え", "出血のダメージ -15%",
@@ -143,7 +143,7 @@ public final class SkillCatalog {
         node(SkillCategory.MEDICAL, 9, "long_rush", 2, "長い興奮", "自動の痛み止め 5 秒 → 8 秒",
                 List.of("medical.limp"), false, 25000, List.of(cost("ai2", 2)),
                 3, 8, 39, stats(SkillStat.ADRENALINE_DURATION_MS, 3000.0));
-        node(SkillCategory.MEDICAL, 10, "frugal", 2, "節約", "AI-2 の耐久を 20% の確率で減らさない",
+        node(SkillCategory.MEDICAL, 10, "frugal", 2, "節約", "AI-2・IFAK の耐久を 20% の確率で減らさない",
                 List.of("medical.first_aid"), false, 30000, List.of(cost("ai2", 3)),
                 3, 2, 40, stats(SkillStat.AI2_SAVE_CHANCE, 0.2));
         node(SkillCategory.MEDICAL, 11, "quick_treat", 2, "手早い処置", "CAT の使用時間さらに 36 → 30 tick",
@@ -152,7 +152,7 @@ public final class SkillCatalog {
         node(SkillCategory.MEDICAL, 12, "iron_body", 3, "鉄の体", "骨折・出血の確率がさらに -20%",
                 List.of("medical.sturdy_legs", "medical.shallow"), false, 90000, List.of(cost("graphics_card", 1), cost("CAT", 4)),
                 5, 4, 42, stats(SkillStat.INJURY_CHANCE, -0.2));
-        node(SkillCategory.MEDICAL, 13, "field_medic", 3, "野戦衛生兵", "AI-2 の回復の間隔 10 → 8 tick",
+        node(SkillCategory.MEDICAL, 13, "field_medic", 3, "野戦衛生兵", "AI-2・IFAK の回復の間隔 10 → 8 tick",
                 List.of("medical.frugal", "medical.quick_treat"), false, 80000, List.of(cost("usb", 1), cost("ai2", 4)),
                 5, 0, 43, stats(SkillStat.AI2_INTERVAL_TICKS, -2.0));
         // ---- 隠密・探索 ----
@@ -223,9 +223,9 @@ public final class SkillCatalog {
         node(SkillCategory.TRADE, 9, "negotiate", 2, "交渉術", "ブローカーの買取さらに +3%",
                 List.of("trade.pitch"), false, 35000, List.of(cost("cigarettes", 5)),
                 3, 6, 63, stats(SkillStat.SELL_BROKER, 0.03));
-        node(SkillCategory.TRADE, 10, "supply_extra", 2, "支給の上乗せ", "支給の AI-2 の残り 20 → 30",
+        node(SkillCategory.TRADE, 10, "supply_extra", 2, "支給の上乗せ", "支給の AI-2 の残り 20 → 25",
                 List.of("trade.supply"), false, 25000, List.of(cost("ai2", 2)),
-                3, 8, 64, stats(SkillStat.SUPPLY_AI2, 10.0));
+                3, 8, 64, stats(SkillStat.SUPPLY_AI2, 5.0));
         node(SkillCategory.TRADE, 11, "regular", 3, "上客", "すべてのトレーダーの買値さらに -4%",
                 List.of("trade.bulk"), false, 100000, List.of(cost("mechanical_golden_watch", 1)),
                 5, 2, 65, stats(SkillStat.BUY_ALL, -0.04));

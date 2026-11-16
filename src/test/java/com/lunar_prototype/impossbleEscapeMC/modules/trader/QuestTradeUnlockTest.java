@@ -42,4 +42,18 @@ public final class QuestTradeUnlockTest {
         check(starterFound == starter.size(), "all starter guns/ammo found exactly once");
 
     }
+    @Test
+    void ifakSaleRequiresTheOfficeReconQuestAndAdvertisesItsUnlock() {
+        var module = new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
+        var trader = TraderCatalog.create().stream().filter(t -> t.id.equals("pharmakon")).findFirst().orElseThrow();
+        var item = trader.items.stream().filter(i -> i.itemId.equals("ifak")).findFirst().orElseThrow();
+        var player = new PlayerData(new UUID(0, 44)); player.setLevel(100);
+        check(!module.isUnlocked(player, item), "level alone cannot unlock IFAK");
+        player.completeQuest("first_aid_basics");
+        check(!module.isUnlocked(player, item), "earlier quest cannot unlock IFAK");
+        player.completeQuest("pharmakon_office_recon");
+        check(module.isUnlocked(player, item), "office quest unlocks IFAK");
+        check(item.price > 6000, "buy price exceeds broker sale price");
+    }
+
 }

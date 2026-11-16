@@ -164,7 +164,7 @@ public final class ItemCatalog {
         items.add(untar);
 
         // --- 医療品 ---
-        ItemDefinition ai2 = item("ai2", "MED", Material.IRON_INGOT, "AI-2 Medical Kit", 2, 9, 50, 100, 1);
+        ItemDefinition ai2 = item("ai2", "MED", Material.IRON_INGOT, "AI-2 Medical Kit", 2, 9, 25, 100, 1);
         // customModelData: 通常時のモデル
         // maxDurability: 最大耐久度
         // weight: 100g (軽量・コンパクト)
@@ -173,7 +173,15 @@ public final class ItemCatalog {
         // durabilityPerUse: 0.5秒ごとの耐久消費
         // usingCustomModelData: 使用中のモデル
         ai2.medStats = continuousMed(2.0, 2, 10);
+        ai2.medStats.soundPrefix = "iem:med.ai2";
+        ai2.description = "小型の応急医療キット。右クリック長押しで体力を回復する。";
         items.add(ai2);
+
+        ItemDefinition ifak = item("ifak", "MED", Material.IRON_INGOT, "IFAK", 3, 29, 120, 100, 1);
+        ifak.medStats = continuousMed(2.0, 2, 29);
+        ifak.medStats.soundPrefix = "iem:med.ifak";
+        ifak.description = "個人用の救急医療キット。AI-2と同じ速度で処置でき、より多くの医療用品を備える。出血や骨折の処置には別の医療品が必要。";
+        items.add(ifak);
 
         ItemDefinition cat = item("CAT", "MED", Material.IRON_INGOT, "CAT", 2, 12, 0, 85, 1);
         // customModelData: 通常時のモデル
