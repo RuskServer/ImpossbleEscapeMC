@@ -127,4 +127,4 @@ This project is licensed under the **AGPLv3 License**. See the [LICENSE](LICENSE
 
 AI-2とIFAKは、右クリックを押し続けると0.5秒ごとに2 HPを回復し、耐久を2消費する。AI-2の最大耐久は25、IFAKは120。どちらも重量100g・サイズ1で、回復量・使用間隔・耐久節約の医療スキルが適用される。出血・骨折の治療は含まない。既存のAI-2も使用・説明更新時に最大耐久25へ収める。
 
-IFAK（`ifak`、鉄インゴット CustomModelData 29）はPharmakonの「工場の受入先」完了で販売解放。価格11,500₽、1日10個まで。Brokerへの売却は6,000₽、医療品の `medical_pool` に15%で登録。IFAK専用のポーチ開閉・包装・処置音を使用するため、リソースパックも更新する。
+IFAK（`ifak`、鉄インゴット CustomModelData 29）はPharmakon最終タスク「長期活動の備蓄」完了で販売解放。価格11,500₽、1日10個まで。Brokerへの売却は6,000₽、医療品の `medical_pool` に15%で登録。IFAK専用のポーチ開閉・包装・処置音を使用するため、リソースパックも更新する。

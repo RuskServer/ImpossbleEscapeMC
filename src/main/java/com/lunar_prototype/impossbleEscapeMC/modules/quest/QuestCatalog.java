@@ -260,12 +260,11 @@ final class QuestCatalog {
         quests.add(new QuestBuilder(module, "pharmakon_office_recon")
                 .trader(PHARMAKON)
                 .name("工場の受入先")
-                .description("国連側が工場の状態を知りたがっているの。オフィス一階の休憩所と研究室を見てきて。AI-2二つの回収と工場からの脱出もお願い。薬を探すだけでなく、施設をどこまで把握できるかを確かめたいそうよ。戻ったら、IFAKの販売枠を用意しておくわ。")
+                .description("国連側が工場の状態を知りたがっているの。オフィス一階の休憩所と研究室を見てきて。AI-2二つの回収と工場からの脱出もお願い。薬を探すだけでなく、施設をどこまで把握できるかを確かめたいそうよ。")
                 .requiresQuest("stop_the_bleed")
                 .reach("factory", 178, -33, 119, 10, "オフィスビル1階の休憩所")
                 .reach("factory", 195, -34, 107, 10, "オフィスビル1階の研究室")
                 .handInFir("ai2", 2).extract(FACTORY)
-                .unlockTrade(PHARMAKON, "ifak")
                 .money(25000)
                 .exp(1500)
                 .build());
@@ -311,11 +310,12 @@ final class QuestCatalog {
                 .money(36000).exp(3700).build());
         quests.add(new QuestBuilder(module, "pharmakon_emergency_stock")
                 .trader(PHARMAKON).name("長期活動の備蓄")
-                .description("国連はすぐに手を引くつもりがないわ。医療品六つと浄水フィルター一つを持ってきて。工場と沿岸から一度ずつの脱出もお願い。技術を確保し、施設を管理するなら、現地に居続けるための備蓄が要るの。")
+                .description("国連はすぐに手を引くつもりがないわ。医療品六つと浄水フィルター一つを持ってきて。工場と沿岸から一度ずつの脱出もお願い。技術を確保し、施設を管理するなら、現地に居続けるための備蓄が要るの。揃えてくれたら、IFAKの継続購入を手配するわ。")
                 .requiresQuest("pharmakon_quiet_escort")
                 .requiresLevel(5)
                 .handInCategory("MED", 6, true).handInFir("water_filter", 1)
                 .extract(FACTORY).extract(COAST)
+                .unlockTrade(PHARMAKON, "ifak")
                 .money(37000).exp(3450).build());
     }
 

@@ -43,7 +43,7 @@ public final class QuestTradeUnlockTest {
 
     }
     @Test
-    void ifakSaleRequiresTheOfficeReconQuestAndAdvertisesItsUnlock() {
+    void ifakSaleRequiresTheFinalPharmakonQuest() {
         var module = new TraderModule(null, null, null, null, () -> null, () -> null, () -> null);
         var trader = TraderCatalog.create().stream().filter(t -> t.id.equals("pharmakon")).findFirst().orElseThrow();
         var item = trader.items.stream().filter(i -> i.itemId.equals("ifak")).findFirst().orElseThrow();
@@ -52,7 +52,11 @@ public final class QuestTradeUnlockTest {
         player.completeQuest("first_aid_basics");
         check(!module.isUnlocked(player, item), "earlier quest cannot unlock IFAK");
         player.completeQuest("pharmakon_office_recon");
-        check(module.isUnlocked(player, item), "office quest unlocks IFAK");
+        check(!module.isUnlocked(player, item), "office recon no longer unlocks IFAK");
+        player.completeQuest("pharmakon_quiet_escort");
+        check(!module.isUnlocked(player, item), "penultimate quest cannot unlock IFAK");
+        player.completeQuest("pharmakon_emergency_stock");
+        check(module.isUnlocked(player, item), "final Pharmakon quest unlocks IFAK");
         check(item.price > 6000, "buy price exceeds broker sale price");
     }
 

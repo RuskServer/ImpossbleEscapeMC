@@ -27,10 +27,14 @@ public final class PharmakonOfficeQuestTest {
         check(requires(office, "stop_the_bleed"), "office follows stop the bleed");
         check(requires(quest("sanitary_maintenance"), office.getId()), "sanitary maintenance follows office");
         check(office.getObjectives().size() == 4, "locations plus medical supply and extraction");
-        check(office.getRewards().stream().anyMatch(r -> r instanceof
+        check(office.getRewards().stream().noneMatch(r -> r instanceof
                 com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.UnlockTradeReward unlock
                 && unlock.getTraderId().equals("pharmakon") && unlock.getItemId().equals("ifak")),
-                "office recon advertises IFAK unlock");
+                "office recon no longer unlocks IFAK");
+        check(quest("pharmakon_emergency_stock").getRewards().stream().anyMatch(r -> r instanceof
+                com.lunar_prototype.impossbleEscapeMC.modules.quest.reward.UnlockTradeReward unlock
+                && unlock.getTraderId().equals("pharmakon") && unlock.getItemId().equals("ifak")),
+                "final Pharmakon quest advertises IFAK unlock");
 
         ReachLocationObjective breakRoom = (ReachLocationObjective) office.getObjectives().get(0);
         ReachLocationObjective lab = (ReachLocationObjective) office.getObjectives().get(1);

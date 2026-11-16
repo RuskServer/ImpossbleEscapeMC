@@ -79,7 +79,7 @@ final class TraderCatalog {
                 false, false, List.of(
                         item("ai2", 3200, 50, 1, null, null),
                         item("beef_can", 1800, 0, 1, null, null),
-                        item("ifak", 11500, 10, 1, null, "pharmakon_office_recon"),
+                        item("ifak", 11500, 10, 1, null, "pharmakon_emergency_stock"),
                         item("CAT", 1200, 50, 1, null, null),
                         item("water_filter", 4400, 5, 4, null, "pharmakon_factory_sweep")
                 )));
