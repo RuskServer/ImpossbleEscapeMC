@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.modules.backpack;
 import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
 import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule;
+import com.lunar_prototype.impossbleEscapeMC.listener.CraftingGridButtons;
 import com.lunar_prototype.impossbleEscapeMC.modules.rig.RigModule;
 import java.util.function.Supplier;
 
@@ -35,12 +36,15 @@ import java.util.UUID;
 public class BackpackModule implements IModule {
     private final ImpossbleEscapeMC plugin;
     private final RaidModule raids;
+    private final CraftingGridButtons buttons;
     private final Supplier<RigModule> rigModule;
 
     @Inject
     public BackpackModule(ImpossbleEscapeMC plugin,
             RaidModule raids,
-            Supplier<RigModule> rigModule) {
+            Supplier<RigModule> rigModule,
+            CraftingGridButtons buttons) {
+        this.buttons = buttons;
         this.plugin = plugin;
         this.raids = raids;
         this.rigModule = rigModule;
@@ -52,7 +56,7 @@ public class BackpackModule implements IModule {
     @Override
     public void onEnable(ServiceContainer container) {
         displayManager = new BackpackDisplayManager(plugin, this, rigModule, raids);
-        Bukkit.getPluginManager().registerEvents(new BackpackListener(this), plugin);
+        Bukkit.getPluginManager().registerEvents(new BackpackListener(plugin, this, buttons), plugin);
     }
 
     @Override

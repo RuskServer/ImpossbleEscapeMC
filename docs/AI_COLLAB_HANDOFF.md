@@ -104,6 +104,12 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-16 — Crafting grid startup dependency
+
+- Declare CraftingGridButtons as an eager BackpackModule constructor dependency so the DI startup graph starts the packet button service before backpack button registration.
+- Pass the plugin and buttons directly to BackpackListener instead of resolving startup singletons. Preserve button slots, click handlers, packet-only overlays and normal backpack behavior.
+- Add an AST regression guard for the production dependency declaration and listener singleton calls. The full production graph test checks for startup cycles without loading NMS classes in MockBukkit tests.
+
 ### 2026-11-16 — Boss-intel presentation
 
 - Expose the immutable winning boss definition without changing spawn/cleanup behavior. Queue a private alert only from the new-deployment PDA completion callback; no new draw and no restored-session announcement.

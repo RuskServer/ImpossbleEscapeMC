@@ -47,15 +47,15 @@ public class BackpackListener implements Listener {
     private final BackpackModule backpackModule;
     private final ImpossbleEscapeMC plugin;
 
-    public BackpackListener(BackpackModule backpackModule) {
+    public BackpackListener(ImpossbleEscapeMC plugin, BackpackModule backpackModule, CraftingGridButtons buttons) {
         this.backpackModule = backpackModule;
-        this.plugin = ImpossbleEscapeMC.getInstance();
+        this.plugin = plugin;
         // クラフトグリッドのボタンはサーバー上には置かず、パケットで見せる (閉じた時などにドロップしない)
         java.util.function.Predicate<Player> visible =
                 player -> isPlayableMode(player) && backpackModule.isBackpackItem(player.getInventory().getItemInOffHand());
-        CraftingGridButtons.get().register(new CraftingGridButtons.Button(
+        buttons.register(new CraftingGridButtons.Button(
                 BACKPACK_BUTTON_LEFT_SLOT, getBackpackTriggerButton("backpack_button"), visible, backpackModule::openBackpackFromOffhand));
-        CraftingGridButtons.get().register(new CraftingGridButtons.Button(
+        buttons.register(new CraftingGridButtons.Button(
                 BACKPACK_BUTTON_RIGHT_SLOT, getBackpackTriggerButton("backpack_button_hit"), visible, backpackModule::openBackpackFromOffhand));
     }
 

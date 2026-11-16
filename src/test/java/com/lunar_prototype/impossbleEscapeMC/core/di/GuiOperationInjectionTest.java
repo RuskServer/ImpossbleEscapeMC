@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class GuiOperationInjectionTest {
     private static final class Bags extends BackpackModule {
         final Inventory contents = Bukkit.createInventory(null, 9);
-        Bags() { super(null, null, () -> null); }
+        Bags() { super(null, null, () -> null, null); }
         @Override public boolean isBackpackItem(ItemStack item) { return item != null && item.getType() == Material.PAPER; }
         @Override public Inventory loadBackpackInventory(ItemStack item) { return contents; }
     }
