@@ -19,7 +19,32 @@ public class RaidMap {
     private int nextSpawnId = 1;
     private List<RaidRadioZone> highThreatZones = new ArrayList<>();
     private List<RaidBossGroup> bossGroups=new ArrayList<>();
-    List<RaidBossGroup> bossGroups(){if(bossGroups==null)bossGroups=new ArrayList<>();return List.copyOf(bossGroups);}
+    private int nextBossSpawnId=1;
+    boolean initializeBossSpawnIds() {
+        boolean changed=false;
+        if(bossGroups==null){bossGroups=new ArrayList<>();changed=true;}
+        nextBossSpawnId=Math.max(1,nextBossSpawnId);
+        for(var group:bossGroups)nextBossSpawnId=Math.max(nextBossSpawnId,group.spawnId()+1);
+        var used=new java.util.HashSet<Integer>();
+        for(int i=0;i<bossGroups.size();i++) {
+            var group=bossGroups.get(i);
+            if(group.spawnId()<=0||!used.add(group.spawnId())) {
+                bossGroups.set(i,group.withId(nextBossSpawnId++));changed=true;
+            }
+        }
+        return changed;
+    }
+    List<RaidBossGroup> bossGroups(){initializeBossSpawnIds();return List.copyOf(bossGroups);}
+    int addBossSpawn(String zoneId,String bossId,String leaderRole,Location loc) {
+        ensureWorld(loc);
+        RaidRadioZone zone=highThreatZones().stream().filter(z->z.id().equals(zoneId)).findFirst().orElseThrow(()->new IllegalArgumentException("高脅威区域がありません"));
+        if(!zone.contains(loc.getX(),loc.getY(),loc.getZ(),0))throw new IllegalArgumentException("指定した高脅威区域内で実行してください");
+        initializeBossSpawnIds();
+        int id=nextBossSpawnId++;
+        bossGroups.add(RaidBossGroup.empty(zoneId,bossId).withMember(leaderRole,locationToCoords(loc)).withId(id));
+        return id;
+    }
+    boolean removeBossSpawn(int id){initializeBossSpawnIds();return bossGroups.removeIf(g->g.spawnId()==id);}
     void setBossPosition(String zoneId,String role,Location loc) {
         setBossPosition(zoneId,BossDefinition.DEFAULT_ID,role,loc);
     }
@@ -29,7 +54,8 @@ public class RaidMap {
         if(!zone.contains(loc.getX(),loc.getY(),loc.getZ(),0))throw new IllegalArgumentException("指定した高脅威区域内で実行してください");
         RaidBossGroup group=bossGroups().stream().filter(g->g.zoneId().equals(zoneId)&&g.bossId().equals(bossId)).findFirst().orElse(RaidBossGroup.empty(zoneId,bossId));
         RaidBossGroup updated=group.withMember(role,locationToCoords(loc));
-        bossGroups.removeIf(g->g.zoneId().equals(zoneId)&&g.bossId().equals(bossId));bossGroups.add(updated);
+        int index=bossGroups.indexOf(group);
+        if(index<0)bossGroups.add(updated.withId(nextBossSpawnId++));else bossGroups.set(index,updated);
     }
     boolean removeBossGroup(String zoneId){bossGroups();return bossGroups.removeIf(g->g.zoneId().equals(zoneId));}
 

@@ -20,9 +20,9 @@ public final class RaidBossPolicyTest {
         double[] copy=group.boss();
         copy[0]=100;
         check(group.boss()[0]==10,"coordinates are defensive copies");
-        check(group.withMember("guard1",new double[]{10,-34,10,0,0}).placement().problem(definition(),RaidMap.bossTerritory(zone))!=null,"overlapping members rejected");
-        check(group.withMember("guard1",new double[]{30,-34,10,0,0}).placement().problem(definition(),RaidMap.bossTerritory(zone))!=null,"distant guard rejected");
-        check(group.withMember("guard1",new double[]{-1,-34,10,0,0}).placement().problem(definition(),RaidMap.bossTerritory(zone))!=null,"outside high-threat zone rejected");
+        check(group.withMember("guard1",new double[]{10,-34,10,0,0}).placement().problem(definition(),RaidMap.bossTerritory(zone))==null,"legacy guard spacing is ignored");
+        check(group.withMember("guard1",new double[]{30,-34,10,0,0}).placement().problem(definition(),RaidMap.bossTerritory(zone))==null,"legacy guard distance is ignored");
+        check(group.withMember("guard1",new double[]{-1,-34,10,0,0}).placement().problem(definition(),RaidMap.bossTerritory(zone))==null,"legacy guard position is ignored");
         check(problem(group,null)!=null,"removed zone invalidates group");
         Gson gson=new Gson();
         check(gson.fromJson(gson.toJson(group),RaidBossGroup.class).placement().problem(definition(),RaidMap.bossTerritory(zone))==null,"map JSON round trip");

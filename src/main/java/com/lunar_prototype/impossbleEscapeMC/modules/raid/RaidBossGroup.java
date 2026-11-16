@@ -5,8 +5,12 @@ import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossDefinition;
 import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossPlacement;
 
 /** マップJSONの互換DTO。旧3配列をBossPlacementへ変換し、編集時は汎用のpositionsへ移す。 */
-record RaidBossGroup(String zoneId,double[] boss,double[] guard1,double[] guard2,String bossId,Map<String,double[]> positions) {
-    RaidBossGroup(String zoneId,double[] boss,double[] guard1,double[] guard2) {this(zoneId,boss,guard1,guard2,null,null);}
+record RaidBossGroup(String zoneId,double[] boss,double[] guard1,double[] guard2,String bossId,Map<String,double[]> positions,int spawnId) {
+    RaidBossGroup(String zoneId,double[] boss,double[] guard1,double[] guard2) {this(zoneId,boss,guard1,guard2,null,null,0);}
+    RaidBossGroup(String zoneId,double[] boss,double[] guard1,double[] guard2,String bossId,Map<String,double[]> positions) {
+        this(zoneId,boss,guard1,guard2,bossId,positions,0);
+    }
+    RaidBossGroup withId(int id){return new RaidBossGroup(zoneId,boss,guard1,guard2,bossId,positions,id);}
     @Override public String bossId(){return bossId==null?BossDefinition.DEFAULT_ID:bossId;}
     BossPlacement placement(){
         Map<String,double[]> points=new LinkedHashMap<>();
@@ -17,7 +21,7 @@ record RaidBossGroup(String zoneId,double[] boss,double[] guard1,double[] guard2
     static RaidBossGroup empty(String zoneId,String bossId){return new RaidBossGroup(zoneId,null,null,null,bossId,Map.of());}
     RaidBossGroup withMember(String role,double[] p){
         var points=new LinkedHashMap<>(placement().positions()); points.put(role,copy(p));
-        return new RaidBossGroup(zoneId,null,null,null,bossId(),points);
+        return new RaidBossGroup(zoneId,null,null,null,bossId(),points,spawnId);
     }
     RaidBossGroup {
         if(zoneId==null||zoneId.isBlank())throw new IllegalArgumentException("Invalid boss zone");

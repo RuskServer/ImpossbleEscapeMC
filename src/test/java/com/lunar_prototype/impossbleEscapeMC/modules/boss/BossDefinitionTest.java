@@ -34,10 +34,10 @@ class BossDefinitionTest {
         assertNull(p.problem(d,z));
         positions.get("member0")[0]=999;assertEquals(1.5,p.position("member0")[0]);
         p.positions().get("member0")[0]=999;assertEquals(1.5,p.position("member0")[0]);
-        var missing=new LinkedHashMap<>(p.positions());missing.remove("member0");
+        var missing=new LinkedHashMap<>(p.positions());missing.remove("member4");
         assertNotNull(new BossPlacement(d.id(),"zone",missing).problem(d,z));
         var extra=new LinkedHashMap<>(p.positions());extra.put("unknown",new double[]{2,1,2,0,0});
-        assertNotNull(new BossPlacement(d.id(),"zone",extra).problem(d,z));
+        assertNull(new BossPlacement(d.id(),"zone",extra).problem(d,z)); // 旧護衛の登録は候補判定に使わない
         assertNotNull(p.problem(null,z));assertNotNull(p.problem(d,null));
     }
     @Test void invalidDefinitionsAreRejected() throws Exception {

@@ -2493,5 +2493,10 @@
     "category": "ADMIN",
     "level": "WARNING",
     "channel": "CHAT"
+  },
+  "iem.raid.boss_activity": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
   }
 }

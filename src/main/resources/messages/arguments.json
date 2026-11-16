@@ -1072,5 +1072,6 @@
   "iem.admin.acoustics.zone.indoor": 0,
   "iem.admin.acoustics.zone.hall": 0,
   "iem.admin.acoustics.zone.underground": 0,
-  "iem.raid.raidresults.view": 0
+  "iem.raid.raidresults.view": 0,
+  "iem.raid.boss_activity": 1
 }

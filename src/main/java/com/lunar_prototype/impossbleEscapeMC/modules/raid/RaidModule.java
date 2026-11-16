@@ -924,7 +924,8 @@ public class RaidModule implements IModule {
                 RaidMap map = gson.fromJson(reader, RaidMap.class);
                 if (map != null) {
                     maps.put(map.getMapId(), map);
-                    if (map.initializeSpawnIds()) saveMap(map);
+                    boolean spawnIdsChanged=map.initializeSpawnIds();
+                    if (map.initializeBossSpawnIds()||spawnIdsChanged) saveMap(map);
                 }
             } catch (IOException | com.google.gson.JsonSyntaxException e) {
                 plugin.getLogger().warning("Failed to load raid map from: " + file.getName());

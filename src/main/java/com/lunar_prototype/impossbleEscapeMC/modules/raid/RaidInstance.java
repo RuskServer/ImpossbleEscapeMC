@@ -180,7 +180,7 @@ public class RaidInstance {
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
         this.bossEncounter=bosses.open(map.getMapId(),map.getWorldName(),raidSessionId,restored,map.bossPlacements(),map.bossTerritories());
-        this.radio = new RaidRadio(plugin,map,playersData,questService);
+        this.radio = new RaidRadio(plugin,map,playersData,questService,bossEncounter.selectedBoss());
         this.endSequence = new RaidEndSequence(plugin, map,radio);
         this.hud = new RaidHud(plugin, map, activeExtractions,radio,playersData,questService);
         // 時間帯・天候 (周期の始めに当てはめているが、その時ワールドが無かった場合のために、もう一度)
@@ -942,6 +942,7 @@ public class RaidInstance {
             PdaIntro.start(player, map, activeExtractions, getTimeLeft(), () -> {
                 Player joined = Bukkit.getPlayer(playerId);
                 if (joined == null || !players.contains(playerId)) return;
+                radio.entered(joined);
                 hud.show(joined);
                 showStartTitle(joined);
                 Messages.chat(joined, "iem.raid.raidinstance.spawngroup.notice_001", MessageText.of("iem.raid.raidinstance.spawngroup.notice_001", MessageText.payload(MessageText.of("iem.raid.raidinstance.spawngroup.notice_001.text_01", map.getMapId()).color(NamedTextColor.GOLD).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD))));

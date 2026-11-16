@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(BukkitState.class)
 class BossEncounterTest {
-    private boolean loaded=true, visible, nearby=true;
+    private boolean loaded=true, visible, nearby=true, isolated;
     private double playerX=40;
     private World world;
     private final List<BossEncounter.SpawnRequest> spawned=new ArrayList<>();
@@ -33,7 +33,7 @@ class BossEncounterTest {
             case "getBlockAt"->proxy(Block.class,(block,method,arguments)->switch(method.getName()) {
                 case "isLiquid"->false;
                 case "getCollisionShape"->proxy(VoxelShape.class,(shape,call,values)-> {
-                    if(call.getName().equals("getBoundingBoxes"))return ((Integer)a[1])==0?List.of(new BoundingBox(0,0,0,1,1,1)):List.of();
+                    if(call.getName().equals("getBoundingBoxes"))return ((Integer)a[1])==0&&(!isolated||((Integer)a[0])==1&&((Integer)a[2])==1)?List.of(new BoundingBox(0,0,0,1,1,1)):List.of();
                     throw new AssertionError(call.getName());
                 });
                 default->throw new AssertionError(method.getName());
@@ -61,18 +61,18 @@ class BossEncounterTest {
         loaded=true;nearby=false;e.tick((p,l)->false);assertTrue(spawned.isEmpty());
         nearby=true;visible=true;e.tick((p,l)->visible);assertTrue(spawned.isEmpty());
         visible=false;playerX=10;e.tick((p,l)->false);assertTrue(spawned.isEmpty());
-        playerX=40;e.tick((p,l)->false);e.tick((p,l)->false);assertEquals(3,spawned.size());
+        playerX=40;for(int i=0;i<100&&spawned.size()<3;i++)e.tick((p,l)->false);e.tick((p,l)->false);assertEquals(3,spawned.size());
         assertEquals(1,spawned.stream().filter(r->r.identity().leader()).count());
         assertEquals(1,spawned.stream().map(r->r.identity().encounterId()).distinct().count());
         e.memberDied(new UUID(0,1));e.cleanup();e.cleanup();e.tick((p,l)->false);
         assertEquals(List.of(new UUID(0,2),new UUID(0,3)),removed);assertEquals(1,closed);
     }
     @Test void failedGroupRollsBackAndNeverRetries() throws Exception {
-        var e=encounter(false,2);e.tick((p,l)->false);assertEquals(2,spawned.size());assertEquals(2,removed.size());
-        e.tick((p,l)->false);e.cleanup();assertEquals(2,spawned.size());assertEquals(1,closed);
+        var e=encounter(false,2);assertNotNull(e.selectedBoss());for(int i=0;i<100&&closed==0;i++)e.tick((p,l)->false);assertEquals(2,spawned.size());assertEquals(2,removed.size());
+        e.tick((p,l)->false);e.cleanup();assertEquals(2,spawned.size());assertEquals(1,closed);assertNotNull(e.selectedBoss(),"intel is tied to the draw, not successful generation");
     }
     @Test void restoredSessionAndClosedWaitingEncounterCannotSpawn() throws Exception {
-        var restored=encounter(true,-1);restored.tick((p,l)->false);restored.cleanup();
+        var restored=encounter(true,-1);assertNull(restored.selectedBoss());restored.tick((p,l)->false);restored.cleanup();
         var waiting=encounter(false,-1);waiting.cleanup();waiting.tick((p,l)->false);
         assertTrue(spawned.isEmpty());assertEquals(2,closed);
     }
@@ -83,6 +83,21 @@ class BossEncounterTest {
         }));
         assertEquals(4,calls.size());assertEquals(1,failure.getSuppressed().length);
         assertEquals(7,BossEncounter.spawnAll(7,i->new UUID(0,i),id->fail()).size());
+    }
+    @Test void missingGuardSpaceWaitsWithoutConsumingRollAndRetriesSameAnchor() throws Exception {
+        isolated=true;var e=encounter(false,-1);
+        for(int i=0;i<60;i++)e.tick((p,l)->false);
+        assertTrue(spawned.isEmpty());assertEquals(0,closed);
+        isolated=false;for(int i=0;i<100&&spawned.isEmpty();i++)e.tick((p,l)->false);
+        assertEquals(3,spawned.size());assertEquals(1.5,spawned.getFirst().location().getX());
+        assertEquals(1.5,spawned.getFirst().location().getZ());e.cleanup();
+    }
+    @Test void visibleGuardPreventsWholeGroupFromSpawning() throws Exception {
+        var e=encounter(false,-1);
+        for(int i=0;i<100;i++)e.tick((p,l)->l.getX()!=1.5||l.getZ()!=1.5);
+        assertTrue(spawned.isEmpty());
+        for(int i=0;i<100&&spawned.isEmpty();i++)e.tick((p,l)->false);
+        assertEquals(3,spawned.size());e.cleanup();
     }
     private static <T>T proxy(Class<T> type,InvocationHandler handler) {
         return type.cast(Proxy.newProxyInstance(type.getClassLoader(),new Class<?>[]{type},handler));

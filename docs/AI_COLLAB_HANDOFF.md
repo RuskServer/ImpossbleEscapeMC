@@ -104,6 +104,20 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-16 — Boss-intel presentation
+
+- Expose the immutable winning boss definition without changing spawn/cleanup behavior. Queue a private alert only from the new-deployment PDA completion callback; no new draw and no restored-session announcement.
+- Reuse RaidRadio and the existing compass bossbar for a 212-tick full-screen/compact animation. Bind textures via a generated deduplicated glyph manifest; names are dynamically centered. Ordinary HUD update cadence is retained outside the alert.
+- Freeze the adopted B SFX plus 1.12-tempo client-reference radio take in the resource pack. Cancel presentation/audio on departure, death, PDA interruption and urgent end-sequence radio; keep per-player one-shot state across reconnects. No Toi's Armory, SCAV AI or mod changes.
+
+
+### 2026-11-16 — Boss leader spawn candidates and automatic guards
+
+- Register multiple leader candidates per map and boss with stable map-local IDs. Migrate legacy IDs on load, preserve leader coordinates/yaw/pitch and ignore old guard placements during spawning.
+- Keep one candidate selection and one chance draw per new raid, with restored-session suppression. Guard layout failure waits/retries the same anchor without consuming or rerolling; equipment failure still rolls back once.
+- Search loaded, connected collision-safe ground within the definition's guardSpawnRadius (8 for Voronov), enforce spacing and territory bounds, and validate routes before spawning. Limit work per update, visited nodes and route length; do not load chunks. Ordinary SCAV spawn/AI, death loot and logger behavior are unchanged.
+- Add map persistence, automatic formation, wall/disconnected terrain, chunk boundary and lifecycle tests. See RAID_BOSS.md for commands and conservative walkability limits.
+
 ### 2026-11-15 — Independent boss module
 
 - Move boss definitions, one-shot roll, spawn safety, encounter membership and cleanup into `modules/boss`; Raid only adapts placements and drives its encounter lifecycle.

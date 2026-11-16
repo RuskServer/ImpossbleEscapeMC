@@ -25,6 +25,7 @@ final class RaidRadioState {
     void discover(String id,int now) {
         if(id!=null&&discovered.add(id)){if(!pendingItem)itemReadyAt=now+18;pendingItem=true;itemDeadline=now+300;}
     }
+    boolean idle(int now){return now>=busyUntil;}
     boolean takeZone(int now) {
         if(now>=zoneDeadline)pendingZone=false;
         if(!pendingZone||now<busyUntil)return false;

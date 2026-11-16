@@ -15,8 +15,8 @@ final class BossCatalog {
     }
 
     private static BossDefinition spectreCommander() {
-        return new BossDefinition(BossDefinition.DEFAULT_ID, "Spectre Commander", true,
-                Set.of("ノヴォザリエ薬品工場"), .125, List.of(
+        return new BossDefinition(BossDefinition.DEFAULT_ID, "ヴォロノフ部隊", true,
+                Set.of("ノヴォザリエ薬品工場"), .125, 8, List.of(
                 new BossDefinition.Member("boss", true, "scar_h", "Altyn", "sp_v",
                         "pilgrim_tourist_backpack", BrainLevel.HIGH, 40, 8, "best"),
                 new BossDefinition.Member("guard1", false, "m4a1", "Altyn", "sp_v",

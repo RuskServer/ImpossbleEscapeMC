@@ -110,7 +110,7 @@ final class RaidHud {
                 id -> BossBar.bossBar(Component.empty(), 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS));
         update(player, bar);
         player.showBossBar(bar);
-        if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, UPDATE_TICKS, UPDATE_TICKS);
+        if (task == null) task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }
 
     void hide(Player player) {
@@ -138,7 +138,7 @@ final class RaidHud {
     private void tick() {
         for (Map.Entry<UUID, BossBar> entry : bars.entrySet()) {
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (player != null) update(player, entry.getValue());
+            if (player != null && (Bukkit.getCurrentTick()%UPDATE_TICKS==0 || radio!=null&&radio.bossFrame(player)>=0)) update(player, entry.getValue());
         }
     }
 
@@ -163,7 +163,7 @@ final class RaidHud {
             if (data != null) collectQuestTargets(data, here, quests);
         }
         return compose(here.getYaw(), targets, quests, timeLeft,
-                OperationHintHud.raidHint(player, plugin),radio==null?-1:radio.frame(player),radio==null?null:radio.zoneName(player));
+                OperationHintHud.raidHint(player, plugin),radio==null?-1:radio.frame(player),radio==null?null:radio.zoneName(player),radio==null?-1:radio.bossFrame(player),radio==null?null:radio.bossName(player));
     }
 
     /** 受けているクエストの、まだ着いていない到達の目標のうち、このワールドの物への水平の差 {dx, dz} */
@@ -207,6 +207,10 @@ final class RaidHud {
 
     static Component compose(double yaw,List<double[]> targets,List<double[]> quests,int timeLeft,
                              OperationHintHud.Hint hint,int alertFrame,String zoneName) {
+        return compose(yaw,targets,quests,timeLeft,hint,alertFrame,zoneName,-1,null);
+    }
+    static Component compose(double yaw,List<double[]> targets,List<double[]> quests,int timeLeft,
+                             OperationHintHud.Hint hint,int alertFrame,String zoneName,int bossFrame,String bossName) {
         Line line = new Line();
         // アトラスの上限に合わせて左右に分割する。
         line.glyph(0, BG, 180, HUD_NO_SHADOW);
@@ -243,6 +247,19 @@ final class RaidHud {
                 int width=com.lunar_prototype.impossbleEscapeMC.util.FontWidths.width(label);
                 Style style=Style.empty().color(TextColor.color(233,236,237)).shadowColor(ShadowColor.none());
                 line.text(CENTER-width/2,label,width,style);
+            }
+        }
+        if(bossFrame>=0&&bossFrame<RaidBossAlertState.DURATION) {
+            for(int tile=0;tile<6;tile++) {
+                int column=tile%3,row=tile/3,width=column==2?128:256;
+                Style art=Style.empty().font(Key.key("iem","boss_alert")).color(TextColor.color(232,row,240)).shadowColor(ShadowColor.none());
+                line.glyph(CENTER-320+column*256,RaidBossAlertFrames.glyph(bossFrame,tile),width,art);
+            }
+            if(bossFrame>=30&&bossName!=null&&!bossName.isBlank()) {
+                String label=com.lunar_prototype.impossbleEscapeMC.util.FontWidths.truncate(bossName,125);
+                int width=com.lunar_prototype.impossbleEscapeMC.util.FontWidths.width(label);
+                Style name=Style.empty().font(Key.key("minecraft","default")).color(TextColor.color(232,bossFrame,239)).shadowColor(ShadowColor.none());
+                line.text(CENTER-width/2,label,width,name);
             }
         }
         line.moveTo(STRIP);

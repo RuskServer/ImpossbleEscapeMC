@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import java.util.function.Supplier;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossDefinition;
 
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
@@ -20,23 +21,39 @@ import java.util.*;
 
 /** クライアントの短い私的な無線。音・字幕・コンパス下の区域演出を同じ状態から進める。 */
 final class RaidRadio {
+    private static final String BOSS="iem:radio.boss_activity";
     private static final String ITEM="iem:radio.quest_item_found",ZONE="iem:radio.high_threat";
     private final ImpossbleEscapeMC plugin;
     private final PlayerDataModule players;
     private final Supplier<QuestModule> questService;
     private final RaidMap map;
+    private final BossDefinition boss;
+    private final Map<UUID,RaidBossAlertState> bossStates=new HashMap<>();
     private final boolean enabled;
     private final Map<UUID,RaidRadioState> states=new HashMap<>();
     private final Map<UUID,String> zoneNames=new HashMap<>();
-    RaidRadio(ImpossbleEscapeMC plugin,RaidMap map,PlayerDataModule players,Supplier<QuestModule> questService) {
+    RaidRadio(ImpossbleEscapeMC plugin,RaidMap map,PlayerDataModule players,Supplier<QuestModule> questService,BossDefinition boss) {
+        this.boss=boss;
         this.players=players;this.questService=questService;this.plugin=plugin;this.map=map;enabled=plugin.getConfig().getBoolean("raid-radio.enabled",true);
+    }
+    void entered(Player p) {
+        if(enabled&&boss!=null)bossStates.computeIfAbsent(p.getUniqueId(),id->new RaidBossAlertState(boss.name(),Bukkit.getCurrentTick(),false));
     }
     private RaidRadioState state(Player p){return states.computeIfAbsent(p.getUniqueId(),id->new RaidRadioState());}
     void tick(Player p) {
         if(!enabled)return;
         if(p.isDead()||p.getGameMode()==GameMode.SPECTATOR||!map.isWorld(p.getWorld())){remove(p);return;}
-        if(com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.isPlaying(p,com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.PDA_INTRO))return;
+        if(com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.isPlaying(p,com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.PDA_INTRO)){if(bossFrame(p)>=0)cancelBoss(p);return;}
         int now=Bukkit.getCurrentTick();var state=state(p);var at=p.getLocation();
+        var alert=bossStates.get(p.getUniqueId());
+        if(alert!=null&&alert.pending(now)) {
+            if(alert.start(now,state.idle(now))) {
+                state.urgent(now,RaidBossAlertState.DURATION);
+                p.playSound(p,BOSS,SoundCategory.MASTER,.9f,1f);
+                Messages.chat(p,"iem.raid.boss_activity",MessageText.of("iem.raid.boss_activity",alert.name()));
+            }
+            return;
+        }
         List<RaidRadioZone> zones=map.highThreatZones();
         RaidRadioZone zone=null;
         for(var candidate:zones)if(candidate.id().equals(state.zone())&&candidate.contains(at.getX(),at.getY(),at.getZ(),2)){zone=candidate;break;}
@@ -65,17 +82,31 @@ final class RaidRadio {
     void urgent(Player p,int duration) {
         if(!enabled)return;
         p.stopSound(ITEM,SoundCategory.MASTER);p.stopSound(ZONE,SoundCategory.MASTER);
+        cancelBoss(p);
         state(p).urgent(Bukkit.getCurrentTick(),duration);
+    }
+    int bossFrame(Player p){if(!enabled)return -1;var s=bossStates.get(p.getUniqueId());return s==null?-1:s.frame(Bukkit.getCurrentTick());}
+    String bossName(Player p){var s=bossStates.get(p.getUniqueId());return s==null?null:s.name();}
+    private void cancelBoss(Player p){
+        p.stopSound(BOSS,SoundCategory.MASTER);
+        var s=bossStates.get(p.getUniqueId());
+        if(s==null&&boss!=null){s=new RaidBossAlertState(boss.name(),Bukkit.getCurrentTick(),false);bossStates.put(p.getUniqueId(),s);}
+        if(s!=null)s.cancel();
     }
     int frame(Player p){if(!enabled)return -1;var state=states.get(p.getUniqueId());return state==null?-1:state.frame(Bukkit.getCurrentTick());}
     String zoneName(Player p){return zoneNames.get(p.getUniqueId());}
     void preview(Player p,String kind) {
         if(!enabled){Messages.chat(p, "iem.raid.raidradio.preview.notice_001", MessageText.of("iem.raid.raidradio.preview.notice_001", MessageText.payload(MessageText.of("iem.raid.raidradio.preview.notice_001.text_01").color(NamedTextColor.YELLOW))));return;}
-        if(kind.equals("zone")){zoneNames.put(p.getUniqueId(),"区域表示テスト");state(p).previewZone(Bukkit.getCurrentTick());}
+        if(kind.equals("boss")) {
+            p.stopSound(ITEM,SoundCategory.MASTER);p.stopSound(ZONE,SoundCategory.MASTER);cancelBoss(p);
+            bossStates.put(p.getUniqueId(),new RaidBossAlertState(boss==null?"高価値目標":boss.name(),Bukkit.getCurrentTick(),true));
+        }
+        else if(kind.equals("zone")){zoneNames.put(p.getUniqueId(),"区域表示テスト");state(p).previewZone(Bukkit.getCurrentTick());}
         else state(p).discover("preview-"+Bukkit.getCurrentTick(),Bukkit.getCurrentTick());
     }
-    void clear(){states.clear();zoneNames.clear();}
+    void clear(){states.clear();zoneNames.clear();bossStates.clear();}
     void remove(Player p) {
+        cancelBoss(p);
         zoneNames.remove(p.getUniqueId());
         var state=states.get(p.getUniqueId());if(state!=null)state.suspend();
         p.stopSound(ITEM,SoundCategory.MASTER);p.stopSound(ZONE,SoundCategory.MASTER);

@@ -4,7 +4,8 @@ main: com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC
 api-version: '1.21'
 softdepend: [Citizens, WorldEdit, FastAsyncWorldEdit]
 
-# /raid boss set <map> <zone> [boss-id] <role>, list <map>, remove <map> <zone> [boss-id]
+# /raid boss add <map> <zone> [boss-id], list <map>, remove <map> <point-id>
+# /raid radio preview <zone|item|boss> previews the current private radio/HUD.
 # Registered by the existing @Command RaidCommand.
 
 # /scavspawn [low|mid|high] [x y z] is registered by the existing @Command ScavCommand.

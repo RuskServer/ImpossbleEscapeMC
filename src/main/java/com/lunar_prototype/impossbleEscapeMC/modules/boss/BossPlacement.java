@@ -22,18 +22,10 @@ public record BossPlacement(String bossId, String zoneId, Map<String, double[]> 
     public String problem(BossDefinition definition, BossTerritory zone) {
         if (definition == null || !bossId.equals(definition.id())) return "ボス定義がありません";
         if (zone == null || !zoneId.equals(zone.id())) return "高脅威区域がありません";
-        var roles=definition.members().stream().map(BossDefinition.Member::role).toList();
-        if (!positions.keySet().containsAll(roles)) return "部隊の地点が未登録です";
-        if (!roles.containsAll(positions.keySet())) return "定義にない部隊員の地点があります";
-        var points=roles.stream().map(positions::get).toList();
-        for (double[] p:points) if (!zone.contains(p)) return "区域外の地点があります";
-        for (int i=0;i<points.size();i++) for (int j=0;j<i;j++)
-            if (distance(points.get(i),points.get(j)) < 2.25) return "地点間は1.5ブロック以上離してください";
-        double[] leader=positions.get(definition.members().stream().filter(BossDefinition.Member::leader).findFirst().orElseThrow().role());
-        for (double[] p:points) if (distance(leader,p)>144) return "護衛はボスから12ブロック以内に配置してください";
+        double[] anchor=anchor(definition);
+        if(anchor==null)return "ボス本体の地点が未登録です";
+        if(!zone.contains(anchor))return "区域外の地点があります";
         return null;
     }
-    private static double distance(double[] a,double[] b) {
-        return Math.pow(a[0]-b[0],2)+Math.pow(a[1]-b[1],2)+Math.pow(a[2]-b[2],2);
-    }
+    public double[] anchor(BossDefinition definition){return position(definition.leader().role());}
 }
