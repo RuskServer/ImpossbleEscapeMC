@@ -411,6 +411,9 @@ public class ItemFactory {
             item.setData(DataComponentTypes.MAX_DAMAGE, def.visorStats.maxDurability);
             item.setData(DataComponentTypes.DAMAGE, def.visorStats.maxDurability - HelmetVisors.durability(item, def));
         }
+        if (def != null && def.foodStats != null) {
+            FoodItems.apply(item, def.foodStats);
+        }
         // --- 耐久値バー同期 ---
         if (def != null && def.maxDurability > 0) {
             int current = pdc.getOrDefault(PDCKeys.DURABILITY, PDCKeys.INTEGER, def.maxDurability);

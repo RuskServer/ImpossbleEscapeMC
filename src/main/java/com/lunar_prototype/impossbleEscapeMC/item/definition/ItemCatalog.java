@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.item.definition;
 
 import com.lunar_prototype.impossbleEscapeMC.item.stats.Affix;
+import com.lunar_prototype.impossbleEscapeMC.item.stats.FoodStats;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.ArmorStats;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.BackpackStats;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.MedStats;
@@ -95,6 +96,12 @@ public final class ItemCatalog {
         // weight: 0.25kg
         // cost: 小さいが非常に高価。
         items.add(mechanical_golden_watch);
+
+        // --- 食料 ---
+        ItemDefinition beefCan = item("beef_can", "FOOD", Material.IRON_INGOT, "牛肉缶", 2, 28, 0, 350, 1);
+        beefCan.foodStats = new FoodStats(8, 8.0f, 3.0f);
+        beefCan.description = "長期保存用の牛肉の煮込み缶。冷めたままでも食べられる。";
+        items.add(beefCan);
 
         // --- 防具 ---
         // --- クラス4 (High End) ---

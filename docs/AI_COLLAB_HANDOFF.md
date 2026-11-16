@@ -104,6 +104,12 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-17 — Beef can food
+
+- Add beef_can as FOOD, iron_ingot custom model 28, 350 g and one slot. Native FOOD/CONSUMABLE components provide 3-second interruptible eating, 8 nutrition and 8 saturation; no eating at full hunger, no direct health/stamina refill or empty-can remainder.
+- Keep consumption in vanilla/Paper so cancellation and item consumption use the ordinary event path. Reapply food components and usage lore through ItemFactory.updateLore; suppress model-texture eating particles.
+- Include it in common_pool (35 percent), Pharmakon (1800) and Broker (600), without changing medical loot or quest requirements.
+
 ### 2026-11-16 — Crafting grid startup dependency
 
 - Declare CraftingGridButtons as an eager BackpackModule constructor dependency so the DI startup graph starts the packet button service before backpack button registration.

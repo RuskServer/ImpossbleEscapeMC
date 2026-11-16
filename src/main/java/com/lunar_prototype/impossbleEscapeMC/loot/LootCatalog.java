@@ -32,6 +32,7 @@ final class LootCatalog {
                 item("scraps", 60.0, 1, 2),
                 item("toilet_paper", 40.0),
                 item("dry_fuel", 40.0),
+                item("beef_can", 35.0),
                 item("cigarettes", 40.0),
                 item("bolts", 50.0, 1, 2),
                 item("screwdriver", 40.0),

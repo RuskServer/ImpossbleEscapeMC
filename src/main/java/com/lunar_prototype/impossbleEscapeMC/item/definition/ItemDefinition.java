@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.item.definition;
 
 import com.lunar_prototype.impossbleEscapeMC.item.stats.Affix;
+import com.lunar_prototype.impossbleEscapeMC.item.stats.FoodStats;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.ArmorStats;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.BackpackStats;
 import com.lunar_prototype.impossbleEscapeMC.item.stats.MedStats;
@@ -22,6 +23,7 @@ public class ItemDefinition {
     public int cost = 1; // slots occupied
     public boolean stackable = false;
     public List<Affix> affixes;
+    public FoodStats foodStats;
     public MedStats medStats;
     public ArmorStats armorStats;
     public BackpackStats backpackStats;

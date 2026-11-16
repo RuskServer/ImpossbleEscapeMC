@@ -78,6 +78,7 @@ final class TraderCatalog {
         traders.add(trader("pharmakon", "§aPharmakon (Buy Only)", TraderType.BUY, 2,
                 false, false, List.of(
                         item("ai2", 3200, 50, 1, null, null),
+                        item("beef_can", 1800, 0, 1, null, null),
                         item("CAT", 1200, 50, 1, null, null),
                         item("water_filter", 4400, 5, 4, null, "pharmakon_factory_sweep")
                 )));
@@ -108,6 +109,7 @@ final class TraderCatalog {
         List<TraderItem> brokerItems = new ArrayList<>(List.of(
                         // --- Common Items ---
                         item("scraps", 450, 0, 1, null, null),
+                        item("beef_can", 600, 0, 1, null, null),
                         item("toilet_paper", 300, 0, 1, null, null),
                         item("cigarettes", 400, 0, 1, null, null),
                         item("wrench", 1200, 0, 1, null, null),

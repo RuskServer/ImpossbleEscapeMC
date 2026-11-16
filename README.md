@@ -116,3 +116,9 @@ graph TD
 ## 📄 License
 
 This project is licensed under the **AGPLv3 License**. See the [LICENSE](LICENSE) file for more information.
+
+### 食料
+
+`beef_can`（牛肉缶）は右クリックを3秒間長押しして食べる。空腹度を8（上限20）、満腹度を8回復し、1個を消費する。満腹時には使用できず、途中で持ち替える・使用をやめると中断する。重量350g、サイズ1、レアリティ2。見た目にはリソースパックの鉄インゴット CustomModelData 28 を使用する。
+
+通常物資の `common_pool` に35%で登録。Pharmakonで1,800₽、Brokerへの売却は600₽。体力やスタミナを直接回復する効果はなく、空腹度による既存のスタミナ回復率に反映される。
