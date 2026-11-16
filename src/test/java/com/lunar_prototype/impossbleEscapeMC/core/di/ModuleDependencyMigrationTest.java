@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 import java.util.regex.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** 実際の23モジュールの宣言から、隠れた依存の復活と起動順の循環を防ぐ。 */
+/** 実際の24モジュールの宣言から、隠れた依存の復活と起動順の循環を防ぐ。 */
 public class ModuleDependencyMigrationTest {
     private static final Path ROOT = Path.of("src/main/java");
     @Test void allRegisteredModulesDeclareTheirDependencies() throws Exception { verify(); }
@@ -30,7 +30,7 @@ public class ModuleDependencyMigrationTest {
             Class<?> type = Class.forName(pkg.group(1) + "." + name, false, ModuleDependencyMigrationTest.class.getClassLoader());
             modules.add(type); sources.put(type, source);
         }
-        assertEquals(23, modules.size());
+        assertEquals(24, modules.size());
         Map<Class<?>, List<Class<?>>> graph = new LinkedHashMap<>();
         int deferred = 0;
         for (int index = 0; index < modules.size(); index++) {
@@ -71,7 +71,7 @@ public class ModuleDependencyMigrationTest {
         assertTrue(deferred >= 10, "Runtime-only dependencies remain explicit");
         Set<Class<?>> done = new HashSet<>();
         for (Class<?> module : modules) visit(module, graph, done, new ArrayList<>());
-        for (String helper : List.of("RaidInstance", "RaidHud", "RaidRadio", "RaidBossEncounter", "BackpackDisplayManager", "StatusEffectManager")) {
+        for (String helper : List.of("RaidInstance", "RaidHud", "RaidRadio", "BossEncounter", "BackpackDisplayManager", "StatusEffectManager")) {
             String source = Files.readString(files.get(helper));
             assertFalse(source.contains("getServiceContainer()"), "Owned helper locator: " + helper);
             assertFalse(source.contains("ImpossbleEscapeMC.getInstance()"), "Owned helper singleton: " + helper);

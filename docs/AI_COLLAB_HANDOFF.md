@@ -104,6 +104,15 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-15 — Independent boss module
+
+- Move boss definitions, one-shot roll, spawn safety, encounter membership and cleanup into `modules/boss`; Raid only adapts placements and drives its encounter lifecycle.
+- Keep existing spawn visibility/range checks, restored-session suppression, default 3-member equipment/AI/chance and ordinary LOW/MID SCAV behavior. `BossCatalog.java` defines the squads and spawn conditions directly; no YAML catalog or settings migration.
+- Preserve legacy map JSON arrays and default registration syntax; add boss IDs and arbitrary member roles/counts. Placement deletion is scoped by zone and optional boss ID.
+- Pass configured equipment/ammo/AI to the existing SCAV spawn path. Mark boss ID/encounter/role/leader in entity PDC; only the explicit leader counts as BOSS in results and quest triggers, including after controller removal. Existing death/corpse/learning/logger paths remain intact.
+- Validate with JUnit policy, generic placement, legacy persistence, safety, encounter rollback/cleanup, identity classification and full dependency graph tests. Live spawn/combat/death verification remains required.
+
+
 ### 2026-11-01 — Persistent SCAV aim bias floor
 
 - LOW draws a signed 0.06–0.16 block side bias, MID 0.03–0.12; HIGH retains its 0–0.08 distribution.

@@ -1,8 +1,5 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
-import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
-import com.lunar_prototype.impossbleEscapeMC.ai.ScavController;
-import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
@@ -80,8 +77,8 @@ public final class RaidKillTracker implements Listener {
 
     static RaidReport.Kind kindOf(LivingEntity entity) {
         if (entity instanceof Player) return RaidReport.Kind.PMC;
-        ScavController controller = ScavSpawner.getController(entity.getUniqueId());
-        return controller != null && controller.getBrain().getBrainLevel() == ScavBrain.BrainLevel.HIGH
+        var identity=com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity.read(entity);
+        return identity != null && identity.leader()
                 ? RaidReport.Kind.BOSS : RaidReport.Kind.SCAV;
     }
 

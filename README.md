@@ -74,7 +74,7 @@ Featuring advanced SCAV AI, custom client-server synchronized guns via datapack 
 | `/scavspawn [low\|mid\|high] [x y z]` | Spawn a SCAV with an explicit AI level; omission retains the LOW/MID roll. Legacy coordinates and trailing level are supported. Use `heatmap` to toggle spawn map; `corpsecheck` reports nearby corpse interaction state without bypassing protection. `inspect` reports the aimed SCAV’s actual role, rank, alertness and equipment. | `op` |
 | `/raid <join\|leave\|start\|extract\|scavspawn>` | Complete raid queueing and map interactions. | `op` |
 | `/raid danger <add\|list\|remove> <mapID> [zoneID] [name]` | Manage high-threat cuboids selected with WorldEdit/FAWE. | `op` |
-| `/raid boss <set\|list\|remove> <mapID> [zoneID] [boss\|guard1\|guard2]` | Register a rare boss squad inside a high-threat zone; see [boss setup](docs/RAID_BOSS.md). | `op` |
+| `/raid boss <set\|list\|remove> <mapID> [zoneID] [boss-id] [role]` | Register configurable boss squads defined in BossCatalog.java inside high-threat zones; see [boss setup](docs/RAID_BOSS.md). | `op` |
 | `/raid radio preview <zone\|item>` | Preview radio while participating in a raid. | `op` |
 | `/party <create\|invite\|accept\|leave\|kick\|info\|chat>` | Squad management and secure communication. | *None (All Players)* |
 | `/loot <container\|drawer\|locker\|egg\|draweregg\|lockeregg\|groundegg\|remover\|refill>` | Place, remove and refill loot crates and ground loot spots. | `op` |

@@ -102,6 +102,18 @@ public final class ScavAmmoSupply {
         ScavAmmoSupply supply=new ScavAmmoSupply(chosen.id,profile.magazineSize()*3);SUPPLIES.put(scav.getUniqueId(),supply);return supply;
     }
 
+    /** 明示弾は銃の口径一致を必須にする。失敗時に別の弾へ置換しない。 */
+    public static ScavAmmoSupply assignBoss(Mob scav,String ammoId) {
+        if("best".equals(ammoId))return assignBest(scav);
+        String gunId=DatapackGunCatalog.gunIdOf(scav.getEquipment().getItemInMainHand());
+        DatapackGunProfile profile=DatapackGunCatalog.get(gunId);
+        String caliber=DatapackAmmo.caliberOf(gunId);
+        AmmoDefinition chosen=ItemRegistry.getAmmo(ammoId);
+        if(profile==null||caliber==null||chosen==null||!caliber.equalsIgnoreCase(chosen.caliber))return null;
+        ScavAmmoSupply supply=new ScavAmmoSupply(chosen.id,profile.magazineSize()*3);
+        SUPPLIES.put(scav.getUniqueId(),supply);return supply;
+    }
+
     static AmmoDefinition bestForCaliber(List<AmmoDefinition> choices,String caliber) {
         if(caliber==null)return null;
         return choices.stream().filter(a->a!=null&&caliber.equalsIgnoreCase(a.caliber))

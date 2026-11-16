@@ -1,5 +1,9 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossEncounter;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.loot.CorpseManager;
@@ -66,7 +70,7 @@ public class RaidInstance {
     private final Map<UUID, RaidResult> raidResults = new HashMap<>();
     private final RaidEndSequence endSequence;
     private final RaidRadio radio;
-    private final RaidBossEncounter bossEncounter;
+    private final BossEncounter bossEncounter;
 
     private final long startTime;
     private final String raidSessionId;
@@ -159,7 +163,7 @@ public class RaidInstance {
             ScavSpawner scavs,
             CorpseManager corpseManager,
             RaidMapManager mapManager,
-            AiRaidLogger raidLogger) {
+            AiRaidLogger raidLogger, BossModule bosses) {
         this.playersData = playersData;
         this.leveling = leveling;
         this.questService = questService;
@@ -175,7 +179,7 @@ public class RaidInstance {
         this.map = map;
         this.startTime = System.currentTimeMillis();
         this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
-        this.bossEncounter=new RaidBossEncounter(plugin,map,raidSessionId,restored,scavs);
+        this.bossEncounter=bosses.open(map.getMapId(),map.getWorldName(),raidSessionId,restored,map.bossPlacements(),map.bossTerritories());
         this.radio = new RaidRadio(plugin,map,playersData,questService);
         this.endSequence = new RaidEndSequence(plugin, map,radio);
         this.hud = new RaidHud(plugin, map, activeExtractions,radio,playersData,questService);
@@ -566,7 +570,7 @@ public class RaidInstance {
      * @param scavEntityId 撃破されたSCAVのエンティティUUID
      * @param killerUuid   撃破を行ったプレイヤーのUUID
      */
-    public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid, ScavBrain.BrainLevel brainLevel) {
+    public void onScavKilledByPlayer(UUID scavEntityId, UUID killerUuid, BossIdentity identity) {
         if (!raidMembers.contains(killerUuid)) return;
         
         LevelModule levelModule =
@@ -577,7 +581,7 @@ public class RaidInstance {
         }
 
         // BOSS判定
-        if (brainLevel == ScavBrain.BrainLevel.HIGH) {
+        if (identity != null && identity.leader()) {
             RaidResult result = getOrCreateRaidResult(killerUuid);
             result.bossKills += 1;
             grant(result, EXP_BOSS, levelModule != null ? levelModule.getScaledKillReward(playerLevel, 250L) : 250L);

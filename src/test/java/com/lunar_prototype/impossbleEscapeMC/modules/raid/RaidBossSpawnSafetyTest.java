@@ -33,17 +33,17 @@ public final class RaidBossSpawnSafetyTest {
             default->throw new AssertionError("unexpected world access "+m.getName());
         });
         Location point=new Location(world,.5,1,.5);
-        check(!RaidBossEncounter.safePosition(point),"no floor");
+        check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(point),"no floor");
         shapes.put("0,0,0",List.of(new BoundingBox(0,0,0,1,1,1)));
-        check(RaidBossEncounter.safePosition(point),"clear supported position");
+        check(com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(point),"clear supported position");
         shapes.put("0,2,0",List.of(new BoundingBox(0,0,0,1,1,1)));
-        check(!RaidBossEncounter.safePosition(point),"blocked head");shapes.remove("0,2,0");
+        check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(point),"blocked head");shapes.remove("0,2,0");
         shapes.put("0,1,0",List.of(new BoundingBox(.7,0,0,1,1,1)));
-        check(!RaidBossEncounter.safePosition(point),"wall clips shoulder");shapes.remove("0,1,0");
-        loaded=false;reads=0;check(!RaidBossEncounter.safePosition(point)&&reads==0,"unloaded chunks never read or generated");loaded=true;
-        liquid=true;check(!RaidBossEncounter.safePosition(point),"water/lava rejected");liquid=false;
-        check(!RaidBossEncounter.safePosition(new Location(world,.5,319,.5)),"world ceiling");
-        check(!RaidBossEncounter.safePosition(new Location(world,Double.NaN,1,.5)),"invalid coordinates");
+        check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(point),"wall clips shoulder");shapes.remove("0,1,0");
+        loaded=false;reads=0;check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(point)&&reads==0,"unloaded chunks never read or generated");loaded=true;
+        liquid=true;check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(point),"water/lava rejected");liquid=false;
+        check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(new Location(world,.5,319,.5)),"world ceiling");
+        check(!com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety.safePosition(new Location(world,Double.NaN,1,.5)),"invalid coordinates");
 
     }
     private void check(boolean value,String reason){ org.junit.jupiter.api.Assertions.assertTrue(value, reason); }

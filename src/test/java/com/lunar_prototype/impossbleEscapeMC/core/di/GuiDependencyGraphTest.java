@@ -50,12 +50,12 @@ class GuiDependencyGraphTest {
                 }.scan(unit, null);
             }
         }
-        assertEquals(45, definitions.size(), "All production components, including nested GUI listeners");
+        assertEquals(46, definitions.size(), "All production components, including nested GUI listeners");
         String main = Files.readString(root.resolve(BASE.replace('.', '/') + "ImpossbleEscapeMC.java"));
         Matcher modules = Pattern.compile("moduleBootstrap\\.registerModule\\(([\\w.]+)\\.class\\)").matcher(main);
         List<String> ordered = new ArrayList<>();
         while (modules.find()) ordered.add(names.get(simple(modules.group(1))));
-        assertEquals(23, ordered.size());
+        assertEquals(24, ordered.size());
         Set<String> external = new HashSet<>(List.of("org.bukkit.plugin.java.JavaPlugin", BASE + "ImpossbleEscapeMC", "java.util.logging.Logger",
                 BASE + "core.command.CommandRegistry"));
         for (String name : List.of("ScavSpawner", "MinigameManager", "LootManager", "LootBackpackOverlayListener",

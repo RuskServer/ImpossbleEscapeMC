@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossModule;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity;
+
 import com.lunar_prototype.impossbleEscapeMC.ai.AiRaidLogger;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner;
 import com.lunar_prototype.impossbleEscapeMC.core.command.CommandRegistry;
@@ -85,6 +88,9 @@ public class RaidModule implements IModule {
     }
     private final Map<UUID, Disconnect> disconnected = new HashMap<>();
 
+    private final BossModule bosses;
+    BossModule bosses(){return bosses;}
+
     @Inject
     public RaidModule(ImpossbleEscapeMC plugin,
             CommandRegistry commands,
@@ -98,7 +104,8 @@ public class RaidModule implements IModule {
             Supplier<BackpackModule> backpacks,
             Supplier<SkillModule> skillService,
             ScavSpawner scavs,
-            AiRaidLogger raidLogger) {
+            AiRaidLogger raidLogger, BossModule bosses) {
+        this.bosses = bosses;
         this.playersData = playersData;
         this.leveling = leveling;
         this.questService = questService;
@@ -230,7 +237,7 @@ public class RaidModule implements IModule {
     /** このマップのインスタンスがまだ無ければ作る (二重生成しない) */
     private RaidInstance newSession(RaidMap map, List<Player> participants, boolean restored) {
         return new RaidInstance(plugin, map, participants, restored, this, playersData, leveling,
-                questService, backpacks, skillService, parties, scavs, corpseManager, mapManager, raidLogger);
+                questService, backpacks, skillService, parties, scavs, corpseManager, mapManager, raidLogger, bosses);
     }
 
     private RaidInstance createRaid(String mapId, List<Player> participants) {
@@ -839,10 +846,10 @@ public class RaidModule implements IModule {
      * @param scavUuid  撃破されたスカブの UUID
      * @param killerUuid 撃破を行ったプレイヤーの UUID
      */
-    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid, ScavBrain.BrainLevel brainLevel) {
+    public void onScavKilledByPlayer(String mapId, UUID scavUuid, UUID killerUuid, BossIdentity identity) {
         RaidInstance raid = activeRaids.get(mapId);
         if (raid == null) return;
-        raid.onScavKilledByPlayer(scavUuid, killerUuid, brainLevel);
+        raid.onScavKilledByPlayer(scavUuid, killerUuid, identity);
     }
 
     /**

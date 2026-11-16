@@ -28,7 +28,7 @@ class GuiOperationInjectionTest {
         @Override public Inventory loadBackpackInventory(ItemStack item) { return contents; }
     }
     private static final class InRaid extends RaidModule {
-        InRaid() { super(null, null, null, null, null, () -> null, null, null, () -> null, () -> null, () -> null, null, null); }
+        InRaid() { super(null, null, null, null, null, () -> null, null, null, () -> null, () -> null, () -> null, null, null, null); }
         @Override public boolean isInRaid(Player player) { return true; }
     }
     @Test void filledBagAndRaidSupplyRemainProtectedUsingPassedDependencies() throws Exception {

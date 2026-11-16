@@ -54,22 +54,8 @@ public class QuestListener implements Listener {
 
         Map<String, Object> params = new HashMap<>();
         // エンティティタイプの判定
-        String type = victim.getType().name();
-        
-        // SCAVシステムのコントローラを確認して詳細に判定
-        com.lunar_prototype.impossbleEscapeMC.ai.ScavController controller = 
-                com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.getController(victim.getUniqueId());
-        
-        if (controller != null) {
-            if (controller.getBrain().getBrainLevel() == com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain.BrainLevel.HIGH) {
-                type = "BOSS";
-            } else {
-                type = "SCAV";
-            }
-        } else if (victim instanceof Player) {
-            type = "PMC";
-        }
-        
+        String type = entityType(victim);
+
         params.put("entityType", type);
         try {
             if (killer.getWorld().equals(victim.getWorld())) {
@@ -95,6 +81,14 @@ public class QuestListener implements Listener {
         questModule.getEventBus().fire(killer, data, QuestTrigger.KILL_ENTITY, params);
     }
     
+    static String entityType(org.bukkit.entity.LivingEntity victim) {
+        if (victim instanceof Player) return "PMC";
+        var identity=com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity.read(victim);
+        if (identity!=null) return identity.leader()?"BOSS":"SCAV";
+        return com.lunar_prototype.impossbleEscapeMC.ai.ScavSpawner.getController(victim.getUniqueId())!=null
+                ?"SCAV":victim.getType().name();
+    }
+
     // 脱出トリガーは RaidInstance 側で直接発火されるため、ここでは不要。
     // 納品トリガーは GUI 等でアイテムが消費された際に発火させる。
 }

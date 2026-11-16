@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossDefinition;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossSpawnSafety;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -162,26 +165,30 @@ public class RaidCommand implements BasicCommand {
         RaidMap map=manager.getMap(args[2]);if(map==null){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_002", MessageText.of("iem.raid.raidcommand.handleboss.notice_002", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_002.text_01").color(NamedTextColor.RED))));return;}
         switch(args[1].toLowerCase(java.util.Locale.ROOT)) {
             case "set" -> {
-                if(args.length!=5||!RaidBossGroup.ROLES.contains(args[4])){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_003", MessageText.of("iem.raid.raidcommand.handleboss.notice_003", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+                String bossId=args.length==6?args[4]:BossDefinition.DEFAULT_ID;
+                String role=args.length>=5?args[args.length-1]:"";
+                BossDefinition definition=manager.bosses().definition(bossId);
+                if((args.length!=5&&args.length!=6)||definition==null||definition.members().stream().noneMatch(m->m.role().equals(role))){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_003", MessageText.of("iem.raid.raidcommand.handleboss.notice_003", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
                 if(!map.isWorld(player.getWorld())){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_004", MessageText.of("iem.raid.raidcommand.handleboss.notice_004", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_004.text_01").color(NamedTextColor.RED))));return;}
-                if(!RaidBossEncounter.safePosition(player.getLocation())){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_005", MessageText.of("iem.raid.raidcommand.handleboss.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_005.text_01").color(NamedTextColor.RED))));return;}
+                if(!BossSpawnSafety.safePosition(player.getLocation())){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_005", MessageText.of("iem.raid.raidcommand.handleboss.notice_005", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_005.text_01").color(NamedTextColor.RED))));return;}
                 try {
-                    map.setBossPosition(args[3],args[4],player.getLocation());manager.saveMap(map);
-                    Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_006", MessageText.of("iem.raid.raidcommand.handleboss.notice_006", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_006.text_01", args[3], args[4]).color(NamedTextColor.GREEN))));
+                    map.setBossPosition(args[3],bossId,role,player.getLocation());manager.saveMap(map);
+                    Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_006", MessageText.of("iem.raid.raidcommand.handleboss.notice_006", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_006.text_01", args[3], bossId+"/"+role).color(NamedTextColor.GREEN))));
                 }catch(IllegalArgumentException ex){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_007", MessageText.of("iem.raid.raidcommand.handleboss.notice_007", MessageText.payload(Component.text(ex.getMessage(),NamedTextColor.RED))));}
             }
             case "remove" -> {
-                if(args.length!=4){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_008", MessageText.of("iem.raid.raidcommand.handleboss.notice_008", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
-                if(!map.removeBossGroup(args[3])){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_009", MessageText.of("iem.raid.raidcommand.handleboss.notice_009", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_009.text_01").color(NamedTextColor.RED))));return;}
+                if(args.length!=4&&args.length!=5){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_008", MessageText.of("iem.raid.raidcommand.handleboss.notice_008", MessageText.payload(usage.color(NamedTextColor.YELLOW))));return;}
+                if(!(args.length==5?map.removeBossGroup(args[3],args[4]):map.removeBossGroup(args[3]))){Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_009", MessageText.of("iem.raid.raidcommand.handleboss.notice_009", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_009.text_01").color(NamedTextColor.RED))));return;}
                 manager.saveMap(map);Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_010", MessageText.of("iem.raid.raidcommand.handleboss.notice_010", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_010.text_01").color(NamedTextColor.GREEN))));
             }
             case "list" -> {
                 Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_011", MessageText.of("iem.raid.raidcommand.handleboss.notice_011", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_011.text_01", map.getMapId(), map.bossGroups().size()).color(NamedTextColor.GOLD))));
                 for(var group:map.bossGroups()) {
                     var zone=map.highThreatZones().stream().filter(z->z.id().equals(group.zoneId())).findFirst().orElse(null);
-                    String problem=group.problem(zone);
-                    Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_012", MessageText.of("iem.raid.raidcommand.handleboss.notice_012", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_012.text_01", group.zoneId(), (problem==null?MessageText.of("iem.raid.raidcommand.registered"):problem)).color(problem==null?NamedTextColor.GREEN:NamedTextColor.YELLOW))));
-                    for(String role:RaidBossGroup.ROLES) {
+                    BossDefinition definition=manager.bosses().definition(group.bossId());
+                    String problem=group.placement().problem(definition,RaidMap.bossTerritory(zone));
+                    Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_012", MessageText.of("iem.raid.raidcommand.handleboss.notice_012", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_012.text_01", group.zoneId()+" / "+group.bossId(), (problem==null?MessageText.of("iem.raid.raidcommand.registered"):problem)).color(problem==null?NamedTextColor.GREEN:NamedTextColor.YELLOW))));
+                    for(String role:definition==null?group.placement().positions().keySet():definition.members().stream().map(BossDefinition.Member::role).toList()) {
                         double[] p=group.position(role);
                         Messages.chat(player, "iem.raid.raidcommand.handleboss.notice_013", MessageText.of("iem.raid.raidcommand.handleboss.notice_013", MessageText.payload(MessageText.of("iem.raid.raidcommand.handleboss.notice_013.text_01", role, (p==null?MessageText.of("iem.raid.raidcommand.unregistered"):String.format(java.util.Locale.ROOT,"%.1f %.1f %.1f",p[0],p[1],p[2]))).color(NamedTextColor.GRAY))));
                     }
@@ -340,7 +347,18 @@ public class RaidCommand implements BasicCommand {
 
         if(args.length>0&&sender.isOp()&&args[0].equalsIgnoreCase("boss")) {
             if(args.length==4){RaidMap map=manager.getMap(args[2]);return map==null?List.of():map.highThreatZones().stream().map(RaidRadioZone::id).filter(v->v.startsWith(args[3])).toList();}
-            if(args.length==5&&args[1].equalsIgnoreCase("set"))return RaidBossGroup.ROLES.stream().filter(v->v.startsWith(args[4])).toList();
+            if(args.length==5) {
+                var values=new java.util.TreeSet<>(manager.bosses().definitionIds());
+                if(args[1].equalsIgnoreCase("set")) {
+                    var definition=manager.bosses().definition(BossDefinition.DEFAULT_ID);
+                    if(definition!=null)definition.members().forEach(m->values.add(m.role()));
+                }
+                return values.stream().filter(v->v.startsWith(args[4])).toList();
+            }
+            if(args.length==6&&args[1].equalsIgnoreCase("set")) {
+                var definition=manager.bosses().definition(args[4]);
+                return definition==null?List.of():definition.members().stream().map(BossDefinition.Member::role).filter(v->v.startsWith(args[5])).toList();
+            }
         }
         if(args.length==3&&args[0].equalsIgnoreCase("radio"))return List.of("zone","item").stream().filter(v->v.startsWith(args[2])).toList();
         if(args.length==4&&args[0].equalsIgnoreCase("danger")&&args[1].equalsIgnoreCase("remove")) {

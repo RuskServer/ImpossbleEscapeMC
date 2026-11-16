@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.ai;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossDefinition;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity;
+
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
@@ -107,9 +110,14 @@ public class ScavSpawner implements Listener {
     }
 
     /** 通常SCAVの確率・装備上限とは別の、明示的なボス部隊専用スポーン。 */
-    public UUID spawnBossMember(Location loc,String raidSessionId,String mapId,String role,ScavBossPost post) {
-        if(!List.of("boss","guard1","guard2").contains(role)||post==null)throw new IllegalArgumentException("Invalid boss member");
-        return spawnScav(loc,raidSessionId,mapId,null,role,post,null);
+    public UUID spawnBossMember(Location loc,String raidSessionId,String mapId,BossDefinition.Member member,BossIdentity identity,ScavBossPost post) {
+        if(member==null||identity==null||post==null||!member.role().equals(identity.role())||member.leader()!=identity.leader()||identity.leader()!=post.leader()||!identity.encounterId().equals(post.unitId()))throw new IllegalArgumentException("Invalid boss member");
+        UUID id=spawnScav(loc,raidSessionId,mapId,null,member,post,null);
+        if(id!=null) {
+            try { identity.apply(java.util.Objects.requireNonNull(Bukkit.getEntity(id))); }
+            catch(RuntimeException failure) {removeScav(id);throw failure;}
+        }
+        return id;
     }
 
     /** 管理コマンド等から明示指定するAIレベル。装備は通常SCAVのまま。 */
@@ -117,18 +125,18 @@ public class ScavSpawner implements Listener {
         return spawnScav(loc,null,null,null,null,null,level);
     }
 
-    private UUID spawnScav(Location loc,String raidSessionId,String mapId,Integer maxAmmoClass,String bossRole,ScavBossPost post,ScavBrain.BrainLevel forcedLevel) {
+    private UUID spawnScav(Location loc,String raidSessionId,String mapId,Integer maxAmmoClass,BossDefinition.Member bossMember,ScavBossPost post,ScavBrain.BrainLevel forcedLevel) {
         // 銃や必須装備が無い時は、弱い代用品でボスを出さない。
         ItemStack gun;
         ItemStack helmet=null,chest=null,backpack=null;
-        if(bossRole==null)gun=pickGun(loc);
+        if(bossMember==null)gun=pickGun(loc);
         else {
-            String id=switch(bossRole){case "boss"->"scar_h";case "guard1"->"m4a1";default->"as_val";};
+            String id=bossMember.gun();
             DatapackGunProfile profile=DatapackGunCatalog.get(id);
             gun=profile==null?null:DatapackGunCatalog.createItem(loc.getWorld(),profile);
             if(gun!=null)gun=DatapackGunCondition.repair(gun);
-            helmet=ItemFactory.create("Altyn");chest=ItemFactory.create("sp_v");backpack=ItemFactory.create("pilgrim_tourist_backpack");
-            if(helmet==null||chest==null||backpack==null)return null;
+            helmet=bossItem(bossMember.helmet());chest=bossItem(bossMember.chest());backpack=bossItem(bossMember.backpack());
+            if((bossMember.helmet()!=null&&helmet==null)||(bossMember.chest()!=null&&chest==null)||(bossMember.backpack()!=null&&backpack==null))return null;
         }
         if (gun == null) {
             if (!warnedNoGun) {
@@ -145,7 +153,7 @@ public class ScavSpawner implements Listener {
         Mob scav = loc.getWorld().spawn(loc, Zombie.class, false, zombie -> {
             zombie.setAdult();
             zombie.setCanPickupItems(false);
-            if(bossRole!=null)zombie.setPersistent(false);
+            if(bossMember!=null)zombie.setPersistent(false);
             // プレイヤーから離れて止まっていても、バニラの決まりで消させない (消えると死体も出ず、その場所に湧き直さない)。
             // 片付けはレイドが removeScav で行う
             zombie.setRemoveWhenFarAway(false);
@@ -155,8 +163,9 @@ public class ScavSpawner implements Listener {
         // 体力を40 (バニラの2倍) に固定、移動速度を 0.1 に設定
         var healthAttr = scav.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         if (healthAttr != null) {
-            healthAttr.setBaseValue(40.0);
-            scav.setHealth(40.0);
+            double health=bossMember==null?40.0:bossMember.health();
+            healthAttr.setBaseValue(health);
+            scav.setHealth(health);
         }
 
         // 経路探索の届く距離。バニラは歩く距離がこれを超える経路を探さないため、
@@ -173,7 +182,7 @@ public class ScavSpawner implements Listener {
         }
 
         // タルコフ風の装備設定
-        if(bossRole==null)setupScavEquipment(scav,gun,raidSessionId);
+        if(bossMember==null)setupScavEquipment(scav,gun,raidSessionId);
         else {
             var equipment=scav.getEquipment();equipment.setItemInMainHand(gun);equipment.setHelmet(helmet);equipment.setChestplate(chest);equipment.setItemInOffHand(backpack);
             // 実際の装備・残弾は既存の死体インベントリへ移す。バニラの追加ドロップは死亡処理が消す。
@@ -198,10 +207,10 @@ public class ScavSpawner implements Listener {
         Bukkit.getMobGoals().removeAllGoals(scav);
 
         // コントローラーを生成して登録
-        ScavBrain.BrainLevel brainLevel = forcedLevel!=null?forcedLevel:bossRole==null?rollBrainLevel():bossRole.equals("boss")?ScavBrain.BrainLevel.HIGH:ScavBrain.BrainLevel.MID;
+        ScavBrain.BrainLevel brainLevel = forcedLevel!=null?forcedLevel:bossMember==null?rollBrainLevel():bossMember.brain();
         // データパック銃の弾 (種類は強さで選ぶ) と予備の弾
-        if(bossRole==null)com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav,brainLevel,maxAmmoClass);
-        else if(com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assignBest(scav)==null){scav.remove();return null;}
+        if(bossMember==null)com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assign(scav,brainLevel,maxAmmoClass);
+        else if(com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.assignBoss(scav,bossMember.ammo())==null){scav.remove();return null;}
         ScavController controller = new ScavController(plugin, scav, brainLevel);
         if(post!=null)controller.setBossPost(post);
         controllers.put(scav.getUniqueId(), controller);
@@ -215,7 +224,7 @@ public class ScavSpawner implements Listener {
         Bukkit.getLogger().info("[SCAV] Spawned with AI: " + scav.getUniqueId() + " level=" + brainLevel);
         return scav.getUniqueId();
         } catch(RuntimeException ex) {
-            if(bossRole!=null) {
+            if(bossMember!=null) {
                 removeScav(scav.getUniqueId());
                 com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply.remove(scav.getUniqueId());
                 DatapackGunnerManager.remove(scav.getUniqueId());
@@ -224,6 +233,8 @@ public class ScavSpawner implements Listener {
             throw ex;
         }
     }
+
+    private static ItemStack bossItem(String id) {return id==null?null:ItemFactory.create(id);}
 
     private ScavBrain.BrainLevel rollBrainLevel() {
         double roll = RANDOM.nextDouble();
@@ -632,7 +643,7 @@ public class ScavSpawner implements Listener {
                 boolean killerInRaid = plugin.getRaidModule() != null && plugin.getRaidModule().isInRaid(killerPlayer);
 
                 if (isRaidScav && killerInRaid) {
-                    plugin.getRaidModule().onScavKilledByPlayer(raidMapId, uuid, killerPlayer.getUniqueId(), controller.getBrain().getBrainLevel());
+                    plugin.getRaidModule().onScavKilledByPlayer(raidMapId, uuid, killerPlayer.getUniqueId(), BossIdentity.read(victim));
                     Messages.chat(killerPlayer, "iem.admin.scavspawner.onscavdeath.notice_001", MessageText.of("iem.admin.scavspawner.onscavdeath.notice_001", MessageText.payload(MessageText.of("iem.admin.scavspawner.onscavdeath.notice_001.text_01"))));
                 } else {
                     com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levelModule =

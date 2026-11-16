@@ -1,5 +1,8 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossDefinition;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossPlacement;
+import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossTerritory;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -18,15 +21,22 @@ public class RaidMap {
     private List<RaidBossGroup> bossGroups=new ArrayList<>();
     List<RaidBossGroup> bossGroups(){if(bossGroups==null)bossGroups=new ArrayList<>();return List.copyOf(bossGroups);}
     void setBossPosition(String zoneId,String role,Location loc) {
+        setBossPosition(zoneId,BossDefinition.DEFAULT_ID,role,loc);
+    }
+    void setBossPosition(String zoneId,String bossId,String role,Location loc) {
         ensureWorld(loc);
         RaidRadioZone zone=highThreatZones().stream().filter(z->z.id().equals(zoneId)).findFirst().orElseThrow(()->new IllegalArgumentException("高脅威区域がありません"));
         if(!zone.contains(loc.getX(),loc.getY(),loc.getZ(),0))throw new IllegalArgumentException("指定した高脅威区域内で実行してください");
-        RaidBossGroup group=bossGroups().stream().filter(g->g.zoneId().equals(zoneId)).findFirst().orElse(new RaidBossGroup(zoneId,null,null,null));
-        RaidBossGroup updated=group.with(role,locationToCoords(loc));
-        bossGroups.removeIf(g->g.zoneId().equals(zoneId));bossGroups.add(updated);
+        RaidBossGroup group=bossGroups().stream().filter(g->g.zoneId().equals(zoneId)&&g.bossId().equals(bossId)).findFirst().orElse(RaidBossGroup.empty(zoneId,bossId));
+        RaidBossGroup updated=group.withMember(role,locationToCoords(loc));
+        bossGroups.removeIf(g->g.zoneId().equals(zoneId)&&g.bossId().equals(bossId));bossGroups.add(updated);
     }
     boolean removeBossGroup(String zoneId){bossGroups();return bossGroups.removeIf(g->g.zoneId().equals(zoneId));}
 
+    boolean removeBossGroup(String zoneId,String bossId){bossGroups();return bossGroups.removeIf(g->g.zoneId().equals(zoneId)&&g.bossId().equals(bossId));}
+    List<BossPlacement> bossPlacements(){return bossGroups().stream().map(RaidBossGroup::placement).toList();}
+    List<BossTerritory> bossTerritories(){return highThreatZones().stream().map(RaidMap::bossTerritory).toList();}
+    static BossTerritory bossTerritory(RaidRadioZone z){return z==null?null:new BossTerritory(z.id(),z.minX(),z.minY(),z.minZ(),z.maxX(),z.maxY(),z.maxZ());}
     List<RaidRadioZone> highThreatZones() {
         if(highThreatZones==null)highThreatZones=new ArrayList<>();
         return List.copyOf(highThreatZones);

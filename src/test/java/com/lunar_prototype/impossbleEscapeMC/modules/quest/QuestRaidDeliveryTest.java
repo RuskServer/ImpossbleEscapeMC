@@ -25,7 +25,7 @@ public final class QuestRaidDeliveryTest {
     private static boolean participating;
     private static int messages, closed;
     public static final class RaidProbe extends RaidModule {
-        RaidProbe() { super(null, null, null, null, null, () -> null, null, null, () -> null, () -> null, () -> null, null, null); }
+        RaidProbe() { super(null, null, null, null, null, () -> null, null, null, () -> null, () -> null, () -> null, null, null, null); }
         @Override public boolean isInRaid(Player player) { return participating; }
     }
     private static final class Quests extends QuestModule {
