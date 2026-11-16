@@ -104,6 +104,13 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-17 — Late IFAK unlock and stable result weapon names
+
+- Move IFAK sales and the advertised quest reward from pharmakon_office_recon to the final Pharmakon task, pharmakon_emergency_stock. Keep the price, daily cap, loot and treatment unchanged. Earlier quest completion no longer qualifies; do not grant a legacy entitlement.
+- Capture the registered Toi's Armory display_name for kill/death results instead of effectiveName, which contains live ammunition/fire-mode text. If a known gun is absent from the catalog, display its stable gun ID; ordinary item names keep their existing fallback.
+- Rename only the result's one-item snapshot for consistent icon tooltips. The held weapon, datapack state, model, ammunition-name field, hit attribution and damage paths are unchanged.
+- Add tests for early/late sale eligibility and rewards, dynamic-name removal, numeric model names, catalog misses, ordinary items and held-stack immutability.
+
 ### 2026-11-17 — IFAK and AI-2 capacity
 
 - Keep AI-2 at 2 HP per 10 ticks, reduce its maximum durability from 50 to 25, and cap legacy continuous-kit durability during use/lore refresh. Keep its models and existing sounds.

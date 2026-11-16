@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
 import com.lunar_prototype.impossbleEscapeMC.ai.weapon.ScavAmmoSupply;
+import com.lunar_prototype.impossbleEscapeMC.ai.weapon.DatapackGunCatalog;
 import com.lunar_prototype.impossbleEscapeMC.api.event.BulletHitEvent;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.AmmoDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.datapack.DatapackAmmo;
@@ -44,8 +45,11 @@ public final class RaidKillTracker implements Listener {
         HITS.values().removeIf(Map::isEmpty);
 
         ItemStack held = shooter.getEquipment() != null ? shooter.getEquipment().getItemInMainHand() : null;
-        ItemStack weapon = held != null && !held.getType().isAir() ? held.asOne() : null;
-        String weaponName = weapon != null ? PlainTextComponentSerializer.plainText().serialize(weapon.effectiveName()) : null;
+        String gunId = DatapackGunCatalog.gunIdOf(held);
+        var gun = gunId != null ? DatapackGunCatalog.get(gunId) : null;
+        var presentation = RaidWeaponPresentation.capture(held, gunId, gun != null ? gun.displayName() : null);
+        ItemStack weapon = presentation.icon();
+        String weaponName = presentation.name();
         int distance = victim.getWorld().equals(shooter.getWorld())
                 ? (int) Math.round(victim.getLocation().distance(shooter.getLocation())) : -1;
         Hit hit = new Hit(shooter.getUniqueId(), nameOf(shooter), kindOf(shooter), nameOf(victim), weapon, weaponName,
