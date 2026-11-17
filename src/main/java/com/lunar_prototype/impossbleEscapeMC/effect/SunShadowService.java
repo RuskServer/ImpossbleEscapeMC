@@ -20,6 +20,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -705,7 +706,7 @@ public final class SunShadowService {
 
     /**
      * 格子 (原点 ox, oy, oz) の光を計算して詰める。
-     * 1. 格子と跳ね返りの分の余白 (BOUNCE_REACH) の空気ごとに直接光: 太陽 ({@link #sunSweep}。層ごとに光の残りを伝える) と
+     * 1. 格子と跳ね返りの分の余白 (BOUNCE_REACH) の空気ごとに直接光: 太陽 ({@link #sunVisibility}。各マスの中心から同じ光線の経路をたどる) と
      *    光源ブロック (光源ごとに見え方の表 ({@link #lightVisibility}。覚えておく) から周りへ配る)
      * 2. 2 ブロックごとに跳ね返り (BOUNCE_RAYS 本。当たった面の手前の空気の直接光 x 面の色の明るさの平均)。ブロックごとの値は周りのマスから混ぜる
      * 3. 光の量 (基本 + 空の光 + 直接光 + 跳ね返り) とバニラの明るさの比を段にし、太陽が当たっているかと一緒に詰める。
@@ -725,7 +726,7 @@ public final class SunShadowService {
         float[] sunLight = new float[bw * bh * bd], blockLight = new float[bw * bh * bd];
         boolean[] coolLight = new boolean[bw * bh * bd];
         if (light.sun() != null) {
-            float[] visible = sunSweep(s, bx0, by0, bz0, bw, bh, bd, light.sun());
+            float[] visible = sunVisibility(s, bx0, by0, bz0, bw, bh, bd, light.sun());
             float strength = (float) (SUN * light.sunStrength());
             for (int i = 0; i < visible.length; i++) sunLight[i] = visible[i] * strength;
         }
@@ -902,76 +903,101 @@ public final class SunShadowService {
         return weights > 1e-6 ? sum / weights : 0;
     }
 
+    /** 光線が次に入るブロック。全マスの中心から同じ向きなので、この並びを使い回せる。 */
+    private record SunRayStep(int x, int y, int z, int offset) {}
+
     /**
-     * 太陽の直接光の届く割合 (箱 bx0.. の bw x bh x bd ブロック。0〜1。固体のブロックの値は使わない)。
-     * 太陽の向きは東西と上下の面の中 (z は 0) なので、z ごとに 2 次元で、太陽の側から 1 層ずつ「その位置に届く光の残り」を伝える:
-     * 太陽が高い時は上の層から下へ (横のずれは隣の 2 列を混ぜる)、低い時は太陽の側の列から反対側へ。
-     * ブロックごとに光線をたどるより速い。影の縁は少しやわらかくなる。写した範囲の外 (上・太陽の側) は光が通るものとする
+     * 中心 (.5, .5, .5) から REACH までの DDA。辺・角を同時に越える時は全軸を進め、
+     * 光線が一点で触れるだけのブロックを遮蔽物にしない。
      */
-    static float[] sunSweep(Snapshot s, int bx0, int by0, int bz0, int bw, int bh, int bd, double[] sun) {
+    private static SunRayStep[] sunRay(double[] sun, int nx, int nz) {
+        double length = Math.sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+        if (!Double.isFinite(length) || length <= 0) throw new IllegalArgumentException("invalid sun direction");
+        double dx = sun[0] / length, dy = sun[1] / length, dz = sun[2] / length;
+        int sx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+        int sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+        int sz = dz > 0 ? 1 : dz < 0 ? -1 : 0;
+        double tx = sx == 0 ? Double.POSITIVE_INFINITY : Math.abs(1 / dx);
+        double ty = sy == 0 ? Double.POSITIVE_INFINITY : Math.abs(1 / dy);
+        double tz = sz == 0 ? Double.POSITIVE_INFINITY : Math.abs(1 / dz);
+        double nextX = tx * .5, nextY = ty * .5, nextZ = tz * .5;
+        int x = 0, y = 0, z = 0;
+        List<SunRayStep> steps = new ArrayList<>();
+        while (true) {
+            double next = Math.min(nextX, Math.min(nextY, nextZ));
+            if (next > REACH) break;
+            if (nextX <= next + 1e-10) { x += sx; nextX += tx; }
+            if (nextY <= next + 1e-10) { y += sy; nextY += ty; }
+            if (nextZ <= next + 1e-10) { z += sz; nextZ += tz; }
+            steps.add(new SunRayStep(x, y, z, x + nx * (z + nz * y)));
+        }
+        return steps.toArray(SunRayStep[]::new);
+    }
+
+    /**
+     * 太陽の直接光の届く割合。列間の補間を繰り返すと、細い遮蔽物の影が薄まり、
+     * 日照ビットへの丸めで消えるため、各空気マスの中心から直接遮蔽を調べる。
+     * 経路の DDA は一度だけ求め、全マスで共有する。ブロックの通り方・REACH・
+     * 送信形式は従来通り。ぼかすのは受信側で一度だけ行う。
+     */
+    static float[] sunVisibility(Snapshot s, int bx0, int by0, int bz0, int bw, int bh, int bd, double[] sun) {
+        SunRayStep[] steps = sunRay(sun, s.nx(), s.nz());
         float[] out = new float[bw * bh * bd];
-        java.util.Arrays.fill(out, 1f);   // 写した範囲より上 (ふつうは無い) は光が届く
-        int sx0 = s.x0(), sx1 = s.x0() + s.nx(), top = s.y0() + s.ny();
-        boolean vertical = Math.abs(sun[0]) <= sun[1];
-        for (int z = 0; z < bd; z++) {
-            int wz = bz0 + z;
-            if (vertical) {
-                // 上の層から: V(x, y) = 混ぜる(x + shift) [V(x', y + 1) x 通り方(x', y + 1)]
-                double shift = sun[0] / sun[1];
-                int n = sx1 - sx0;
-                float[] above = new float[n], here = new float[n];
-                java.util.Arrays.fill(above, 1f);
-                for (int y = top - 2; y >= by0; y--) {
-                    for (int i = 0; i < n; i++) {
-                        double xf = i + shift;
-                        int i0 = (int) Math.floor(xf);
-                        double f = xf - i0;
-                        here[i] = (float) ((1 - f) * passed(s, above, i0, sx0, y + 1, wz) + f * passed(s, above, i0 + 1, sx0, y + 1, wz));
+        int[] tops = new int[bd];
+        Arrays.fill(tops, Math.min(s.y0() + s.ny(), s.top() + 1));
+        // 太陽は通常Z方向へ進まない。別のZ列にある高い建物のために、
+        // 全ての列で空の上端まで光線を追わない。
+        if (sun[2] == 0 && sun[1] > 0) {
+            for (int z = 0; z < bd; z++) {
+                int wz = bz0 + z;
+                int top = Math.max(s.y0(), by0);
+                if (wz >= s.z0() && wz < s.z0() + s.nz()) {
+                    search:
+                    for (int y = tops[z] - 1; y >= top; y--) {
+                        int row = ((y - s.y0()) * s.nz() + wz - s.z0()) * s.nx();
+                        for (int x = 0; x < s.nx(); x++) {
+                            if (s.transmit()[row + x] != (byte) 255) {
+                                top = y + 1;
+                                break search;
+                            }
+                        }
                     }
-                    if (y < by0 + bh) {
-                        for (int x = 0; x < bw; x++) out[x + bw * (z + bd * (y - by0))] = here[bx0 + x - sx0];
-                    }
-                    float[] t = above;
-                    above = here;
-                    here = t;
                 }
-            } else {
-                // 太陽の側の列から: V(x, y) = 混ぜる(y + shift) [V(x + step, y') x 通り方(x + step, y')]
-                int step = sun[0] > 0 ? 1 : -1;
-                double shift = sun[1] / Math.abs(sun[0]);
-                int n = top - by0;
-                float[] prev = new float[n], here = new float[n];
-                java.util.Arrays.fill(prev, 1f);
-                int start = step > 0 ? sx1 - 2 : sx0 + 1, end = step > 0 ? bx0 : bx0 + bw - 1;
-                for (int x = start; step > 0 ? x >= end : x <= end; x -= step) {
-                    for (int j = 0; j < n; j++) {
-                        double yf = j + shift;
-                        int j0 = (int) Math.floor(yf);
-                        double f = yf - j0;
-                        here[j] = (float) ((1 - f) * passedColumn(s, prev, j0, by0, x + step, wz) + f * passedColumn(s, prev, j0 + 1, by0, x + step, wz));
+                tops[z] = top;
+            }
+        }
+        for (int y = 0; y < bh; y++) {
+            int py = by0 + y;
+            for (int z = 0; z < bd; z++) {
+                int pz = bz0 + z;
+                for (int x = 0; x < bw; x++) {
+                    int px = bx0 + x;
+                    if (s.transmit(px, py, pz) == 0) continue;
+                    double visible = 1;
+                    int ix = px - s.x0(), iy = py - s.y0(), iz = pz - s.z0();
+                    boolean inside = ix >= 0 && ix < s.nx() && iy >= 0 && iy < s.ny() && iz >= 0 && iz < s.nz();
+                    int origin = (iy * s.nz() + iz) * s.nx() + ix;
+                    for (SunRayStep step : steps) {
+                        int sy = py + step.y();
+                        if (sun[1] > 0 && sy >= tops[z]) break;
+                        int transmission;
+                        if (inside) {
+                            int ax = ix + step.x(), ay = iy + step.y(), az = iz + step.z();
+                            // 箱の内側から進む直線は、一度出た箱へ再び入らない。
+                            if (ax < 0 || ax >= s.nx() || ay < 0 || ay >= s.ny() || az < 0 || az >= s.nz()) break;
+                            transmission = s.transmit()[origin + step.offset()] & 255;
+                        } else {
+                            transmission = s.transmit(px + step.x(), sy, pz + step.z());
+                        }
+                        if (transmission == 255) continue;
+                        visible *= transmission / 255.0;
+                        if (visible < MIN_TRANSMIT) { visible = 0; break; }
                     }
-                    if (x >= bx0 && x < bx0 + bw) {
-                        for (int y = 0; y < bh; y++) out[(x - bx0) + bw * (z + bd * y)] = here[y];
-                    }
-                    float[] t = prev;
-                    prev = here;
-                    here = t;
+                    out[x + bw * (z + bd * y)] = (float) visible;
                 }
             }
         }
         return out;
-    }
-
-    /** 上の層の列 i (ワールドの x = sx0 + i、高さ y) を通った後の光の残り (範囲の外は 1) */
-    private static double passed(Snapshot s, float[] layer, int i, int sx0, int y, int z) {
-        if (i < 0 || i >= layer.length) return 1.0;
-        return layer[i] * (s.transmit(sx0 + i, y, z) / 255.0);
-    }
-
-    /** 太陽の側の列 (ワールドの x、高さ by0 + j) を通った後の光の残り (範囲の外は 1) */
-    private static double passedColumn(Snapshot s, float[] column, int j, int by0, int x, int z) {
-        if (j < 0 || j >= column.length) return 1.0;
-        return column[j] * (s.transmit(x, by0 + j, z) / 255.0);
     }
 
     /** 光源ブロックの見え方の表 (光源ごと): 光源から半径 (レベル) の立方体の、ブロックごとの光の届く割合 (0〜255) */

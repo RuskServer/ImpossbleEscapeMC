@@ -104,6 +104,12 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-17 — Preserve direct-sun occlusion
+
+- Replace repeated interpolated sun propagation with center-ray voxel traversal. Precompute the shared DDA offsets once per light calculation so thin opaque blockers remain shadows before the existing one-bit sunlight encoding.
+- Keep the packet layout, light levels, material transmission, 48-block direct-ray limit and asynchronous snapshot flow. Advance tied DDA axes together so a corner-only contact cannot cast a false shadow.
+- Add independent ray/box comparisons across sun directions, thin-block and packed-bit regressions, leaf transmission, range and grazing-corner cases. This does not change the shader's approximate split between direct and ambient light.
+
 ### 2026-11-17 — Late IFAK unlock and stable result weapon names
 
 - Move IFAK sales and the advertised quest reward from pharmakon_office_recon to the final Pharmakon task, pharmakon_emergency_stock. Keep the price, daily cap, loot and treatment unchanged. Earlier quest completion no longer qualifies; do not grant a legacy entitlement.
