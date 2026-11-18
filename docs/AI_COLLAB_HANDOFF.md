@@ -104,6 +104,10 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-18 — Increase bleeding pressure
+
+- Raise bleeding from 2 HP/minute to 0.2 HP/second (12 HP/minute) per bleeding level. Keep the existing one-second timer, stacking, skill multiplier, injury chance, treatment and damage-event path.
+
 ### 2026-11-17 — Preserve direct-sun occlusion
 
 - Replace repeated interpolated sun propagation with center-ray voxel traversal. Precompute the shared DDA offsets once per light calculation so thin opaque blockers remain shadows before the existing one-bit sunlight encoding.

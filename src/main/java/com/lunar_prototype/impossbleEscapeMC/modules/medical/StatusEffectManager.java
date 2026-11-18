@@ -66,8 +66,8 @@ public class StatusEffectManager implements Listener {
     private void handleBleeding(Player player, PlayerData data) {
         if (data.getBleedingLevel() <= 0) return;
 
-        // 1分間に2ダメージ = 1秒間に 2/60 (約0.033) ダメージ
-        double damage = data.getBleedingLevel() * (2.0 / 60.0) * Math.max(0, skills.get().factor(player, SkillStat.BLEED_DAMAGE));
+        // 出血1段階につき毎秒0.2HP（毎分12HP）。重複とスキルによる軽減を適用する。
+        double damage = data.getBleedingLevel() * 0.2 * Math.max(0, skills.get().factor(player, SkillStat.BLEED_DAMAGE));
         player.damage(damage);
         
         // 血のパーティクル
