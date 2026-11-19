@@ -212,7 +212,8 @@ public class PlayerData {
     }
 
     public int getStashLevel() {
-        return Math.max(1, stashLevel);
+        // 保管庫の強化を容量にも反映する。旧データで解放済みの容量は縮めない。
+        return Math.max(Math.max(1, stashLevel), getHideoutLevel("stash"));
     }
 
     public void setStashLevel(int stashLevel) {

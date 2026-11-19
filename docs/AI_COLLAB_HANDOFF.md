@@ -104,6 +104,10 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-19 — Stash capacity follows facility upgrades
+
+- Resolve stash capacity from the higher of the legacy stash level and hideout stash facility level. Previously upgraded saves gain their pages immediately without rebuilding or charging again; legacy unlocks and saved page contents are retained.
+
 ### 2026-11-18 — Increase bleeding pressure
 
 - Raise bleeding from 2 HP/minute to 0.2 HP/second (12 HP/minute) per bleeding level. Keep the existing one-second timer, stacking, skill multiplier, injury chance, treatment and damage-event path.
