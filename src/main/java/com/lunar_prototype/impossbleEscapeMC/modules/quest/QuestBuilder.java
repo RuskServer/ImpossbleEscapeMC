@@ -70,6 +70,12 @@ public final class QuestBuilder {
         return this;
     }
 
+    /** 指定したボスの部隊長本人だけを数える。護衛はSCAVとして扱う。 */
+    public QuestBuilder killBoss(String bossId, int amount) {
+        objectives.add(new KillEntityObjective("BOSS", amount).boss(bossId));
+        return this;
+    }
+
     /** 距離を指定した討伐。min / max は null で制限なし (ブロック) */
     public QuestBuilder killAtDistance(String entityType, int amount, Double minDistance, Double maxDistance) {
         objectives.add(new KillEntityObjective(entityType, amount, minDistance, maxDistance));

@@ -227,6 +227,15 @@ final class QuestCatalog {
                 .killAtDistance("SCAV", 4, 40.0, null).onMap(COAST).with(WeaponClass.MARKSMAN)
                 .unlockTrade(KOVACS, "eotech_xps2")
                 .money(52000).exp(5550).build());
+        quests.add(new QuestBuilder(module, "kovacs_voronov_hunt")
+                .trader(KOVACS).name("指揮官の排除")
+                .description("薬品工場でヴォロノフの部隊が動いている。護衛を倒すだけじゃ仕事は終わらん。部隊長本人を仕留めてくれ。買い手の回収班を通したい。報酬は弾む。")
+                .requiresLevel(12)
+                .requiresQuest("kovacs_penetration")
+                .requiresQuest("kovacs_marksman_02")
+                .killBoss(com.lunar_prototype.impossbleEscapeMC.modules.boss.BossDefinition.DEFAULT_ID, 1)
+                .onMap(FACTORY).label("ノヴォザリエ薬品工場でヴォロノフ部隊長を1人排除する")
+                .money(150000).exp(10000).build());
     }
 
     private static void addPharmakon(QuestModule module,List<QuestDefinition> quests) {

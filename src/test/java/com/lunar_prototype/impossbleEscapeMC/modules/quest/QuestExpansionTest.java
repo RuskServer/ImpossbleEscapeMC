@@ -46,7 +46,7 @@ public final class QuestExpansionTest {
         Map<String,AmmoDefinition> ammoMap = registry("AMMO_MAP");
         items.forEach(i -> itemMap.put(i.id, i)); ammo.forEach(i -> ammoMap.put(i.id, i));
         var definitions = QuestCatalog.create(null);
-        check(definitions.size() == 51, "51 rebuilt quests");
+        check(definitions.size() == 52, "51 rebuilt quests plus the Voronov hunt");
         Map<String,QuestDefinition> byId = new HashMap<>();
         Map<String,Integer> counts = new HashMap<>();
         Set<String> calibers = new HashSet<>();
@@ -68,7 +68,7 @@ public final class QuestExpansionTest {
             }
         }
         check(byId.keySet().containsAll(LEGACY), "legacy IDs preserved");
-        check(counts.equals(Map.of("kovacs",22,"pharmakon",9,"bastion",20)), "trader quest counts");
+        check(counts.equals(Map.of("kovacs",23,"pharmakon",9,"bastion",20)), "trader quest counts");
         check(calibers.size()==8, "all eight calibers covered");
         for (String id : byId.keySet()) visit(id,byId,new HashSet<>(),new HashSet<>());
         List<TraderDefinition> traders = catalog("com.lunar_prototype.impossbleEscapeMC.modules.trader.TraderCatalog", "create");

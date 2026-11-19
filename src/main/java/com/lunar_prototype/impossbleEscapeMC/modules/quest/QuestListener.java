@@ -52,11 +52,7 @@ public class QuestListener implements Listener {
         PlayerData data = dataModule.getPlayerData(killer.getUniqueId());
         if (data == null) return;
 
-        Map<String, Object> params = new HashMap<>();
-        // エンティティタイプの判定
-        String type = entityType(victim);
-
-        params.put("entityType", type);
+        Map<String, Object> params = victimParameters(victim);
         try {
             if (killer.getWorld().equals(victim.getWorld())) {
                 params.put("killDistance", killer.getLocation().distance(victim.getLocation()));
@@ -79,6 +75,18 @@ public class QuestListener implements Listener {
             }
         }
         questModule.getEventBus().fire(killer, data, QuestTrigger.KILL_ENTITY, params);
+    }
+
+    /** 死亡後の永続タグから討伐種別とボスIDを伝える。護衛はボス討伐に含めない。 */
+    static Map<String, Object> victimParameters(org.bukkit.entity.LivingEntity victim) {
+        Map<String, Object> params = new HashMap<>();
+        String type = entityType(victim);
+        params.put("entityType", type);
+        if ("BOSS".equals(type)) {
+            var identity = com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity.read(victim);
+            if (identity != null) params.put("bossId", identity.bossId());
+        }
+        return params;
     }
     
     static String entityType(org.bukkit.entity.LivingEntity victim) {

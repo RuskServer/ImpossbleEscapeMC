@@ -35,7 +35,7 @@ public final class QuestlineRebuildTest {
             }
             if(q.getObjectives().size()>=4)extended++;
         }
-        check(quests.size()==51&&money==1806000&&exp==170250,"all fifty-one approved reward proposals applied");
+        check(quests.size()==52&&money==1956000&&exp==180250,"approved rewards plus the Voronov hunt applied");
         check(extended>=10,"multi-objective work added to short middle-game tasks");
         check(prerequisites(byId.get("kovacs_recon_supply")).equals(Set.of("kovacs_data_recovery")),"recon mainline bypasses optional headshot drill");
         check(prerequisites(byId.get("bastion_spectre_camp_recon")).equals(Set.of("bastion_coastal_warehouses")),"camp mainline bypasses weapon drill");

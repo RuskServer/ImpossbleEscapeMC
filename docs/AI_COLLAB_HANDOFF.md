@@ -104,6 +104,10 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-19 — Voronov commander hunt
+
+- Add Kovacs's late-game Voronov commander hunt after penetration and marksman work. Match the persistent leader boss ID and raid map; ordinary SCAVs, guards and other bosses cannot satisfy it. Preserve existing kill conditions and quest progress.
+
 ### 2026-11-19 — Stash capacity follows facility upgrades
 
 - Resolve stash capacity from the higher of the legacy stash level and hideout stash facility level. Previously upgraded saves gain their pages immediately without rebuilding or charging again; legacy unlocks and saved page contents are retained.

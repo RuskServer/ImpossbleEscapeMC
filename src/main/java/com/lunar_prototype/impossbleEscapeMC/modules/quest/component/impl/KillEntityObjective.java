@@ -13,10 +13,10 @@ import java.util.Map;
 
 /**
  * 特定のエンティティを一定数殺害する目標。
- * 条件 (任意・組み合わせ可): 距離、マップ、ヘッドショット (頭・顔)、銃の種類、銃
+ * 条件 (任意・組み合わせ可): 距離、マップ、ヘッドショット (頭・顔)、銃の種類、銃、ボスID
  * <p>
  * キルのトリガーの params: entityType, killDistance (m), mapId (倒した人が参加中のレイドのマップ),
- * headshot (Boolean), weaponId (当てた銃のデータパックの ID), weaponClass ({@link WeaponClass} の名前)
+ * bossId (部隊長のボスID。護衛には付けない), headshot (Boolean), weaponId (当てた銃のデータパックの ID), weaponClass ({@link WeaponClass} の名前)
  */
 public class KillEntityObjective extends AbstractQuestObjective {
     private final String entityType; // "SCAV", "PMC", "BOSS"
@@ -29,17 +29,19 @@ public class KillEntityObjective extends AbstractQuestObjective {
     private final String weaponId;
     /** 銃の条件の表示名 (weaponId の時) */
     private final String weaponName;
+    /** 指定した部隊のボス本人だけ数える。nullは任意のボス。 */
+    private final String bossId;
 
     public KillEntityObjective(String entityType, int targetAmount) {
         this(entityType, targetAmount, null, null);
     }
 
     public KillEntityObjective(String entityType, int targetAmount, Double minDistance, Double maxDistance) {
-        this(entityType, targetAmount, minDistance, maxDistance, null, false, null, null, null);
+        this(entityType, targetAmount, minDistance, maxDistance, null, false, null, null, null, null);
     }
 
     private KillEntityObjective(String entityType, int targetAmount, Double minDistance, Double maxDistance,
-                                String mapId, boolean headshot, WeaponClass weaponClass, String weaponId, String weaponName) {
+                                String mapId, boolean headshot, WeaponClass weaponClass, String weaponId, String weaponName, String bossId) {
         this.entityType = entityType;
         this.targetAmount = targetAmount;
         this.minDistance = minDistance;
@@ -49,26 +51,35 @@ public class KillEntityObjective extends AbstractQuestObjective {
         this.weaponClass = weaponClass;
         this.weaponId = weaponId;
         this.weaponName = weaponName;
+        this.bossId = bossId;
     }
 
     /** このマップ (脱出の目標と同じマップ名) で倒した時だけ数える */
     public KillEntityObjective onMap(String mapId) {
-        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, headshot, weaponClass, weaponId, weaponName);
+        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, headshot, weaponClass, weaponId, weaponName, bossId);
     }
 
     /** ヘッドショット (頭・顔に当てて倒した) だけ数える */
     public KillEntityObjective headshot() {
-        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, true, weaponClass, weaponId, weaponName);
+        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, true, weaponClass, weaponId, weaponName, bossId);
     }
 
     /** この種類の銃で倒した時だけ数える */
     public KillEntityObjective with(WeaponClass weaponClass) {
-        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, headshot, weaponClass, weaponId, weaponName);
+        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, headshot, weaponClass, weaponId, weaponName, bossId);
     }
 
     /** この銃 (データパックの銃 ID) で倒した時だけ数える。name は表示名 */
     public KillEntityObjective withWeapon(String weaponId, String name) {
-        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, headshot, weaponClass, weaponId, name);
+        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance, mapId, headshot, weaponClass, weaponId, name, bossId);
+    }
+
+    /** ボスの種類を指定する。他の討伐条件と組み合わせても保持する。 */
+    public KillEntityObjective boss(String bossId) {
+        if (!"BOSS".equalsIgnoreCase(entityType)) throw new IllegalStateException("ボス以外の討伐目標です");
+        if (bossId == null || bossId.isBlank()) throw new IllegalArgumentException("ボスIDが必要です");
+        return new KillEntityObjective(entityType, targetAmount, minDistance, maxDistance,
+                mapId, headshot, weaponClass, weaponId, weaponName, bossId);
     }
 
     @Override
@@ -88,6 +99,7 @@ public class KillEntityObjective extends AbstractQuestObjective {
     boolean matches(Map<String, Object> params) {
         String killedType = (String) params.get("entityType");
         if (killedType == null || !killedType.equalsIgnoreCase(entityType)) return false;
+        if (bossId != null && !bossId.equals(params.get("bossId"))) return false;
         if (!isDistanceInRange(params)) return false;
         if (mapId != null && !(params.get("mapId") instanceof String map && map.equalsIgnoreCase(mapId))) return false;
         if (headshot && !Boolean.TRUE.equals(params.get("headshot"))) return false;
@@ -158,6 +170,7 @@ public class KillEntityObjective extends AbstractQuestObjective {
     }
 
     public String getEntityType() { return entityType; }
+    public String getBossId() { return bossId; }
     public int getTargetAmount() { return targetAmount; }
     /** マップの条件 (null は任意のマップ) */
     public String getMapId() { return mapId; }

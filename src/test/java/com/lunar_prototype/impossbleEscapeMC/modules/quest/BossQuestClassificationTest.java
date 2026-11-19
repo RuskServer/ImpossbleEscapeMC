@@ -16,8 +16,10 @@ class BossQuestClassificationTest {
             assertEquals("ZOMBIE",QuestListener.entityType(mob));
             new BossIdentity("boss",UUID.randomUUID(),"guard",false).apply(mob);
             assertEquals("SCAV",QuestListener.entityType(mob));
+            assertEquals(java.util.Map.of("entityType", "SCAV"), QuestListener.victimParameters(mob));
             new BossIdentity("boss",UUID.randomUUID(),"leader",true).apply(mob);
             assertEquals("BOSS",QuestListener.entityType(mob));assertEquals("PMC",QuestListener.entityType(server.addPlayer()));
+            assertEquals(java.util.Map.of("entityType", "BOSS", "bossId", "boss"), QuestListener.victimParameters(mob));
         } finally {MockBukkit.unmock();}
     }
 }
