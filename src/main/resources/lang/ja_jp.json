@@ -1073,5 +1073,7 @@
   "iem.admin.acoustics.zone.hall": "広い屋内",
   "iem.admin.acoustics.zone.underground": "地下",
   "iem.raid.raidresults.view": "[結果を見る]",
-  "iem.raid.boss_activity": "<gold>[無線] <white><arg:0>：この地区で高価値目標の活動が確認されている。護衛を伴っている可能性がある。周囲を警戒しろ。"
+  "iem.raid.boss_activity": "<gold>[無線] <white><arg:0>：この地区で高価値目標の活動が確認されている。護衛を伴っている可能性がある。周囲を警戒しろ。",
+  "iem.market.unavailable": "マーケットは現在利用できません。管理者に連絡してください。",
+  "iem.market.raid_blocked": "レイド中はマーケットを利用できません。脱出後に利用してください。"
 }

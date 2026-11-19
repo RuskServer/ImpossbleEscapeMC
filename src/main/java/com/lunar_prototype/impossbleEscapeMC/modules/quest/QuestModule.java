@@ -43,6 +43,7 @@ import java.util.*;
 public class QuestModule implements IModule {
     private final CommandRegistry commands;
     private final TraderModule traders;
+    private final com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levels;
 
     private final ImpossbleEscapeMC plugin;
     /** 定義の順 (トレーダーごとの受領の順) を保つ */
@@ -67,10 +68,12 @@ public class QuestModule implements IModule {
     public QuestModule(ImpossbleEscapeMC plugin,
             PlayerDataModule dataModule,
             CommandRegistry commands,
-            TraderModule traders) {
+            TraderModule traders,
+            com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule levels) {
         this.dataModule = dataModule;
         this.commands = commands;
         this.traders = traders;
+        this.levels = levels;
         this.plugin = plugin;
     }
 
@@ -189,8 +192,13 @@ public class QuestModule implements IModule {
         // 状態の更新
         data.completeQuest(quest.getId());
         data.setDirty(true);
+        if (dataModule != null) dataModule.saveAsync(data.getUuid());
         
         notifyCompletion(player, quest);
+    }
+
+    public void awardExperience(PlayerData data, long amount) {
+        levels.addExperience(data, amount);
     }
 
     /** 報酬付与・完了記録の後だけ、受取内容を通知する。 */

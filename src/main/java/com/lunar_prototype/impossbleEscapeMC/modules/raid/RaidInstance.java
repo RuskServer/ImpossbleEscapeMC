@@ -164,6 +164,22 @@ public class RaidInstance {
             CorpseManager corpseManager,
             RaidMapManager mapManager,
             AiRaidLogger raidLogger, BossModule bosses) {
+        this(plugin, map, participants, restored, owner, playersData, leveling, questService, backpacks,
+                skillService, partyService, scavs, corpseManager, mapManager, raidLogger, bosses, null);
+    }
+
+    RaidInstance(ImpossbleEscapeMC plugin, RaidMap map, List<Player> participants, boolean restored,
+            RaidModule owner,
+            PlayerDataModule playersData,
+            LevelModule leveling,
+            Supplier<QuestModule> questService,
+            Supplier<BackpackModule> backpacks,
+            Supplier<SkillModule> skillService,
+            Supplier<PartyModule> partyService,
+            ScavSpawner scavs,
+            CorpseManager corpseManager,
+            RaidMapManager mapManager,
+            AiRaidLogger raidLogger, BossModule bosses, RaidProgress progress) {
         this.playersData = playersData;
         this.leveling = leveling;
         this.questService = questService;
@@ -177,8 +193,8 @@ public class RaidInstance {
         this.mapManager = mapManager;
         this.plugin = plugin;
         this.map = map;
-        this.startTime = System.currentTimeMillis();
-        this.raidSessionId = map.getMapId() + "_" + UUID.randomUUID().toString().substring(0, 8);
+        this.startTime = progress != null ? progress.startTime() : System.currentTimeMillis();
+        this.raidSessionId = progress != null ? progress.sessionId() : map.getMapId() + "_" + UUID.randomUUID();
         this.bossEncounter=bosses.open(map.getMapId(),map.getWorldName(),raidSessionId,restored,map.bossPlacements(),map.bossTerritories());
         this.radio = new RaidRadio(plugin,map,playersData,questService,bossEncounter.selectedBoss());
         this.endSequence = new RaidEndSequence(plugin, map,radio);
@@ -203,6 +219,7 @@ public class RaidInstance {
         assignExtractions();
         startTask();
 
+        if (progress != null) restoreProgress(progress);
         if (!participants.isEmpty()) {
             joinPlayers(participants);
         }
@@ -697,7 +714,7 @@ public class RaidInstance {
             showIndividualRaidResult(p);
             mapManager.updateMapSlot(p);
 
-            if (players.isEmpty()) {
+            if (players.isEmpty() && !hasDisconnectedMembers()) {
                 endRaid();
             }
         }
@@ -817,10 +834,14 @@ public class RaidInstance {
         showIndividualRaidResult(player);
         mapManager.updateMapSlot(player);
 
-        if (players.isEmpty()) {
+        if (players.isEmpty() && !hasDisconnectedMembers()) {
             endReason = "all_dead_or_extracted";
             endRaid();
         }
+    }
+
+    private boolean hasDisconnectedMembers() {
+        return raidResults.values().stream().anyMatch(result -> result.outcome == RaidOutcome.LEFT);
     }
 
     /**
@@ -828,7 +849,7 @@ public class RaidInstance {
      *
      * プレイヤーがこのレイドの参加者でない場合は何もしない。参加者であれば抽出タイマーを削除し、
      * そのプレイヤーの `RaidResult` がまだ `ACTIVE` であれば `LEFT` に設定してから参加者集合を除去する。
-     * 参加者がこれによって空になった場合は `endRaid()` を呼び出してレイドを終了する。
+     * 全員が切断した場合も周期終了まで保持し、同じセッションへ復帰させる。
      *
      * @param player サーバーを離れたプレイヤー
      */
@@ -846,10 +867,8 @@ public class RaidInstance {
         player.closeInventory();
         players.remove(player.getUniqueId());
         resetCameraDistance(player);
-        if (players.isEmpty()) {
-            endReason = "all_left";
-            endRaid();
-        }
+        // 全員が切断しても、同じ周期のセッションと抽選・敵・地面ルートを維持する。
+        // 周期終了時のhandleMIA/stopが、切断中の参加者の精算も担当する。
     }
 
     public void stop() {
@@ -1042,7 +1061,9 @@ public class RaidInstance {
      * 終わったレイドなら false
      */
     public boolean rejoin(Player p) {
-        if (ended) return false;
+        if (ended || !raidMembers.contains(p.getUniqueId())) return false;
+        RaidResult previous = raidResults.get(p.getUniqueId());
+        if (previous == null || previous.outcome != RaidOutcome.LEFT) return false;
         players.add(p.getUniqueId());
         raidMembers.add(p.getUniqueId());
         RaidResult result = getOrCreateRaidResult(p.getUniqueId());
@@ -1082,11 +1103,38 @@ public class RaidInstance {
         }
     }
 
-    /**
-     * 現在このレイドインスタンスに参加しているプレイヤーの UUID 集合を取得する。
-     *
-     * @return `players` に含まれる参加者の UUID を保持する変更不可の Set。返された Set への変更は実際の参加者リストに影響しない。
-     */
+    /** 退出済みのメンバーも含め、未精算の報酬と同一セッションへの復帰に必要な状態を保存する。 */
+    RaidProgress progressSnapshot() {
+        Map<UUID, RaidProgress.Reward> members = new LinkedHashMap<>();
+        for (UUID id : raidMembers) {
+            RaidResult r = getOrCreateRaidResult(id);
+            Map<String, long[]> breakdown = new LinkedHashMap<>();
+            r.expBreakdown.forEach((key, values) -> breakdown.put(key, values.clone()));
+            members.put(id, new RaidProgress.Reward(r.outcome.name(), r.experienceToGrant,
+                    r.scavKills, r.pmcKills, r.bossKills, r.extractionCountIncremented, r.extractName,
+                    r.endMillis, r.granted, r.levelBefore, r.expBefore, breakdown));
+        }
+        return new RaidProgress(raidSessionId, startTime, Set.copyOf(players), members);
+    }
+
+    private void restoreProgress(RaidProgress progress) {
+        if (progress.members() != null) progress.members().forEach((id, saved) -> {
+            RaidResult r = getOrCreateRaidResult(id);
+            r.outcome = RaidOutcome.valueOf(saved.outcome());
+            r.experienceToGrant = saved.experience();
+            r.scavKills = saved.scavKills(); r.pmcKills = saved.pmcKills(); r.bossKills = saved.bossKills();
+            r.extractionCountIncremented = saved.extractionCountIncremented(); r.extractName = saved.extractName();
+            r.endMillis = saved.endMillis(); r.granted = saved.granted();
+            r.levelBefore = saved.levelBefore(); r.expBefore = saved.expBefore();
+            if (saved.breakdown() != null) saved.breakdown().forEach((key, values) -> r.expBreakdown.put(key, values.clone()));
+            raidMembers.add(id);
+            if (r.outcome == RaidOutcome.DEAD || r.outcome == RaidOutcome.SURVIVED)
+                owner.markFinished(map.getMapId(), id);
+        });
+        restoreParticipants(progress.participants() == null ? Set.of() : progress.participants());
+    }
+
+    /** 現在参加中のUUID。変更はできない。 */
     public Set<UUID> getParticipantUuids() {
         return Collections.unmodifiableSet(players);
     }
@@ -1193,6 +1241,7 @@ public class RaidInstance {
 
         for (UUID uuid : raidMembers) {
             RaidResult result = getOrCreateRaidResult(uuid);
+            if (result.granted) continue;
             boolean alreadyShown = result.outcome != RaidOutcome.ACTIVE;
 
             if (result.outcome == RaidOutcome.ACTIVE) {
@@ -1212,10 +1261,8 @@ public class RaidInstance {
 
             result.levelBefore = levelModule.getLevel(uuid);
             result.expBefore = levelModule.getExperience(uuid);
+            levelModule.addRaidExperience(uuid, raidSessionId, result.experienceToGrant);
             result.granted = true;
-            if (result.experienceToGrant > 0) {
-                levelModule.addExperience(uuid, result.experienceToGrant);
-            }
 
             // オンラインのプレイヤーに結果を表示 (まだ表示されていない場合)
             if (!alreadyShown) {

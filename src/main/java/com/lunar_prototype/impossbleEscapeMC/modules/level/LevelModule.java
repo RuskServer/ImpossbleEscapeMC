@@ -92,11 +92,26 @@ public class LevelModule implements IModule {
     public void addExperience(UUID uuid, long amount) {
         if (amount <= 0) return;
         PlayerData data = dataModule.getPlayerData(uuid);
+        addExperience(data, amount);
+        dataModule.saveAsync(uuid);
+    }
+
+    /** 納品報酬など、呼び出し元がほかの変更と一緒に保存するための経路。 */
+    public void addExperience(PlayerData data, long amount) {
+        if (amount <= 0) return;
         long newExp = data.getExperience() + amount;
         data.setExperience(newExp);
 
         checkLevelUp(data);
+    }
+
+    /** 精算記録と経験値を同じプレイヤーデータのスナップショットに保存する。 */
+    public boolean addRaidExperience(UUID uuid, String sessionId, long amount) {
+        PlayerData data = dataModule.getPlayerData(uuid);
+        if (!data.recordRaidReward(sessionId)) return false;
+        addExperience(data, amount);
         dataModule.saveAsync(uuid);
+        return true;
     }
 
     /**

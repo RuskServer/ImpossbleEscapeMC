@@ -30,7 +30,7 @@ public final class QuestRaidDeliveryTest {
     }
     private static final class Quests extends QuestModule {
         int notified;
-        Quests() { super(null, null, null, null); }
+        Quests() { super(null, null, null, null, null); }
         @Override void notifyCompletion(Player player, QuestDefinition quest) { notified++; }
     }
     @org.junit.jupiter.api.BeforeEach

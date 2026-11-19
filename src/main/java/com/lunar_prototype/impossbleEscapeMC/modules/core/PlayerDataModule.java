@@ -199,7 +199,9 @@ public class PlayerDataModule implements IModule, Listener {
         PlayerData data = dataCache.get(uuid);
         if (data != null && data.isDirty()) writeNow(data);
         awaitWrites(uuid);   // 次に読む時に、書き終えたファイルを読むように
-        dataCache.remove(uuid);
+        // 非同期保存も含め、失敗した最新データは次の保存・再ログインで再利用する。
+        if (data != null && data.isDirty()) return;
+        if (data != null) dataCache.remove(uuid, data);
         loadFailed.remove(uuid);
     }
 

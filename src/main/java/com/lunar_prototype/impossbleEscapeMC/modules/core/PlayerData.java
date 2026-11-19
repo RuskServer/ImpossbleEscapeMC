@@ -54,6 +54,16 @@ public class PlayerData {
     /** 旧JSONに無い時は0。新規データは現行版から開始する。 */
     private int questlineVersion;
     private java.util.Set<String> retainedTradeUnlocks;
+    /** レイド状態とプレイヤーデータの保存順がずれても、同じ報酬を二度渡さない。 */
+    private java.util.Set<String> rewardedRaidSessions;
+
+    public boolean recordRaidReward(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) throw new IllegalArgumentException("レイドIDが必要です");
+        if (rewardedRaidSessions == null) rewardedRaidSessions = new java.util.HashSet<>();
+        boolean added = rewardedRaidSessions.add(sessionId);
+        if (added) dirty = true;
+        return added;
+    }
 
     // プレイヤー個人設定
     private boolean cancelAdsOnSprint;

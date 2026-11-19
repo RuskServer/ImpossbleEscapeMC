@@ -2498,5 +2498,15 @@
     "category": "RAID",
     "level": "WARNING",
     "channel": "CHAT"
+  },
+  "iem.market.unavailable": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
+  },
+  "iem.market.raid_blocked": {
+    "category": "MARKET",
+    "level": "ERROR",
+    "channel": "CHAT"
   }
 }

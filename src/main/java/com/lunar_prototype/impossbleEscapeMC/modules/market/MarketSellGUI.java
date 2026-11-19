@@ -46,6 +46,7 @@ public class MarketSellGUI implements Listener {
     }
 
     public void open() {
+        if (!marketModule.requireAccess(player)) return;
         setupGUI();
         Bukkit.getPluginManager().registerEvents(this, plugin);
         player.openInventory(inventory);
@@ -101,6 +102,7 @@ public class MarketSellGUI implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
         event.setCancelled(true);
+        if (!marketModule.requireAccess(player)) { player.closeInventory(); return; }
 
         int slot = event.getRawSlot();
         if (slot == 40) {

@@ -22,7 +22,7 @@ public final class QuestCompletionNoticeTest {
         class Probe extends QuestModule {
             int notifications;
             PlayerData data;
-            Probe(){super(null, null, null, null);}
+            Probe(){super(null, null, null, null, new com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule(null));}
             @Override void notifyCompletion(Player player,QuestDefinition completed) {
                 check(data.isQuestCompleted(completed.getId()),"completion recorded before notification");
                 check(data.getBalance()==8000&&data.getExperience()==950,"receipt only after cash and EXP are applied");

@@ -59,6 +59,7 @@ public class MarketMainGUI implements Listener {
     }
 
     public void open() {
+        if (!marketModule.requireAccess(player)) return;
         int pageCount = Math.max(1, (marketModule.getAllListings().size() + 44) / 45);
         page = Math.max(0, Math.min(page, pageCount - 1));
         this.inventory = Bukkit.createInventory(null, 54, GuiBackground.MARKET.pagedTitle(page, pageCount));
@@ -144,6 +145,7 @@ public class MarketMainGUI implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
         event.setCancelled(true);
+        if (!marketModule.requireAccess(player)) { player.closeInventory(); return; }
 
         int slot = event.getRawSlot();
         if (slot == 49) {
@@ -182,12 +184,18 @@ public class MarketMainGUI implements Listener {
     }
 
     private void handleListingInteraction(MarketListing listing) {
+        if (!marketModule.requireAccess(player)) return;
+        ItemStack[] before = com.lunar_prototype.impossbleEscapeMC.modules.inventory.PlayerStorageSnapshot
+                .cloneItems(player.getInventory().getStorageContents());
         if (listing.getSellerUuid().equals(player.getUniqueId())) {
             // 取り消し
             try {
                 ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());
                 if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.tryAddAll(player,item)) {
-                    marketModule.removeListing(listing.getId());
+                    if (!marketModule.removeListing(listing.getId())) {
+                        player.getInventory().setStorageContents(before);
+                        return;
+                    }
                     Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_001", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_001", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_001.text_01").color(NamedTextColor.GREEN))));
                     player.playSound(player.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1f);
                     setupGUI();
@@ -204,7 +212,11 @@ public class MarketMainGUI implements Listener {
                 try {
                     ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());
                     if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.tryAddAll(player,item)) {
-                        marketModule.removeListing(listing.getId());
+                        if (!marketModule.removeListing(listing.getId())) {
+                            player.getInventory().setStorageContents(before);
+                            economy.deposit(player.getUniqueId(), listing.getPrice());
+                            return;
+                        }
                         economy.deposit(listing.getSellerUuid(), listing.getPrice());
                         
                         Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_004", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_004", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_004.text_01", listing.getPrice()).color(NamedTextColor.GREEN))));

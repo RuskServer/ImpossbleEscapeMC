@@ -54,6 +54,7 @@ public class MarketPriceGUI implements Listener {
     }
 
     public void open() {
+        if (!marketModule.requireAccess(player)) return;
         setupGUI();
         Bukkit.getPluginManager().registerEvents(this, plugin);
         player.openInventory(inventory);
@@ -115,6 +116,7 @@ public class MarketPriceGUI implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getInventory().equals(inventory)) return;
         event.setCancelled(true);
+        if (!marketModule.requireAccess(player)) { player.closeInventory(); return; }
 
         int slot = event.getRawSlot();
         if (slot == 10) { price = Math.max(0, price - 10000); updateDisplay(); player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f); }
@@ -130,6 +132,7 @@ public class MarketPriceGUI implements Listener {
     }
 
     private void handleConfirm() {
+        if (!marketModule.requireAccess(player)) return;
         if (price <= 0) {
             Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_001", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_001", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_001.text_01").color(NamedTextColor.RED))));
             return;
@@ -155,7 +158,10 @@ public class MarketPriceGUI implements Listener {
                     price,
                     System.currentTimeMillis()
             );
-            marketModule.addListing(listing);
+            if (!marketModule.addListing(listing)) {
+                player.getInventory().setItem(originalSlot, inInv);
+                return;
+            }
             Messages.chat(player, "iem.market.marketpricegui.handleconfirm.notice_003", MessageText.of("iem.market.marketpricegui.handleconfirm.notice_003", MessageText.payload(MessageText.of("iem.market.marketpricegui.handleconfirm.notice_003.text_01", price).color(NamedTextColor.GREEN))));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 2f);
             player.closeInventory();

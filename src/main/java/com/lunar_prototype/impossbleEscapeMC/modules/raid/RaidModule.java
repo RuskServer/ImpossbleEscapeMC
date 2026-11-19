@@ -328,16 +328,26 @@ public class RaidModule implements IModule {
             raidPlayers.put(entry.getKey(), uuids);
         }
         state.put("activeRaids", raidPlayers);
+        Map<String, RaidProgress> progress = new HashMap<>();
+        activeRaids.forEach((id, raid) -> progress.put(id, raid.progressSnapshot()));
+        state.put("raidProgress", progress);
+        state.put("finishedThisCycle", finishedThisCycle);
         state.put("cycleStarts", new HashMap<>(lastCycleStartTime));
         state.put("rotationElapsed", rotationElapsed);
         Map<String, Map<String, Object>> left = new HashMap<>();
         disconnected.forEach((id, d) -> left.put(id.toString(), Map.of("mapId", d.mapId(), "cycleStart", d.cycleStart())));
         state.put("disconnected", left);
 
-        try (FileWriter writer = new FileWriter(stateFile)) {
-            gson.toJson(state, writer);
+        java.nio.file.Path target = stateFile.toPath();
+        java.nio.file.Path temporary = target.resolveSibling(stateFile.getName() + ".tmp");
+        try {
+            java.nio.file.Files.writeString(temporary, gson.toJson(state));
+            try { java.nio.file.Files.move(temporary, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE); }
+            catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                java.nio.file.Files.move(temporary, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
-            plugin.getLogger().warning("Failed to save raid state.");
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "Failed to save raid state.", e);
         }
     }
 
@@ -372,12 +382,36 @@ public class RaidModule implements IModule {
                 });
             }
 
+            if (state.get("finishedThisCycle") instanceof Map<?, ?> finished) {
+                finished.forEach((id, values) -> {
+                    if (values instanceof List<?> ids && maps.containsKey(String.valueOf(id))) {
+                        Set<UUID> members = new HashSet<>();
+                        for (Object value : ids) members.add(UUID.fromString(String.valueOf(value)));
+                        finishedThisCycle.put(String.valueOf(id), members);
+                    }
+                });
+            }
+            Set<String> restoredMaps = new HashSet<>();
+            if (state.get("raidProgress") instanceof Map<?, ?> savedProgress) {
+                for (var entry : savedProgress.entrySet()) {
+                    String mapId = String.valueOf(entry.getKey());
+                    RaidMap map = maps.get(mapId);
+                    if (map == null) continue;
+                    RaidProgress progress = gson.fromJson(gson.toJsonTree(entry.getValue()), RaidProgress.class);
+                    if (progress == null || progress.sessionId() == null || progress.sessionId().isBlank()) continue;
+                    RaidInstance raid = new RaidInstance(plugin, map, new ArrayList<>(), true, this, playersData, leveling,
+                            questService, backpacks, skillService, parties, scavs, corpseManager, mapManager, raidLogger, bosses, progress);
+                    raid.keepExistingGroundItems();
+                    activeRaids.put(mapId, raid);
+                    restoredMaps.add(mapId);
+                }
+            }
             if (state.containsKey("activeRaids")) {
                 Map<String, List<String>> raidPlayers = (Map<String, List<String>>) state.get("activeRaids");
                 for (Map.Entry<String, List<String>> entry : raidPlayers.entrySet()) {
                     String mapId = entry.getKey();
                     RaidMap map = maps.get(mapId);
-                    if (map == null) continue;
+                    if (map == null || restoredMaps.contains(mapId)) continue;
 
                     Set<UUID> uuids = new HashSet<>();
                     for (String uuidStr : entry.getValue()) {
@@ -800,9 +834,7 @@ public class RaidModule implements IModule {
         if (map != null && player.getWorld().getName().equals(map.getWorldName())
                 && lastCycleStartTime.getOrDefault(d.mapId(), 0L) == d.cycleStart()) {
             RaidInstance raid = activeRaids.get(d.mapId());
-            if (raid == null) {
-                raid = createRaid(d.mapId(), new ArrayList<>());
-            }
+            // 復帰先が消えていたら新規生成しない。再抽選・再補充による周回を防ぐ。
             if (raid != null && raid.rejoin(player)) return;
         }
         boolean inRaidWorld = maps.values().stream().anyMatch(m -> player.getWorld().getName().equals(m.getWorldName()));

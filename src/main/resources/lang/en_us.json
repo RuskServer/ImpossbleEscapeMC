@@ -1073,5 +1073,7 @@
   "iem.admin.acoustics.zone.hall": "Large interior",
   "iem.admin.acoustics.zone.underground": "Underground",
   "iem.raid.raidresults.view": "[View results]",
-  "iem.raid.boss_activity": "<gold>[Radio] <white><arg:0>: A high-value target is reportedly active in this area. They may have an escort. Stay alert."
+  "iem.raid.boss_activity": "<gold>[Radio] <white><arg:0>: A high-value target is reportedly active in this area. They may have an escort. Stay alert.",
+  "iem.market.unavailable": "The market is currently unavailable. Please contact an administrator.",
+  "iem.market.raid_blocked": "You cannot use the market during a raid. Extract first."
 }

@@ -7,7 +7,6 @@ import com.lunar_prototype.impossbleEscapeMC.modules.level.LevelModule;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.core.IModule;
 import com.lunar_prototype.impossbleEscapeMC.core.ServiceContainer;
@@ -17,7 +16,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 
 import java.io.*;
-import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,12 +32,16 @@ public class MarketModule implements IModule {
     private final File dataFile;
     private final Gson gson;
     private final Map<UUID, MarketListing> listings = new ConcurrentHashMap<>();
+    private final com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids;
+    private boolean loaded;
 
     @Inject
     public MarketModule(ImpossbleEscapeMC plugin,
             CommandRegistry commands,
             LevelModule levels,
-            com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule economy) {
+            com.lunar_prototype.impossbleEscapeMC.modules.economy.EconomyModule economy,
+            com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidModule raids) {
+        this.raids = raids;
         this.commands = commands;
         this.levels = levels;
         this.economy = economy;
@@ -63,17 +65,32 @@ public class MarketModule implements IModule {
     /**
      * 出品を追加
      */
-    public void addListing(MarketListing listing) {
-        listings.put(listing.getId(), listing);
-        saveListings();
+    public boolean addListing(MarketListing listing) {
+        if (!loaded || listings.putIfAbsent(listing.getId(), listing) != null) return false;
+        if (saveListings()) return true;
+        listings.remove(listing.getId(), listing);
+        return false;
     }
 
     /**
      * 出品を削除
      */
-    public void removeListing(UUID id) {
-        listings.remove(id);
-        saveListings();
+    public boolean removeListing(UUID id) {
+        if (!loaded) return false;
+        MarketListing previous = listings.remove(id);
+        if (previous == null) return false;
+        if (saveListings()) return true;
+        listings.put(id, previous);
+        return false;
+    }
+
+    /** 開いた後に出撃した場合も、確定操作の直前で再確認する。 */
+    public boolean requireAccess(org.bukkit.entity.Player player) {
+        String key = !loaded ? "iem.market.unavailable" : raids.isInRaid(player) ? "iem.market.raid_blocked" : null;
+        if (key == null) return true;
+        com.lunar_prototype.impossbleEscapeMC.api.message.Messages.chat(player, key,
+                com.lunar_prototype.impossbleEscapeMC.api.message.MessageText.of(key));
+        return false;
     }
 
     /**
@@ -123,28 +140,26 @@ public class MarketModule implements IModule {
     }
 
     private void loadListings() {
-        if (!dataFile.exists()) return;
-
-        try (Reader reader = new FileReader(dataFile)) {
-            Type listType = new TypeToken<List<MarketListing>>() {}.getType();
-            List<MarketListing> list = gson.fromJson(reader, listType);
-            if (list != null) {
-                for (MarketListing listing : list) {
-                    listings.put(listing.getId(), listing);
-                }
-            }
+        loaded = false;
+        try {
+            List<MarketListing> values = new MarketStorage(dataFile.toPath(), gson).load();
+            listings.clear();
+            values.forEach(value -> listings.put(value.getId(), value));
+            loaded = true;
         } catch (IOException e) {
-            plugin.getLogger().severe("Failed to load market listings");
-            e.printStackTrace();
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "マーケットを読み込めないため取引と保存を停止します。元ファイルは保持します", e);
         }
     }
 
-    private void saveListings() {
-        try (Writer writer = new FileWriter(dataFile)) {
-            gson.toJson(new ArrayList<>(listings.values()), writer);
+    private boolean saveListings() {
+        if (!loaded) return false;
+        try {
+            new MarketStorage(dataFile.toPath(), gson).save(listings.values());
+            return true;
         } catch (IOException e) {
-            plugin.getLogger().severe("Failed to save market listings");
-            e.printStackTrace();
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "マーケットを保存できませんでした", e);
+            return false;
         }
     }
 }

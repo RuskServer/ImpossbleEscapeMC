@@ -17,8 +17,7 @@ public class ExpReward extends QuestReward {
 
     @Override
     public void apply(Player player, PlayerData data, QuestModule module) {
-        data.setExperience(data.getExperience() + amount);
-        // レベルアップ処理が必要ならここで行う
+        module.awardExperience(data, amount);
     }
 
     @Override

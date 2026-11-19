@@ -38,6 +38,8 @@ public class MarketCommand implements BasicCommand {
             return;
         }
 
+        if (!marketModule.requireAccess(player)) return;
+
         int level = levelModule.getLevel(player.getUniqueId());
         if (level < 10) {
             Messages.chat(player, "iem.market.marketcommand.execute.notice_002", MessageText.of("iem.market.marketcommand.execute.notice_002", MessageText.payload(MessageText.of("iem.market.marketcommand.execute.notice_002.text_01", level).color(NamedTextColor.RED))));
