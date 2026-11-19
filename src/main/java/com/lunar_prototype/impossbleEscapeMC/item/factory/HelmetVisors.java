@@ -48,7 +48,7 @@ public final class HelmetVisors {
 
     /** そのヘルメットにそのバイザーを付けられるか */
     public static boolean fits(ItemDefinition helmet, String visorId) {
-        return helmet != null && helmet.armorStats != null && helmet.armorStats.visors != null
+        return visorId != null && helmet != null && helmet.armorStats != null && helmet.armorStats.visors != null
                 && helmet.armorStats.visors.contains(visorId);
     }
 
@@ -141,14 +141,31 @@ public final class HelmetVisors {
             visor = null;
         }
 
+        helmet.setItemMeta(meta);
+        refreshAppearance(helmet, def, visor);
+    }
+
+    static void refreshAppearance(ItemStack helmet) {
+        ItemDefinition def = helmetDef(helmet);
+        if (def == null) return;
+        String id = visorOf(helmet);
+        refreshAppearance(helmet, def, fits(def, id) ? ItemRegistry.get(id) : null);
+    }
+
+    private static void refreshAppearance(ItemStack helmet, ItemDefinition def, ItemDefinition visor) {
+        ItemMeta meta = helmet.getItemMeta();
+        var pdc = meta.getPersistentDataContainer();
         int model = visor == null ? def.armorStats.customModelData
                 : visor.visorStats != null && visor.visorStats.helmetCustomModelData != 0
                 ? visor.visorStats.helmetCustomModelData : def.armorStats.visorCustomModelData;
+        boolean hasLight = HelmetLights.isAttached(helmet);
+        if (hasLight) model = def.armorStats.flashlightModels.getOrDefault(model, model);
         meta.setCustomModelData(model != 0 ? model : null);
-        pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER, def.weight + (visor != null ? visor.weight : 0));
+        pdc.set(PDCKeys.ITEM_WEIGHT, PDCKeys.INTEGER,
+                def.weight + (visor != null ? visor.weight : 0) + (hasLight ? HelmetLights.weight() : 0));
 
         helmet.setItemMeta(meta);
-        ItemFactory.updateLore(helmet);
+        ItemFactory.updateCatalogLore(helmet);
     }
 
     private static String itemIdOf(ItemStack item) {

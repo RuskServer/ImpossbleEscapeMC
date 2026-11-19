@@ -24,6 +24,7 @@ flare_light_2
 flare_light_3
 flare_light_4
 flashlight
+helmet_flashlight
 grade
 grade_night_vision
 grade_night_vision_camera

@@ -8,10 +8,10 @@ import java.util.List;
 final class PostEffectStack {
     static final String NAMESPACE = "iem";
     private static Key key(String name) { return Key.key(NAMESPACE, name); }
-    private static final Key DEBUG = key("control_debug"), FLASHLIGHT = key("flashlight"), GRADE = key("grade"),
+    private static final Key DEBUG = key("control_debug"), FLASHLIGHT = key("flashlight"), HELMET_FLASHLIGHT = key("helmet_flashlight"), GRADE = key("grade"),
             CONTROL = key("control"), MENU = key("menu_clear"), COVER = key("intro_0");
 
-    record Layers(boolean debug, Key sky, Key flareLight, boolean flashlight, boolean graded, Key visor,
+    record Layers(boolean debug, Key sky, Key flareLight, boolean flashlight, boolean helmetFlashlight, boolean graded, Key visor,
                   Integer dazzle, Key wound, Key playback, Key hit, boolean menuClear, Key probe, boolean cover) { }
 
     static List<Key> externalOnly(List<Key> current) {
@@ -22,7 +22,7 @@ final class PostEffectStack {
         if (layer.debug()) effects.add(DEBUG);
         add(effects, layer.sky());
         add(effects, layer.flareLight());
-        if (layer.flashlight()) effects.add(FLASHLIGHT);
+        if (layer.flashlight()) effects.add(layer.helmetFlashlight() ? HELMET_FLASHLIGHT : FLASHLIGHT);
         // バイザーは画作りへ統合済み。画作りが無い時だけ数値の画素を隠す。
         effects.add(layer.graded() ? layer.visor() == null ? GRADE : key("grade_" + layer.visor().value()) : CONTROL);
         if (layer.graded() && layer.dazzle() != null) effects.add(key("dazzle_" + layer.dazzle()));

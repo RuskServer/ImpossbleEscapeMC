@@ -98,7 +98,7 @@ public final class FlashlightDazzle {
         for (Player holder : Bukkit.getOnlinePlayers()) {
             if (!Flashlight.isLit(holder)) continue;
             holders.add(holder.getUniqueId());
-            Location origin = handOf(holder);
+            Location origin = lightOrigin(holder);
             Vector dir = holder.getEyeLocation().getDirection();
             Set<UUID> lit = new HashSet<>();
             for (Player viewer : holder.getWorld().getPlayers()) {
@@ -152,12 +152,15 @@ public final class FlashlightDazzle {
         return t * t * (3 - 2 * t);
     }
 
-    /** 光の出る所: 目の少し右下・前 (手に持った位置。flashlight.fsh の Origin と同じくらい) */
-    private static Location handOf(Player holder) {
+    /** 手持ちとヘルメットで光源の高さを切り替える。 */
+    private static Location lightOrigin(Player holder) {
         Location eye = holder.getEyeLocation();
         Vector forward = eye.getDirection();
         Vector right = new Vector(-Math.sin(Math.toRadians(eye.getYaw() + 90)), 0, Math.cos(Math.toRadians(eye.getYaw() + 90)));
         Vector up = right.getCrossProduct(forward).normalize();
+        if (Flashlight.usesHelmetLight(holder)) {
+            return eye.add(right.multiply(0.17)).add(up.multiply(0.06)).add(forward.multiply(0.06));
+        }
         return eye.add(right.multiply(0.3)).add(up.multiply(-0.25)).add(forward.multiply(0.35));
     }
 

@@ -6,7 +6,7 @@ import net.kyori.adventure.key.Key;
 final class ScreenEffectState {
     static final int HIT_TICKS = 2, HIT_FADE_TICKS = 3;
     private static final Key HIT = Key.key("iem", "hit"), HIT_FADE = Key.key("iem", "hit_fade");
-    boolean controlDebug, menuClear, flashlit, graded, cover, awaitingRespawn;
+    boolean controlDebug, menuClear, flashlit, helmetFlashlight, graded, cover, awaitingRespawn;
     Key sky, flareLight, visor, wound, probe;
     Integer dazzle, hitTick, awaitingLoadSince, settlingUntil;
     int visorWet;
@@ -16,7 +16,7 @@ final class ScreenEffectState {
 
     PostEffectStack.Layers layers(int now) {
         Key hit = hitTick == null ? null : now - hitTick < HIT_TICKS ? HIT : HIT_FADE;
-        return new PostEffectStack.Layers(controlDebug, sky, flareLight, flashlit, graded, visor, dazzle, wound,
+        return new PostEffectStack.Layers(controlDebug, sky, flareLight, flashlit, helmetFlashlight, graded, visor, dazzle, wound,
                 playback == null ? null : playback.visibleEffect(), hit, menuClear, probe, cover);
     }
     void expireLoadWaits(int now, int timeout) {
@@ -40,7 +40,7 @@ final class ScreenEffectState {
     void death(ScreenEffectPlayback next) {
         awaitingRespawn = true;
         sky = flareLight = visor = wound = null;
-        flashlit = graded = false;
+        helmetFlashlight = flashlit = graded = false;
         dazzle = hitTick = null;
         replacePlayback(next);
     }

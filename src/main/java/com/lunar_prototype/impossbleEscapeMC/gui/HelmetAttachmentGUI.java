@@ -1,6 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.gui;
 
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetLights;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
@@ -21,8 +22,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * ヘルメットのアタッチメント画面 (いまはバイザーだけ)。同じ作業台の見た目・操作で、
- * 中央にヘルメット、上にバイザーのスロットを置く。
+ * ヘルメットのアタッチメント画面。中央にヘルメット、上に顔面装備、横に対応するライト枠を置く。
  * 編集するのは、手に持っているヘルメット、手に持っていなければかぶっているヘルメット
  * (開いた時の場所を覚えて、毎回その場所の今のヘルメットを読み、書き戻す)
  */
@@ -30,6 +30,7 @@ public class HelmetAttachmentGUI implements InventoryHolder {
 
     static final int HELMET_SLOT = AttachmentLayout.GUN_SLOT;
     static final int VISOR_SLOT = AttachmentLayout.position("visor");
+    static final int LIGHT_SLOT = AttachmentLayout.position("accessory");
     /** プレイヤーのインベントリでの、かぶっているヘルメットの場所 */
     static final int HEAD_INVENTORY_SLOT = 39;
 
@@ -42,7 +43,8 @@ public class HelmetAttachmentGUI implements InventoryHolder {
         this.player = player;
         this.inventorySlot = inventorySlot;
         this.helmetId = helmetId;
-        this.inventory = Bukkit.createInventory(this, AttachmentLayout.SIZE, AttachmentLayout.title(List.of(VISOR_SLOT)));
+        List<Integer> slots = supportsLight() ? List.of(VISOR_SLOT, LIGHT_SLOT) : List.of(VISOR_SLOT);
+        this.inventory = Bukkit.createInventory(this, AttachmentLayout.SIZE, AttachmentLayout.title(slots));
     }
 
     /**
@@ -71,6 +73,7 @@ public class HelmetAttachmentGUI implements InventoryHolder {
         inventory.setItem(HELMET_SLOT, helmet.clone());
         String visorId = HelmetVisors.visorOf(helmet);
         inventory.setItem(VISOR_SLOT, visorId != null ? attachedIcon(helmet) : emptyIcon());
+        if (supportsLight()) inventory.setItem(LIGHT_SLOT, lightIcon(helmet));
         return true;
     }
 
@@ -97,6 +100,29 @@ public class HelmetAttachmentGUI implements InventoryHolder {
 
     Player player() {
         return player;
+    }
+
+    boolean supportsLight() {
+        return HelmetLights.fits(helmetDef());
+    }
+
+    private ItemStack lightIcon(ItemStack helmet) {
+        boolean attached = HelmetLights.isAttached(helmet);
+        ItemStack icon = HelmetLights.attachedItem(helmet);
+        if (icon == null) icon = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = icon.getItemMeta();
+        meta.displayName(line("ヘルメットライト", NamedTextColor.WHITE));
+        if (attached) {
+            meta.lore(List.of(
+                    line("ヘルメットをかぶっている間は点灯", NamedTextColor.GRAY),
+                    line("左クリック: 取り外し", NamedTextColor.YELLOW)));
+        } else {
+            meta.setItemModel(AttachmentLayout.slotIcon("accessory"));
+            meta.lore(List.of(line("フラッシュライトを装着できます", NamedTextColor.GRAY),
+                    line("クリックまたはシフトクリックで装着", NamedTextColor.YELLOW)));
+        }
+        icon.setItemMeta(meta);
+        return icon;
     }
 
     private ItemStack attachedIcon(ItemStack helmet) {

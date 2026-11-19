@@ -45,6 +45,7 @@ public class PDCKeys {
     public static final NamespacedKey GUI_TYPE = key("gui_type");
     /** ヘルメットに付けたバイザーのアイテムID */
     public static final NamespacedKey HELMET_VISOR = key("helmet_visor");
+    public static final NamespacedKey HELMET_FLASHLIGHT = key("helmet_flashlight");
     /** 単体・装着中のバイザーの残耐久。ヘルメット本体のdurabilityには混ぜない。 */
     public static final NamespacedKey VISOR_DURABILITY = key("visor_durability");
     /** 支給装備 (無料の装備) の品。売値 0 (トレーダーで処分はできる)・納品できない・FIR にならない */

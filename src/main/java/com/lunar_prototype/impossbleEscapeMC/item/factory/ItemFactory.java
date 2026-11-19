@@ -239,6 +239,10 @@ public class ItemFactory {
 
     public static ItemStack updateLore(ItemStack item) {
         if (DatapackAttachments.attachmentIdOf(item) != null) return AttachmentItems.wrap(item);
+        return updateCatalogLore(item);
+    }
+
+    static ItemStack updateCatalogLore(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null)
             return item;
@@ -327,6 +331,9 @@ public class ItemFactory {
                     lore.add(visorLore("顔面防護クラス", Integer.toString(visor.visorStats.armorClass)));
                     lore.add(visorLore("バイザー耐久", HelmetVisors.durability(item, visor) + " / " + visor.visorStats.maxDurability));
                 }
+            }
+            if (HelmetLights.isAttached(item)) {
+                lore.add(visorLore("ヘルメットライト", "装着済み"));
             }
             lore.add("");
         }

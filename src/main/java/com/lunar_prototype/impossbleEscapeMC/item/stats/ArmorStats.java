@@ -43,6 +43,7 @@ public class ArmorStats {
     // ヘルメットのバイザー ({@link HelmetVisors})
     public List<String> visors; // 付けられるバイザーのアイテムID (無ければ付けられない)
     public int visorCustomModelData; // バイザーを付けた時の CustomModelData
+    public java.util.Map<Integer, Integer> flashlightModels = java.util.Map.of(); // ライトなし → ライト付き
 
     public ArmorStats() {
         this.dispensable = true;

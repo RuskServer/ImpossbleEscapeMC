@@ -456,6 +456,7 @@ public final class ScreenEffectService implements Listener {
         state.visor = withRain(player, alive ? HelmetVisors.postEffectOf(player.getInventory().getHelmet()) : null);
         state.graded = alive;
         state.flashlit = alive && com.lunar_prototype.impossbleEscapeMC.item.Flashlight.isLit(player);
+        state.helmetFlashlight = state.flashlit && com.lunar_prototype.impossbleEscapeMC.item.Flashlight.usesHelmetLight(player);
         if (!before.equals(state.layers(Bukkit.getCurrentTick()))) refresh(player);
         SunShadowService.setInRaid(player, raid != null);
     }

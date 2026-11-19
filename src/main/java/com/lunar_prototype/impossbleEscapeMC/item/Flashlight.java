@@ -3,6 +3,7 @@ package com.lunar_prototype.impossbleEscapeMC.item;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
+import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetLights;
 import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -56,12 +57,19 @@ public final class Flashlight implements Listener {
         return ITEM_ID.equals(item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING));
     }
 
-    /** 点いたフラッシュライトを手 (メイン・オフハンド) に持っているか */
+    /** ライト付きヘルメットをかぶっているか、点いたフラッシュライトを手に持っているか。 */
     public static boolean isLit(LivingEntity entity) {
-        if (entity == null || SWITCHED_OFF.contains(entity.getUniqueId())) return false;
+        if (entity == null || entity.isDead()) return false;
         if (entity instanceof Player player && player.getGameMode() == GameMode.SPECTATOR) return false;
         EntityEquipment equipment = entity.getEquipment();
-        return equipment != null && (isFlashlight(equipment.getItemInMainHand()) || isFlashlight(equipment.getItemInOffHand()));
+        return equipment != null && (HelmetLights.isAttached(equipment.getHelmet()) || !SWITCHED_OFF.contains(entity.getUniqueId())
+                && (isFlashlight(equipment.getItemInMainHand()) || isFlashlight(equipment.getItemInOffHand())));
+    }
+
+    /** 両方点いている時はヘルメット側の光源を使う。 */
+    public static boolean usesHelmetLight(LivingEntity entity) {
+        EntityEquipment equipment = entity.getEquipment();
+        return equipment != null && HelmetLights.isAttached(equipment.getHelmet());
     }
 
     /** メインの手で右クリック: 点ける・消す */

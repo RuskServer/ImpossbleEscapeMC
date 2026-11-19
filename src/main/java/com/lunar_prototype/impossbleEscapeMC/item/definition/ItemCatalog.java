@@ -127,6 +127,7 @@ public final class ItemCatalog {
         // バイザーを付けると CustomModelData 7 (バイザー付きのモデル)
         fast_mt.armorStats.visors = List.of("FAST-MT_visor", "PVS-14");
         fast_mt.armorStats.visorCustomModelData = 7;
+        fast_mt.armorStats.flashlightModels = java.util.Map.of(6, 13, 7, 14, 10, 15);
         items.add(fast_mt);
 
         ItemDefinition fast_mt_visor = item("FAST-MT_visor", "VISOR", Material.DIAMOND, "§b[FAST-MT] バイザー", 3, 8, 0, 600, 2);

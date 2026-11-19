@@ -3,6 +3,8 @@ package com.lunar_prototype.impossbleEscapeMC.gui;
 import com.lunar_prototype.impossbleEscapeMC.api.message.Messages;
 import com.lunar_prototype.impossbleEscapeMC.api.message.MessageText;
 
+import com.lunar_prototype.impossbleEscapeMC.item.Flashlight;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetLights;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetVisors;
 import com.lunar_prototype.impossbleEscapeMC.item.definition.ItemDefinition;
 import com.lunar_prototype.impossbleEscapeMC.item.registry.ItemRegistry;
@@ -32,7 +34,7 @@ public class HelmetAttachmentGUIListener implements Listener {
         // 編集中のヘルメット (手に持っている時) を持ち上げる・入れ替える操作は受け付けない
         boolean clickedHeld = event.getClickedInventory() == player.getInventory() && event.getSlot() == gui.inventorySlot();
         boolean swapsHeld = event.getClick() == ClickType.NUMBER_KEY && event.getHotbarButton() == gui.inventorySlot();
-        if (clickedHeld || swapsHeld) {
+        if (clickedHeld || swapsHeld || event.getClick() == ClickType.DOUBLE_CLICK) {
             event.setCancelled(true);
             return;
         }
@@ -51,8 +53,10 @@ public class HelmetAttachmentGUIListener implements Listener {
             if (!event.isShiftClick()) return;
             event.setCancelled(true);
             ItemStack item = event.getCurrentItem();
-            if (HelmetVisors.visorDef(item) == null) return;
-            if (attach(gui, helmet, item)) {
+            boolean attached = Flashlight.isFlashlight(item)
+                    ? attachLight(gui, helmet, item)
+                    : HelmetVisors.visorDef(item) != null && attach(gui, helmet, item);
+            if (attached) {
                 item.setAmount(item.getAmount() - 1);
                 event.getClickedInventory().setItem(event.getSlot(), item.getAmount() <= 0 ? null : item);
                 gui.refresh();
@@ -61,6 +65,10 @@ public class HelmetAttachmentGUIListener implements Listener {
         }
 
         event.setCancelled(true);
+        if (raw == HelmetAttachmentGUI.LIGHT_SLOT && gui.supportsLight()) {
+            clickLight(gui, helmet, event);
+            return;
+        }
         if (raw != HelmetAttachmentGUI.VISOR_SLOT) return;
 
         ItemStack cursor = event.getCursor();
@@ -83,6 +91,34 @@ public class HelmetAttachmentGUIListener implements Listener {
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 0.8f, 0.8f);
         Messages.chat(player, "iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002", MessageText.of("iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002", MessageText.payload(MessageText.of("iem.inventory.helmetattachmentguilistener.oninventoryclick.notice_002.text_01", displayName(visorId)))));
         gui.refresh();
+    }
+
+    private void clickLight(HelmetAttachmentGUI gui, ItemStack helmet, InventoryClickEvent event) {
+        if (event.getClick() != ClickType.LEFT) return;
+        Player player = gui.player();
+        ItemStack cursor = event.getCursor();
+        if (cursor != null && !cursor.getType().isAir()) {
+            if (!attachLight(gui, helmet, cursor)) return;
+            ItemStack rest = cursor.clone();
+            rest.setAmount(cursor.getAmount() - 1);
+            player.setItemOnCursor(rest.getAmount() <= 0 ? null : rest);
+        } else {
+            ItemStack light = HelmetLights.attachedItem(helmet);
+            if (light == null) return;
+            gui.setHelmet(HelmetLights.withoutLight(helmet));
+            give(player, light);
+            player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 0.8f, 0.8f);
+        }
+        gui.refresh();
+    }
+
+    private boolean attachLight(HelmetAttachmentGUI gui, ItemStack helmet, ItemStack light) {
+        ItemStack next = HelmetLights.withLight(helmet, light);
+        if (next == null) return false;
+        gui.setHelmet(next);
+        Player player = gui.player();
+        player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_IRON, 0.8f, 1.2f);
+        return true;
     }
 
     @EventHandler

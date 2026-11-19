@@ -32,7 +32,7 @@ Build with Java 25. Maven runs the default test suite and writes the plugin JAR 
 | Command | Purpose |
 | --- | --- |
 | `/party` | Manage your party. |
-| `/attachment` | Edit attachments on the held gun. |
+| `/attachment` | Edit attachments on the held gun or a compatible helmet. |
 | `/raid` | Configure and manage raids. |
 | `/loot` | Place, remove, and refill loot containers and spawn points. |
 | `/scavspawn` | Spawn a SCAV for testing. |

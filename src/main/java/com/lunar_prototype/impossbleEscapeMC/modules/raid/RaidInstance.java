@@ -22,6 +22,7 @@ import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.skill.SkillStat;
 import com.lunar_prototype.impossbleEscapeMC.ImpossbleEscapeMC;
 import com.lunar_prototype.impossbleEscapeMC.ai.ScavBrain;
+import com.lunar_prototype.impossbleEscapeMC.item.factory.HelmetLights;
 import com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory;
 import com.lunar_prototype.impossbleEscapeMC.modules.backpack.BackpackModule;
 import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
@@ -1156,10 +1157,15 @@ public class RaidInstance {
         }
 
         visitPlayerItems(player, item -> {
-            setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, true);
-            setBooleanFlag(item, PDCKeys.FIND_IN_RAID, false);
-            setBooleanFlag(item, PDCKeys.DROPPED_BY_PLAYER, false);
+            markBroughtIn(item);
+            HelmetLights.updateAttachment(item, this::markBroughtIn);
         }, backpackModule);
+    }
+
+    private void markBroughtIn(ItemStack item) {
+        setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, true);
+        setBooleanFlag(item, PDCKeys.FIND_IN_RAID, false);
+        setBooleanFlag(item, PDCKeys.DROPPED_BY_PLAYER, false);
     }
 
     private void clearRaidMarkersFromCurrentInventory(Player player) {
@@ -1168,7 +1174,11 @@ public class RaidInstance {
             backpackModule.saveBackpackFromOpenInventory(player);
         }
 
-        visitPlayerItems(player, item -> setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, false), backpackModule);
+        visitPlayerItems(player, item -> {
+            setBooleanFlag(item, PDCKeys.RAID_BROUGHT_IN, false);
+            HelmetLights.updateAttachment(item,
+                    light -> setBooleanFlag(light, PDCKeys.RAID_BROUGHT_IN, false));
+        }, backpackModule);
     }
 
     private void visitPlayerItems(Player player, Consumer<ItemStack> consumer, BackpackModule backpackModule) {
