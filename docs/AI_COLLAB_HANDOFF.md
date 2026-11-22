@@ -104,6 +104,13 @@ In `config.yml`:
 
 ## Change Log
 
+
+### 2026-11-22 — Extraction smoke
+
+- Active extraction points emit green smoke via up to eight non-persistent ItemDisplays. Only nearby raid participants can see the displays. Unloaded chunks stay unloaded, and raid shutdown, cycle reset and loss of nearby viewers remove the displays.
+- Smoke rises about eight blocks in open air. The ceiling limits height and size, and horizontal block collision limits wind drift. The visuals use the resource pack item model `iem:extraction_smoke` with fifteen sprite/opacity combinations.
+
+
 ### 2026-11-19 — Voronov commander hunt
 
 - Add Kovacs's late-game Voronov commander hunt after penetration and marksman work. Match the persistent leader boss ID and raid map; ordinary SCAVs, guards and other bosses cannot satisfy it. Preserve existing kill conditions and quest progress.

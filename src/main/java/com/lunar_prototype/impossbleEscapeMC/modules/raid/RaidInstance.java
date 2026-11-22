@@ -79,6 +79,8 @@ public class RaidInstance {
     /** 脱出範囲の表示 (範囲に入っている人にだけ円周を描く) */
     private final ExtractionRange extractionRange = new ExtractionRange();
     private org.bukkit.scheduler.BukkitTask rangeTask;
+    private final ExtractionSmoke extractionSmoke;
+    private org.bukkit.scheduler.BukkitTask smokeTask;
     /** 中央上のコンパスと右上の残り時間 (プレイヤーごとのボスバー) */
     private final RaidHud hud;
     private int respawnTicks = 0;
@@ -217,6 +219,7 @@ public class RaidInstance {
             virtualScavs.add(new VirtualScav(sp.getLocation(map.getWorldName()), sp.isPermanent()));
         }
 
+        extractionSmoke = new ExtractionSmoke(plugin);
         assignExtractions();
         startTask();
 
@@ -354,6 +357,14 @@ public class RaidInstance {
         task.runTaskTimer(plugin, 0, 20);
         rangeTask = Bukkit.getScheduler().runTaskTimer(plugin, this::showExtractionRanges,
                 ExtractionRange.INTERVAL_TICKS, ExtractionRange.INTERVAL_TICKS);
+        smokeTask = Bukkit.getScheduler().runTaskTimer(plugin, this::showExtractionSmoke,
+                ExtractionSmoke.INTERVAL_TICKS, ExtractionSmoke.INTERVAL_TICKS);
+    }
+
+    private void showExtractionSmoke() {
+        var online = players.stream().map(Bukkit::getPlayer)
+                .filter(player -> player != null && player.isOnline()).toList();
+        extractionSmoke.tick(Bukkit.getWorld(map.getWorldName()), activeExtractions, online);
     }
 
     /** 脱出地点の範囲に入っている人に、その範囲の円周を見せる (判定は checkExtractions と同じ) */
@@ -474,6 +485,7 @@ public class RaidInstance {
 
     public void resetCycle() {
         bossEncounter.cleanup();
+        extractionSmoke.clear();
         activeExtractions.clear();
         assignExtractions();
         // Cleanup SCAVs for the new cycle
@@ -735,6 +747,8 @@ public class RaidInstance {
 
         if (task != null) task.cancel();
         if (rangeTask != null) rangeTask.cancel();
+        if (smokeTask != null) smokeTask.cancel();
+        extractionSmoke.clear();
         hud.stop();
         endSequence.stop();
         bossEncounter.cleanup();
@@ -1082,6 +1096,8 @@ public class RaidInstance {
         ended = true;
         if (task != null) task.cancel();
         if (rangeTask != null) rangeTask.cancel();
+        if (smokeTask != null) smokeTask.cancel();
+        extractionSmoke.clear();
         hud.stop();
         endSequence.stop();
         bossEncounter.cleanup();
