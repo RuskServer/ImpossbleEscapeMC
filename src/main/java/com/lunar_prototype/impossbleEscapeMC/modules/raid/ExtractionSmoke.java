@@ -116,7 +116,8 @@ final class ExtractionSmoke {
     static Sample sample(double life, double ceiling, int seed, double direction) {
         double spread = life * (1.9 + 0.21 * Math.sin(seed * 2.7));
         double sway = Math.sin(seed * 2.4 + life * 4.2) * (0.12 + 0.37 * life);
-        float size = (float) Math.min(0.91 + life * 2.23 + Math.sin(seed) * 0.16, ceiling * 0.72);
+        // 粒の輪郭が大きな板に見えないよう、上に行っても広がりは控えめにする。
+        float size = (float) Math.min(0.80 + life * 1.30 + Math.sin(seed) * 0.12, ceiling * 0.72);
         double rise = life * Math.min(RISE_HEIGHT, ceiling - size * 0.72);
         // 出始めを薄くし、頂上の手前からゆっくり消す。
         double opacity = Math.min(1.0, life / 0.16) * Math.min(1.0, (1.0 - life) / 0.42);
@@ -124,7 +125,7 @@ final class ExtractionSmoke {
         int sprite = Math.floorMod(seed, SHAPES) * OPACITY_LEVELS + level;
         return new Sample(Math.cos(direction) * spread - Math.sin(direction) * sway, rise,
                 Math.sin(direction) * spread + Math.cos(direction) * sway, size,
-                (float) (seed * 1.7 + life * 0.55), sprite);
+                (float) (Math.sin(seed * 1.7) * 0.17 + life * 0.12), sprite);
     }
 
     record Sample(double x, double y, double z, float size, float angle, int sprite) { }
@@ -228,7 +229,6 @@ final class ExtractionSmoke {
                 entity.setBillboard(Display.Billboard.CENTER);
                 entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
                 entity.setViewRange(2.0f);
-                entity.setBrightness(new Display.Brightness(10, 10));
                 entity.setShadowRadius(0);
                 entity.setTeleportDuration(INTERVAL_TICKS);
                 entity.setInterpolationDuration(INTERVAL_TICKS);
