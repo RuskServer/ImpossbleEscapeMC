@@ -38,6 +38,7 @@ public class PDCKeys {
     public static final NamespacedKey MAP_ZOOM = key("map_zoom");
     public static final NamespacedKey LOCKED_SLOT_PLACEHOLDER = key("locked_slot_placeholder");
     public static final NamespacedKey FIND_IN_RAID = key("find_in_raid");
+    public static final NamespacedKey RAID_DEATH_RETURN = key("raid_death_return");
     public static final NamespacedKey RAID_BROUGHT_IN = key("raid_brought_in");
     public static final NamespacedKey DROPPED_BY_PLAYER = key("dropped_by_player");
     public static final NamespacedKey QUEST_ID = key("quest_id");

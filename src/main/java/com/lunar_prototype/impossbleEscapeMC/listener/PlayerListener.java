@@ -206,7 +206,7 @@ public class PlayerListener implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         Location deathLoc = player.getLocation();
@@ -235,27 +235,6 @@ public class PlayerListener implements Listener {
         plugin.getRaidModule().onPlayerDeath(player);
         // ミニゲームの死亡・退出は MinigameListener が参加者だけ扱う (ここでも呼ぶと 2 重になり、キルの記録より先に脱落させてしまう)
         clearMovementState(player.getUniqueId());
-    }
-
-    @EventHandler
-    public void onPlayerRespawn(org.bukkit.event.player.PlayerRespawnEvent event) {
-        Player player = event.getPlayer();
-        if (player.hasMetadata("raid_death_failure")) {
-            player.removeMetadata("raid_death_failure", plugin);
-
-            // 脱出失敗（死亡）時はメインワールドの初期スポーン地点へ戻す
-            event.setRespawnLocation(org.bukkit.Bukkit.getWorlds().get(0).getSpawnLocation());
-
-            // テレポート（リスポーン）後にエフェクトを適用
-            new org.bukkit.scheduler.BukkitRunnable() {
-                @Override
-                public void run() {
-                    if (player.isOnline()) {
-                        plugin.getRaidModule().applyFailureEffect(player);
-                    }
-                }
-            }.runTaskLater(plugin, 5); // 0.25秒後に実行
-        }
     }
 
     @EventHandler

@@ -104,6 +104,12 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-23 — Timed death scene
+
+- A raid death is resolved normally before the victim respawns as a locked spectator at the death location. Transfer to the lobby under full blackout, restore Adventure mode, and hold the result dialog until the reveal completes. A player PDC marker recovers interrupted returns on respawn or login.
+- `iem:death` replaces the four old death effects. The shared world-age packet relay reserves 18500 for field playback, 18750 for blackout, and 18900 for recovery, below the EMP range at 20000. The server sends the phase starts and handles transfer; the shader animates the image continuously.
+
+
 
 ### 2026-11-22 — Extraction smoke
 
@@ -471,3 +477,9 @@ In `config.yml`:
 - フラッシュライトを既存のヘルメット装着画面でFAST-MTの専用枠に付ける。顔面装備は従来通り1枠で、ライトと独立する。装着中の重さとモデルは両方の装備から計算する。
 - ヘルメットをかぶっている間は点灯する。手持ちと両方が有効な場合はヘルメット位置の光を使い、通常のフラッシュライトと同じSCAV視認・眩惑の処理へ渡す。対応するパックのモデルIDは13〜15、ポストエフェクトは `iem:helmet_flashlight`。
 - 装着したライトは実物1個分をヘルメットのPDCに保存する。取り外し時は元の品を返す。レイドへの持ち込み印の更新もライトに適用する。
+
+### 死亡地点でのターミナル演出
+
+- レイド死亡は自動リスポーン後に死亡地点でスペクテイター待機し、移動・観戦をロック。単一のiem:deathとワールド年齢の予約領域で時計を開始し、96tick後の暗転中にロビーへ転送する。読み込み中は暗転を保持し、到着後の6tickでグリッチ復帰する。切断・停止時は帰還印を残して次回のロビー復帰を保証する。
+- パックのdeath.fshは画面を傾けず、赤黒の段階背景・小さい赤い頭蓋マークと英語ログ・CLI進捗・高速走査帯・移行後の信号乱れを描く。文字は専用画像を使い、GUI倍率による配置ずれを避ける。
+- FIELD開始と同時にiem:death.sequenceを本人だけへ一度再生。採用した144BPM低音シンセ、機械音、CC0グリッチ、かすれたContract failed.のみを含む固定ミックス。途中離脱・置換・帰還・停止では停止する。通常は約5秒、読み込みが遅いときは暗転待機が延びる。リソースパックも同時更新する。

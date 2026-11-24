@@ -13,11 +13,18 @@ final class ScreenEffectState {
     Float sentWet;
     ScreenEffectPlayback playback;
     AdrenalineHeartbeatRecovery recovery;
+    DeathScene deathScene;
+    private static final Key DEATH = Key.key("iem", "death");
 
     PostEffectStack.Layers layers(int now) {
         Key hit = hitTick == null ? null : now - hitTick < HIT_TICKS ? HIT : HIT_FADE;
+        boolean deadScene = deathScene != null;
+        Key effect = deadScene ? switch (deathScene.phase) {
+            case WAIT_RESPAWN, WAIT_FIELD -> null;
+            case FIELD, TRANSFER, RETURN -> DEATH;
+        } : playback == null ? null : playback.visibleEffect();
         return new PostEffectStack.Layers(controlDebug, sky, flareLight, flashlit, helmetFlashlight, graded, visor, dazzle, wound,
-                playback == null ? null : playback.visibleEffect(), hit, menuClear, probe, cover);
+                effect, deadScene ? null : hit, menuClear, probe, cover);
     }
     void expireLoadWaits(int now, int timeout) {
         if (awaitingLoadSince != null && now - awaitingLoadSince >= timeout) awaitingLoadSince = null;
@@ -48,5 +55,6 @@ final class ScreenEffectState {
         if (playback != null) playback.cancel();
         playback = null;
         recovery = null;
+        deathScene = null;
     }
 }

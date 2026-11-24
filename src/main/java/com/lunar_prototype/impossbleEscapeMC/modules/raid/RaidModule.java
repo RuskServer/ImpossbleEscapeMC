@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
+import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.boss.BossIdentity;
 
@@ -783,9 +784,9 @@ public class RaidModule implements IModule {
     public void onPlayerDeath(Player player) {
         for (RaidInstance raid : activeRaids.values()) {
             if (raid.isParticipant(player.getUniqueId())) {
+                // 結果表示を待機させ、演出中の切断や再起動でもロビーへの帰還を引き継ぐ。
+                player.getPersistentDataContainer().set(PDCKeys.RAID_DEATH_RETURN, PDCKeys.BOOLEAN, (byte) 1);
                 raid.onPlayerDeath(player);
-                // Mark for failure effect on respawn
-                player.setMetadata("raid_death_failure", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
                 return;
             }
         }

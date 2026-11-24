@@ -18,7 +18,7 @@ grade_night_vision_full
 muzzle_flash_hip
 adrenaline
 bleeding
-death_blackout
+death
 adrenaline_fade
 # ロアのムービー
 lore_intro

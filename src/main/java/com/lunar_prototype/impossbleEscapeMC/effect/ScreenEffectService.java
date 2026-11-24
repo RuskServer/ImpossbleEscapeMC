@@ -1,5 +1,7 @@
 package com.lunar_prototype.impossbleEscapeMC.effect;
 
+import com.destroystokyo.paper.event.player.PlayerPostRespawnEvent;
+import com.destroystokyo.paper.event.player.PlayerStartSpectatingEntityEvent;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
@@ -12,10 +14,12 @@ import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerData;
 import com.lunar_prototype.impossbleEscapeMC.modules.core.PlayerDataModule;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidEndSequence;
 import com.lunar_prototype.impossbleEscapeMC.modules.raid.RaidInstance;
+import com.lunar_prototype.impossbleEscapeMC.util.PDCKeys;
 import io.papermc.paper.event.player.PlayerClientLoadedWorldEvent;
 import net.kyori.adventure.key.Key;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.attribute.Attribute;
@@ -26,7 +30,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -57,7 +63,7 @@ import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectPlayback.Step;
  *   <li>数値の画素: 画作りの無い時だけ iem:control。数値の画素を隣の行の色で隠す (画作りがある時は画作りが隠している)</li>
  *   <li>まぶしさ: ほかの人のフラッシュライトを向けられている間 iem:dazzle_&lt;段階&gt; ({@link #setDazzle}。段階は FlashlightDazzle が決める)</li>
  *   <li>負傷: 出血中は iem:bleeding、出血中で体力が少ない (瀕死) 時は iem:bleeding_critical</li>
- *   <li>演出: アドレナリン放出・死亡・レイド開始・EMP の閃光・ロアのムービー ({@link #playLoreIntro})。パラメーターを送れないため、強さ違いのエフェクトを時間割 (Step) で切り替える</li>
+ *   <li>演出: アドレナリン放出・レイド開始・EMP の閃光・ロアのムービー ({@link #playLoreIntro}) は時間割 (Step) を使う。死亡演出は1つのシェーダーが経過時刻で進める。</li>
  *   <li>被弾: 撃たれた瞬間の iem:hit → iem:hit_fade</li>
  * </ol>
  * 付け外しするのは iem 名前空間のエフェクトだけで、他のポストエフェクトには触れない。
@@ -74,10 +80,6 @@ public final class ScreenEffectService implements Listener {
     private static final Key ADRENALINE_ONSET = Key.key(NAMESPACE, "adrenaline_onset");
     private static final Key ADRENALINE = Key.key(NAMESPACE, "adrenaline");
     private static final Key ADRENALINE_FADE = Key.key(NAMESPACE, "adrenaline_fade");
-    private static final Key DEATH_IMPACT = Key.key(NAMESPACE, "death_impact");
-    private static final Key DEATH_BLACKOUT = Key.key(NAMESPACE, "death_blackout");
-    private static final Key DEATH_FADE = Key.key(NAMESPACE, "death_fade");
-    private static final Key DEATH_RECOVER = Key.key(NAMESPACE, "death_recover");
     private static final Key BLEEDING = Key.key(NAMESPACE, "bleeding");
     private static final Key BLEEDING_CRITICAL = Key.key(NAMESPACE, "bleeding_critical");
     private static final Key EMP_FLASH = Key.key(NAMESPACE, "emp_flash");
@@ -92,12 +94,6 @@ public final class ScreenEffectService implements Listener {
 
     private static final int ADRENALINE_ONSET_TICKS = 4;
     private static final int ADRENALINE_FADE_TICKS = 12;
-    // 死亡演出は合計4秒: 衝撃 → 暗転 → 薄れる → 回復。
-    // 即時リスポーンで死んだ瞬間にロビーへ戻るため、ロビーに着いてから死んだことを受け止める間を取る
-    private static final int DEATH_IMPACT_TICKS = 6;
-    private static final int DEATH_BLACKOUT_TICKS = 28;
-    private static final int DEATH_FADE_TICKS = 26;
-    private static final int DEATH_RECOVER_TICKS = 20;
     /** 心拍の周期。adrenaline.fsh の BEAT_TICKS と同じ値にして、心音と画面の脈動を揃える */
     private static final int HEARTBEAT_TICKS = 10;
     /** 瀕死の心拍の周期。bleeding_critical.json の BeatTicks と同じ値にして、心音と画面の脈動を揃える */
@@ -176,6 +172,11 @@ public final class ScreenEffectService implements Listener {
         PacketEvents.getAPI().getEventManager().unregisterListener(service.playerLoadedListener);
         org.bukkit.event.HandlerList.unregisterAll(service);
         Bukkit.getMessenger().unregisterOutgoingPluginChannel(service.plugin, WET_CHANNEL);
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            player.stopSound(DeathScene.SOUND, SoundCategory.MASTER);
+            if (needsRaidReturn(player) && !player.isDead()) service.returnInterruptedDeath(player);
+            EmpSkySignal.clearDeath(player.getUniqueId());
+        }
         service.states.values().forEach(ScreenEffectState::discard);
         service.states.clear();
         Bukkit.getOnlinePlayers().forEach(service.transport::clear);
@@ -385,6 +386,11 @@ public final class ScreenEffectService implements Listener {
         tickCriticalHeartbeat();
         for (var entry : new ArrayList<>(states.entrySet())) {
             ScreenEffectState state = entry.getValue();
+            if (state.deathScene != null) {
+                Player player = Bukkit.getPlayer(entry.getKey());
+                if (player != null) tickDeathScene(player, state, now);
+                continue;
+            }
             ScreenEffectPlayback playback = state.playback;
             if (playback == null) continue;
             Player player = Bukkit.getPlayer(entry.getKey());
@@ -433,11 +439,6 @@ public final class ScreenEffectService implements Listener {
                 plugin.getLogger().log(java.util.logging.Level.WARNING, "画面効果の段の処理に失敗しました", e);
             }
         }
-        if (DEATH_IMPACT.equals(step.effect())) {
-            // 不意を突く低い衝撃音と耳鳴り
-            player.playSound(player, Sound.ENTITY_WARDEN_SONIC_BOOM, SoundCategory.PLAYERS, 0.8f, 0.6f);
-            player.playSound(player, Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.PLAYERS, 1.0f, 0.5f);
-        }
     }
 
     // --- 空・画作り・負傷・被弾の層 ---
@@ -448,6 +449,7 @@ public final class ScreenEffectService implements Listener {
         ScreenEffectState state = state(player);
         PostEffectStack.Layers before = state.layers(Bukkit.getCurrentTick());
         boolean alive = !player.isDead() && !state.awaitingRespawn
+                && (state.deathScene == null || state.deathScene.phase == DeathScene.Phase.RETURN)
                 && player.getGameMode() != GameMode.SPECTATOR && player.getGameMode() != GameMode.CREATIVE;
         RaidInstance raid = alive && plugin.getRaidModule() != null ? plugin.getRaidModule().getRaidOf(player) : null;
         state.sky = raid != null ? raid.getEndSequence().skyEffect() : null;
@@ -590,31 +592,164 @@ public final class ScreenEffectService implements Listener {
 
     private void forget(UUID playerId) {
         ScreenEffectState state = states.remove(playerId);
+        Player player = Bukkit.getPlayer(playerId);
+        if (player != null && state != null && state.deathScene != null) {
+            player.stopSound(DeathScene.SOUND, SoundCategory.MASTER);
+        }
         if (state != null) state.discard();
+        EmpSkySignal.clearDeath(playerId);
         muzzleSignal.clear(playerId);
     }
 
     // --- 死亡・リスポーン・ワールド移動 ---
 
-    /** 即時リスポーンの環境では死亡画面が出ないため、死亡演出はリスポーン先の読み込み完了後に流す */
-    @EventHandler(priority = EventPriority.MONITOR)
+    public static boolean isDeathSceneActive(Player player) {
+        if (instance == null) return false;
+        ScreenEffectState state = instance.states.get(player.getUniqueId());
+        return state != null && state.deathScene != null;
+    }
+
+    private static boolean needsRaidReturn(Player player) {
+        return player.getPersistentDataContainer().has(PDCKeys.RAID_DEATH_RETURN, PDCKeys.BOOLEAN);
+    }
+
+    private static Location lobby() {
+        return Bukkit.getWorlds().getFirst().getSpawnLocation();
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
-        state(player).death(new ScreenEffectPlayback(List.of(
-                new Step(DEATH_IMPACT, DEATH_IMPACT_TICKS, false),
-                new Step(DEATH_BLACKOUT, DEATH_BLACKOUT_TICKS, false),
-                new Step(DEATH_FADE, DEATH_FADE_TICKS, false),
-                new Step(DEATH_RECOVER, DEATH_RECOVER_TICKS, false)), false, null));
+        ScreenEffectState state = state(player);
+        player.stopSound(DeathScene.SOUND, SoundCategory.MASTER);
+        state.death(null);
+        EmpSkySignal.clearDeath(player.getUniqueId());
+        DeathScene scene = new DeathScene(player.getLocation(), needsRaidReturn(player));
+        state.deathScene = scene;
         muzzleSignal.clear(player.getUniqueId());
+        refresh(player);
+        if (scene.raid) Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && player.isDead() && state.deathScene == scene) player.spigot().respawn();
+        });
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        ScreenEffectState state = state(player);
+        DeathScene scene = state.deathScene;
+        if (needsRaidReturn(player)) {
+            // 切断・再起動で死亡地点の演出がなくなった場合はロビーで復帰。
+            event.setRespawnLocation(scene != null && scene.raid ? scene.origin : lobby());
+        }
+        if (scene != null) scene.enter(DeathScene.Phase.WAIT_FIELD, Bukkit.getCurrentTick());
+        state.awaitingRespawn = false;
+        state.awaitingLoadSince = Bukkit.getCurrentTick();
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPostRespawn(PlayerPostRespawnEvent event) {
+        Player player = event.getPlayer();
+        DeathScene scene = state(player).deathScene;
+        if (scene != null && scene.raid && scene.locksPlayer()) {
+            player.setGameMode(GameMode.SPECTATOR);
+            if (player.getGameMode() != GameMode.SPECTATOR) {
+                // ゲームモード変更を拒否された人を死亡地点で操作可能にしない。
+                state(player).deathScene = null;
+                returnInterruptedDeath(player);
+            }
+        } else if (needsRaidReturn(player)) {
+            returnInterruptedDeath(player);
+        }
+    }
+
+    private void tickDeathScene(Player player, ScreenEffectState state, int now) {
+        DeathScene scene = state.deathScene;
+        switch (scene.phase) {
+            case WAIT_RESPAWN -> { }
+            case WAIT_FIELD -> {
+                if (!scene.readyAtSite(now, canAdvance(player.getUniqueId()))) return;
+                scene.enter(DeathScene.Phase.FIELD, now);
+                EmpSkySignal.setDeath(player, DeathScene.Signal.FIELD);
+                refresh(player);
+                player.playSound(player, DeathScene.SOUND, SoundCategory.MASTER, 1.0f, 1.0f);
+            }
+            case FIELD -> {
+                if (scene.elapsed(now) < DeathScene.FIELD_TICKS) return;
+                if (!scene.raid) {
+                    beginDeathReturn(player, state, now);
+                    return;
+                }
+                scene.enter(DeathScene.Phase.TRANSFER, now);
+                EmpSkySignal.setDeath(player, DeathScene.Signal.HOLD);
+                scene.moving = true;
+                boolean arrived;
+                try {
+                    arrived = player.teleport(lobby());
+                } finally {
+                    scene.moving = false;
+                }
+                if (!arrived) {
+                    // 他プラグインが転送を止めても、暗転やスペクテイターを残さない。
+                    player.setGameMode(GameMode.ADVENTURE);
+                    beginDeathReturn(player, state, now);
+                }
+            }
+            case TRANSFER -> {
+                boolean loading = state.awaitingLoadSince != null || state.settlingUntil != null && now < state.settlingUntil;
+                if (!scene.canRevealLobby(now, loading)) return;
+                player.setGameMode(GameMode.ADVENTURE);
+                if (player.getGameMode() == GameMode.ADVENTURE) {
+                    player.getPersistentDataContainer().remove(PDCKeys.RAID_DEATH_RETURN);
+                }
+                beginDeathReturn(player, state, now);
+            }
+            case RETURN -> {
+                if (scene.elapsed(now) < DeathScene.RETURN_TICKS) return;
+                state.deathScene = null;
+                refresh(player);
+                EmpSkySignal.clearDeath(player.getUniqueId());
+            }
+        }
+    }
+
+    private void beginDeathReturn(Player player, ScreenEffectState state, int now) {
+        player.stopSound(DeathScene.SOUND, SoundCategory.MASTER);
+        state.deathScene.enter(DeathScene.Phase.RETURN, now);
+        EmpSkySignal.setDeath(player, DeathScene.Signal.RETURN);
+        updateGradeAndWound(player);
         refresh(player);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onRespawn(PlayerRespawnEvent event) {
-        UUID playerId = event.getPlayer().getUniqueId();
-        ScreenEffectState state = state(playerId);
-        state.awaitingRespawn = false;
-        state.awaitingLoadSince = Bukkit.getCurrentTick();
+    /** シーン中に抜けた人は、次回のログインまたはリスポーンで帰還させる。 */
+    private void returnInterruptedDeath(Player player) {
+        if (player.isDead()) return;
+        player.setGameMode(GameMode.ADVENTURE);
+        if (player.teleport(lobby()) && player.getGameMode() == GameMode.ADVENTURE) {
+            player.getPersistentDataContainer().remove(PDCKeys.RAID_DEATH_RETURN);
+        }
+    }
+
+    private DeathScene lockedScene(Player player) {
+        ScreenEffectState state = states.get(player.getUniqueId());
+        if (state == null || state.deathScene == null || !state.deathScene.locksPlayer()) return null;
+        return state.deathScene;
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onDeathSceneMove(PlayerMoveEvent event) {
+        if (!(event instanceof PlayerTeleportEvent) && lockedScene(event.getPlayer()) != null) event.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onDeathSceneTeleport(PlayerTeleportEvent event) {
+        DeathScene scene = lockedScene(event.getPlayer());
+        if (scene != null && !scene.moving) event.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onDeathSceneSpectate(PlayerStartSpectatingEntityEvent event) {
+        if (lockedScene(event.getPlayer()) != null) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -646,6 +781,7 @@ public final class ScreenEffectService implements Listener {
         forget(event.getPlayer().getUniqueId());
         clearIem(event.getPlayer());
         state(event.getPlayer()).awaitingLoadSince = Bukkit.getCurrentTick();
+        if (needsRaidReturn(event.getPlayer())) returnInterruptedDeath(event.getPlayer());
     }
 
     @EventHandler

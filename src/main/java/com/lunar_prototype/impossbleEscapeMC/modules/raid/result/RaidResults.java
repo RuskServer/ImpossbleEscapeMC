@@ -1,5 +1,6 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid.result;
 
+import com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService;
 import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Service;
 import com.lunar_prototype.impossbleEscapeMC.core.di.annotations.Inject;
 import com.lunar_prototype.impossbleEscapeMC.core.lifecycle.Startable;
@@ -88,7 +89,7 @@ public final class RaidResults implements Startable, Stoppable {
                     cancel();
                     return;
                 }
-                alive = p.isDead() ? 0 : alive + 5;
+                alive = p.isDead() || ScreenEffectService.isDeathSceneActive(p) ? 0 : alive + 5;
                 if (alive < OPEN_DELAY_TICKS) return;
                 owner.pending.remove(id, this);
                 cancel();
@@ -101,6 +102,7 @@ public final class RaidResults implements Startable, Stoppable {
 
     /** 最後のレイドの結果の画面を開く (1 ページ目から) */
     public static void open(Player player) {
+        if (ScreenEffectService.isDeathSceneActive(player)) return;
         RaidReport report = REPORTS.get(player.getUniqueId());
         if (report == null) {
             Messages.chat(player, "iem.raid.raidresults.open.notice_001", MessageText.of("iem.raid.raidresults.open.notice_001", MessageText.payload(MessageText.of("iem.raid.raidresults.open.notice_001.text_01").color(NamedTextColor.RED))));

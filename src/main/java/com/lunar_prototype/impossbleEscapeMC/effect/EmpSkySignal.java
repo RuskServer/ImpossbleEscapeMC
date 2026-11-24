@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li>0〜17999: 通常。全員・全ワールドの時刻パケットを、余りが必ずこの範囲になるよう書き換える。
  *       クライアントは次の同期まで自分で時刻を進めるため、演出の範囲との間を空けておく</li>
+ *   <li>18500〜19000: 死亡演出。専用のポストエフェクトが使う時間。</li>
  *   <li>20000〜23999: 演出中。20000 + 演出の開始からのtick を送り、シェーダーはそこから経過時間を読む</li>
  * </ul>
  * 書き換えるのはクライアントに見せる値だけで、サーバーの経過tick (予約されたブロック更新・データパックの schedule など) には触れない。
@@ -38,9 +39,13 @@ public final class EmpSkySignal extends PacketListenerAbstract {
     private record Signal(int startTick, long base) {
     }
 
+    private record DeathSignal(DeathScene.Signal phase, int startTick, long base) { }
+
     private static EmpSkySignal instance;
 
     private final Map<UUID, Signal> signals = new ConcurrentHashMap<>();
+
+    private final Map<UUID, DeathSignal> deaths = new ConcurrentHashMap<>();
 
     private EmpSkySignal() {
         super(PacketListenerPriority.NORMAL);
@@ -58,11 +63,14 @@ public final class EmpSkySignal extends PacketListenerAbstract {
         EmpSkySignal stopping = instance;
         PacketEvents.getAPI().getEventManager().unregisterListener(stopping);
         instance = null;
-        for (UUID id : stopping.signals.keySet()) {
+        var affected = new java.util.HashSet<>(stopping.signals.keySet());
+        affected.addAll(stopping.deaths.keySet());
+        for (UUID id : affected) {
             Player player = Bukkit.getPlayer(id);
             if (player != null) resend(player);
         }
         stopping.signals.clear();
+        stopping.deaths.clear();
     }
 
     /** このプレイヤーの空で演出を始める。シェーダーの時間 0 が1発目のミサイルの発射になる */
@@ -81,6 +89,22 @@ public final class EmpSkySignal extends PacketListenerAbstract {
         if (player != null) resend(player);
     }
 
+    static void setDeath(Player player, DeathScene.Signal phase) {
+        if (instance == null) return;
+        UUID id = player.getUniqueId();
+        long base = (normal(player.getWorld().getGameTime()) / DAY + 1) * DAY;
+        // 同じ演出の段を変える時は起点を維持する。
+        instance.deaths.compute(id, (ignored, previous) ->
+                new DeathSignal(phase, Bukkit.getCurrentTick(), previous == null ? base : previous.base()));
+        resend(player);
+    }
+
+    static void clearDeath(UUID id) {
+        if (instance == null || instance.deaths.remove(id) == null) return;
+        Player player = Bukkit.getPlayer(id);
+        if (player != null && player.isOnline()) resend(player);
+    }
+
     @Override
     public void onPacketSend(PacketSendEvent event) {
         if (event.getPacketType() != PacketType.Play.Server.TIME_UPDATE) return;
@@ -88,8 +112,11 @@ public final class EmpSkySignal extends PacketListenerAbstract {
         Signal signal = playerId != null ? signals.get(playerId) : null;
         WrapperPlayServerTimeUpdate packet = new WrapperPlayServerTimeUpdate(event);
 
+        DeathSignal death = playerId == null ? null : deaths.get(playerId);
         long shown;
-        if (signal != null) {
+        if (death != null) {
+            shown = death.phase().worldAge(death.base(), Bukkit.getCurrentTick() - death.startTick());
+        } else if (signal != null) {
             long elapsed = Math.min(Math.max(Bukkit.getCurrentTick() - signal.startTick(), 0), SIGNAL_MAX_TICKS);
             shown = signal.base() + SIGNAL_START + elapsed;
         } else {

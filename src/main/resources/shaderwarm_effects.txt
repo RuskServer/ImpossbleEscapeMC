@@ -8,10 +8,7 @@ control_debug
 dazzle_1
 dazzle_2
 dazzle_3
-death_blackout
-death_fade
-death_impact
-death_recover
+death
 emp_flash
 emp_flash_fade_1
 emp_flash_fade_2
