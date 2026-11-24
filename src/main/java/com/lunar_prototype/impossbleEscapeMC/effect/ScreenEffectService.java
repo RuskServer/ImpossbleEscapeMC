@@ -617,15 +617,31 @@ public final class ScreenEffectService implements Listener {
         return Bukkit.getWorlds().getFirst().getSpawnLocation();
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void captureDeathOrigin(PlayerDeathEvent event) {
+        // 死体生成・レイド終了などの後処理が位置を変える前に確保する。
+        Player player = event.getEntity();
+        ScreenEffectState state = state(player);
+        state.pendingDeathOrigin = player.getLocation().clone();
+        state.pendingRaidDeath = plugin != null && plugin.getRaidModule() != null
+                && plugin.getRaidModule().isInRaid(player);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
         ScreenEffectState state = state(player);
+        Location origin = state.pendingDeathOrigin;
+        boolean raidDeath = state.pendingRaidDeath;
+        state.pendingDeathOrigin = null;
+        state.pendingRaidDeath = false;
+        if (event.isCancelled()) return;
         player.stopSound(DeathScene.SOUND, SoundCategory.MASTER);
         state.death(null);
         EmpSkySignal.clearDeath(player.getUniqueId());
-        DeathScene scene = new DeathScene(player.getLocation(), needsRaidReturn(player));
+        DeathScene scene = new DeathScene(origin != null ? origin : player.getLocation(), raidDeath || needsRaidReturn(player));
         state.deathScene = scene;
+        if (scene.raid) player.getPersistentDataContainer().set(PDCKeys.RAID_DEATH_RETURN, PDCKeys.BOOLEAN, (byte) 1);
         muzzleSignal.clear(player.getUniqueId());
         refresh(player);
         if (scene.raid) Bukkit.getScheduler().runTask(plugin, () -> {
@@ -638,9 +654,12 @@ public final class ScreenEffectService implements Listener {
         Player player = event.getPlayer();
         ScreenEffectState state = state(player);
         DeathScene scene = state.deathScene;
-        if (needsRaidReturn(player)) {
+        if (scene != null && scene.raid) {
+            // 帰還印の有無で死亡地点への復帰を取りこぼさない。別地点からの補正TPはしない。
+            event.setRespawnLocation(scene.origin);
+        } else if (needsRaidReturn(player)) {
             // 切断・再起動で死亡地点の演出がなくなった場合はロビーで復帰。
-            event.setRespawnLocation(scene != null && scene.raid ? scene.origin : lobby());
+            event.setRespawnLocation(lobby());
         }
         if (scene != null) scene.enter(DeathScene.Phase.WAIT_FIELD, Bukkit.getCurrentTick());
         state.awaitingRespawn = false;

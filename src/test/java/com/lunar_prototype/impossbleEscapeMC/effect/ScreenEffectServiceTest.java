@@ -28,18 +28,25 @@ class ScreenEffectServiceTest {
         final Object oldServer, oldInstance;
         final ScreenEffectService service;
         final Player player;
+        final Location location;
         final Method advance;
         Fixture() throws Exception {
             oldServer = field(Bukkit.class, "server").get(null);
             oldInstance = field(ScreenEffectService.class, "instance").get(null);
-            World world = proxy(World.class, (p, m, a) -> {
-                if (m.getName().equals("getGameTime")) return (long) now;
-                throw new AssertionError(m.getName());
+            UUID worldId = UUID.randomUUID();
+            World world = proxy(World.class, (p, m, a) -> switch (m.getName()) {
+                case "getGameTime" -> (long) now;
+                case "getUID" -> worldId;
+                case "equals" -> p == a[0];
+                case "hashCode" -> worldId.hashCode();
+                default -> throw new AssertionError(m.getName());
             });
+            location = new Location(world, 19.25, -33.0, 87.75, 42f, -17f);
             player = proxy(Player.class, (p, m, a) -> switch (m.getName()) {
                 case "getUniqueId" -> id;
                 case "postEffects" -> wire;
                 case "getWorld" -> world;
+                case "getLocation" -> location.clone();
                 case "getListeningPluginChannels" -> nativeMuzzle ? Set.of(MuzzleFlashSignal.CHANNEL) : Set.of();
                 case "sendPluginMessage" -> { muzzlePackets.add((int) ((byte[]) a[2])[0]); yield null; }
                 case "getGameMode" -> GameMode.SURVIVAL;
@@ -90,6 +97,56 @@ class ScreenEffectServiceTest {
         }
     }
     private static Key key(String value) { return Key.key("iem", value); }
+    @Test void pendingRaidRespawnBlocksOtherTeleportsBeforeRespawnButAllowsOwnReturn() throws Exception {
+        try (var fixture = new Fixture()) {
+            var scene = new DeathScene(fixture.location, true);
+            fixture.state().deathScene = scene;
+            var event = new org.bukkit.event.player.PlayerTeleportEvent(fixture.player,
+                    fixture.location.clone(), fixture.location.clone().add(1000, 0, 1000));
+            fixture.service.onDeathSceneTeleport(event);
+            assertTrue(event.isCancelled());
+            scene.moving = true;
+            var internal = new org.bukkit.event.player.PlayerTeleportEvent(fixture.player,
+                    fixture.location.clone(), fixture.location.clone().add(1000, 0, 1000));
+            fixture.service.onDeathSceneTeleport(internal);
+            assertFalse(internal.isCancelled());
+        }
+    }
+
+    @Test void raidRespawnUsesCapturedSiteEvenWithoutReturnMarkerAndNeverTeleports() throws Exception {
+        try (var fixture = new Fixture()) {
+            Location death = fixture.location.clone();
+            var scene = new DeathScene(death, true);
+            fixture.state().deathScene = scene;
+            fixture.state().awaitingRespawn = true;
+            death.add(800, 0, 800); // 元のLocationの変更からも独立させる。
+            var event = new org.bukkit.event.player.PlayerRespawnEvent(fixture.player, death, false);
+            fixture.service.onRespawn(event);
+            assertEquals(fixture.location, event.getRespawnLocation());
+            assertEquals(DeathScene.Phase.WAIT_FIELD, scene.phase);
+            assertTrue(scene.locksPlayer());
+            assertFalse(fixture.state().awaitingRespawn);
+            // このフィクスチャはPDC取得・teleportを許可しない。帰還印と後付けTPに依存しない。
+        }
+    }
+
+    @Test void deathSnapshotSurvivesLaterPositionChangesAndCancelledDeathClearsIt() throws Exception {
+        try (var fixture = new Fixture()) {
+            var damage = proxy(org.bukkit.damage.DamageSource.class, (p, m, a) -> null);
+            var event = new org.bukkit.event.entity.PlayerDeathEvent(fixture.player, damage,
+                    new ArrayList<>(), 0, (net.kyori.adventure.text.Component) null, true);
+            Location original = fixture.location.clone();
+            fixture.service.captureDeathOrigin(event);
+            fixture.location.add(300, 0, 300);
+            assertEquals(original, fixture.state().pendingDeathOrigin);
+            event.setCancelled(true);
+            fixture.service.onDeath(event);
+            assertNull(fixture.state().pendingDeathOrigin);
+            assertFalse(fixture.state().pendingRaidDeath);
+            assertNull(fixture.state().deathScene);
+        }
+    }
+
     @Test void adrenalineRetainsTwentyTickDurationAndNaturalRecovery() throws Exception {
         try (var fixture = new Fixture()) {
             ScreenEffectService.playAdrenaline(fixture.player, 1000);

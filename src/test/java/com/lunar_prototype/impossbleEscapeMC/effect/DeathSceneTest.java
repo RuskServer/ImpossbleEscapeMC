@@ -9,7 +9,7 @@ class DeathSceneTest {
     @Test
     void deathSiteAndLobbyWaitForReadinessWithBoundedFallback() {
         var scene = new DeathScene(null, true);
-        assertFalse(scene.locksPlayer());
+        assertTrue(scene.locksPlayer());
         scene.enter(DeathScene.Phase.WAIT_FIELD, 101);
         assertTrue(scene.locksPlayer());
         assertFalse(scene.readyAtSite(102, false));

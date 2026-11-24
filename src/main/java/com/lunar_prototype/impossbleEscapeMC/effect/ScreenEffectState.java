@@ -14,6 +14,8 @@ final class ScreenEffectState {
     ScreenEffectPlayback playback;
     AdrenalineHeartbeatRecovery recovery;
     DeathScene deathScene;
+    org.bukkit.Location pendingDeathOrigin;
+    boolean pendingRaidDeath;
     private static final Key DEATH = Key.key("iem", "death");
 
     PostEffectStack.Layers layers(int now) {
@@ -56,5 +58,7 @@ final class ScreenEffectState {
         playback = null;
         recovery = null;
         deathScene = null;
+        pendingDeathOrigin = null;
+        pendingRaidDeath = false;
     }
 }

@@ -30,7 +30,7 @@ final class DeathScene {
     boolean moving;
 
     DeathScene(Location origin, boolean raid) {
-        this.origin = origin;
+        this.origin = origin == null ? null : origin.clone();
         this.raid = raid;
     }
 
@@ -49,6 +49,6 @@ final class DeathScene {
         return elapsed(now) >= ARRIVAL_BLACK_TICKS && (!loading || elapsed(now) >= LOAD_TIMEOUT);
     }
     boolean locksPlayer() {
-        return raid && (phase == Phase.WAIT_FIELD || phase == Phase.FIELD || phase == Phase.TRANSFER);
+        return raid && phase != Phase.RETURN;
     }
 }
