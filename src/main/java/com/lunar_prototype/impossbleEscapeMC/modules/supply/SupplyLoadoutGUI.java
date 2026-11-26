@@ -124,8 +124,7 @@ public final class SupplyLoadoutGUI implements Listener {
 
         List<ItemStack> contents = SupplyLoadout.contents(player.getWorld(), weapon, data());
         for (ItemStack item : contents) {
-            Component name = item.getItemMeta().displayName();
-            if (name == null) name = Component.translatable(item.getType().translationKey());
+            Component name = itemName(item);
             // 表示名を独立した札に載せる。実物の詳細はアイコンのツールチップで読める。
             Component description = Component.join(JoinConfiguration.newlines(),
                     itemLines(PlainTextComponentSerializer.plainText().serialize(name), item.getAmount())
@@ -151,6 +150,14 @@ public final class SupplyLoadoutGUI implements Listener {
     }
 
     /** トレーダーやリザルトと同じ品物の札。名前が長い時も数量を隠さない。 */
+    /** データパック銃はcustom_nameではなくitem_nameで名付けられる場合もある。 */
+    static Component itemName(ItemStack item) {
+        var meta = item.getItemMeta();
+        if (meta != null && meta.customName() != null) return meta.customName();
+        if (meta != null && meta.itemName() != null) return meta.itemName();
+        return item.effectiveName();
+    }
+
     static List<DialogLine> itemLines(String name, int amount) {
         DialogLine first = line();
         for (int i = 0; i < PLATE_TILES; i++)

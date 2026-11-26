@@ -185,6 +185,52 @@ public final class RaidResultDialog implements Listener, Startable, Stoppable {
         show(player, session);
     }
 
+    enum Step {
+        LOOT("戦利品", "loot"), REPAIR("修理", "repair"), HANDIN("クエスト納品", "page/handin"), KILLS("キルログ", "page/kills");
+        final String label, action;
+        Step(String label, String action) { this.label = label; this.action = action; }
+    }
+
+    /** 必須ページは残し、現在操作できる納品・修理だけを間に挟む。 */
+    record Navigation(boolean repairs, boolean handIn) {
+        Step afterLoot() { return repairs ? Step.REPAIR : afterRepair(); }
+        Step afterRepair() { return handIn ? Step.HANDIN : Step.KILLS; }
+        Step beforeHandIn() { return repairs ? Step.REPAIR : Step.LOOT; }
+        Step beforeKills() { return handIn ? Step.HANDIN : beforeHandIn(); }
+    }
+
+    private static boolean hasHandIns(Player player) {
+        QuestAutoHandIn auto = autoHandIn(player);
+        return auto != null && !auto.plan().isEmpty();
+    }
+
+    static Navigation navigation(Player player, RaidReport report) {
+        return new Navigation(report.survived()
+                && com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.hasRepairsAfterRaid(player), hasHandIns(player));
+    }
+
+    static void afterLoot(Player player, RaidReport report) {
+        openStep(player, report, navigation(player, report).afterLoot());
+    }
+
+    private static void openStep(Player player, RaidReport report, Step step) {
+        switch (step) {
+            case LOOT -> RaidResultLootGUI.open(player, report);
+            case REPAIR -> {
+                if (!navigation(player, report).repairs()) {
+                    openStep(player, report, hasHandIns(player) ? Step.HANDIN : Step.KILLS);
+                    return;
+                }
+                com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.openAfterRaid(player,
+                        () -> RaidResultLootGUI.open(player, report),
+                        () -> openStep(player, report, hasHandIns(player) ? Step.HANDIN : Step.KILLS),
+                        () -> hasHandIns(player) ? "次へ: クエスト納品" : "次へ: キルログ");
+            }
+            case HANDIN -> showPage(player, report, Page.HANDIN);
+            case KILLS -> showPage(player, report, Page.KILLS);
+        }
+    }
+
     private static void show(Player player, Session session) {
         switch (session.page) {
             case EXP -> showExp(player, session);
@@ -343,26 +389,24 @@ public final class RaidResultDialog implements Listener, Startable, Stoppable {
         QuestAutoHandIn auto = autoHandIn(player);
         List<QuestAutoHandIn.Target> plan = auto != null ? auto.plan() : List.of();
         List<DialogBody> body = new ArrayList<>();
-        // 戦利品の次に修理を挟んだ時 (脱出できて、まだ直す物がある) は、戻ると修理へ
-        boolean repairBack = session.report.survived()
-                && com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.hasRepairsAfterRaid(player);
-        String backLabel = repairBack ? "戻る: 修理" : "戻る: 戦利品";
-        String backAction = repairBack ? "repair" : "loot";
+        if (plan.isEmpty()) {
+            session.page = Page.KILLS;
+            showKills(player, session);
+            return;
+        }
+        Step back = navigation(player, session.report).beforeHandIn();
+        String backLabel = "戻る: " + back.label;
+        String backAction = back.action;
         body.add(header(session.report, backLabel, backAction));
         for (QuestAutoHandIn.Target t : plan) {
             String item = t.sample() != null ? plain(t.sample()) : "";
             body.add(itemRow(t.sample(), join(handInLines(new HandInView(t.quest().getDisplayName(), traderName(t.quest().getTraderId()),
                     item, t.before(), t.after(), t.needed(), t.reportableAfter(), "handin/" + t.quest().getId() + "/" + t.objective())))));
         }
-        if (plan.isEmpty()) {
-            body.add(DialogBody.plainMessage(Component.text("持ち帰った物で納品できる目標はありません", NOTE), BODY_W));
-        } else {
-            body.add(DialogBody.plainMessage(Component.text("納品する物は持ち物・バックパックの中・スタッシュから自動で選びます (FIR の物だけ。持ち込んだ物・支給品は使いません)", NOTE), BODY_W));
-        }
+        body.add(DialogBody.plainMessage(Component.text("納品する物は持ち物・バックパックの中・スタッシュから自動で選びます (FIR の物だけ。持ち込んだ物・支給品は使いません)", NOTE), BODY_W));
         ActionButton next = ActionButton.create(Component.text("次へ: キルログ"), null, 150, action("page/kills"));
-        ActionButton first = plan.isEmpty()
-                ? ActionButton.create(Component.text(backLabel), null, 150, action(backAction))
-                : ActionButton.create(Component.text("まとめて納品  (" + plan.size() + "件)"), Component.text("使う物を確かめてから納品する"), 150, action("bulk"));
+        ActionButton first = ActionButton.create(Component.text("まとめて納品  (" + plan.size() + "件)"),
+                Component.text("使う物を確かめてから納品する"), 150, action("bulk"));
         showDialog(player, session, body, DialogType.confirmation(first, next));
     }
 
@@ -432,7 +476,8 @@ public final class RaidResultDialog implements Listener, Startable, Stoppable {
         RaidReport r = session.report;
         List<RaidReport.Kill> kills = r.kills();
         List<DialogBody> body = new ArrayList<>();
-        body.add(header(r, "戻る: クエスト納品", "page/handin"));
+        Step backStep = navigation(player, r).beforeKills();
+        body.add(header(r, "戻る: " + backStep.label, backStep.action));
 
         DialogLine tabs = line();
         tabs.moveTo(8).box(TRADER, boxGlyph("すべて " + kills.size(), session.killFilter == null ? BOX_TAB_ON : BOX_TAB),
@@ -648,8 +693,7 @@ public final class RaidResultDialog implements Listener, Startable, Stoppable {
             case "repair" -> {
                 stopAnim(session);
                 RaidReport report = session.report;
-                com.lunar_prototype.impossbleEscapeMC.modules.trader.RepairDialog.openAfterRaid(player,
-                        () -> RaidResultLootGUI.open(player, report), () -> showPage(player, report, Page.HANDIN));
+                openStep(player, report, Step.REPAIR);
                 return;
             }
             case "kills" -> session.killFilter = parts.length > 1 && !parts[1].equals("all")

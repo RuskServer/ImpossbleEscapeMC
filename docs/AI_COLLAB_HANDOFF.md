@@ -104,6 +104,12 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-27 — Optional result pages and supply names
+
+- Keep EXP, loot/loss, kills and free equipment pages. Skip quest hand-in when there are no allocations and post-raid repair when there are no eligible repair rows; resolve forward/back labels from current availability and recheck on navigation.
+- Finishing all hand-ins or repairs advances past the now-empty optional page. Trader repair dialogs retain their normal behavior.
+- Free-equipment item labels and dog-tag weapon labels read both custom_name and item_name so datapack weapons retain their weapon names rather than falling back to Crossbow.
+
 ### 2026-11-27 — Slick 3D model
 
 - Slick uses iron_ingot/CMD 31 and the chest equipment asset `iem:slick_3d` with its existing stats. Legacy diamond-chestplate Slicks share the Trooper conversion path, preserving persistent item data on join/inventory open.

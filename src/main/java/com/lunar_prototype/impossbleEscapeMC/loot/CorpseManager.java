@@ -170,7 +170,7 @@ public class CorpseManager {
         
         java.util.List<Component> lore = new java.util.ArrayList<>();
         String killerName = "不明";
-        String weaponName = "素手 / 不明";
+        Component weaponName = Component.text("素手 / 不明");
         
         if (killer != null) {
             if (killer instanceof Player p) {
@@ -186,20 +186,17 @@ public class CorpseManager {
             if (killer.getEquipment() != null) {
                 ItemStack weapon = killer.getEquipment().getItemInMainHand();
                 if (weapon != null && weapon.getType() != Material.AIR) {
-                    if (weapon.hasItemMeta() && weapon.getItemMeta().hasDisplayName()) {
-                        weaponName = Component.text().append(weapon.getItemMeta().displayName()).toString(); // Simple fallback
-                        // More robust way to get display name as string if using Adventure
-                        weaponName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(weapon.getItemMeta().displayName());
-                    } else {
-                        weaponName = weapon.getType().name();
-                    }
+                    var weaponMeta = weapon.getItemMeta();
+                    // データパック銃のitem_nameも読む。素材名へのフォールバックはeffectiveNameに任せる。
+                    weaponName = weaponMeta != null && weaponMeta.customName() != null ? weaponMeta.customName()
+                            : weaponMeta != null && weaponMeta.itemName() != null ? weaponMeta.itemName() : weapon.effectiveName();
                 }
             }
         }
         
         lore.add(Component.text("殺害されたプレイヤー: ", NamedTextColor.GRAY).append(Component.text(victim.getName(), NamedTextColor.WHITE)));
         lore.add(Component.text("殺害した者: ", NamedTextColor.GRAY).append(Component.text(killerName, NamedTextColor.RED)));
-        lore.add(Component.text("使用武器: ", NamedTextColor.GRAY).append(Component.text(weaponName, NamedTextColor.YELLOW)));
+        lore.add(Component.text("使用武器: ", NamedTextColor.GRAY).append(weaponName.color(NamedTextColor.YELLOW)));
         
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");

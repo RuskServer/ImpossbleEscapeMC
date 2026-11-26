@@ -212,6 +212,7 @@ public final class RepairDialog implements Listener, Startable, Stoppable {
         final TraderDefinition trader;
         /** レイドの後の修理の時の、戻る・次へ (トレーダーの画面では null) */
         Runnable back, next;
+        java.util.function.Supplier<String> nextLabel = () -> "次へ: クエスト納品";
         /** 選んでいる行の key (null は開いた時の選び方: この店で直せる物すべて) */
         Set<String> selected;
         /** 今出している行 (押された番号から引く) */
@@ -260,11 +261,16 @@ public final class RepairDialog implements Listener, Startable, Stoppable {
      * レイドから帰った時の修理の画面を開く (結果の画面の、戦利品の次)。back・next は戻る・次へのボタンで開く画面
      */
     public static void openAfterRaid(Player player, Runnable back, Runnable next) {
+        openAfterRaid(player, back, next, () -> "次へ: クエスト納品");
+    }
+
+    public static void openAfterRaid(Player player, Runnable back, Runnable next, java.util.function.Supplier<String> nextLabel) {
         ensureStarted();
         player.closeInventory();
         Session session = new Session(null);
         session.back = back;
         session.next = next;
+        session.nextLabel = nextLabel;
         SESSIONS.put(player.getUniqueId(), session);
         show(player, session);
     }
@@ -294,6 +300,11 @@ public final class RepairDialog implements Listener, Startable, Stoppable {
         if (data == null) return;
 
         List<Row> rows = collect(module, session.trader, player, data);
+        if (session.trader == null && rows.isEmpty() && session.next != null) {
+            SESSIONS.remove(player.getUniqueId(), session);
+            session.next.run();
+            return;
+        }
         session.rows = rows;
         long money = (long) module.getEconomyModule().getBalance(player.getUniqueId());
         int count = 0;
@@ -334,7 +345,7 @@ public final class RepairDialog implements Listener, Startable, Stoppable {
             type = DialogType.multiAction(List.of(go, all, back)).columns(3).exitAction(back).build();
         } else {
             ActionButton back = ActionButton.create(Component.text("戻る: 戦利品"), null, 150, action("back"));
-            ActionButton next = ActionButton.create(Component.text("次へ: クエスト納品"), null, 150, action("next"));
+            ActionButton next = ActionButton.create(Component.text(session.nextLabel.get()), null, 150, action("next"));
             type = DialogType.multiAction(List.of(go, all, back, next)).columns(2).exitAction(next).build();
         }
         player.showDialog(Dialog.create(builder -> builder.empty().base(base).type(type)));
