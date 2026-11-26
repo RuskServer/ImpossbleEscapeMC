@@ -256,6 +256,15 @@ public class RaidModule implements IModule {
         return raid;
     }
 
+    /** 死亡処理からの帰還が終わるまで、パーティー経由を含めて次の出撃に入れない。 */
+    static boolean deploymentBlocked(Player player) {
+        return player.isDead() || com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.isDeathSceneActive(player);
+    }
+
+    private static void sendDeploymentBlocked(Player player) {
+        Messages.chat(player, "iem.raid.deployment_blocked", MessageText.of("iem.raid.deployment_blocked"));
+    }
+
     /** 待機列にいる人を出撃させる (ボスバーを片付けて、出撃できる人だけ) */
     private List<Player> collectQueuedParticipants(String mapId) {
         List<Player> participants = new ArrayList<>();
@@ -267,6 +276,7 @@ public class RaidModule implements IModule {
             if (p == null) continue;
             if (bar != null) p.hideBossBar(bar);
             if (isInRaid(p)) continue;
+            if (deploymentBlocked(p)) { sendDeploymentBlocked(p); continue; }
             // 待機列に入った後で装備を増やせるため、実際の出撃直前にも容量を確認する。
             if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.isOverCapacity(p)) {
                 sendCapacityWarning(p);
@@ -296,6 +306,7 @@ public class RaidModule implements IModule {
         List<Player> participants = new ArrayList<>(collectQueuedParticipants(mapId));
         for (Player p : group) {
             if (participants.contains(p) || isInRaid(p)) continue;
+            if (deploymentBlocked(p)) { sendDeploymentBlocked(p); continue; }
             if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.isOverCapacity(p)) {
                 sendCapacityWarning(p);
                 continue;
@@ -536,6 +547,7 @@ public class RaidModule implements IModule {
         boolean lateJoin = age < LATE_JOIN_WINDOW;
 
         for (Player player : group) {
+            if (deploymentBlocked(player)) { sendDeploymentBlocked(player); return false; }
             // すでにどこかのレイドに参加中かチェック
             for (RaidInstance raid : activeRaids.values()) {
                 if (raid.isParticipant(player.getUniqueId())) {

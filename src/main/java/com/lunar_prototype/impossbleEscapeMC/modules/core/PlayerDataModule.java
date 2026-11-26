@@ -100,6 +100,12 @@ public class PlayerDataModule implements IModule, Listener {
         return dataCache.computeIfAbsent(uuid, this::load);
     }
 
+    /** 読込失敗時の代替データには取引を記録しない。 */
+    public boolean isDataAvailable(UUID uuid) {
+        getPlayerData(uuid);
+        return !loadFailed.contains(uuid);
+    }
+
     private boolean isPendingLogin(UUID uuid) {
         Long since = pendingLogins.get(uuid);
         if (since == null) return false;

@@ -2508,5 +2508,30 @@
     "category": "MARKET",
     "level": "ERROR",
     "channel": "CHAT"
+  },
+  "iem.hideout.travel_blocked": {
+    "category": "HIDEOUT",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.deployment_blocked": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.raid.deployment_failed": {
+    "category": "RAID",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.inventory.backpack_unreadable": {
+    "category": "INVENTORY",
+    "level": "WARNING",
+    "channel": "CHAT"
+  },
+  "iem.market.seller_unavailable": {
+    "category": "MARKET",
+    "level": "WARNING",
+    "channel": "CHAT"
   }
 }

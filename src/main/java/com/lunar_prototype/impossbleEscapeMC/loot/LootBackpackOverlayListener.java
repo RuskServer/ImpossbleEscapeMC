@@ -88,9 +88,11 @@ public class LootBackpackOverlayListener implements Listener {
         if (!backpackModule.isBackpackItem(offhand)) return false;
 
         endSession(player, LootSessionEndReason.OTHER);
+        Inventory contents = backpackModule.loadBackpackInventory(offhand);
+        if (contents == null) return false;
 
         String backpackUid = backpackModule.ensureBackpackUid(offhand);
-        OverlaySession session = new OverlaySession(backpackUid, backpackModule.loadBackpackInventory(offhand), hostInventory, title);
+        OverlaySession session = new OverlaySession(backpackUid, contents, hostInventory, title);
         snapshotInitialState(player, session);
         sessions.put(player.getUniqueId(), session);
 

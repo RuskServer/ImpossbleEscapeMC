@@ -92,7 +92,7 @@ public class RaidItemListener implements Listener {
         BackpackModule backpackModule = plugin.getServiceContainer().get(BackpackModule.class);
         if (backpackModule != null && backpackModule.isBackpackItem(item)) {
             Inventory inv = backpackModule.loadBackpackInventory(item);
-            for (ItemStack content : inv.getContents()) {
+            if (inv != null) for (ItemStack content : inv.getContents()) {
                 applyFIRRecursive(content);
             }
             backpackModule.saveBackpackInventory(item, inv);

@@ -371,7 +371,7 @@ public class SearchGUI implements Listener, Stoppable {
             var backpackModule = backpacks.get();
             if (backpackModule != null && backpackModule.isBackpackItem(toMove)) {
                 Inventory inv = backpackModule.loadBackpackInventory(toMove);
-                for (ItemStack content : inv.getContents()) {
+                if (inv != null) for (ItemStack content : inv.getContents()) {
                     if (content != null && !content.getType().isAir()) {
                         ItemFactory.applyFIR(content);
                     }

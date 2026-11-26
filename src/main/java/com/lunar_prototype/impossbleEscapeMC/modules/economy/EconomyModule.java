@@ -31,18 +31,23 @@ public class EconomyModule implements IModule {
     public void onDisable() {
     }
 
+    public boolean canTransact(UUID uuid) {
+        return dataModule.isDataAvailable(uuid);
+    }
+
     /**
      * 所持金を取得
      */
     public double getBalance(UUID uuid) {
-        return dataModule.getPlayerData(uuid).getBalance();
+        return canTransact(uuid) ? dataModule.getPlayerData(uuid).getBalance() : 0;
     }
 
     /**
      * 入金
      */
     public void deposit(UUID uuid, double amount) {
-        if (amount <= 0) return;
+        if (!Double.isFinite(amount) || amount <= 0) return;
+        if (!canTransact(uuid)) throw new IllegalStateException("Player data is unavailable for deposit: " + uuid);
         PlayerData data = dataModule.getPlayerData(uuid);
         data.setBalance(data.getBalance() + amount);
         dataModule.saveAsync(uuid);
@@ -52,7 +57,7 @@ public class EconomyModule implements IModule {
      * 出金
      */
     public boolean withdraw(UUID uuid, double amount) {
-        if (amount <= 0) return false;
+        if (!Double.isFinite(amount) || amount <= 0 || !canTransact(uuid)) return false;
         PlayerData data = dataModule.getPlayerData(uuid);
         double current = data.getBalance();
         if (current < amount) return false;
@@ -66,6 +71,6 @@ public class EconomyModule implements IModule {
      * 指定額以上の所持金があるか確認
      */
     public boolean has(UUID uuid, double amount) {
-        return getBalance(uuid) >= amount;
+        return Double.isFinite(amount) && amount >= 0 && canTransact(uuid) && getBalance(uuid) >= amount;
     }
 }

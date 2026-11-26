@@ -1075,5 +1075,10 @@
   "iem.raid.raidresults.view": "[結果を見る]",
   "iem.raid.boss_activity": "<gold>[無線] <white><arg:0>：この地区で高価値目標の活動が確認されている。護衛を伴っている可能性がある。周囲を警戒しろ。",
   "iem.market.unavailable": "マーケットは現在利用できません。管理者に連絡してください。",
-  "iem.market.raid_blocked": "レイド中はマーケットを利用できません。脱出後に利用してください。"
+  "iem.market.raid_blocked": "レイド中はマーケットを利用できません。脱出後に利用してください。",
+  "iem.hideout.travel_blocked": "レイド中・死亡演出中は隠れ家へ移動できません。",
+  "iem.raid.deployment_blocked": "死亡・帰還処理が終わってから出撃してください。",
+  "iem.raid.deployment_failed": "出撃先へ移動できなかったため、参加を取り消しました。",
+  "iem.inventory.backpack_unreadable": "バックパックを読み込めませんでした。中身を保護するため開きません。",
+  "iem.market.seller_unavailable": "出品者のデータを確認できないため、購入を中止しました。"
 }

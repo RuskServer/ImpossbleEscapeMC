@@ -92,22 +92,25 @@ public class BackpackModule implements IModule {
             Messages.chat(player, "iem.inventory.backpackmodule.openbackpackfromslot.notice_001", MessageText.of("iem.inventory.backpackmodule.openbackpackfromslot.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpackmodule.openbackpackfromslot.notice_001.text_01"))));
             return false;
         }
-        openBackpack(player, item);
+        if (!openBackpack(player, item)) return false;
         // UID を必ずアイテム側に残す (保存時に UID で持ち物から探し直すため)
         player.getInventory().setItem(slot, item);
         return true;
     }
 
-    public void openBackpack(Player player, ItemStack backpackItem) {
-        if (!isBackpackItem(backpackItem)) return;
-
-        String uid = ensureBackpackUid(backpackItem);
+    public boolean openBackpack(Player player, ItemStack backpackItem) {
+        if (!isBackpackItem(backpackItem)) return false;
         int size = getBackpackSize(backpackItem);
 
         LoadInventoryResult loadResult = loadInventory(backpackItem, size);
+        if (loadResult.inventory == null) {
+            Messages.chat(player, "iem.inventory.backpack_unreadable", MessageText.of("iem.inventory.backpack_unreadable"));
+            return false;
+        }
+        String uid = ensureBackpackUid(backpackItem);
         if (loadResult.hasOverflowItems) {
             Messages.chat(player, "iem.inventory.backpackmodule.openbackpack.notice_001", MessageText.of("iem.inventory.backpackmodule.openbackpack.notice_001", MessageText.payload(MessageText.of("iem.inventory.backpackmodule.openbackpack.notice_001.text_01"))));
-            return;
+            return false;
         }
 
         Inventory inv = loadResult.inventory;
@@ -132,6 +135,7 @@ public class BackpackModule implements IModule {
         // ジッパーを開ける音 (本人にだけ聞こえる。リソースパックの IEM_shader/tools/backpack_sounds.py)
         player.playSound(player.getLocation(), "iem:backpack.open", org.bukkit.SoundCategory.PLAYERS, 0.8f,
                 0.95f + java.util.concurrent.ThreadLocalRandom.current().nextFloat() * 0.1f);
+        return true;
     }
 
     public void handleClose(Player player, Inventory inventory) {
@@ -176,9 +180,8 @@ public class BackpackModule implements IModule {
     public int calculateEffectiveContentsWeight(ItemStack backpackItem) {
         if (!isBackpackItem(backpackItem)) return 0;
 
-        int size = getBackpackSize(backpackItem);
-        LoadInventoryResult loadResult = loadInventory(backpackItem, size);
-        Inventory inventory = loadResult.inventory;
+        Inventory inventory = loadBackpackInventory(backpackItem);
+        if (inventory == null) return 0;
 
         int raw = 0;
         for (ItemStack item : inventory.getContents()) {
@@ -194,7 +197,7 @@ public class BackpackModule implements IModule {
 
     /** 開いているバッグは保存前の実体を使い、納品後の再保存で中身が復活しないようにする。 */
     public Inventory getOpenBackpackInventory(Player player, ItemStack item) {
-        if (!isBackpackItem(item) || !item.hasItemMeta()) return null;
+        if (player == null || !isBackpackItem(item) || !item.hasItemMeta()) return null;
         String uid = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.BACKPACK_UID, PDCKeys.STRING);
         Inventory top = player.getOpenInventory().getTopInventory();
         if (uid != null && top.getHolder() instanceof BackpackInventoryHolder holder
@@ -202,6 +205,7 @@ public class BackpackModule implements IModule {
         return null;
     }
 
+    /** 保存済みの全容量を読む。読めない場合は null とし、呼び出し元で操作を中止する。 */
     public Inventory loadBackpackInventory(Player player, ItemStack item) {
         Inventory open = getOpenBackpackInventory(player, item);
         if (open != null) return open;
@@ -215,20 +219,19 @@ public class BackpackModule implements IModule {
             if (old != null && !old.isEmpty()) return SerializationUtil.deserializeInventory(old, Component.text("Backpack"));
             return Bukkit.createInventory(null, getBackpackSize(item));
         } catch (Exception e) {
-            plugin.getLogger().warning("納品元のバッグを読めませんでした: " + e.getMessage());
+            plugin.getLogger().warning("バックパックを読めませんでした: " + e.getMessage());
             return null;
         }
     }
 
     public Inventory loadBackpackInventory(ItemStack backpackItem) {
-        if (!isBackpackItem(backpackItem)) {
-            return Bukkit.createInventory(null, 9, Component.text("Backpack"));
-        }
-        return loadInventory(backpackItem, getBackpackSize(backpackItem)).inventory;
+        return loadBackpackInventory(null, backpackItem);
     }
 
     public void saveBackpackInventory(ItemStack backpackItem, Inventory inventory) {
         if (!isBackpackItem(backpackItem) || inventory == null) return;
+        // 読めない元データを空の画面などで上書きしない。
+        if (loadBackpackInventory(backpackItem) == null) return;
 
         ItemMeta meta = backpackItem.getItemMeta();
         if (meta == null) return;
@@ -267,57 +270,16 @@ public class BackpackModule implements IModule {
     }
 
     private LoadInventoryResult loadInventory(ItemStack backpackItem, int size) {
-        ItemMeta meta = backpackItem.getItemMeta();
-        if (meta == null) return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
-
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        Inventory loaded = null;
-
-        try {
-            // 新形式 (BYTE_ARRAY)
-            if (pdc.has(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY)) {
-                byte[] bytes = pdc.get(PDCKeys.BACKPACK_DATA, PDCKeys.BYTE_ARRAY);
-                if (bytes != null) {
-                    loaded = SerializationUtil.deserializeInventoryFromBytes(bytes, Component.text("Backpack"));
-                }
-            } 
-            // 旧形式 (STRING)
-            else if (pdc.has(PDCKeys.BACKPACK_DATA, PDCKeys.STRING)) {
-                String data = pdc.get(PDCKeys.BACKPACK_DATA, PDCKeys.STRING);
-                if (data != null && !data.isEmpty()) {
-                    loaded = SerializationUtil.deserializeInventory(data, Component.text("Backpack"));
-                }
-            }
-
-            if (loaded == null) {
-                return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
-            }
-
-            if (loaded.getSize() == size) {
-                return new LoadInventoryResult(loaded, false);
-            }
-
-            Inventory resized = Bukkit.createInventory(null, size);
-            for (int i = 0; i < Math.min(size, loaded.getSize()); i++) {
-                resized.setItem(i, loaded.getItem(i));
-            }
-
-            boolean hasOverflowItems = false;
-            if (loaded.getSize() > size) {
-                for (int i = size; i < loaded.getSize(); i++) {
-                    ItemStack overflow = loaded.getItem(i);
-                    if (overflow != null && !overflow.getType().isAir()) {
-                        hasOverflowItems = true;
-                        break;
-                    }
-                }
-            }
-
-            return new LoadInventoryResult(resized, hasOverflowItems);
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to load backpack inventory: " + e.getMessage());
-            return new LoadInventoryResult(Bukkit.createInventory(null, size), false);
+        Inventory loaded = loadBackpackInventory(backpackItem);
+        if (loaded == null || loaded.getSize() == size) return new LoadInventoryResult(loaded, false);
+        Inventory resized = Bukkit.createInventory(null, size);
+        for (int i = 0; i < Math.min(size, loaded.getSize()); i++) resized.setItem(i, loaded.getItem(i));
+        boolean overflow = false;
+        for (int i = size; i < loaded.getSize(); i++) {
+            ItemStack item = loaded.getItem(i);
+            if (item != null && !item.getType().isAir()) { overflow = true; break; }
         }
+        return new LoadInventoryResult(resized, overflow);
     }
 
     private BackpackStats getStats(ItemStack backpackItem) {

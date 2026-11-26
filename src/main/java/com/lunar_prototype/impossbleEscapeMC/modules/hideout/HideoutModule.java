@@ -120,6 +120,11 @@ public class HideoutModule implements IModule {
 
     /** 隠れ家へ移す (初めてなら場所を割り当てて建てる)。パーティーのメンバーはリーダーの隠れ家に集まる。移せなかった時は、その理由をプレイヤーに伝えて false */
     public boolean visit(Player player) {
+        if (player.isDead() || raids != null && raids.isInRaid(player)
+                || com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.isDeathSceneActive(player)) {
+            Messages.chat(player, "iem.hideout.travel_blocked", MessageText.of("iem.hideout.travel_blocked"));
+            return false;
+        }
         if (layout.base() == null) {
             Messages.chat(player, "iem.hideout.hideoutmodule.visit.notice_001", MessageText.of("iem.hideout.hideoutmodule.visit.notice_001", MessageText.payload(MessageText.of("iem.hideout.hideoutmodule.visit.notice_001.text_01").color(NamedTextColor.RED))));
             return false;

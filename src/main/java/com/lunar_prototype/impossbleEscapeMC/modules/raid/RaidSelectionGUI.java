@@ -145,7 +145,7 @@ public class RaidSelectionGUI implements Listener, Startable, Stoppable {
     }
 
     public static void open(Player player) {
-        if (!player.isOnline() || player.isDead() || module.isInRaid(player)) return;
+        if (!player.isOnline() || RaidModule.deploymentBlocked(player) || module.isInRaid(player)) return;
         // チェスト画面 (PDA など) から開いた時は、先に閉じる (ダイアログが画面を置き換えても、サーバーは開いたままとみなすため)
         player.closeInventory();
         Session session = new Session();
@@ -172,7 +172,7 @@ public class RaidSelectionGUI implements Listener, Startable, Stoppable {
         int now = Bukkit.getCurrentTick();
         SESSIONS.entrySet().removeIf(entry -> {
             Player player = Bukkit.getPlayer(entry.getKey());
-            if (player == null || !player.isOnline() || player.isDead() || now - entry.getValue().openedTick > SESSION_TIMEOUT_TICKS) return true;
+            if (player == null || !player.isOnline() || RaidModule.deploymentBlocked(player) || now - entry.getValue().openedTick > SESSION_TIMEOUT_TICKS) return true;
             if (module.isInRaid(player)) {
                 player.closeDialog();
                 return true;
@@ -371,7 +371,7 @@ public class RaidSelectionGUI implements Listener, Startable, Stoppable {
     }
 
     private static RaidDeploymentApproval.Snapshot deploymentSnapshot(Player player, String mapId) {
-        if (!player.isOnline() || player.isDead() || module.isInRaid(player) || module.getMap(mapId) == null) return null;
+        if (!player.isOnline() || RaidModule.deploymentBlocked(player) || module.isInRaid(player) || module.getMap(mapId) == null) return null;
         PartyModule parties = instance.parties;
         Party party = parties != null ? parties.getParty(player.getUniqueId()) : null;
         if (party != null && !party.isLeader(player.getUniqueId())) return null;
@@ -490,7 +490,7 @@ public class RaidSelectionGUI implements Listener, Startable, Stoppable {
 
     private void handle(Player player, String action) {
         if (!player.isOnline()) return;
-        if (player.isDead() || module.isInRaid(player)) {
+        if (RaidModule.deploymentBlocked(player) || module.isInRaid(player)) {
             SESSIONS.remove(player.getUniqueId());
             player.closeDialog();
             return;

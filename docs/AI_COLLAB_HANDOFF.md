@@ -104,6 +104,14 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-27 — Review fixes for raid access and data protection
+
+- Reject hideout travel during raids and death scenes at the public visit entry. Block death-scene participants at deployment admission, queue collection and transfer; only register participants after a successful teleport.
+- Treat unreadable backpacks as unavailable, preserve their original payload and refuse opening or overwriting them. Container consumers handle read failure, and stored overflow remains intact outside the opening GUI.
+- Refuse economic mutations against failed player-data loads and check seller availability before market purchases. Settled purchases and refunds are not refunded again if later UI notification fails.
+- Copy hit details to both PvP death and kill reports before clearing the victim's hit history. Add JUnit regressions for the affected paths.
+
+
 ### 2026-11-23 — Timed death scene
 
 - A raid death is resolved normally before the victim respawns as a locked spectator at the death location. Transfer to the lobby under full blackout, restore Adventure mode, and hold the result dialog until the reveal completes. A player PDC marker recovers interrupted returns on respawn or login.

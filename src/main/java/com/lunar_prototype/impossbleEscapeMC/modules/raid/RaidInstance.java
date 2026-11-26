@@ -826,12 +826,27 @@ public class RaidInstance {
         owner.markFinished(map.getMapId(), player.getUniqueId());
         result.lostValue = broughtInValue(player);
         grant(result, EXP_DEAD, levelModule != null ? levelModule.getRaidOutcomeReward(playerLevel, "DEAD") : 10L);
+        recordDeathCombat(player, result);
+        players.remove(player.getUniqueId());
+        hud.hide(player);
+        resetCameraDistance(player);
+        showIndividualRaidResult(player);
+        mapManager.updateMapSlot(player);
+
+        if (players.isEmpty() && !hasDisconnectedMembers()) {
+            endReason = "all_dead_or_extracted";
+            endRaid();
+        }
+    }
+
+    /** 双方のリザルトを書き終えてから命中履歴を破棄する。 */
+    private void recordDeathCombat(Player player, RaidResult result) {
+        LevelModule levelModule = leveling;
         RaidKillTracker.Hit lastHit = RaidKillTracker.lastHitOn(player.getUniqueId());
         if (lastHit != null) {
             result.death = new RaidReport.Kill(result.endMillis - startTime, lastHit.shooterName(), lastHit.shooterKind(),
                     lastHit.weapon(), lastHit.weaponName(), lastHit.ammoName(), lastHit.distance(), lastHit.part());
         }
-        RaidKillTracker.forget(player.getUniqueId());
 
         // PMCキルの集計 (もしキラーがプレイヤーなら)
         Player killer = player.getKiller();
@@ -843,16 +858,7 @@ public class RaidInstance {
             killerResult.kills.add(killRecord(player.getUniqueId(), killer.getUniqueId(), RaidReport.Kind.PMC, player.getName()));
         }
 
-        players.remove(player.getUniqueId());
-        hud.hide(player);
-        resetCameraDistance(player);
-        showIndividualRaidResult(player);
-        mapManager.updateMapSlot(player);
-
-        if (players.isEmpty() && !hasDisconnectedMembers()) {
-            endReason = "all_dead_or_extracted";
-            endRaid();
-        }
+        RaidKillTracker.forget(player.getUniqueId());
     }
 
     private boolean hasDisconnectedMembers() {
@@ -951,22 +957,24 @@ public class RaidInstance {
         }
 
         for (Player player : group) {
+            if (RaidModule.deploymentBlocked(player)) continue;
+            if (centerSpawn == null) {
+                Messages.chat(player, "iem.raid.deployment_failed", MessageText.of("iem.raid.deployment_failed"));
+                continue;
+            }
+            double offsetX = (random.nextDouble() - 0.5) * 1.5;
+            double offsetZ = (random.nextDouble() - 0.5) * 1.5;
+            Location spawnLoc = centerSpawn.clone().add(offsetX, 0.1, offsetZ);
+            if (!player.teleport(spawnLoc)) {
+                Messages.chat(player, "iem.raid.deployment_failed", MessageText.of("iem.raid.deployment_failed"));
+                continue;
+            }
             players.add(player.getUniqueId());
             raidMembers.add(player.getUniqueId());
             scavAmmoClassCaps.put(player.getUniqueId(), ammoClassCap);
             getOrCreateRaidResult(player.getUniqueId());
             markRaidBroughtInItems(player);
             player.setGameMode(org.bukkit.GameMode.ADVENTURE);
-
-            if (centerSpawn != null) {
-                // パーティーメンバー同士が重ならないよう、わずかなオフセットを加える
-                double offsetX = (random.nextDouble() - 0.5) * 1.5;
-                double offsetZ = (random.nextDouble() - 0.5) * 1.5;
-                Location spawnLoc = centerSpawn.clone().add(offsetX, 0.1, offsetZ); // 足が埋まらないよう少し浮かせる
-                
-                player.teleport(spawnLoc);
-            }
-            boolean protect = centerSpawn != null;
 
             setRaidCameraDistance(player);
             mapManager.updateMapSlot(player);
@@ -985,7 +993,7 @@ public class RaidInstance {
                     Messages.chat(joined, "iem.raid.raidinstance.spawngroup.notice_002", MessageText.of("iem.raid.raidinstance.spawngroup.notice_002", MessageText.payload(MessageText.of("iem.raid.raidinstance.spawngroup.notice_002.text_01", conditions.describe()).color(NamedTextColor.GRAY))));
                 }
                 showExtractions(joined);
-                if (protect) applySpawnProtection(joined);
+                applySpawnProtection(joined);
             });
         }
     }
@@ -1217,7 +1225,7 @@ public class RaidInstance {
         if (backpackModule == null || !backpackModule.isBackpackItem(item)) return;
 
         Inventory backpackInventory = backpackModule.loadBackpackInventory(item);
-        for (ItemStack nested : backpackInventory.getContents()) {
+        if (backpackInventory != null) for (ItemStack nested : backpackInventory.getContents()) {
             visitItemRecursive(nested, consumer, backpackModule);
         }
         backpackModule.saveBackpackInventory(item, backpackInventory);

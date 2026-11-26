@@ -207,17 +207,24 @@ public class MarketMainGUI implements Listener {
                 e.printStackTrace();
             }
         } else {
-            // 購入
+            // 出品者のデータを確かめてから、買い手・出品を変更する。
+            if (!economy.canTransact(listing.getSellerUuid())) {
+                Messages.chat(player, "iem.market.seller_unavailable", MessageText.of("iem.market.seller_unavailable"));
+                return;
+            }
             if (economy.withdraw(player.getUniqueId(), listing.getPrice())) {
+                boolean settled = false;
                 try {
                     ItemStack item = SerializationUtil.deserializeItemStack(listing.getItemBase64());
                     if (com.lunar_prototype.impossbleEscapeMC.modules.inventory.CostSlotManager.tryAddAll(player,item)) {
                         if (!marketModule.removeListing(listing.getId())) {
                             player.getInventory().setStorageContents(before);
                             economy.deposit(player.getUniqueId(), listing.getPrice());
+                            settled = true;
                             return;
                         }
                         economy.deposit(listing.getSellerUuid(), listing.getPrice());
+                        settled = true;
                         
                         Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_004", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_004", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_004.text_01", listing.getPrice()).color(NamedTextColor.GREEN))));
                         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
@@ -232,10 +239,14 @@ public class MarketMainGUI implements Listener {
                     } else {
                         // 返金
                         economy.deposit(player.getUniqueId(), listing.getPrice());
+                        settled = true;
                         Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_006", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_006", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_006.text_01").color(NamedTextColor.RED))));
                     }
                 } catch (Exception e) {
-                    economy.deposit(player.getUniqueId(), listing.getPrice());
+                    if (!settled) {
+                        player.getInventory().setStorageContents(before);
+                        economy.deposit(player.getUniqueId(), listing.getPrice());
+                    }
                     Messages.chat(player, "iem.market.marketmaingui.handlelistinginteraction.notice_007", MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_007", MessageText.payload(MessageText.of("iem.market.marketmaingui.handlelistinginteraction.notice_007.text_01").color(NamedTextColor.RED))));
                     e.printStackTrace();
                 }

@@ -463,7 +463,9 @@ public class TraderGUI implements Listener {
 
     /** 中に物の入ったバックパックか */
     private boolean hasContents(ItemStack item) {
-        return backpacks != null && backpacks.isBackpackItem(item) && !backpacks.loadBackpackInventory(item).isEmpty();
+        if (backpacks == null || !backpacks.isBackpackItem(item)) return false;
+        Inventory contents = backpacks.loadBackpackInventory(item);
+        return contents == null || !contents.isEmpty();
     }
 
     /** 売る欄に、中に物の入ったバッグがあるか */
