@@ -223,10 +223,9 @@ public final class ScavRagdollModule implements IModule,Listener {
             if(present(inventory.getItem(0)))gear.add(new Visual(this,RagdollPhysics.Part.HEAD,inventory.getItem(0),ItemDisplay.ItemDisplayTransform.HEAD,new Vector3f(),new Quaternionf().rotateY((float)Math.PI),.625f));
             ItemStack chest=inventory.getItem(1);
             if(present(chest)) {
-                String material=switch(Objects.toString(itemId(chest),"")){case "Slick"->"diamond";case "Trooper"->"trooper";default->"mf_untar";};
+                String material=switch(Objects.toString(itemId(chest),"")){case "Slick"->"slick";case "Trooper"->"trooper";default->"mf_untar";};
                 gear.add(new Visual(this,RagdollPhysics.Part.TORSO,model("armor/"+material+"/torso"),ItemDisplay.ItemDisplayTransform.NONE,new Vector3f(),new Quaternionf(),1));
-                if(material.equals("diamond"))for(var part:List.of(RagdollPhysics.Part.RIGHT_ARM,RagdollPhysics.Part.LEFT_ARM))
-                    gear.add(new Visual(this,part,model("armor/"+material+"/"+part.name().toLowerCase(Locale.ROOT)),ItemDisplay.ItemDisplayTransform.NONE,new Vector3f(),new Quaternionf(),1));
+
             }
             for(int slot=4;slot<=5;slot++)if(present(inventory.getItem(slot))) {
                 boolean right=slot==4;

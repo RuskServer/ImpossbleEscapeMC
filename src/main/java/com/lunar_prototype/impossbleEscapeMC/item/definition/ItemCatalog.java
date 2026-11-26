@@ -113,10 +113,11 @@ public final class ItemCatalog {
         altyn.armorStats.coverage = List.of(ArmorStats.ProtectedZone.HEAD, ArmorStats.ProtectedZone.FACE);
         items.add(altyn);
 
-        ItemDefinition slick = item("Slick", "ARMOR", Material.DIAMOND_CHESTPLATE, "§6[Slick] アーマー", 4, 0, 600, 6500, 9);
+        ItemDefinition slick = item("Slick", "ARMOR", Material.IRON_INGOT, "§6[Slick] アーマー", 4, 31, 600, 6500, 9);
         // weight: 6.5kg
         // cost: 3x3相当。プレートキャリアのみだが貴重品としての占有
-        slick.armorStats = armor(4, 1, null, null);
+        slick.armorStats = armor(4, 0, "CHEST", null);
+        slick.armorStats.model = "iem:slick_3d";
         items.add(slick);
 
         // --- クラス3 (Mid Range) ---

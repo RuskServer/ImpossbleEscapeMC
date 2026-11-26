@@ -51,13 +51,13 @@ public class TooltipStyleMigration implements Listener {
     static boolean fix(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
         boolean upgradedUntar = fixLegacyUntar(item);
-        boolean upgradedTrooper = fixLegacyTrooper(item);
+        boolean upgradedChestArmor = fixLegacyChestArmor(item);
         ItemMeta meta = item.getItemMeta();
         boolean changed = fixTooltipStyle(meta) | fixAmmoModel(meta);
         if (changed) item.setItemMeta(meta);
         boolean armorLoreUpdated = fixArmorCoverageLore(item);
         boolean ammoLoreUpdated = fixAmmoDamageLore(item);
-        return upgradedUntar || upgradedTrooper || changed || armorLoreUpdated || ammoLoreUpdated;
+        return upgradedUntar || upgradedChestArmor || changed || armorLoreUpdated || ammoLoreUpdated;
     }
 
     private static boolean fixArmorCoverageLore(ItemStack item) {
@@ -83,11 +83,12 @@ public class TooltipStyleMigration implements Listener {
         return true;
     }
 
-    /** 旧鉄チェスト版も残り耐久やFIRなどを維持して新しい3D装備へ移す。 */
-    private static boolean fixLegacyTrooper(ItemStack item) {
-        if (item.getType() != Material.IRON_CHESTPLATE) return false;
+    /** 旧チェストプレート版も残り耐久やFIRなどを維持して新しい3D装備へ移す。 */
+    private static boolean fixLegacyChestArmor(ItemStack item) {
         String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
-        if (!"Trooper".equals(id)) return false;
+        Material legacy = "Trooper".equals(id) ? Material.IRON_CHESTPLATE
+                : "Slick".equals(id) ? Material.DIAMOND_CHESTPLATE : null;
+        if (legacy == null || item.getType() != legacy) return false;
         var def = ItemRegistry.get(id);
         if (def == null || def.armorStats == null || def.armorStats.model == null) return false;
         item.setType(Material.matchMaterial(def.material));

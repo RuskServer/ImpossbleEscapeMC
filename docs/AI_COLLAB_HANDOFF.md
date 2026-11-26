@@ -104,6 +104,11 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-27 — Slick 3D model
+
+- Slick uses iron_ingot/CMD 31 and the chest equipment asset `iem:slick_3d` with its existing stats. Legacy diamond-chestplate Slicks share the Trooper conversion path, preserving persistent item data on join/inventory open.
+- SCAV ragdolls use the new Slick torso without vanilla diamond arm overlays. The resource pack supplies the matching inventory dispatch and corpse model.
+
 ### 2026-11-27 — Trooper 3D model
 
 - Trooper now uses iron_ingot/CMD 30 with the chest equipment asset `iem:trooper_3d`, retaining class, durability, weight, cost, protection and economy values. Existing iron-chestplate Troopers are converted on join/inventory open while preserving persistent item data.
