@@ -104,6 +104,11 @@ In `config.yml`:
 
 ## Change Log
 
+### 2026-11-27 — Trooper 3D model
+
+- Trooper now uses iron_ingot/CMD 30 with the chest equipment asset `iem:trooper_3d`, retaining class, durability, weight, cost, protection and economy values. Existing iron-chestplate Troopers are converted on join/inventory open while preserving persistent item data.
+- SCAV ragdolls use the new Trooper torso model without the old iron shoulder/arm overlays. The matching resource pack supplies the inventory model dispatch and corpse torso item.
+
 ### 2026-11-27 — Review fixes for raid access and data protection
 
 - Reject hideout travel during raids and death scenes at the public visit entry. Block death-scene participants at deployment admission, queue collection and transfer; only register participants after a successful teleport.

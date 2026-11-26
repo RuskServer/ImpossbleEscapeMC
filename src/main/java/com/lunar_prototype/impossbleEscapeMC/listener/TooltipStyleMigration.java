@@ -51,12 +51,13 @@ public class TooltipStyleMigration implements Listener {
     static boolean fix(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
         boolean upgradedUntar = fixLegacyUntar(item);
+        boolean upgradedTrooper = fixLegacyTrooper(item);
         ItemMeta meta = item.getItemMeta();
         boolean changed = fixTooltipStyle(meta) | fixAmmoModel(meta);
         if (changed) item.setItemMeta(meta);
         boolean armorLoreUpdated = fixArmorCoverageLore(item);
         boolean ammoLoreUpdated = fixAmmoDamageLore(item);
-        return upgradedUntar || changed || armorLoreUpdated || ammoLoreUpdated;
+        return upgradedUntar || upgradedTrooper || changed || armorLoreUpdated || ammoLoreUpdated;
     }
 
     private static boolean fixArmorCoverageLore(ItemStack item) {
@@ -79,6 +80,27 @@ public class TooltipStyleMigration implements Listener {
         java.util.List<String> lore = item.getItemMeta().getLore();
         if (lore != null && lore.contains(expected)) return false;
         ItemFactory.updateLore(item);
+        return true;
+    }
+
+    /** 旧鉄チェスト版も残り耐久やFIRなどを維持して新しい3D装備へ移す。 */
+    private static boolean fixLegacyTrooper(ItemStack item) {
+        if (item.getType() != Material.IRON_CHESTPLATE) return false;
+        String id = item.getItemMeta().getPersistentDataContainer().get(PDCKeys.ITEM_ID, PDCKeys.STRING);
+        if (!"Trooper".equals(id)) return false;
+        var def = ItemRegistry.get(id);
+        if (def == null || def.armorStats == null || def.armorStats.model == null) return false;
+        item.setType(Material.matchMaterial(def.material));
+        ItemMeta meta = item.getItemMeta();
+        meta.setCustomModelData(def.customModelData);
+        var equippable = meta.getEquippable();
+        equippable.setSlot(EquipmentSlot.CHEST);
+        equippable.setModel(NamespacedKey.fromString(def.armorStats.model));
+        equippable.setDispensable(def.armorStats.dispensable);
+        equippable.setSwappable(def.armorStats.swappable);
+        equippable.setDamageOnHurt(def.armorStats.damageOnHurt);
+        meta.setEquippable(equippable);
+        item.setItemMeta(meta);
         return true;
     }
 

@@ -144,10 +144,11 @@ public final class ItemCatalog {
         pvs_14.description = "FAST-MTに装着する暗視装置。バイザーとは同時に装着できない。";
         items.add(pvs_14);
 
-        ItemDefinition trooper = item("Trooper", "ARMOR", Material.IRON_CHESTPLATE, "§b[Trooper] アーマー", 3, 0, 500, 8200, 6);
+        ItemDefinition trooper = item("Trooper", "ARMOR", Material.IRON_INGOT, "§b[Trooper] アーマー", 3, 30, 500, 8200, 6);
         // weight: 8.2kg
         // cost: 腹部保護も含めた大型モデルのためコスト増
-        trooper.armorStats = armor(3, 2, null, null);
+        trooper.armorStats = armor(3, 0, "CHEST", null);
+        trooper.armorStats.model = "iem:trooper_3d";
         items.add(trooper);
 
         // --- クラス2 (Low End / Standard) ---
