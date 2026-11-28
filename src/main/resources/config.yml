@@ -83,3 +83,6 @@ messages:
 # コンストラクタ依存・遅延依存・既存モジュール起動順をログへ表示
 di:
   debug: false
+
+# リソースパックの compiler_improved でスキンを生成する銃ID
+gun-skins: [ak74, m4a1]

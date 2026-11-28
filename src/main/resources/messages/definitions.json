@@ -2533,5 +2533,25 @@
     "category": "MARKET",
     "level": "WARNING",
     "channel": "CHAT"
+  },
+  "iem.inventory.gunskin.held": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.gunskin.usage": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.gunskin.conflict": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
+  },
+  "iem.inventory.gunskin.applied": {
+    "category": "INVENTORY",
+    "level": "INFO",
+    "channel": "CHAT"
   }
 }

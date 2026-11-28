@@ -234,7 +234,7 @@ public final class ImpossbleEscapeMC extends JavaPlugin {
         // モジュールに属さないコマンド (モジュールのコマンドは各モジュールの onEnable で登録簿に入れる)
         commands.register(new GetItemCommand(), new ScavCommand(this), new AttachmentCommand(), new ItemReloadCommand(this),
                 new ShaderDebugCommand(), new com.lunar_prototype.impossbleEscapeMC.modules.acoustics.AcousticsCommand(),
-                new DatapackTestCommand(), new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager),
+                new GunSkinCommand(getConfig().getStringList("gun-skins")), new DatapackTestCommand(), new com.lunar_prototype.impossbleEscapeMC.minigame.MinigameCommand(minigameManager),
                 new com.lunar_prototype.impossbleEscapeMC.loot.LootCommand(this));
         commands.install(this);
 

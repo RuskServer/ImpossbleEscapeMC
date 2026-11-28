@@ -1080,5 +1080,9 @@
   "iem.raid.deployment_blocked": "Wait for death and return processing to finish before deploying.",
   "iem.raid.deployment_failed": "Deployment was cancelled because the destination could not be reached.",
   "iem.inventory.backpack_unreadable": "The backpack could not be read. It remains closed to protect its contents.",
-  "iem.market.seller_unavailable": "Purchase cancelled because the seller’s data is unavailable."
+  "iem.market.seller_unavailable": "Purchase cancelled because the seller’s data is unavailable.",
+  "iem.inventory.gunskin.held": "Hold a supported gun in your main hand.",
+  "iem.inventory.gunskin.usage": "/gunskin <arg:0>",
+  "iem.inventory.gunskin.conflict": "This gun already has a different dye color.",
+  "iem.inventory.gunskin.applied": "<arg:0> skin: <arg:1>"
 }

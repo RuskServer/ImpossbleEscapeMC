@@ -1080,5 +1080,9 @@
   "iem.raid.deployment_blocked": 0,
   "iem.raid.deployment_failed": 0,
   "iem.inventory.backpack_unreadable": 0,
-  "iem.market.seller_unavailable": 0
+  "iem.market.seller_unavailable": 0,
+  "iem.inventory.gunskin.held": 0,
+  "iem.inventory.gunskin.usage": 1,
+  "iem.inventory.gunskin.conflict": 0,
+  "iem.inventory.gunskin.applied": 2
 }

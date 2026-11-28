@@ -1080,5 +1080,9 @@
   "iem.raid.deployment_blocked": "死亡・帰還処理が終わってから出撃してください。",
   "iem.raid.deployment_failed": "出撃先へ移動できなかったため、参加を取り消しました。",
   "iem.inventory.backpack_unreadable": "バックパックを読み込めませんでした。中身を保護するため開きません。",
-  "iem.market.seller_unavailable": "出品者のデータを確認できないため、購入を中止しました。"
+  "iem.market.seller_unavailable": "出品者のデータを確認できないため、購入を中止しました。",
+  "iem.inventory.gunskin.held": "対応する銃をメインハンドに持ってください。",
+  "iem.inventory.gunskin.usage": "/gunskin <arg:0>",
+  "iem.inventory.gunskin.conflict": "この銃には別の染色が設定されています。",
+  "iem.inventory.gunskin.applied": "<arg:0> のスキン：<arg:1>"
 }
