@@ -8,6 +8,7 @@ import com.lunar_prototype.impossbleEscapeMC.gui.UiIcon;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -92,6 +93,17 @@ public final class QuestDialogLayoutTest {
                 new QuestDialog.NoteView("SVD 販売解放", TextColor.color(0xE0D6AA), "Kovacs で買えるようになる", NOTE));
         for (QuestDialog.NoteView n : notes) checkLines(QuestDialog.noteLines(n), TerminalFont.ROW_LINE_W, "note " + n.text());
 
+        for (int count : new int[]{1,99,9999}) {
+            var bulkHeader=new QuestDialog.ListHeaderView("KOVACS",1,1,1,
+                    List.of(new QuestDialog.Chip("まとめて納品  "+count+"件",AMBER,"bulk","")),tabs);
+            checkLines(QuestDialog.listHeaderLines(bulkHeader),QuestDialog.HEADER_W,"bulk control "+count);
+            String labels=PlainTextComponentSerializer.plainText().serialize(QuestDialog.listHeader(bulkHeader));
+            check(labels.contains("まとめて納品  "+count+"件"),"bulk count remains visible");
+            check(labels.indexOf(TerminalFont.CONTROL_HEADER_BASE)>=0,"bulk uses control trough header");
+            check(labels.indexOf(TerminalFont.controlGlyph("まとめて納品  "+count+"件",false))>=0,"bulk uses raised control button");
+        }
+        String pdaLabels=PlainTextComponentSerializer.plainText().serialize(QuestDialog.listHeader(pdaHeader));
+        check(pdaLabels.indexOf(TerminalFont.CONTROL_HEADER_BASE)<0,"PDA header keeps existing artwork");
         String dump = com.lunar_prototype.impossbleEscapeMC.testing.PreviewOutput.path(getClass());
         if (dump != null) {
             var gson = GsonComponentSerializer.gson();

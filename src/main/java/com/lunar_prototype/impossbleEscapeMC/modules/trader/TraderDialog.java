@@ -66,7 +66,7 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_SOLD;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_TEXT_FONT;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_W;
-import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_BASE;
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILES;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILE_W;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.LOCK;
@@ -502,7 +502,7 @@ public final class TraderDialog implements Listener, Startable, Stoppable {
     static List<DialogLine> headerLines(HeaderView v) {
         // 1 行目: 筐体の絵、名前、液晶 (所持金・容量・Lv)
         DialogLine line1 = line();
-        for (int i = 0; i < HEADER_TILES; i++) line1.stamp(TRADER_FONT, (char) (HEADER_BASE + i), HEADER_TILE_W, i * HEADER_TILE_W);
+        for (int i = 0; i < HEADER_TILES; i++) line1.stamp(TRADER_FONT, (char) (TerminalFont.CONTROL_HEADER_BASE + i), HEADER_TILE_W, i * HEADER_TILE_W);
         line1.moveTo(8).text(FontWidths.truncate(v.name(), LCD_X - 16), INK);
         line1.moveTo(LCD_X + 5).text("₽ ", AMBER_DIM).text(String.format("%,d", v.money()), AMBER);
         line1.shift(8).text("容量 ", AMBER_DIM).text(v.used() + "/" + v.capacity(), v.used() < v.capacity() ? OK : NG);
@@ -514,9 +514,9 @@ public final class TraderDialog implements Listener, Startable, Stoppable {
 
         // 3 行目: 並び・未解放・修理の札
         DialogLine line2 = line().moveTo(8);
-        line2.box("並び: " + v.sortLabel() + " ▼", BOX_CHIP, AMBER, click("sort"),
-                Component.text("並びを替える (種類 → 口径 → 価格 → 貫通)", NOTE)).shift(4);
-        line2.box(v.hideLocked() ? "未解放: 隠す" : "未解放: 表示", BOX_CHIP, NOTE, click("locked"),
+        line2.controlBox("並べ替え: " + v.sortLabel() + " ",true,AMBER,click("sort"),
+                Component.text("クリックで切り替え (種類 → 口径 → 価格 → 貫通)", NOTE)).shift(4);
+        line2.controlBox(v.hideLocked() ? "未解放: 隠す" : "未解放: 表示",false,INK,click("locked"),
                 Component.text(v.hideLocked() ? "今買えない品物も並べる" : "今買えない品物を隠す", NOTE)).shift(4);
         if (v.repairHover() != null) line2.box("修理", BOX_CHIP, NOTE, click("repair"), Component.text(v.repairHover(), NOTE));
         line2.moveTo(HEADER_W);

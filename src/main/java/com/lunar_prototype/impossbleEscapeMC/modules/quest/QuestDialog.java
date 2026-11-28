@@ -85,6 +85,7 @@ import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.CHIP_W;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.DETAIL_BASE;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.DETAIL_TILES;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_BASE;
+import com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILES;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.HEADER_TILE_W;
 import static com.lunar_prototype.impossbleEscapeMC.gui.TerminalFont.LOCK;
@@ -480,7 +481,9 @@ public final class QuestDialog implements Listener, Startable, Stoppable {
     /** 一覧の上の端末の行 (テストで、どの行も途中で幅を超えないことを確かめる) */
     static List<DialogLine> listHeaderLines(ListHeaderView v) {
         DialogLine line1 = line();
-        for (int i = 0; i < HEADER_TILES; i++) line1.stamp(TRADER_FONT, (char) (HEADER_BASE + i), HEADER_TILE_W, i * HEADER_TILE_W);
+        boolean bulk=v.chips().stream().anyMatch(chip->"bulk".equals(chip.action()));
+        char headerBase=bulk?TerminalFont.CONTROL_HEADER_BASE:HEADER_BASE;
+        for (int i = 0; i < HEADER_TILES; i++) line1.stamp(TRADER_FONT, (char) (headerBase + i), HEADER_TILE_W, i * HEADER_TILE_W);
         line1.moveTo(8).text(FontWidths.truncate(v.name(), LCD_X - 21), INK);
         line1.moveTo(LCD_X).text("報告可 ", AMBER_DIM).text(String.valueOf(v.reportable()), v.reportable() > 0 ? AMBER : DIM);
         line1.shift(8).text("進行中 ", AMBER_DIM).text(String.valueOf(v.active()), v.active() > 0 ? AMBER : DIM);
@@ -489,8 +492,11 @@ public final class QuestDialog implements Listener, Startable, Stoppable {
 
         DialogLine line3 = line().moveTo(8);
         for (Chip chip : v.chips()) {
-            if (line3.x + boxWidth(chip.label()) > HEADER_ART_W - 6) break;
-            line3.box(chip.label(), BOX_CHIP, chip.color(), click(chip.action()), Component.text(chip.hover(), NOTE)).shift(4);
+            boolean control="bulk".equals(chip.action());
+            int width=control?TerminalFont.controlArtWidth(chip.label(),false):boxWidth(chip.label());
+            if (line3.x + width > HEADER_ART_W - 6) break;
+            if(control)line3.controlBox(chip.label(),false,chip.color(),click(chip.action()),Component.text(chip.hover(),NOTE)).shift(4);
+            else line3.box(chip.label(), BOX_CHIP, chip.color(), click(chip.action()), Component.text(chip.hover(), NOTE)).shift(4);
         }
         line3.moveTo(HEADER_W);
 

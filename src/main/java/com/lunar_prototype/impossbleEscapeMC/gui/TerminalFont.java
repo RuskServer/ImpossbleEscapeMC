@@ -39,6 +39,9 @@ public final class TerminalFont {
     /** タブ・札の箱 (+ 幅の番号 * 3 + 種類) */
     public static final char BOX_BASE = '';
     public static final int BOX_TAB = 0, BOX_TAB_ON = 1, BOX_CHIP = 2;
+    /** 操作欄の溝付き端末、ランプ付きボタン、循環切り替えの印。 */
+    public static final char CONTROL_HEADER_BASE='\uE180', CONTROL_BOX_BASE='\uE190', CYCLE='\uE1A0';
+    public static final int CYCLE_W=7;
     private static final int[] BOX_WIDTHS = {24, 32, 40, 48, 56, 64, 72, 80, 96, 112};
 
     // ---- iem:quest ----
@@ -98,6 +101,15 @@ public final class TerminalFont {
     /** その字が入る箱の字 (kind: BOX_TAB・BOX_TAB_ON・BOX_CHIP) */
     public static char boxGlyph(String label, int kind) {
         return (char) (BOX_BASE + boxIndex(FontWidths.width(label)) * 3 + kind);
+    }
+
+    /** 文字に加え、ランプ8pxと循環印の送り8pxを確保する。 */
+    public static int controlArtWidth(String label, boolean cycle) {
+        return BOX_WIDTHS[boxIndex(FontWidths.width(label)+8+(cycle?CYCLE_W+1:0))];
+    }
+
+    public static char controlGlyph(String label, boolean cycle) {
+        return (char)(CONTROL_BOX_BASE+boxIndex(FontWidths.width(label)+8+(cycle?CYCLE_W+1:0)));
     }
 
     /** n だけ進む (負なら戻る) 空白の文字列 */

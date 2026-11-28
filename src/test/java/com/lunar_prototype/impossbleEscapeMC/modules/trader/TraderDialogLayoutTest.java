@@ -96,6 +96,20 @@ public final class TraderDialogLayoutTest {
         for (DialogLine l : TraderDialog.headerLines(header)) {
             check(l.max <= TraderDialog.HEADER_W && l.x == TraderDialog.HEADER_W, "header line " + l.max + " / " + l.x);
         }
+        // 最長の設定名と表示切替でも、ランプ・循環印・修理まで1行に収まる。
+        for (TraderDialog.Sort sort : TraderDialog.Sort.values()) {
+            for (boolean hideLocked : new boolean[]{false,true}) {
+                var variant=new TraderDialog.HeaderView(header.name(),header.money(),header.used(),header.capacity(),
+                        header.level(),sort.label,hideLocked,header.repairHover(),header.tabs());
+                for (DialogLine controlLine : TraderDialog.headerLines(variant)) {
+                    check(controlLine.max<=TraderDialog.HEADER_W&&controlLine.x==TraderDialog.HEADER_W,"control row width "+sort+" / "+hideLocked);
+                }
+                String labels=PlainTextComponentSerializer.plainText().serialize(TraderDialog.header(variant));
+                check(labels.contains("並べ替え: "+sort.label),"explicit sort control label");
+                check(labels.indexOf(TerminalFont.CYCLE)>=0&&!labels.contains("▼"),"dedicated cycle icon instead of dropdown arrow");
+                check(labels.indexOf(TerminalFont.CONTROL_HEADER_BASE)>=0,"trader-only control header");
+            }
+        }
         for (TraderDialog.RowView row : rows) {
             for (DialogLine l : TraderDialog.rowLines(row)) {
                 check(l.max <= TerminalFont.ROW_LINE_W && l.x == TerminalFont.ROW_LINE_W, "row line " + row.name() + " " + l.max + " / " + l.x);

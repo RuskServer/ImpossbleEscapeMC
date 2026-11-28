@@ -114,6 +114,17 @@ public final class DialogLine {
         return this;
     }
 
+    /** ランプ付き操作ボタン。背景・文字・任意の循環印は同じクリック先を持つ。 */
+    public DialogLine controlBox(String label,boolean cycle,TextColor color,ClickEvent action,Component hover) {
+        int start=x;
+        int width=TerminalFont.controlArtWidth(label,cycle);
+        int textWidth=FontWidths.width(label)+(cycle?TerminalFont.CYCLE_W+1:0);
+        glyph(TerminalFont.TRADER_FONT,TerminalFont.controlGlyph(label,cycle),width,action,hover);
+        moveTo(start+(width-textWidth+8)/2).text(label,color,action,hover);
+        if(cycle)glyph(TerminalFont.TRADER_FONT,TerminalFont.CYCLE,TerminalFont.CYCLE_W,color,action,hover);
+        return moveTo(start+width);
+    }
+
     /** 右端を right にそろえて字を書く */
     public DialogLine textRight(String s, TextColor color, int right) {
         return moveTo(right - FontWidths.width(s)).text(s, color);
