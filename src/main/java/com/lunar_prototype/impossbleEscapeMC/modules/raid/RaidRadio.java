@@ -63,17 +63,19 @@ final class RaidRadio {
             Messages.chat(p, "iem.raid.raidradio.tick.notice_001", MessageText.of("iem.raid.raidradio.tick.notice_001", MessageText.payload(MessageText.of("iem.raid.raidradio.tick.notice_001.text_01", zone.name()).color(NamedTextColor.GOLD))));
         }
         if(state.takeZone(now))play(p,ZONE,"そこは交戦報告の多い区域だ。周囲をよく確認しろ。");
-        else if(state.takeItem(now))play(p,ITEM,"それが探してたものだ。なくさずに持って帰ってくれ。");
     }
     void discovered(Player p,ItemStack item) {
         if(!enabled||p.isDead()||p.getGameMode()==GameMode.SPECTATOR||!map.isWorld(p.getWorld()))return;
+        if(com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.isPlaying(p,com.lunar_prototype.impossbleEscapeMC.effect.ScreenEffectService.PDA_INTRO))return;
         QuestModule quests=questService.get();
         if(players==null||quests==null)return;
         var data=players.getPlayerData(p.getUniqueId());
         // 検索中のコンテナ品は、まだ取得時のFIR処理を受けていない。実物は変更せず取得後の資格で確認する。
         ItemStack eligible=item.clone();
         com.lunar_prototype.impossbleEscapeMC.item.factory.ItemFactory.applyFIR(eligible);
-        if(data!=null&&QuestAutoHandIn.usable(data,quests,eligible))state(p).discover(QuestAutoHandIn.itemIdOf(eligible),Bukkit.getCurrentTick());
+        if(data!=null&&QuestAutoHandIn.usable(data,quests,eligible)
+                &&state(p).discover(QuestAutoHandIn.itemIdOf(eligible),Bukkit.getCurrentTick()))
+            play(p,ITEM,"それが探してたものだ。なくさずに持って帰ってくれ。");
     }
     private void play(Player p,String sound,String subtitle) {
         p.playSound(p,sound,SoundCategory.MASTER,0.9f,1.0f);
@@ -102,7 +104,8 @@ final class RaidRadio {
             bossStates.put(p.getUniqueId(),new RaidBossAlertState(boss==null?"高価値目標":boss.name(),Bukkit.getCurrentTick(),true));
         }
         else if(kind.equals("zone")){zoneNames.put(p.getUniqueId(),"区域表示テスト");state(p).previewZone(Bukkit.getCurrentTick());}
-        else state(p).discover("preview-"+Bukkit.getCurrentTick(),Bukkit.getCurrentTick());
+        else if(state(p).discover("preview-"+Bukkit.getCurrentTick(),Bukkit.getCurrentTick()))
+            play(p,ITEM,"それが探してたものだ。なくさずに持って帰ってくれ。");
     }
     void clear(){states.clear();zoneNames.clear();bossStates.clear();}
     void remove(Player p) {

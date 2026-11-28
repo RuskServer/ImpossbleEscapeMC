@@ -1,52 +1,79 @@
 package com.lunar_prototype.impossbleEscapeMC.modules.raid;
 
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public final class RaidRadioStateTest {
-    @Test
-    @org.junit.jupiter.api.DisplayName("entry starts dwell timer")
-    void entryStartsDwellTimer() throws Exception {
+    @Test void stableEntryAndReentryStillControlZoneVoice() {
         var s=new RaidRadioState();
-        check(!s.observeZone("factory",100),"entry starts dwell timer");
-        check(!s.observeZone("factory",119),"no warning on brief boundary contact");
-        check(s.observeZone("factory",120),"stable entry produces one alert");
-        check(!s.observeZone("factory",200),"remaining inside never repeats warning");
-        check(s.takeZone(120)&&!s.takeZone(121),"one queued zone voice");
-        s.discover("ram",125);
-        check(!s.takeItem(140)&&!s.takeItem(259),"item waits for reveal effect and earlier radio to finish");
-        check(s.takeItem(260),"pending item voice plays after zone voice");
-        s.discover("ram",1000);
-        check(!s.takeItem(1020),"same type does not repeat within raid");
-        s.observeZone(null,300);
-        s.observeZone("factory",301);
-        check(!s.observeZone("factory",321),"reentry cooldown suppresses repeated zone alert");
-        check(!s.observeZone("factory",1400),"cooldown expiry alone cannot retrigger while inside");
-        s.observeZone(null,1401);
-        s.observeZone("factory",1402);
-        check(s.observeZone("factory",1422),"later genuine entry can warn again");
-        s.discover("drill",1423);
+        assertFalse(s.observeZone("factory",100));
+        assertFalse(s.observeZone("factory",119));
+        assertTrue(s.observeZone("factory",120));
+        assertFalse(s.observeZone("factory",200));
+        assertTrue(s.takeZone(120));assertFalse(s.takeZone(121));
+        s.observeZone(null,300);s.observeZone("factory",301);
+        assertFalse(s.observeZone("factory",321));
+        assertFalse(s.observeZone("factory",1400));
+        s.observeZone(null,1401);s.observeZone("factory",1402);
+        assertTrue(s.observeZone("factory",1422));
         s.urgent(1424,200);
-        check(!s.takeZone(1630)&&!s.takeItem(1630),"urgent end sequence cancels stale lower-priority voices");
-        s.suspend();
-        s.discover("ram",2000);
-        check(!s.takeItem(2020),"rejoining the same raid does not forget discovered item types");
-        check(s.frame(2020)==-1,"leaving clears presentation");
+        assertFalse(s.takeZone(1630));
     }
 
-    @Test
-    @org.junit.jupiter.api.DisplayName("stale discovery cannot speak long after event")
-    void staleDiscoveryCannotSpeakLongAfterEvent() throws Exception {
-        var expiry=new RaidRadioState();
-        expiry.discover("docs",0);
-        check(!expiry.takeItem(301),"stale discovery cannot speak long after event");
+    @Test void revealSpeaksImmediatelyAndCooldownExpiresAtTwentySeconds() {
+        var s=new RaidRadioState();
+        assertTrue(s.discover("ram",100));
+        assertFalse(s.discover("drill",100),"simultaneous reveals share one voice");
+        assertFalse(s.discover("docs",499),"still inside the 400-tick cooldown");
+        assertTrue(s.idle(499),"suppressed reveals do not reserve another voice");
+        assertTrue(s.discover("drill",500),"a new reveal at exactly twenty seconds can speak");
+        assertFalse(s.discover("ram",1000),"already announced item types remain deduplicated");
     }
 
-    @Test
-    @org.junit.jupiter.api.DisplayName("animation start")
-    void animationStart() throws Exception {
-        check(RaidRadioState.frameAt(-1)==-1&&RaidRadioState.frameAt(0)==0,"animation start");
-        check(RaidRadioState.frameAt(15)==7&&RaidRadioState.frameAt(79)==7,"opening then stable hold");
-        check(RaidRadioState.frameAt(80)==8&&RaidRadioState.frameAt(99)==11&&RaidRadioState.frameAt(100)==-1,"finite fade and clear");
+    @Test void suppressedRevealsDoNotExtendCooldownOrConsumeAnotherItemType() {
+        var s=new RaidRadioState();
+        assertTrue(s.discover("ram",0));
+        assertFalse(s.discover("docs",399));
+        assertTrue(s.discover("docs",400),"suppressed discovery is eligible when searched again");
+        assertTrue(s.idle(800),"nothing is queued after cooldown");
     }
-    private static void check(boolean ok,String message){ org.junit.jupiter.api.Assertions.assertTrue(ok, message); }
+
+    @Test void zoneAndUrgentRadioDropDiscoveryInsteadOfQueuingIt() {
+        var s=new RaidRadioState();
+        s.observeZone("factory",0);assertTrue(s.observeZone("factory",20));
+        assertFalse(s.discover("ram",20),"pending zone voice has priority");
+        assertTrue(s.takeZone(20));
+        assertFalse(s.discover("ram",21),"playing zone voice has priority");
+        assertTrue(s.idle(160));
+        assertTrue(s.discover("ram",160),"only a new reveal starts voice after zone ends");
+        s.urgent(600,200);
+        assertFalse(s.discover("drill",799));
+        assertTrue(s.discover("drill",800));
+    }
+
+    @Test void cooldownIsPerPlayerAndSurvivesRejoiningSameRaid() {
+        var first=new RaidRadioState();var second=new RaidRadioState();
+        assertTrue(first.discover("ram",0));
+        assertTrue(second.discover("ram",1),"another player has an independent cooldown");
+        first.suspend();
+        assertEquals(-1,first.frame(200));
+        assertFalse(first.discover("drill",399),"leaving does not reset cooldown");
+        assertTrue(first.discover("drill",400));
+        assertFalse(first.discover("ram",1000),"leaving does not reset item deduplication");
+    }
+
+    @Test void expiredZoneNotificationDoesNotBlockNewReveal() {
+        var s=new RaidRadioState();
+        s.observeZone("factory",0);assertTrue(s.observeZone("factory",20));
+        assertTrue(s.discover("docs",180));
+        assertFalse(s.takeZone(180));
+        assertFalse(new RaidRadioState().discover(null,0));
+    }
+
+    @Test void animationStart() {
+        assertEquals(-1,RaidRadioState.frameAt(-1));assertEquals(0,RaidRadioState.frameAt(0));
+        assertEquals(7,RaidRadioState.frameAt(15));assertEquals(7,RaidRadioState.frameAt(79));
+        assertEquals(8,RaidRadioState.frameAt(80));assertEquals(11,RaidRadioState.frameAt(99));
+        assertEquals(-1,RaidRadioState.frameAt(100));
+    }
 }

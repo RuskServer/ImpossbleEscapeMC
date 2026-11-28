@@ -5,11 +5,12 @@ import java.util.Set;
 
 /** 無線の重複・重なりと、区域境界での連打を抑える。1人・1レイドごとの状態。 */
 final class RaidRadioState {
+    private static final int ITEM_COOLDOWN_TICKS=20*20;
     private final Set<String> discovered=new HashSet<>();
     private String zone;
     private int zoneSince, zoneCooldownUntil, busyUntil, itemCooldownUntil;
-    private boolean entered, pendingZone, pendingItem;
-    private int zoneDeadline,itemDeadline,itemReadyAt;
+    private boolean entered, pendingZone;
+    private int zoneDeadline;
     private int alertStarted=-1;
 
     boolean observeZone(String id,int now) {
@@ -22,8 +23,11 @@ final class RaidRadioState {
         return true;
     }
     String zone(){return zone;}
-    void discover(String id,int now) {
-        if(id!=null&&discovered.add(id)){if(!pendingItem)itemReadyAt=now+18;pendingItem=true;itemDeadline=now+300;}
+    /** 判明した瞬間だけ通知する。CD中・他の無線中の発見は予約しない。 */
+    boolean discover(String id,int now) {
+        if(id==null||now<itemCooldownUntil||now<busyUntil||(pendingZone&&now<zoneDeadline))return false;
+        if(!discovered.add(id))return false;
+        itemCooldownUntil=now+ITEM_COOLDOWN_TICKS;busyUntil=now+100;return true;
     }
     boolean idle(int now){return now>=busyUntil;}
     boolean takeZone(int now) {
@@ -31,13 +35,8 @@ final class RaidRadioState {
         if(!pendingZone||now<busyUntil)return false;
         pendingZone=false;busyUntil=now+140;return true;
     }
-    boolean takeItem(int now) {
-        if(now>=itemDeadline)pendingItem=false;
-        if(!pendingItem||now<itemReadyAt||now<busyUntil||now<itemCooldownUntil)return false;
-        pendingItem=false;itemCooldownUntil=now+600;busyUntil=now+100;return true;
-    }
-    void urgent(int now,int duration) {busyUntil=Math.max(busyUntil,now+duration);pendingItem=false;pendingZone=false;}
-    void suspend(){zone=null;entered=false;pendingItem=false;pendingZone=false;alertStarted=-1;busyUntil=0;}
+    void urgent(int now,int duration) {busyUntil=Math.max(busyUntil,now+duration);pendingZone=false;}
+    void suspend(){zone=null;entered=false;pendingZone=false;alertStarted=-1;busyUntil=0;}
     void previewZone(int now){alertStarted=now;pendingZone=true;zoneDeadline=now+160;}
     int frame(int now){return alertStarted<0?-1:frameAt(now-alertStarted);}
     static int frameAt(int age) {

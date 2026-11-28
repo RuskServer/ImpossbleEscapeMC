@@ -427,7 +427,7 @@ public class SearchGUI implements Listener, Stoppable {
             updateInventory(top, source);
             ItemStack acquired=sourceItem.clone();
             acquired.setAmount(movedAmount);
-            Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.LootItemRevealEvent(player,acquired));
+            Bukkit.getPluginManager().callEvent(new com.lunar_prototype.impossbleEscapeMC.loot.event.LootItemRevealEvent(player,acquired,false));
         } else {
             startSearching(player, top, holder, source, slot);
         }
